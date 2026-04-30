@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #006d32;
+  --primary-dark: #005224;
+  --secondary: #064e3b;
+  --accent: #10b981;
+  --bg: #f5f7f6;
+  --card: #ffffff;
+  --text: #1a1c1c;
+  --border: #cbd5e1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: "Public Sans", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
+/* Shared form style */
+.form-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.form-input::placeholder {
+  color: #94a3b8;
+}
+
+.form-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(0, 109, 50, 0.12);
+}
+
+/* SPA form style */
+.spa-input {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.75rem;
+  outline: none;
+}
+
+.spa-input:focus {
+  border-color: #18b36b;
+  box-shadow: 0 0 0 1px rgba(24, 179, 107, 0.18);
+}
+
+/* Toast animation */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease;
+}
+
+/* CKEditor fasTrack styling */
+.ckeditor-wrapper .ck.ck-editor {
+  font-size: 12px;
+}
+
+.ckeditor-wrapper .ck.ck-toolbar {
+  border: 0 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  background: #f7f7f7 !important;
+}
+
+.ckeditor-wrapper .ck.ck-editor__main > .ck-editor__editable {
+  border: 0 !important;
+  min-height: 140px;
+  padding: 12px 18px !important;
+  line-height: 1.6;
+  font-size: 12px;
+}
+
+.ckeditor-wrapper .ck-editor__editable ul,
+.ckeditor-wrapper .ck-editor__editable ol {
+  padding-left: 1.75rem !important;
+  margin: 0.5rem 0 !important;
+}
+
+.ckeditor-wrapper .ck-editor__editable li {
+  margin-bottom: 4px;
+}
+
+.ckeditor-wrapper .ck-editor__editable h1,
+.ckeditor-wrapper .ck-editor__editable h2,
+.ckeditor-wrapper .ck-editor__editable h3 {
+  margin: 0.5rem 0;
+  font-weight: 700;
+}

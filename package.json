@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@maptiler/geocoding-control": "^3.0.0",
+    "maplibre-gl": "^5.24.0"
+  }
+}
