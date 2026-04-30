@@ -86,7 +86,7 @@ function SittingApplicationPage() {
               <Field label="Locality / Address" required>
                 <input
                   className="spa-input"
-                  defaultValue="1ST FLOOR, LOT 3786, BLOCK 207 KCLD 225, JALAN ANGSA, KUCHING"
+                  defaultValue="Muzium Kucing, Jalan Semariang, Petra Jaya, Kuching, Sarawak, Malaysia"
                 />
               </Field>
 
