@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-
-from .models import Application
+from rest_framework.parsers import MultiPartParser, FormParser
+from .models import Application, SupportingDocument
 from .serializers import (
     ApplicationListSerializer,
     ApplicationDetailSerializer,
@@ -11,6 +11,33 @@ from .serializers import (
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @action(detail=True, methods=["post"])
+    def upload_document(self, request, pk=None):
+        application = self.get_object()
+
+        uploaded_file = request.FILES.get("file")
+        title = request.data.get("title", "Document")
+
+        if not uploaded_file:
+            return Response(
+                {"error": "No file uploaded."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        document = SupportingDocument.objects.create(
+            application=application,
+            title=title,
+            file=uploaded_file,
+        )
+
+        serializer = SupportingDocumentSerializer(
+            document,
+            context={"request": request},
+        )
+
+        return Response(serializer.data)
 
     def get_serializer_class(self):
         if self.action == "list":

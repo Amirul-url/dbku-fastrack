@@ -19,19 +19,29 @@ class Application(models.Model):
     )
 
     reference_no = models.CharField(max_length=50, unique=True, blank=True)
+
     applicant = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="applications",
     )
+
     application_type = models.CharField(
         max_length=50,
         choices=APPLICATION_TYPE_CHOICES,
         default="sitting_application",
     )
+
     title = models.CharField(max_length=255, blank=True)
-    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="draft")
+
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default="draft",
+    )
+
     current_step = models.PositiveIntegerField(default=1)
+
     form_data = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -44,7 +54,27 @@ class Application(models.Model):
         if not self.reference_no:
             last_id = Application.objects.count() + 1
             self.reference_no = f"FT-{last_id:05d}"
+
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.reference_no} - {self.title or self.application_type}"
+
+
+class SupportingDocument(models.Model):
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="supporting_documents",
+    )
+
+    title = models.CharField(max_length=255)
+
+    file = models.FileField(
+        upload_to="supporting_documents/"
+    )
+
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
