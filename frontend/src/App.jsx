@@ -22,7 +22,19 @@ import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import UserApplicationsPage from "./pages/applications/UserApplicationsPage";
 import ApplicationsPage from "./pages/applications/ApplicationsPage";
 import ApplicationDetailPage from "./pages/applications/ApplicationDetailPage";
+
+/* APPLICATION STEPS */
 import SittingApplicationPage from "./pages/applications/steps/SittingApplicationPage";
+import ClientDepartmentPage from "./pages/applications/steps/ClientDepartmentPage";
+import SubmittingPersonPage from "./pages/applications/steps/SubmittingPersonPage";
+import LandDetailsPage from "./pages/applications/steps/LandDetailsPage";
+import BuildingPlanPage from "./pages/applications/steps/BuildingPlanPage";
+import ProposalAnalysisPage from "./pages/applications/steps/ProposalAnalysisPage";
+import SiteInspectionPage from "./pages/applications/steps/SiteInspectionPage";
+import BuildingPlanChecklistPage from "./pages/applications/steps/BuildingPlanChecklistPage";
+import PrintFormPage from "./pages/applications/steps/PrintFormPage";
+import SupportingDocumentPage from "./pages/applications/steps/SupportingDocumentPage";
+import DeclarationPage from "./pages/applications/steps/DeclarationPage";
 
 /* OTHER */
 import ReportsPage from "./pages/reports/ReportsPage";
@@ -56,6 +68,7 @@ function PrivateRoute({ children }) {
   if (!isAuthenticated()) {
     return <Navigate to="/login/malaysian" replace />;
   }
+
   return children;
 }
 
@@ -97,7 +110,10 @@ function App() {
         <Route path="/login/non-malaysian" element={<LoginNonMalaysian />} />
 
         <Route path="/register/malaysian" element={<RegisterMalaysian />} />
-        <Route path="/register/non-malaysian" element={<RegisterNonMalaysian />} />
+        <Route
+          path="/register/non-malaysian"
+          element={<RegisterNonMalaysian />}
+        />
 
         {/* ===== HOME ===== */}
         <Route
@@ -128,7 +144,7 @@ function App() {
           }
         />
 
-        {/* ===== APPLICATION ===== */}
+        {/* ===== USER APPLICATION LIST ===== */}
         <Route
           path="/applications"
           element={
@@ -138,6 +154,7 @@ function App() {
           }
         />
 
+        {/* ===== ADMIN APPLICATION LIST ===== */}
         <Route
           path="/admin/applications"
           element={
@@ -147,6 +164,7 @@ function App() {
           }
         />
 
+        {/* ===== NEW APPLICATION STEP 1 ===== */}
         <Route
           path="/applications/new"
           element={
@@ -156,6 +174,107 @@ function App() {
           }
         />
 
+        {/* ===== APPLICATION STEP ROUTES ===== */}
+        <Route
+          path="/applications/:applicationId/edit"
+          element={
+            <UserRoute>
+              <SittingApplicationPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/client-department"
+          element={
+            <UserRoute>
+              <ClientDepartmentPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/submitting-person"
+          element={
+            <UserRoute>
+              <SubmittingPersonPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/land-details"
+          element={
+            <UserRoute>
+              <LandDetailsPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/building-plan"
+          element={
+            <UserRoute>
+              <BuildingPlanPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/proposal-analysis"
+          element={
+            <UserRoute>
+              <ProposalAnalysisPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/site-inspection"
+          element={
+            <UserRoute>
+              <SiteInspectionPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/building-plan-checklist"
+          element={
+            <UserRoute>
+              <BuildingPlanChecklistPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/print-form"
+          element={
+            <UserRoute>
+              <PrintFormPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/supporting-document"
+          element={
+            <UserRoute>
+              <SupportingDocumentPage />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/applications/:applicationId/declaration"
+          element={
+            <UserRoute>
+              <DeclarationPage />
+            </UserRoute>
+          }
+        />
+
+        {/* ===== APPLICATION DETAIL ===== */}
         <Route
           path="/applications/:id"
           element={
