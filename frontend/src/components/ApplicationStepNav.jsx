@@ -72,7 +72,16 @@ function ApplicationStepNav({ active }) {
   const queryParams = new URLSearchParams(location.search);
 
   const applicationId =
-    routeApplicationId || queryParams.get("id");
+    routeApplicationId ||
+    queryParams.get("id") ||
+    localStorage.getItem("current_application_id");
+    
+    if (applicationId) {
+      localStorage.setItem(
+        "current_application_id",
+        applicationId
+      );
+    }    
   const steps = getSteps(applicationId);
 
   return (
