@@ -3,20 +3,30 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import Application
-from .serializers import ApplicationSerializer
+from .serializers import (
+    ApplicationListSerializer,
+    ApplicationDetailSerializer,
+)
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
-    serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ApplicationListSerializer
+
+        return ApplicationDetailSerializer
 
     def get_queryset(self):
         user = self.request.user
 
         if user.role in ["admin", "staff"]:
-            return Application.objects.all()
+            return Application.objects.all().order_by("-updated_at")
 
-        return Application.objects.filter(applicant=user)
+        return Application.objects.filter(
+            applicant=user
+        ).order_by("-updated_at")
 
     def perform_create(self, serializer):
         serializer.save(applicant=self.request.user)
@@ -34,10 +44,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.status = "submitted"
         application.save()
 
-        return Response({
-            "message": "Application submitted successfully.",
-            "data": ApplicationSerializer(application).data,
-        })
+        return Response(
+            {
+                "message": "Application submitted successfully.",
+                "data": ApplicationDetailSerializer(application).data,
+            }
+        )
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
@@ -45,17 +57,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         if request.user.role not in ["admin", "staff"]:
             return Response(
-                {"error": "You do not have permission to approve applications."},
+                {
+                    "error": "You do not have permission to approve applications."
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         application.status = "approved"
         application.save()
 
-        return Response({
-            "message": "Application approved successfully.",
-            "data": ApplicationSerializer(application).data,
-        })
+        return Response(
+            {
+                "message": "Application approved successfully.",
+                "data": ApplicationDetailSerializer(application).data,
+            }
+        )
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
@@ -63,14 +79,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         if request.user.role not in ["admin", "staff"]:
             return Response(
-                {"error": "You do not have permission to reject applications."},
+                {
+                    "error": "You do not have permission to reject applications."
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         application.status = "rejected"
         application.save()
 
-        return Response({
-            "message": "Application rejected successfully.",
-            "data": ApplicationSerializer(application).data,
-        })
+        return Response(
+            {
+                "message": "Application rejected successfully.",
+                "data": ApplicationDetailSerializer(application).data,
+            }
+        )
