@@ -1,7 +1,105 @@
+import { useState } from "react";
 import TopBar from "../../layout/TopBar";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { apiRequest } from "../../services/api";
+
+const initialForm = {
+  fullName: "",
+  passportNumber: "",
+  countryOfOrigin: "",
+  passportExpiryDate: "",
+  mobileNumber: "",
+  email: "",
+  address: "",
+  password: "",
+  confirmPassword: "",
+  secureWord: "",
+  agreed: false,
+};
 
 function RegisterNonMalaysian() {
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState(initialForm);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const updateField = (field, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const validateForm = () => {
+    if (!form.fullName.trim()) return "Please enter your full name.";
+    if (!form.passportNumber.trim()) return "Please enter your passport number.";
+    if (!form.countryOfOrigin.trim()) return "Please select your country of origin.";
+    if (!form.passportExpiryDate) return "Please select your passport expiry date.";
+    if (!form.mobileNumber.trim()) return "Please enter your mobile number.";
+    if (!form.email.trim()) return "Please enter your email address.";
+    if (!form.address.trim()) return "Please enter your residential address.";
+    if (!form.password) return "Please enter your password.";
+    if (!form.confirmPassword) return "Please retype your password.";
+    if (form.password !== form.confirmPassword) return "Password and Retype Password do not match.";
+    if (!form.secureWord.trim()) return "Please enter your secure word.";
+    if (!form.agreed) return "Please agree to the Terms and Conditions and Privacy Policy.";
+
+    return "";
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setError(validationError);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const data = await apiRequest("/auth/register/", {
+        method: "POST",
+        body: JSON.stringify({
+          account_type: "applicant",
+          nationality_type: "non_malaysian",
+          role: "user",
+          full_name: form.fullName.trim(),
+          username: form.email.trim(),
+          passport_number: form.passportNumber.trim(),
+          country_of_origin: form.countryOfOrigin,
+          passport_expiry_date: form.passportExpiryDate,
+          mobile_number: form.mobileNumber.trim(),
+          email: form.email.trim(),
+          address: form.address.trim(),
+          password: form.password,
+          password2: form.confirmPassword,
+          secure_word: form.secureWord.trim(),
+        }),
+      });
+
+      alert("Registration successful. Please login to continue.");
+      navigate("/login/non-malaysian", { replace: true });
+    } catch (err) {
+      setError(err.message || "Registration failed. Please check your information.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = () => {
+    setForm(initialForm);
+    setError("");
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-slate-900">
       <TopBar />
@@ -15,7 +113,13 @@ function RegisterNonMalaysian() {
           </p>
         </div>
 
-        <form className="space-y-8">
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <form className="space-y-8" onSubmit={handleSubmit}>
           <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="h-1 bg-[#07c25f]" />
 
@@ -37,6 +141,8 @@ function RegisterNonMalaysian() {
                   <input
                     type="text"
                     placeholder="Enter your full legal name"
+                    value={form.fullName}
+                    onChange={(e) => updateField("fullName", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
@@ -69,6 +175,8 @@ function RegisterNonMalaysian() {
                   <input
                     type="text"
                     placeholder="Enter your passport number"
+                    value={form.passportNumber}
+                    onChange={(e) => updateField("passportNumber", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
@@ -77,7 +185,11 @@ function RegisterNonMalaysian() {
                   <label className="block text-sm font-semibold mb-2">
                     Country of Origin
                   </label>
-                  <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]">
+                  <select
+                    value={form.countryOfOrigin}
+                    onChange={(e) => updateField("countryOfOrigin", e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                  >
                     <option value="">Select your country</option>
                     <option value="Indonesia">Indonesia</option>
                     <option value="Singapore">Singapore</option>
@@ -98,6 +210,8 @@ function RegisterNonMalaysian() {
                   </label>
                   <input
                     type="date"
+                    value={form.passportExpiryDate}
+                    onChange={(e) => updateField("passportExpiryDate", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
@@ -126,6 +240,8 @@ function RegisterNonMalaysian() {
                     <input
                       type="tel"
                       placeholder="123456789"
+                      value={form.mobileNumber}
+                      onChange={(e) => updateField("mobileNumber", e.target.value)}
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-r-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                     />
                   </div>
@@ -138,6 +254,8 @@ function RegisterNonMalaysian() {
                   <input
                     type="email"
                     placeholder="example@email.com"
+                    value={form.email}
+                    onChange={(e) => updateField("email", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
@@ -149,6 +267,8 @@ function RegisterNonMalaysian() {
                   <textarea
                     rows="4"
                     placeholder="Enter your full correspondence address"
+                    value={form.address}
+                    onChange={(e) => updateField("address", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
@@ -170,22 +290,44 @@ function RegisterNonMalaysian() {
                   <label className="block text-sm font-semibold mb-2">
                     Password
                   </label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={(e) => updateField("password", e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 pr-11 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    >
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold mb-2">
                     Retype Password
                   </label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={form.confirmPassword}
+                      onChange={(e) => updateField("confirmPassword", e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 pr-11 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    >
+                      {showConfirmPassword ? "visibility_off" : "visibility"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
@@ -208,6 +350,8 @@ function RegisterNonMalaysian() {
                   <input
                     type="text"
                     placeholder="e.g. BlueSky2024"
+                    value={form.secureWord}
+                    onChange={(e) => updateField("secureWord", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
@@ -216,7 +360,12 @@ function RegisterNonMalaysian() {
           </section>
 
           <label className="flex items-start gap-3 text-sm text-slate-600">
-            <input type="checkbox" className="mt-1" />
+            <input
+              type="checkbox"
+              checked={form.agreed}
+              onChange={(e) => updateField("agreed", e.target.checked)}
+              className="mt-1"
+            />
             <span>
               I have agreed to the{" "}
               <a href="#" className="text-[#006d32] font-semibold underline">
@@ -233,9 +382,19 @@ function RegisterNonMalaysian() {
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <button
               type="submit"
-              className="flex-1 py-4 bg-[#07c25f] text-white rounded-lg font-bold hover:bg-[#006d32]"
+              disabled={loading}
+              className="flex-1 py-4 bg-[#07c25f] text-white rounded-lg font-bold hover:bg-[#006d32] disabled:opacity-60"
             >
-              Submit Registration
+              {loading ? "Submitting..." : "Submit Registration"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={loading}
+              className="flex-1 py-4 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 disabled:opacity-60"
+            >
+              Reset
             </button>
 
             <Link
@@ -251,7 +410,7 @@ function RegisterNonMalaysian() {
       <footer className="bg-white border-t border-slate-200 py-8 px-6">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between gap-4 text-sm text-slate-500">
           <div>
-            <p className="font-bold text-slate-700">DBKU Portal</p>
+            <p className="font-bold text-slate-700">fasTrack DBKU Portal</p>
             <p>© 2026 Sarawak Government. All Rights Reserved.</p>
           </div>
 

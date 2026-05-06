@@ -1,15 +1,182 @@
+import { useEffect, useState } from "react";
 import DashboardLayout from "../../../layout/DashboardLayout";
-import { Link } from "react-router-dom";
+import UserDashboardLayout from "../../../layout/UserDashboardLayout";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { apiRequest } from "../../../services/api";
 import ApplicationStepNav from "../../../components/ApplicationStepNav";
 
+const emptyOfficer = {
+  selected: false,
+  name: "",
+  designation: "",
+  agency: "",
+  otherAgency: "",
+};
+
 function SiteInspectionPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { applicationId: routeApplicationId } = useParams();
+  const queryParams = new URLSearchParams(location.search);
+  const applicationId = routeApplicationId || queryParams.get("id");
+
+  const storedUser = localStorage.getItem("fastrack_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const isApplicant = user?.role === "applicant";
+
+  const Layout = isApplicant ? UserDashboardLayout : DashboardLayout;
+
+  const [inspectionDate, setInspectionDate] = useState("");
+  const [officers, setOfficers] = useState([
+    { ...emptyOfficer },
+    { ...emptyOfficer },
+    { ...emptyOfficer },
+    { ...emptyOfficer },
+    { ...emptyOfficer },
+  ]);
+
+  const [roadAccess, setRoadAccess] = useState({
+    anyAccess: "",
+    physicalAccess: "",
+    legalAccess: "",
+    roadSurface: "",
+    carriagewayWidth: "",
+    carriagewayCondition: "",
+    rightOfWay: "",
+  });
+
+  const [presentUsage, setPresentUsage] = useState({
+    subjectLand: "",
+    neighbouringLand: "",
+  });
+
+  const [utilities, setUtilities] = useState({
+    waterSupply: "",
+    electricitySupply: "",
+    telecommunication: "",
+    gasSupply: "",
+  });
+
+  const [siteCondition, setSiteCondition] = useState({
+    cuttingOfLand: "",
+    fillingOfLand: "",
+    buildingRetained: "",
+    drainage: "",
+    drainType: "",
+    drainSize: "",
+    flowDirection: "",
+  });
+
+  useEffect(() => {
+    if (applicationId) loadStep7();
+  }, [applicationId]);
+
+  async function loadStep7() {
+    try {
+      const data = await apiRequest(`/applications/${applicationId}/`);
+      const step7 = data.form_data?.step_7 || {};
+
+      setInspectionDate(step7.inspection_date || "");
+      setOfficers(
+        step7.officers?.length
+          ? step7.officers
+          : [
+              { ...emptyOfficer },
+              { ...emptyOfficer },
+              { ...emptyOfficer },
+              { ...emptyOfficer },
+              { ...emptyOfficer },
+            ]
+      );
+
+      setRoadAccess(step7.road_access || {
+        anyAccess: "",
+        physicalAccess: "",
+        legalAccess: "",
+        roadSurface: "",
+        carriagewayWidth: "",
+        carriagewayCondition: "",
+        rightOfWay: "",
+      });
+
+      setPresentUsage(step7.present_usage || {
+        subjectLand: "",
+        neighbouringLand: "",
+      });
+
+      setUtilities(step7.utilities || {
+        waterSupply: "",
+        electricitySupply: "",
+        telecommunication: "",
+        gasSupply: "",
+      });
+
+      setSiteCondition(step7.site_condition || {
+        cuttingOfLand: "",
+        fillingOfLand: "",
+        buildingRetained: "",
+        drainage: "",
+        drainType: "",
+        drainSize: "",
+        flowDirection: "",
+      });
+    } catch (err) {
+      console.error("Load Step 7 failed:", err);
+    }
+  }
+
+  function updateOfficer(index, field, value) {
+    setOfficers((current) =>
+      current.map((officer, i) =>
+        i === index ? { ...officer, [field]: value } : officer
+      )
+    );
+  }
+
+  async function handleSaveStep7() {
+    if (!applicationId) {
+      alert("Application ID is missing. Please continue from My Dashboard.");
+      return;
+    }
+
+    try {
+      const existingData = await apiRequest(`/applications/${applicationId}/`);
+
+      await apiRequest(`/applications/${applicationId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          current_step: 7,
+          form_data: {
+            ...(existingData.form_data || {}),
+            step_7: {
+              inspection_date: inspectionDate,
+              officers,
+              road_access: roadAccess,
+              present_usage: presentUsage,
+              utilities,
+              site_condition: siteCondition,
+              saved_at: new Date().toISOString(),
+            },
+          },
+        }),
+      });
+
+      navigate(
+        `/applications/${applicationId}/building-plan-checklist?id=${applicationId}`
+      );
+    } catch (err) {
+      console.error("Step 7 save failed:", err);
+      alert("Failed to save Step 7.");
+    }
+  }
+
   return (
-    <DashboardLayout>
+    <Layout>
       <div className="flex gap-5">
         <ApplicationStepNav active={7} />
 
         <main className="flex-1 min-w-0">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
                 7
@@ -19,223 +186,393 @@ function SiteInspectionPage() {
               </h1>
             </div>
 
-            <div className="flex gap-2">
-              <Link
-                to="/applications/proposal-analysis"
-                className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-              >
-                ← Back
-              </Link>
-
-              <Link
-                to="/applications/building-plan-checklist"
-                className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
-              >
-                Save & Next
-              </Link>
-            </div>
+            <PageActions
+              applicationId={applicationId}
+              onSave={handleSaveStep7}
+            />
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <ApplicationReference />
 
-            <div className="p-5 space-y-4">
-              <FormSection title="A) PARTICULARS OF OFFICER CARRYING OUT SITE INSPECTION">
-                <Field label="Date of site inspection carried out" required>
-                  <input type="date" className="spa-input" />
-                </Field>
+            <div className="p-4 sm:p-5 space-y-4">
+              <FormSection title="A.) PARTICULARS OF OFFICER CARRYING OUT SITE INSPECTION">
+                <BoxField label="(a) Date of site inspection carried out" required>
+                  <input
+                    type="date"
+                    className="spa-input bg-white"
+                    value={inspectionDate}
+                    onChange={(e) => setInspectionDate(e.target.value)}
+                  />
+                </BoxField>
 
-                <Field label="Name of Officer" required>
+                <BoxField label="(b) Name of Officer" required>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-[11px] border border-slate-200">
-                      <thead className="bg-[#f1f5f4]">
+                    <table className="w-full min-w-[900px] text-[11px]">
+                      <thead>
                         <tr>
                           <TableHead></TableHead>
-                          <TableHead>Name of Officer</TableHead>
-                          <TableHead>Designation</TableHead>
+                          <TableHead>Name of Officer *</TableHead>
+                          <TableHead>Designation *</TableHead>
                           <TableHead>Agency</TableHead>
                           <TableHead>
-                            To specify if not related under Client Agent
+                            To specify (if not listed under Client Agency)
                           </TableHead>
                         </tr>
                       </thead>
 
                       <tbody>
-                        {[
-                          ["NOORFARAH BINTI AHMAD", "ASSISTANT PLANNER OF", "Land and Survey Department Sarawak", ""],
-                          ["SAMSURY BIN SAHARI", "PEGAWAI TADBIR", "Kuching North City Hall", ""],
-                          ["CHEN CHONG HONG", "BORNEO FRESH PORK", "-- Please Select --", "BORNEO FRESH PORK"],
-                          ["KELLY TAEK HIA SINH", "TRADING MANAGEMENT", "-- Please Select --", "BORNEO FRESH PORK"],
-                        ].map((row, index) => (
-                          <tr key={index} className="bg-[#e7f5df]">
-                            <td className="border p-2 text-center">
-                              <input type="checkbox" />
+                        {officers.map((officer, index) => (
+                          <tr
+                            key={index}
+                            className={index % 2 === 0 ? "bg-[#e7f5df]" : ""}
+                          >
+                            <td className="p-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={officer.selected}
+                                onChange={(e) =>
+                                  updateOfficer(index, "selected", e.target.checked)
+                                }
+                              />
                             </td>
-                            <td className="border p-2">
-                              <input className="spa-input h-[28px] text-[11px]" defaultValue={row[0]} />
+
+                            <td className="p-2">
+                              <input
+                                className="spa-input h-[32px] text-[11px]"
+                                value={officer.name}
+                                onChange={(e) =>
+                                  updateOfficer(index, "name", e.target.value)
+                                }
+                              />
                             </td>
-                            <td className="border p-2">
-                              <input className="spa-input h-[28px] text-[11px]" defaultValue={row[1]} />
+
+                            <td className="p-2">
+                              <input
+                                className="spa-input h-[32px] text-[11px]"
+                                value={officer.designation}
+                                onChange={(e) =>
+                                  updateOfficer(index, "designation", e.target.value)
+                                }
+                              />
                             </td>
-                            <td className="border p-2">
-                              <select className="spa-input h-[28px] text-[11px]" defaultValue={row[2]}>
-                                <option>Land and Survey Department Sarawak</option>
-                                <option>Kuching North City Hall</option>
-                                <option>-- Please Select --</option>
+
+                            <td className="p-2">
+                              <select
+                                className="spa-input h-[32px] text-[11px]"
+                                value={officer.agency}
+                                onChange={(e) =>
+                                  updateOfficer(index, "agency", e.target.value)
+                                }
+                              >
+                                <option value="">--- Please Select ---</option>
+                                <option value="Land and Survey Department Sarawak">
+                                  Land and Survey Department Sarawak
+                                </option>
+                                <option value="Kuching North City Hall">
+                                  Kuching North City Hall
+                                </option>
+                                <option value="Other">Other</option>
                               </select>
                             </td>
-                            <td className="border p-2">
-                              <input className="spa-input h-[28px] text-[11px]" defaultValue={row[3]} />
+
+                            <td className="p-2">
+                              <input
+                                className="spa-input h-[32px] text-[11px]"
+                                value={officer.otherAgency}
+                                onChange={(e) =>
+                                  updateOfficer(index, "otherAgency", e.target.value)
+                                }
+                              />
                             </td>
                           </tr>
                         ))}
-
-                        <tr className="bg-[#e7f5df]">
-                          <td className="border p-2 text-center">
-                            <input type="checkbox" />
-                          </td>
-                          <td className="border p-2">
-                            <input className="spa-input h-[28px] text-[11px]" />
-                          </td>
-                          <td className="border p-2">
-                            <input className="spa-input h-[28px] text-[11px]" />
-                          </td>
-                          <td className="border p-2">
-                            <select className="spa-input h-[28px] text-[11px]">
-                              <option>-- Please Select --</option>
-                            </select>
-                          </td>
-                          <td className="border p-2">
-                            <input className="spa-input h-[28px] text-[11px]" />
-                          </td>
-                        </tr>
                       </tbody>
                     </table>
                   </div>
-                </Field>
+                </BoxField>
               </FormSection>
 
-              <FormSection title="B) SITE OBSERVATION DETAIL">
-                <SubSection title="1) EXISTING ROAD ACCESS">
-                  <RadioField label="Any access to the site" />
-                  <RadioField label="Physical Access" />
-                  <RadioField label="Legal Access" />
-                  <Field label="Type of road surface for access" required>
-                    <select className="spa-input">
-                      <option>Tar Sealed</option>
-                      <option>Gravel</option>
-                      <option>Earth Road</option>
-                    </select>
-                  </Field>
-                  <Field label="Width of carriageway" required>
-                    <input className="spa-input" defaultValue="7.4m" />
-                  </Field>
-                  <Field label="Condition of carriageway" required>
-                    <select className="spa-input">
-                      <option>Good</option>
-                      <option>Fair</option>
-                      <option>Poor</option>
-                    </select>
-                  </Field>
-                  <RadioField label="Right of way" />
+              <FormSection title="B.) SITE OBSERVATION DETAIL">
+                <SubSection title="(1) EXISTING ROAD ACCESS">
+                  <RadioBox
+                    label="Any access to the site"
+                    value={roadAccess.anyAccess}
+                    onChange={(value) =>
+                      setRoadAccess({ ...roadAccess, anyAccess: value })
+                    }
+                  />
+
+                  <RadioBox
+                    label="Physical Access"
+                    value={roadAccess.physicalAccess}
+                    onChange={(value) =>
+                      setRoadAccess({ ...roadAccess, physicalAccess: value })
+                    }
+                  />
+
+                  <RadioBox
+                    label="Legal Access"
+                    value={roadAccess.legalAccess}
+                    onChange={(value) =>
+                      setRoadAccess({ ...roadAccess, legalAccess: value })
+                    }
+                  />
+
+                  <SelectBox
+                    label="Type of road surface"
+                    value={roadAccess.roadSurface}
+                    onChange={(value) =>
+                      setRoadAccess({ ...roadAccess, roadSurface: value })
+                    }
+                    options={["Tar-Sealed", "Gravel", "Earth Road", "Concrete"]}
+                  />
+
+                  <InputBox
+                    label="Width of carriageway"
+                    value={roadAccess.carriagewayWidth}
+                    onChange={(value) =>
+                      setRoadAccess({ ...roadAccess, carriagewayWidth: value })
+                    }
+                  />
+
+                  <SelectBox
+                    label="Condition of carriageway"
+                    value={roadAccess.carriagewayCondition}
+                    onChange={(value) =>
+                      setRoadAccess({
+                        ...roadAccess,
+                        carriagewayCondition: value,
+                      })
+                    }
+                    options={["Good", "Fair", "Poor"]}
+                  />
+
+                  <RadioBox
+                    label="Right of way"
+                    value={roadAccess.rightOfWay}
+                    onChange={(value) =>
+                      setRoadAccess({ ...roadAccess, rightOfWay: value })
+                    }
+                  />
                 </SubSection>
 
-                <SubSection title="2) PRESENT USAGE">
-                  <Field label="Subject land" required>
-                    <textarea className="spa-input h-20 resize-none" defaultValue="SHOPLOT" />
-                  </Field>
+                <SubSection title="(2) PRESENT USAGE">
+                  <TextAreaBox
+                    label="Subject land"
+                    value={presentUsage.subjectLand}
+                    onChange={(value) =>
+                      setPresentUsage({ ...presentUsage, subjectLand: value })
+                    }
+                  />
 
-                  <Field label="Neighbouring land (adjoining land)" required>
-                    <textarea
-                      className="spa-input h-20 resize-none"
-                      defaultValue="COMMERCIAL ACTIVITY"
+                  <TextAreaBox
+                    label="Neighbouring land (adjoining land)"
+                    value={presentUsage.neighbouringLand}
+                    onChange={(value) =>
+                      setPresentUsage({
+                        ...presentUsage,
+                        neighbouringLand: value,
+                      })
+                    }
+                  />
+                </SubSection>
+
+                <SubSection title="(3) EXISTING PUBLIC UTILITIES">
+                  <RadioBox
+                    label="Water supply"
+                    value={utilities.waterSupply}
+                    onChange={(value) =>
+                      setUtilities({ ...utilities, waterSupply: value })
+                    }
+                  />
+
+                  <RadioBox
+                    label="Electricity supply"
+                    value={utilities.electricitySupply}
+                    onChange={(value) =>
+                      setUtilities({ ...utilities, electricitySupply: value })
+                    }
+                  />
+
+                  <RadioBox
+                    label="Telecommunication"
+                    value={utilities.telecommunication}
+                    onChange={(value) =>
+                      setUtilities({ ...utilities, telecommunication: value })
+                    }
+                  />
+
+                  <RadioBox
+                    label="Gas supply"
+                    value={utilities.gasSupply}
+                    onChange={(value) =>
+                      setUtilities({ ...utilities, gasSupply: value })
+                    }
+                  />
+                </SubSection>
+
+                <SubSection title="(4) EXISTING SITE CONDITION">
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-bold text-slate-700">
+                      (a) Topography
+                    </p>
+
+                    <RadioBox
+                      label="Any cutting of land"
+                      value={siteCondition.cuttingOfLand}
+                      onChange={(value) =>
+                        setSiteCondition({
+                          ...siteCondition,
+                          cuttingOfLand: value,
+                        })
+                      }
                     />
-                  </Field>
-                </SubSection>
 
-                <SubSection title="3) EXISTING PUBLIC UTILITIES">
-                  <RadioField label="Water supply" />
-                  <RadioField label="Electricity supply" />
-                  <RadioField label="Telecommunication" />
-                  <RadioField label="Gas supply" />
-                </SubSection>
+                    <RadioBox
+                      label="Any filling of land"
+                      value={siteCondition.fillingOfLand}
+                      onChange={(value) =>
+                        setSiteCondition({
+                          ...siteCondition,
+                          fillingOfLand: value,
+                        })
+                      }
+                    />
+                  </div>
 
-                <SubSection title="4) EXISTING SITE CONDITION">
-                  <RadioField label="Site Topography - Any cutting of land" />
-                  <RadioField label="Any filling of land" />
-                  <RadioField label="Bio-Diversity to be retained" />
-                  <RadioField label="Any drainage" />
+                  <RadioBox
+                    label="(b) Building(s) to be retained"
+                    value={siteCondition.buildingRetained}
+                    onChange={(value) =>
+                      setSiteCondition({
+                        ...siteCondition,
+                        buildingRetained: value,
+                      })
+                    }
+                  />
+
+                  <RadioBox
+                    label="(c) Any drainage"
+                    value={siteCondition.drainage}
+                    onChange={(value) =>
+                      setSiteCondition({ ...siteCondition, drainage: value })
+                    }
+                  />
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Field label="Type of Drain" required>
-                      <select className="spa-input">
-                        <option>Roadside Concrete Drain</option>
-                        <option>Earth Drain</option>
-                        <option>Natural Drainage</option>
-                      </select>
-                    </Field>
+                    <SelectBox
+                      label="Type of Drain"
+                      value={siteCondition.drainType}
+                      onChange={(value) =>
+                        setSiteCondition({
+                          ...siteCondition,
+                          drainType: value,
+                        })
+                      }
+                      options={[
+                        "Road Concrete Drain",
+                        "Roadside Concrete Drain",
+                        "Earth Drain",
+                        "Natural Drainage",
+                      ]}
+                    />
 
-                    <Field label="Size of Drain" required>
-                      <input className="spa-input" defaultValue="1.5" />
-                    </Field>
+                    <InputBox
+                      label="Size of Drain"
+                      value={siteCondition.drainSize}
+                      onChange={(value) =>
+                        setSiteCondition({
+                          ...siteCondition,
+                          drainSize: value,
+                        })
+                      }
+                    />
 
-                    <Field label="Direction of flow" required>
-                      <select className="spa-input">
-                        <option>TO EXIT SIDE</option>
-                        <option>TO ROAD SIDE</option>
-                        <option>TO REAR SIDE</option>
-                      </select>
-                    </Field>
+                    <SelectBox
+                      label="Direction of flow"
+                      value={siteCondition.flowDirection}
+                      onChange={(value) =>
+                        setSiteCondition({
+                          ...siteCondition,
+                          flowDirection: value,
+                        })
+                      }
+                      options={[
+                        "TO EAST SIDE",
+                        "TO WEST SIDE",
+                        "TO NORTH SIDE",
+                        "TO SOUTH SIDE",
+                        "TO ROAD SIDE",
+                        "TO REAR SIDE",
+                      ]}
+                    />
                   </div>
                 </SubSection>
+
+                {!isApplicant && <InternalAdminReviewSection />}
               </FormSection>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Link
-                  to="/applications/proposal-analysis"
-                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-                >
-                  ← Back
-                </Link>
-
-                <Link
-                  to="/applications/building-plan-checklist"
-                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
-                >
-                  Save & Next
-                </Link>
+                <PageActions
+                  applicationId={applicationId}
+                  onSave={handleSaveStep7}
+                />
               </div>
             </div>
           </section>
         </main>
       </div>
-    </DashboardLayout>
+    </Layout>
   );
 }
 
 function ApplicationReference() {
+  const storedUser = localStorage.getItem("fastrack_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>Digital Reference</p>
-        <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
+        {user?.role !== "applicant" && (
+          <>
+            <p>Digital Reference</p>
+            <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
 
-        <p>Agency Reference</p>
-        <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
+            <p>Agency Reference</p>
+            <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
+          </>
+        )}
 
         <p>Status</p>
-        <p className="font-semibold text-[#006d32]">
-          Siting approval granted to applicant (Formal Approval)
-        </p>
+        <p className="font-semibold text-[#006d32]">Prepare Case</p>
 
         <p>Application Type</p>
         <p className="font-semibold text-[#006d32]">
           Application of Siting Project
         </p>
-
-        <p>Division</p>
-        <p className="font-semibold text-[#006d32]">KUCHING</p>
       </div>
+    </div>
+  );
+}
+
+function PageActions({ applicationId, onSave }) {
+  return (
+    <div className="flex gap-2">
+      <Link
+        to={`/applications/${applicationId}/proposal-analysis?id=${applicationId}`}
+        className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+      >
+        ← Back
+      </Link>
+
+      <button
+        type="button"
+        onClick={onSave}
+        className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+      >
+        Save & Next
+      </button>
     </div>
   );
 }
@@ -244,19 +581,19 @@ function FormSection({ title, children }) {
   return (
     <section className="border border-slate-200 rounded-sm overflow-hidden">
       <div className="bg-white border-b-2 border-[#18b36b] px-3 py-2">
-        <h2 className="text-xs font-bold text-slate-700">{title}</h2>
+        <h2 className="text-base font-semibold text-slate-700">{title}</h2>
       </div>
 
-      <div className="p-4 space-y-4 bg-white">{children}</div>
+      <div className="p-3 space-y-4 bg-white">{children}</div>
     </section>
   );
 }
 
 function SubSection({ title, children }) {
   return (
-    <section className="bg-[#f5f5f5] border border-slate-200 rounded-sm overflow-hidden">
-      <div className="px-3 py-2 border-b bg-[#eeeeee]">
-        <h3 className="text-[11px] font-bold text-slate-700">{title}</h3>
+    <section className="bg-[#f3f3f3] border border-slate-200 rounded-sm overflow-hidden">
+      <div className="px-3 py-2 border-b bg-[#e9e9e9]">
+        <h3 className="text-[12px] font-bold text-slate-700">{title}</h3>
       </div>
 
       <div className="p-3 space-y-3">{children}</div>
@@ -264,38 +601,94 @@ function SubSection({ title, children }) {
   );
 }
 
-function Field({ label, children, required = false }) {
+function BoxField({ label, children, required = false }) {
   return (
-    <div>
-      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+    <div className="bg-[#f7f7f7] border border-slate-200 p-3">
+      <label className="block text-[11px] font-bold text-slate-700 mb-2">
         {label}
-        {(required || true) && <span className="text-red-500 ml-1">*</span>}
+        {required && <span className="text-red-500 float-right">*</span>}
       </label>
       {children}
     </div>
   );
 }
 
-function RadioField({ label }) {
+function InputBox({ label, value, onChange, required = true }) {
   return (
-    <div>
-      <p className="text-[11px] font-bold text-slate-700 mb-1">
-        {label}
-        <span className="text-red-500 ml-1">*</span>
-      </p>
+    <BoxField label={label} required={required}>
+      <input
+        className="spa-input bg-white"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </BoxField>
+  );
+}
 
-      <div className="flex items-center gap-5 text-xs">
-        <label className="flex items-center gap-1">
-          <input type="radio" name={label} defaultChecked />
+function TextAreaBox({ label, value, onChange, required = true }) {
+  return (
+    <BoxField label={label} required={required}>
+      <textarea
+        className="spa-input bg-white min-h-[70px] resize-y"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </BoxField>
+  );
+}
+
+function SelectBox({ label, value, onChange, options, required = true }) {
+  return (
+    <BoxField label={label} required={required}>
+      <select
+        className="spa-input bg-white"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">--- Please Select ---</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </BoxField>
+  );
+}
+
+function RadioBox({ label, value, onChange }) {
+  return (
+    <BoxField label={label} required>
+      <div className="flex items-center gap-7 text-xs">
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={value === "Yes"}
+            onChange={() => onChange("Yes")}
+          />
           Yes
         </label>
 
-        <label className="flex items-center gap-1">
-          <input type="radio" name={label} />
+        <label className="flex items-center gap-2">
+          <input
+            type="radio"
+            checked={value === "No"}
+            onChange={() => onChange("No")}
+          />
           No
         </label>
       </div>
-    </div>
+    </BoxField>
+  );
+}
+
+function InternalAdminReviewSection() {
+  return (
+    <SubSection title="5) CHARGE CALCULATION TEMPLATE (ADMIN / STAFF ONLY)">
+      <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-slate-700">
+        This section is for DBKU admin/staff use only.
+      </div>
+    </SubSection>
   );
 }
 

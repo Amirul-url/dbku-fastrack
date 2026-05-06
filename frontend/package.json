@@ -12,6 +12,9 @@
   "dependencies": {
     "@ckeditor/ckeditor5-react": "^11.1.2",
     "ckeditor5": "^48.0.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "mapbox-gl": "^3.23.1",
     "maplibre-gl": "^5.24.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

@@ -1,6 +1,7 @@
-import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import DashboardLayout from "../../layout/DashboardLayout";
+import UserDashboardLayout from "../../layout/UserDashboardLayout";
 
 const applications = [
   {
@@ -34,7 +35,20 @@ const applications = [
 
 function ApplicationsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showGuidelines, setShowGuidelines] = useState(false);
+  const storedUser = localStorage.getItem("fastrack_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  const Layout =
+    user?.role === "applicant" ? UserDashboardLayout : DashboardLayout;
+
+  useEffect(() => {
+    if (location.state?.openGuidelines) {
+      setShowGuidelines(true);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   function handleProceed() {
     setShowGuidelines(false);
@@ -42,7 +56,7 @@ function ApplicationsPage() {
   }
 
   return (
-    <DashboardLayout>
+    <Layout>
       <div className="mb-5 border-l-4 border-[#006d32] pl-4">
         <p className="text-xs uppercase tracking-wide font-semibold text-[#006d32] mb-1">
           Application Management
@@ -178,7 +192,7 @@ function ApplicationsPage() {
           onProceed={handleProceed}
         />
       )}
-    </DashboardLayout>
+    </Layout>
   );
 }
 

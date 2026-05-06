@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 function getSteps(applicationId) {
   const base = applicationId ? `/applications/${applicationId}` : "/applications";
@@ -65,7 +65,14 @@ function getSteps(applicationId) {
 
 function ApplicationStepNav({ active }) {
   const [open, setOpen] = useState(true);
-  const { applicationId } = useParams();
+  const location = useLocation();
+  const query = location.search || "";
+
+  const { applicationId: routeApplicationId } = useParams();
+  const queryParams = new URLSearchParams(location.search);
+
+  const applicationId =
+    routeApplicationId || queryParams.get("id");
   const steps = getSteps(applicationId);
 
   return (
@@ -117,7 +124,7 @@ function ApplicationStepNav({ active }) {
                   return (
                     <Link
                       key={step.no}
-                      to={step.path}
+                      to={`${step.path}${query}`}
                       className={`flex items-start gap-2 px-3 py-3 border-b text-xs transition ${
                         isActive
                           ? "bg-[#006d32] text-white font-semibold"
@@ -164,7 +171,7 @@ function ApplicationStepNav({ active }) {
               return (
                 <Link
                   key={step.no}
-                  to={step.path}
+                  to={`${step.path}${query}`}
                   className={`flex items-center gap-2 px-3 py-3 border-b text-xs ${
                     isActive
                       ? "bg-[#006d32] text-white font-semibold"

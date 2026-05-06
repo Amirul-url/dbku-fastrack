@@ -1,10 +1,56 @@
+import { useEffect, useState } from "react";
 import DashboardLayout from "../../../layout/DashboardLayout";
-import { Link } from "react-router-dom";
+import UserDashboardLayout from "../../../layout/UserDashboardLayout";
+import { Link, useLocation, useParams } from "react-router-dom";
+import { apiRequest } from "../../../services/api";
 import ApplicationStepNav from "../../../components/ApplicationStepNav";
 
 function LandDetailsPage() {
+  const location = useLocation();
+  const { applicationId: routeApplicationId } = useParams();
+  const queryParams = new URLSearchParams(location.search);
+
+  const applicationId = routeApplicationId || queryParams.get("id");
+
+  const storedUser = localStorage.getItem("fastrack_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  const Layout =
+    user?.role === "applicant" ? UserDashboardLayout : DashboardLayout;
+
+  const [step1, setStep1] = useState({});
+  const [affectedArea, setAffectedArea] = useState("");
+
+  const rawLandArea = Number(step1.area_required || 0);
+
+  // formatted values
+  const landArea = rawLandArea.toFixed(2);        // 7 → 7.00
+  const landAreaAc = (rawLandArea * 0.000247105).toFixed(4);
+
+  const affectedAreaNum = Number(affectedArea || 0);
+  const affectedAreaAc = (affectedAreaNum * 0.000247105).toFixed(4);
+
+  useEffect(() => {
+    if (applicationId) loadStep1();
+  }, [applicationId]);
+
+  useEffect(() => {
+    if (step1.area_required && !affectedArea) {
+      setAffectedArea(step1.area_required);
+    }
+  }, [step1, affectedArea]);
+
+  async function loadStep1() {
+    try {
+      const data = await apiRequest(`/applications/${applicationId}/`);
+      setStep1(data.form_data?.step_1 || {});
+    } catch (err) {
+      console.error("Failed load step 1:", err);
+    }
+  }
+
   return (
-    <DashboardLayout>
+    <Layout>
       <div className="flex gap-5">
         <ApplicationStepNav active={4} />
 
@@ -21,14 +67,14 @@ function LandDetailsPage() {
 
             <div className="flex gap-2">
               <Link
-                to="/applications/submitting-person"
+                to={`/applications/${applicationId}/submitting-person?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 ← Back
               </Link>
 
               <Link
-                to="/applications/building-plan"
+                to={`/applications/${applicationId}/building-plan?id=${applicationId}`}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
               >
                 Save & Next
@@ -37,7 +83,7 @@ function LandDetailsPage() {
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference />
+            <ApplicationReference step1={step1} />
 
             <div className="p-4">
               <div className="overflow-x-auto">
@@ -64,27 +110,26 @@ function LandDetailsPage() {
 
                       <TableCell>
                         <div className="font-semibold">
-                          Lot 3786 Block 207
+                          {step1.project_name || "-"}
                         </div>
-                        <div>Kuching North</div>
-                        <div>Land District</div>
-                      </TableCell>
-
-                      <TableCell>111.60 Sq. M</TableCell>
-
-                      <TableCell>31/12/2037</TableCell>
-
-                      <TableCell>MIXED ZONE LAND</TableCell>
-
-                      <TableCell>
-                        <div>Lease Of State</div>
-                        <div>Land</div>
+                        <div>{step1.locality_address || "-"}</div>
+                        <div>{step1.division || "-"}</div>
                       </TableCell>
 
                       <TableCell>
-                        <button className="text-[#006d32] font-semibold hover:underline">
-                          View
-                        </button>
+                        <span className="whitespace-nowrap">
+                          {landArea} Sq. M
+                        </span>
+                      </TableCell>
+
+                      <TableCell>-</TableCell>
+
+                      <TableCell>-</TableCell>
+
+                      <TableCell>-</TableCell>
+
+                      <TableCell>
+                        <span className="text-slate-500">Not Available</span>
                       </TableCell>
 
                       <TableCell>
@@ -98,9 +143,11 @@ function LandDetailsPage() {
                         <div className="flex gap-1">
                           <input
                             className="spa-input h-[28px] text-[11px]"
-                            defaultValue="111.60"
+                            value={affectedArea}
+                            onChange={(e) => setAffectedArea(e.target.value)}
                           />
-                          <select className="spa-input h-[28px] text-[11px] w-[70px]">
+
+                          <select className="spa-input h-[28px] text-[11px] w-[80px]">
                             <option>Sq. M</option>
                             <option>Ac.</option>
                           </select>
@@ -141,13 +188,13 @@ function LandDetailsPage() {
                       </td>
 
                       <td className="px-3 py-2 text-[11px] font-semibold border-none whitespace-nowrap">
-                        0.0276 Ac.
+                        {landAreaAc} Ac.
                       </td>
 
                       <td colSpan="5" className="border-none"></td>
 
                       <td className="px-3 py-2 text-[11px] font-semibold border-none whitespace-nowrap text-right">
-                        0.0276 Ac.
+                        {affectedAreaAc} Ac.
                       </td>
 
                       <td colSpan="2" className="border-none"></td>
@@ -158,14 +205,14 @@ function LandDetailsPage() {
 
               <div className="flex justify-end gap-2 pt-4">
                 <Link
-                  to="/applications/submitting-person"
+                  to={`/applications/${applicationId}/submitting-person?id=${applicationId}`}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
                   ← Back
                 </Link>
 
                 <Link
-                  to="/applications/building-plan"
+                  to={`/applications/${applicationId}/building-plan?id=${applicationId}`}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
                 >
                   Save & Next
@@ -175,32 +222,45 @@ function LandDetailsPage() {
           </section>
         </main>
       </div>
-    </DashboardLayout>
+    </Layout>
   );
 }
 
-function ApplicationReference() {
+function ApplicationReference({ step1 }) {
+  const storedUser = localStorage.getItem("fastrack_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>Digital Reference</p>
-        <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
+        {user?.role !== "applicant" && (
+          <>
+            <p>Digital Reference</p>
+            <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
 
-        <p>Agency Reference</p>
-        <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
+            <p>Agency Reference</p>
+            <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
+          </>
+        )}
 
         <p>Status</p>
         <p className="font-semibold text-[#006d32]">
-          Siting approval granted to applicant (Formal Approval)
+          {step1.status || "Prepare Case"}
         </p>
 
         <p>Application Type</p>
         <p className="font-semibold text-[#006d32]">
-          Application of Siting Project
+          {step1.application_type_label || "Application of Siting Project"}
         </p>
 
-        <p>Division</p>
-        <p className="font-semibold text-[#006d32]">KUCHING</p>
+        {user?.role !== "applicant" && (
+          <>
+            <p>Division</p>
+            <p className="font-semibold text-[#006d32]">
+              {step1.division || "KUCHING"}
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

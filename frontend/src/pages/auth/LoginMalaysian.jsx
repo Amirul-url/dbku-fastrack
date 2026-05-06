@@ -1,8 +1,53 @@
+import { useState } from "react";
 import AuthLayout from "../../layout/AuthLayout";
 import { Link, useNavigate } from "react-router-dom";
+import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
 
 function LoginMalaysian() {
   const navigate = useNavigate();
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!username.trim() || !password.trim()) {
+      setError("Please enter IC Number and password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const data = await apiRequest("/auth/login/", {
+        method: "POST",
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+        }),
+      });
+
+      saveAuthSession(data, rememberMe);
+      navigate(getUserRedirectPath(data.user), { replace: true });
+    } catch (err) {
+      setError(err.message || "Login failed. Please check your IC Number and password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = () => {
+    setUsername("");
+    setPassword("");
+    setRememberMe(false);
+    setError("");
+  };
 
   return (
     <AuthLayout>
@@ -29,13 +74,13 @@ function LoginMalaysian() {
         </Link>
       </div>
 
-      <form
-        className="space-y-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          navigate("/home");
-        }}
-      >
+      {error && (
+        <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <form className="space-y-6" onSubmit={handleLogin}>
         <div>
           <label className="block text-sm font-semibold text-[#3d4a3d] mb-1">
             IC Number
@@ -47,6 +92,8 @@ function LoginMalaysian() {
             <input
               type="text"
               placeholder="000000-00-0000"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
             />
           </div>
@@ -61,15 +108,18 @@ function LoginMalaysian() {
               lock
             </span>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full pl-10 pr-10 py-3 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
             />
             <button
               type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
               className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#6c7b6c]"
             >
-              visibility
+              {showPassword ? "visibility_off" : "visibility"}
             </button>
           </div>
         </div>
@@ -78,6 +128,8 @@ function LoginMalaysian() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
               className="w-4 h-4 text-[#006d32] border-[#bbcbba] rounded"
             />
             <span className="text-sm text-[#3d4a3d]">Remember me</span>
@@ -91,16 +143,19 @@ function LoginMalaysian() {
         <div className="grid grid-cols-2 gap-4 pt-2">
           <button
             type="button"
-            className="py-3 px-4 border border-[#006d32] text-[#006d32] text-sm font-semibold rounded hover:bg-[#eeeeee]"
+            onClick={handleReset}
+            disabled={loading}
+            className="py-3 px-4 border border-[#006d32] text-[#006d32] text-sm font-semibold rounded hover:bg-[#eeeeee] disabled:opacity-60"
           >
             Reset
           </button>
 
           <button
             type="submit"
-            className="py-3 px-4 bg-[#006d32] text-white text-sm font-semibold rounded hover:bg-[#005224]"
+            disabled={loading}
+            className="py-3 px-4 bg-[#006d32] text-white text-sm font-semibold rounded hover:bg-[#005224] disabled:opacity-60"
           >
-            Sign in
+            {loading ? "Signing in..." : "Sign in"}
           </button>
         </div>
       </form>

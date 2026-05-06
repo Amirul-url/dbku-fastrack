@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CKEditor } from "@ckeditor/ckeditor5-react";
 
 import {
@@ -22,8 +22,12 @@ import {
 
 import "ckeditor5/ckeditor5.css";
 
-function SimpleWysiwygEditor({ label, defaultValue = "", max = 3000 }) {
-  const [content, setContent] = useState(defaultValue);
+function SimpleWysiwygEditor({ label, value = "", onChange, max = 3000 }) {
+  const [content, setContent] = useState(value || "");
+
+  useEffect(() => {
+    setContent(value || "");
+  }, [value]);
 
   const editorConfig = useMemo(
     () => ({
@@ -108,7 +112,7 @@ function SimpleWysiwygEditor({ label, defaultValue = "", max = 3000 }) {
       },
 
       fontSize: {
-        options: [10, 12, 14, 16, 18, 24, 32],
+        options: [10, 11, 12, 13, 14, 16, 18, 24, 32],
         supportAllValues: true,
       },
 
@@ -124,7 +128,7 @@ function SimpleWysiwygEditor({ label, defaultValue = "", max = 3000 }) {
   );
 
   function getTextLength(html) {
-    const plainText = html
+    const plainText = String(html || "")
       .replace(/<[^>]+>/g, "")
       .replace(/&nbsp;/g, " ")
       .trim();
@@ -132,8 +136,35 @@ function SimpleWysiwygEditor({ label, defaultValue = "", max = 3000 }) {
     return plainText.length;
   }
 
+  function normalizeDefaultFontSize(html) {
+    if (!html || !html.trim()) {
+      return '<p><span style="font-size:12px;">&nbsp;</span></p>';
+    }
+
+    return html;
+  }
+
   return (
     <div>
+      <style>
+        {`
+          .ckeditor-wrapper .ck-editor__editable_inline {
+            min-height: 160px;
+            font-size: 12px !important;
+            line-height: 1.5 !important;
+          }
+
+          .ckeditor-wrapper .ck-content {
+            font-size: 12px !important;
+          }
+
+          .ckeditor-wrapper .ck-content p {
+            font-size: 12px;
+            line-height: 1.5;
+          }
+        `}
+      </style>
+
       <label className="block text-[11px] font-bold text-slate-700 mb-1">
         {label}
         <span className="text-red-500 ml-1">*</span>
@@ -143,9 +174,15 @@ function SimpleWysiwygEditor({ label, defaultValue = "", max = 3000 }) {
         <CKEditor
           editor={ClassicEditor}
           config={editorConfig}
-          data={defaultValue}
+          data={normalizeDefaultFontSize(content)}
           onChange={(_, editor) => {
-            setContent(editor.getData());
+            const data = editor.getData();
+
+            setContent(data);
+
+            if (typeof onChange === "function") {
+              onChange(data);
+            }
           }}
         />
 

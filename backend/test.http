@@ -1,0 +1,21 @@
+GET http://127.0.0.1:8000/api/auth/me/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc3ODYxNjM0LCJpYXQiOjE3Nzc4NTgwMzQsImp0aSI6ImQ0MTIxOGVjM2NmMDQyMTRhMDlkZjk4MjFhNjc2OWM2IiwidXNlcl9pZCI6IjEifQ.Jb5FkI-OAypMgjibNoSUsicFp7nVpzSXHpeVrBoW1qw
+
+### Get applications
+GET http://127.0.0.1:8000/api/applications/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc3ODYxNjM0LCJpYXQiOjE3Nzc4NTgwMzQsImp0aSI6ImQ0MTIxOGVjM2NmMDQyMTRhMDlkZjk4MjFhNjc2OWM2IiwidXNlcl9pZCI6IjEifQ.Jb5FkI-OAypMgjibNoSUsicFp7nVpzSXHpeVrBoW1qw
+
+### Create application
+POST http://127.0.0.1:8000/api/applications/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzc3ODYxNjM0LCJpYXQiOjE3Nzc4NTgwMzQsImp0aSI6ImQ0MTIxOGVjM2NmMDQyMTRhMDlkZjk4MjFhNjc2OWM2IiwidXNlcl9pZCI6IjEifQ.Jb5FkI-OAypMgjibNoSUsicFp7nVpzSXHpeVrBoW1qw
+Content-Type: application/json
+
+{
+  "application_type": "sitting_application",
+  "title": "Test Application",
+  "current_step": 1,
+  "form_data": {
+    "name": "Ali",
+    "company": "ABC Sdn Bhd"
+  }
+}
