@@ -20,7 +20,9 @@ function SubmittingPersonPage() {
   const user = storedUser ? JSON.parse(storedUser) : null;
 
   const Layout =
-    user?.role === "applicant" ? UserDashboardLayout : DashboardLayout;
+    user?.role === "applicant" || user?.role === "user"
+      ? UserDashboardLayout
+      : DashboardLayout;
 
   const [orgType, setOrgType] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");

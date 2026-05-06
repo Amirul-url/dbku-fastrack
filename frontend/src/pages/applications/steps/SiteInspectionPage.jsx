@@ -24,7 +24,10 @@ function SiteInspectionPage() {
   const user = storedUser ? JSON.parse(storedUser) : null;
   const isApplicant = user?.role === "applicant";
 
-  const Layout = isApplicant ? UserDashboardLayout : DashboardLayout;
+  const Layout =
+    user?.role === "applicant" || user?.role === "user"
+      ? UserDashboardLayout
+      : DashboardLayout;
 
   const [inspectionDate, setInspectionDate] = useState("");
   const [officers, setOfficers] = useState([

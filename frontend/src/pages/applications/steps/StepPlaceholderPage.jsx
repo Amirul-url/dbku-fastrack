@@ -1,10 +1,19 @@
 import DashboardLayout from "../../../layout/DashboardLayout";
+import UserDashboardLayout from "../../../layout/UserDashboardLayout";
 import { Link } from "react-router-dom";
 import ApplicationStepNav from "../../../components/ApplicationStepNav";
 
 function StepPlaceholderPage({ active, title, description }) {
+  const storedUser = localStorage.getItem("fastrack_user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+
+  const Layout =
+    user?.role === "applicant" || user?.role === "user"
+      ? UserDashboardLayout
+      : DashboardLayout;
+
   return (
-    <DashboardLayout>
+    <Layout>
       <div className="grid grid-cols-1 xl:grid-cols-[230px_1fr] gap-5">
         <ApplicationStepNav active={active} />
 
@@ -41,7 +50,7 @@ function StepPlaceholderPage({ active, title, description }) {
           </section>
         </main>
       </div>
-    </DashboardLayout>
+    </Layout>
   );
 }
 
