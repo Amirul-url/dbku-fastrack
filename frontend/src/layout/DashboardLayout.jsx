@@ -24,33 +24,33 @@ const menuGroups = [
     items: [
       {
         label: "Applications",
-        path: "/applications",
+        path: "/admin/applications",
         icon: "description",
-        match: "/applications",
+        match: "/admin/applications",
       },
       {
         label: "Auto Screening",
-        path: "/auto-screening",
+        path: "/dashboard/admin",
         icon: "fact_check",
       },
       {
         label: "Technical Review",
-        path: "/technical-review",
+        path: "/dashboard/admin",
         icon: "rule",
       },
       {
         label: "Approval",
-        path: "/approval",
+        path: "/dashboard/admin",
         icon: "approval_delegation",
       },
       {
         label: "Payment",
-        path: "/payment",
+        path: "/dashboard/admin",
         icon: "payments",
       },
       {
         label: "License QR",
-        path: "/license-qr",
+        path: "/dashboard/admin",
         icon: "qr_code_2",
       },
     ],
@@ -60,7 +60,7 @@ const menuGroups = [
     items: [
       {
         label: "Enforcement",
-        path: "/enforcement",
+        path: "/dashboard/admin",
         icon: "qr_code_scanner",
       },
       {
@@ -120,6 +120,11 @@ function DashboardLayout({ children }) {
   }
 
   function handleLogout() {
+    localStorage.removeItem("fastrack_access_token");
+    localStorage.removeItem("fastrack_refresh_token");
+    localStorage.removeItem("fastrack_user");
+    localStorage.removeItem("fastrack_remember_me");
+
     closeSidebar();
     navigate("/login/malaysian");
   }
