@@ -11,8 +11,6 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
 function AdminStep1Page() {
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
   const Layout = AdminDashboardLayout;
 
   const navigate = useNavigate();
@@ -25,8 +23,6 @@ function AdminStep1Page() {
 
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
-  const [division, setDivision] = useState("");
-  const [projectCategory, setProjectCategory] = useState("");
   const [projectName, setProjectName] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
   const [areaRequired, setAreaRequired] = useState("");
@@ -59,8 +55,6 @@ function AdminStep1Page() {
       const data = await apiRequest(`/applications/${applicationId}/`);
       const step1 = data.form_data?.step_1 || {};
 
-      setDivision(step1.division || "");
-      setProjectCategory(step1.project_category || "");
       setProjectName(step1.project_name || "");
       setLocalityAddress(step1.locality_address || "");
       setAreaRequired(step1.area_required || "");
@@ -108,9 +102,10 @@ function AdminStep1Page() {
         ...existingFormData,
         step_1: {
           status: "Prepare Case",
-          application_type_label: "Application of Siting Project",
-          division,
-          project_category: projectCategory,
+          application_type: "Application for Site (New Site)",
+          application_type_label: "Application for Site (New Site)",
+          division: "",
+          project_category: "",
           project_name: projectName,
           locality_address: localityAddress,
           area_required: areaRequired,
@@ -147,13 +142,9 @@ function AdminStep1Page() {
 
   async function handleSave() {
     if (
-      !division ||
-      !projectCategory ||
       !projectName.trim() ||
       !localityAddress.trim() ||
       !areaRequired.trim() ||
-      !sourceOfFund ||
-      !fundAvailability ||
       !amountFundApproved.trim()
     ) {
       alert("Please fill in all required fields before proceeding to the next step.");
@@ -238,43 +229,8 @@ function AdminStep1Page() {
 
             <div className="p-4 space-y-3">
               <FormSection title="Type of Application">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                  <Checkbox label="Application for Site (New Site)" checked />
-                  <Checkbox label="Submission of Detailed Building Plan" />
-                  <Checkbox label="Site Legalisation (Permit / Tapak Sedia)" />
-                  <Checkbox label="Road / Access / Water Alignment / Transmission Line" />
-                  <Checkbox label="Application for Site Extension" />
-                  <Checkbox label="Communication Tower / Structure" />
-                  <Checkbox label="Temporary Change of Use" />
-                  <Checkbox label="Other" />
-                </div>
+                <Checkbox label="Application for Site (New Site)" checked />
               </FormSection>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Division" required>
-                  <select
-                    className="spa-input"
-                    value={division}
-                    onChange={(e) => setDivision(e.target.value)}
-                  >
-                    <option value="">-- Please Select --</option>
-                    <option value="KUCHING">KUCHING</option>
-                  </select>
-                </Field>
-
-                <Field label="Project Category" required>
-                  <select
-                    className="spa-input"
-                    value={projectCategory}
-                    onChange={(e) => setProjectCategory(e.target.value)}
-                  >
-                    <option value="">-- Please Select --</option>
-                    <option value="STATE">STATE</option>
-                    <option value="PRIVATE">PRIVATE</option>
-                    <option value="FEDERAL">FEDERAL</option>
-                  </select>
-                </Field>
-              </div>
 
               <Field label="Name of Project" required>
                 <input
@@ -313,7 +269,7 @@ function AdminStep1Page() {
                 }}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Field label="Area Required" required>
                   <input
                     className="spa-input"
@@ -322,18 +278,7 @@ function AdminStep1Page() {
                   />
                 </Field>
 
-                <Field label="Area Unit" required>
-                  <select
-                    className="spa-input"
-                    value={areaUnit}
-                    onChange={(e) => setAreaUnit(e.target.value)}
-                  >
-                    <option value="Sq. M">Sq. M</option>
-                    <option value="Ac.">Ac.</option>
-                  </select>
-                </Field>
-
-                <Field label="Total Scheme Value (RM)">
+                <Field label="Total Scheme Value, RM">
                   <input
                     className="spa-input"
                     value={totalSchemeValue}
@@ -344,48 +289,7 @@ function AdminStep1Page() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Source of Fund" required>
-                  <select
-                    className="spa-input"
-                    value={sourceOfFund}
-                    onChange={(e) => setSourceOfFund(e.target.value)}
-                  >
-                    <option value="">-- Please Select --</option>
-                    <option value="Project Rakyat">Project Rakyat</option>
-                    <option value="Private Fund">Private Fund</option>
-                    <option value="Government Fund">Government Fund</option>
-                  </select>
-                </Field>
-
-                <Field label="Fund Availability" required>
-                  <div className="flex items-center gap-4 h-[34px] text-xs">
-                    <label className="flex items-center gap-1">
-                      <input
-                        type="radio"
-                        name="fund"
-                        value="yes"
-                        checked={fundAvailability === "yes"}
-                        onChange={(e) => setFundAvailability(e.target.value)}
-                      />
-                      Yes
-                    </label>
-
-                    <label className="flex items-center gap-1">
-                      <input
-                        type="radio"
-                        name="fund"
-                        value="no"
-                        checked={fundAvailability === "no"}
-                        onChange={(e) => setFundAvailability(e.target.value)}
-                      />
-                      No
-                    </label>
-                  </div>
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Amount of Fund Available (RM)">
+                <Field label="Amount of Fund Available Now, RM">
                   <input
                     className="spa-input"
                     value={amountFundAvailable}
@@ -393,7 +297,7 @@ function AdminStep1Page() {
                   />
                 </Field>
 
-                <Field label="Amount of Fund Approved (RM)" required>
+                <Field label="Amount of Fund Approved in the Malaysia Plan, RM" required>
                   <input
                     className="spa-input"
                     value={amountFundApproved}
@@ -1059,8 +963,6 @@ function ApplicationReference() {
             <p>Agency Reference</p>
             <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
 
-            <p>Division</p>
-            <p className="font-semibold text-[#006d32]">KUCHING</p>
           </>
         )}
 

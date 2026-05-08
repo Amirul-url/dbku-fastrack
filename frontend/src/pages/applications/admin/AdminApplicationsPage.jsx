@@ -181,7 +181,7 @@ function AdminApplicationsPage() {
                     className="min-h-8 px-3 py-1 text-xs"
                     onClick={() => navigate(`/admin/applications/${app.id}`)}
                   >
-                    Open
+                    View
                   </Button>
                   <Button
                     variant="danger"

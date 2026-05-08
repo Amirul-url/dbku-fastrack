@@ -15,9 +15,6 @@ function AdminStep3Page() {
 
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
   const Layout = AdminDashboardLayout;
 
   const [orgType, setOrgType] = useState("");
@@ -175,7 +172,7 @@ function AdminStep3Page() {
         }),
       });
 
-      navigate(`/admin/applications/${applicationId}/step-4?id=${applicationId}`);
+      navigate(`/admin/applications/${applicationId}/step-3?id=${applicationId}`);
     } catch (err) {
       console.error("Step 3 save failed:", err);
       alert("Failed to save Step 3.");
@@ -185,13 +182,13 @@ function AdminStep3Page() {
   return (
     <Layout>
       <div className="flex gap-5">
-        <AdminApplicationStepNav active={3} />
+        <AdminApplicationStepNav active={2} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                3
+                2
               </span>
               <h1 className="text-xl font-semibold text-[#1a1c1c]">
                 Details of Submitting Person
@@ -200,7 +197,7 @@ function AdminStep3Page() {
 
             <div className="flex gap-2">
               <Link
-                to={`/admin/applications/${applicationId}/step-2?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-1?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 ← Back
@@ -459,7 +456,7 @@ function AdminStep3Page() {
 
               <div className="flex justify-end gap-2 pt-2">
                 <Link
-                  to={`/admin/applications/${applicationId}/step-2?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-1?id=${applicationId}`}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
                   ← Back

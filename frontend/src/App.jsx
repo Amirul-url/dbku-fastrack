@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  useParams,
 } from "react-router-dom";
 
 /* AUTH */
@@ -27,13 +28,7 @@ import AdminApplicationDetailPage from "./pages/applications/admin/AdminApplicat
 
 /* ADMIN APPLICATION STEPS */
 import AdminStep1Page from "./pages/applications/admin/steps/AdminStep1Page";
-import AdminStep2Page from "./pages/applications/admin/steps/AdminStep2Page";
 import AdminStep3Page from "./pages/applications/admin/steps/AdminStep3Page";
-import AdminStep4Page from "./pages/applications/admin/steps/AdminStep4Page";
-import AdminStep5Page from "./pages/applications/admin/steps/AdminStep5Page";
-import AdminStep6Page from "./pages/applications/admin/steps/AdminStep6Page";
-import AdminStep7Page from "./pages/applications/admin/steps/AdminStep7Page";
-import AdminStep8Page from "./pages/applications/admin/steps/AdminStep8Page";
 import AdminStep9Page from "./pages/applications/admin/steps/AdminStep9Page";
 import AdminStep10Page from "./pages/applications/admin/steps/AdminStep10Page";
 import AdminStep11Page from "./pages/applications/admin/steps/AdminStep11Page";
@@ -126,6 +121,17 @@ function UserRoute({ children }) {
   }
 
   return children;
+}
+
+function RedirectAdminStep({ toStep }) {
+  const { applicationId } = useParams();
+
+  return (
+    <Navigate
+      to={`/admin/applications/${applicationId}/step-${toStep}`}
+      replace
+    />
+  );
 }
 
 function App() {
@@ -230,7 +236,7 @@ function App() {
           path="/admin/applications/:applicationId/step-2"
           element={
             <AdminRoute>
-              <AdminStep2Page />
+              <AdminStep3Page />
             </AdminRoute>
           }
         />
@@ -239,7 +245,7 @@ function App() {
           path="/admin/applications/:applicationId/step-3"
           element={
             <AdminRoute>
-              <AdminStep3Page />
+              <AdminStep10Page />
             </AdminRoute>
           }
         />
@@ -248,7 +254,7 @@ function App() {
           path="/admin/applications/:applicationId/step-4"
           element={
             <AdminRoute>
-              <AdminStep4Page />
+              <AdminStep11Page />
             </AdminRoute>
           }
         />
@@ -257,7 +263,7 @@ function App() {
           path="/admin/applications/:applicationId/step-5"
           element={
             <AdminRoute>
-              <AdminStep5Page />
+              <AdminStep9Page />
             </AdminRoute>
           }
         />
@@ -266,7 +272,7 @@ function App() {
           path="/admin/applications/:applicationId/step-6"
           element={
             <AdminRoute>
-              <AdminStep6Page />
+              <RedirectAdminStep toStep={3} />
             </AdminRoute>
           }
         />
@@ -275,7 +281,7 @@ function App() {
           path="/admin/applications/:applicationId/step-7"
           element={
             <AdminRoute>
-              <AdminStep7Page />
+              <RedirectAdminStep toStep={3} />
             </AdminRoute>
           }
         />
@@ -284,7 +290,7 @@ function App() {
           path="/admin/applications/:applicationId/step-8"
           element={
             <AdminRoute>
-              <AdminStep8Page />
+              <RedirectAdminStep toStep={3} />
             </AdminRoute>
           }
         />
@@ -293,7 +299,7 @@ function App() {
           path="/admin/applications/:applicationId/step-9"
           element={
             <AdminRoute>
-              <AdminStep9Page />
+              <RedirectAdminStep toStep={5} />
             </AdminRoute>
           }
         />
@@ -302,7 +308,7 @@ function App() {
           path="/admin/applications/:applicationId/step-10"
           element={
             <AdminRoute>
-              <AdminStep10Page />
+              <RedirectAdminStep toStep={3} />
             </AdminRoute>
           }
         />
@@ -311,7 +317,7 @@ function App() {
           path="/admin/applications/:applicationId/step-11"
           element={
             <AdminRoute>
-              <AdminStep11Page />
+              <RedirectAdminStep toStep={4} />
             </AdminRoute>
           }
         />

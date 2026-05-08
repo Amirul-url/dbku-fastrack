@@ -12,9 +12,6 @@ function AdminStep9Page() {
 
   const applicationId = routeApplicationId || queryParams.get("id");
 
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
   const Layout = AdminDashboardLayout;
 
   const [step1, setStep1] = useState({});
@@ -87,7 +84,7 @@ function AdminStep9Page() {
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: goNext ? 10 : 9,
+          current_step: 5,
           form_data: {
             ...existingFormData,
             step_9: updatedStep9,
@@ -98,7 +95,7 @@ function AdminStep9Page() {
       setStep9(updatedStep9);
 
       if (goNext) {
-      navigate(`/admin/applications/${applicationId}/step-10?id=${applicationId}`);
+        navigate("/admin/applications");
       }
 
       return true;
@@ -191,13 +188,13 @@ function AdminStep9Page() {
       </style>
 
       <div className="flex gap-5">
-        <AdminApplicationStepNav active={9} />
+        <AdminApplicationStepNav active={5} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between print-hide">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                9
+                5
               </span>
               <h1 className="text-xl font-semibold text-[#1a1c1c]">
                 Print Form
@@ -206,7 +203,7 @@ function AdminStep9Page() {
 
             <div className="flex gap-2">
               <Link
-                to={`/admin/applications/${applicationId}/step-8?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-4?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 ← Back
@@ -218,7 +215,7 @@ function AdminStep9Page() {
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save & Next"}
+                {saving ? "Saving..." : "Back to Applications"}
               </button>
             </div>
           </div>
@@ -519,7 +516,7 @@ function AdminStep9Page() {
 
             <div className="flex justify-end gap-2 p-5 print-hide">
               <Link
-                to={`/admin/applications/${applicationId}/step-8?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-4?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 ← Back
@@ -531,7 +528,7 @@ function AdminStep9Page() {
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save & Next"}
+                {saving ? "Saving..." : "Back to Applications"}
               </button>
             </div>
           </section>

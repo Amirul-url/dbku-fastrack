@@ -20,7 +20,6 @@ function AdminStep11Page() {
   const [step1, setStep1] = useState({});
   const [step2, setStep2] = useState({});
   const [step3, setStep3] = useState({});
-  const [step7, setStep7] = useState({});
 
   const [step11, setStep11] = useState({
     title: "Declaration",
@@ -33,7 +32,7 @@ function AdminStep11Page() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const success = false;
 
   useEffect(() => {
     if (applicationId) {
@@ -49,8 +48,6 @@ function AdminStep11Page() {
       setStep1(formData.step_1 || {});
       setStep2(formData.step_2 || {});
       setStep3(formData.step_3 || {});
-      setStep7(formData.step_7 || {});
-
       setStep11({
         title: "Declaration",
         status: formData.step_11?.status || "Draft",
@@ -64,13 +61,13 @@ function AdminStep11Page() {
     }
   }
 
-  async function saveStep11({ submit = false } = {}) {
+  async function saveStep11({ goNext = false } = {}) {
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
       return false;
     }
 
-    if (submit && !step11.agreed) {
+    if (goNext && !step11.agreed) {
       setError("Please confirm the declaration before submitting.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return false;
@@ -87,18 +84,17 @@ function AdminStep11Page() {
       const updatedStep11 = {
         ...step11,
         title: "Declaration",
-        status: submit ? "Submitted" : "Saved",
+        status: "Saved",
         agreed: step11.agreed,
-        submitted: submit ? true : step11.submitted || false,
-        submitted_at: submit ? now : step11.submitted_at || "",
+        submitted: step11.submitted || false,
+        submitted_at: step11.submitted_at || "",
         saved_at: now,
       };
 
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: 11,
-          status: submit ? "submitted" : undefined,
+          current_step: goNext ? 5 : 4,
           form_data: {
             ...existingFormData,
             step_11: updatedStep11,
@@ -108,13 +104,8 @@ function AdminStep11Page() {
 
       setStep11(updatedStep11);
 
-      if (submit) {
-        setSuccess(true);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-
-        setTimeout(() => {
-          navigate("/admin/applications");
-        }, 1200);
+      if (goNext) {
+        navigate(`/admin/applications/${applicationId}/step-5?id=${applicationId}`);
       }
 
       return true;
@@ -128,7 +119,7 @@ function AdminStep11Page() {
   }
 
   async function handleSubmit() {
-    await saveStep11({ submit: true });
+    await saveStep11({ goNext: true });
   }
 
   const applicantName =
@@ -145,35 +136,10 @@ function AdminStep11Page() {
     step1.agency_name ||
     "-";
 
-  const inspectionDate =
-    step7.inspection_date ||
-    step7.date_of_inspection ||
-    step7.site_inspection_date ||
-    "";
-
-  const address =
-    step3.address ||
-    step2.address ||
-    step1.locality_address ||
-    step1.site_address ||
-    step1.address ||
-    "-";
-
-  const telephone =
-    step3.mobile_no ||
-    step3.telephone_no ||
-    step3.office_no ||
-    step2.mobile_no ||
-    step2.telephone_no ||
-    step2.office_no ||
-    "-";
-
-  const email = step3.email || step2.email || user?.email || "-";
-
   return (
     <Layout>
       <div className="flex gap-5">
-        <AdminApplicationStepNav active={11} />
+        <AdminApplicationStepNav active={4} />
 
         <main className="flex-1 min-w-0">
           {success && (
@@ -185,7 +151,7 @@ function AdminStep11Page() {
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] px-3 py-1 text-sm font-bold text-white">
-                11
+                4
               </span>
               <h1 className="text-xl font-semibold text-[#1a1c1c]">
                 Declaration
@@ -194,7 +160,7 @@ function AdminStep11Page() {
 
             <div className="flex gap-2">
               <Link
-                to={`/admin/applications/${applicationId}/step-10?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-3?id=${applicationId}`}
                 className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
               >
                 ← Back
@@ -206,7 +172,7 @@ function AdminStep11Page() {
                 disabled={saving || success}
                 className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Submitting..." : "Submit Application"}
+                {saving ? "Saving..." : "Save & Next"}
               </button>
             </div>
           </div>
@@ -215,14 +181,6 @@ function AdminStep11Page() {
             <ApplicationReference step1={step1} />
 
             <div className="space-y-5 p-4 text-[12px]">
-              <div>
-                <p className="mb-1 font-bold text-[#006d32]">Important:</p>
-                <p className="text-slate-700">
-                  Please consult L&S Divisional Office to obtain L&S Reference
-                  specific to your application.
-                </p>
-              </div>
-
               {error && (
                 <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-600">
                   {error}
@@ -250,49 +208,9 @@ function AdminStep11Page() {
                 </p>
               </label>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <InfoBox
-                  label="Date of Site Inspection with L&S"
-                  value={formatDate(inspectionDate)}
-                />
-
-                <InfoBox
-                  label="L&S Reference"
-                  value={
-                    step1.agency_reference ||
-                    step1.ls_reference ||
-                    step1.reference_no ||
-                    "-"
-                  }
-                />
-              </div>
-
-              <div className="rounded-sm border border-slate-200">
-                <div className="border-b bg-[#f7f7f7] px-3 py-2 text-xs font-bold">
-                  Submitting Person Information
-                </div>
-
-                <div className="grid grid-cols-[160px_1fr] gap-y-2 p-3 text-[12px]">
-                  <Label>Address</Label>
-                  <Value>{address}</Value>
-
-                  <Label>Telephone No</Label>
-                  <Value>{telephone}</Value>
-
-                  <Label>SPA Registration No</Label>
-                  <Value>{step3.spa_registration_no || "-"}</Value>
-
-                  <Label>SPA Registration Expiry Date</Label>
-                  <Value>{formatDate(step3.spa_registration_expiry_date)}</Value>
-
-                  <Label>Email Address</Label>
-                  <Value>{email}</Value>
-                </div>
-              </div>
-
               <div className="flex justify-end gap-2 pt-3">
                 <Link
-                  to={`/admin/applications/${applicationId}/step-10?id=${applicationId}`}
+                  to={`/admin/applications/${applicationId}/step-3?id=${applicationId}`}
                   className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                 >
                   ← Back
@@ -300,20 +218,11 @@ function AdminStep11Page() {
 
                 <button
                   type="button"
-                  onClick={() => saveStep11({ submit: false })}
-                  disabled={saving || success}
-                  className="rounded border border-[#006d32] px-3 py-1.5 text-xs font-semibold text-[#006d32] hover:bg-emerald-50 disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-
-                <button
-                  type="button"
                   onClick={handleSubmit}
                   disabled={saving || success}
                   className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Submitting..." : "Submit Application"}
+                  {saving ? "Saving..." : "Save & Next"}
                 </button>
               </div>
             </div>
@@ -353,36 +262,6 @@ function ApplicationReference({ step1 }) {
       </div>
     </div>
   );
-}
-
-function InfoBox({ label, value }) {
-  return (
-    <div className="rounded-sm border border-slate-200 p-3">
-      <p className="mb-1 text-xs text-slate-500">{label}</p>
-      <p className="font-semibold">{value || "-"}</p>
-    </div>
-  );
-}
-
-function Label({ children }) {
-  return <p className="text-slate-600">{children}</p>;
-}
-
-function Value({ children }) {
-  return (
-    <p className="whitespace-pre-line font-semibold text-[#006d32]">
-      {children || "-"}
-    </p>
-  );
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-GB");
 }
 
 export default AdminStep11Page;

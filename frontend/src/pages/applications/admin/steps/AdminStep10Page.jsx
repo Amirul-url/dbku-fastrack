@@ -6,30 +6,6 @@ import AdminApplicationStepNav from "../AdminApplicationStepNav";
 
 const defaultDocuments = [
   {
-    title: "Siting Form",
-    description: "To upload the form signed by applicant",
-    format: "PDF",
-    required: true,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Application Letter",
-    description: "-",
-    format: "PDF/IMAGE",
-    required: true,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Site Acceptance Form",
-    description: "To upload the form signed by applicant",
-    format: "PDF",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
     title: "Site Plan",
     description:
       "To be drawn on Cadastral Plan showing the subject land and the surrounding land (preferred scale 1:1000) involving:-\nSite; or\nbuilding plan.\nIf none of above, drawing on Google Map is accepted.",
@@ -43,56 +19,7 @@ const defaultDocuments = [
     description:
       "Cadastral plan (preferred scale 1:1000) showing the subject land and the surrounding land.\nDigital copy is available from eLASIS website.",
     format: "PDF/ IMAGE",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Project Brief",
-    description: "-",
-    format: "PDF",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Detailed Building Plan",
-    description: "Submission of CAD to be in .DXF format version 2013 and 2018.",
-    format: "PDF/DXF",
-    required: false,
-    guideline: true,
-    attachment: null,
-  },
-  {
-    title: "Conceptual Layout Plan",
-    description: "-",
-    format: "PDF",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Building Perspective View",
-    description: "-",
-    format: "PDF",
-    required: false,
-    guideline: true,
-    attachment: null,
-  },
-  {
-    title: "Site Inspection Plan",
-    description: "-",
-    format: "PDF/ IMAGE",
     required: true,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Wakaf Letter",
-    description:
-      "If not available, the application letter must give details on whether the premise has been rented and the period of tenancy",
-    format: "PDF/IMAGE",
-    required: false,
     guideline: false,
     attachment: null,
   },
@@ -108,49 +35,7 @@ const defaultDocuments = [
     title: "Tenancy Agreement",
     description: "-",
     format: "PDF",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "SBDC / SBDTC Letter",
-    description: "If available, to provide SBDC / SBDTC meeting minute",
-    format: "PDF/IMAGE",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "SBDC / SBDTC Agreed Plan",
-    description: "If available, to provide SBDC / SBDTC Agreed Plan",
-    format: "PDF/IMAGE",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Letter and Plan from Sarawak Energy (SEB)",
-    description: "-",
-    format: "PDF/IMAGE",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title:
-      "Letter and Plan from Department of Drainage and Irrigation, Sarawak (DID)",
-    description: "-",
-    format: "PDF/IMAGE",
-    required: false,
-    guideline: false,
-    attachment: null,
-  },
-  {
-    title: "Parking Calculation",
-    description:
-      "This document shall be used to support and explain on your parking calculation.",
-    format: "PDF",
-    required: false,
+    required: true,
     guideline: false,
     attachment: null,
   },
@@ -224,9 +109,6 @@ function AdminStep10Page() {
 
   const applicationId = routeApplicationId || queryParams.get("id");
 
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
   const Layout = AdminDashboardLayout;
 
   const [step1, setStep1] = useState({});
@@ -294,7 +176,7 @@ function AdminStep10Page() {
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: goNext ? 11 : 10,
+          current_step: goNext ? 4 : 3,
           form_data: {
             ...existingFormData,
             step_10: updatedStep10,
@@ -303,7 +185,7 @@ function AdminStep10Page() {
       });
 
       if (goNext) {
-        navigate(`/admin/applications/${applicationId}/step-11?id=${applicationId}`);
+        navigate(`/admin/applications/${applicationId}/step-4?id=${applicationId}`);
       }
 
       return true;
@@ -423,13 +305,13 @@ function AdminStep10Page() {
   return (
     <Layout>
       <div className="flex gap-5">
-        <AdminApplicationStepNav active={10} />
+        <AdminApplicationStepNav active={3} />
 
         <main className="flex-1 min-w-0 pb-10">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                10
+                3
               </span>
               <h1 className="text-xl font-semibold text-[#1a1c1c]">
                 Supporting Document
@@ -438,7 +320,7 @@ function AdminStep10Page() {
 
             <div className="flex gap-2">
               <Link
-                to={`/admin/applications/${applicationId}/step-9?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-2?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 ← Back
@@ -482,20 +364,11 @@ function AdminStep10Page() {
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <Link
-                  to={`/admin/applications/${applicationId}/step-9?id=${applicationId}`}
+                to={`/admin/applications/${applicationId}/step-2?id=${applicationId}`}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
                   ← Back
                 </Link>
-
-                <button
-                  type="button"
-                  onClick={() => saveStep10({ goNext: true })}
-                  disabled={saving}
-                  className="px-3 py-1.5 border border-[#006d32] text-[#006d32] rounded text-xs font-semibold hover:bg-emerald-50 disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
 
                 <button
                   type="button"

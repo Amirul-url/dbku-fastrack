@@ -12,53 +12,23 @@ function getSteps(applicationId) {
     },
     {
       no: 2,
-      label: "Details of Client Department",
+      label: "Details of Submitting Person",
       path: `${base}/step-2`,
     },
     {
       no: 3,
-      label: "Details of Submitting Person",
+      label: "Supporting Document",
       path: `${base}/step-3`,
     },
     {
       no: 4,
-      label: "Details of Land(s)",
+      label: "Declaration",
       path: `${base}/step-4`,
     },
     {
       no: 5,
-      label: "Detailed Building Plan",
-      path: `${base}/step-5`,
-    },
-    {
-      no: 6,
-      label: "Analysis of Proposal",
-      path: `${base}/step-6`,
-    },
-    {
-      no: 7,
-      label: "Site Inspection",
-      path: `${base}/step-7`,
-    },
-    {
-      no: 8,
-      label: "Building Plan Checklist",
-      path: `${base}/step-8`,
-    },
-    {
-      no: 9,
       label: "Print Form",
-      path: `${base}/step-9`,
-    },
-    {
-      no: 10,
-      label: "Supporting Document",
-      path: `${base}/step-10`,
-    },
-    {
-      no: 11,
-      label: "Declaration",
-      path: `${base}/step-11`,
+      path: `${base}/step-5`,
     },
   ];
 }
