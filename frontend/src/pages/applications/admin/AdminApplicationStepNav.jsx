@@ -58,7 +58,7 @@ function AdminApplicationStepNav({ active = 1 }) {
             {open ? "menu_open" : "menu"}
           </span>
 
-          {open && <span>Admin Review Steps</span>}
+          {open && <span>Application Steps</span>}
 
           {open && (
             <span className="material-symbols-outlined text-[18px]">
@@ -71,7 +71,7 @@ function AdminApplicationStepNav({ active = 1 }) {
           <>
             <div className="border-b bg-[#f7f7f7] px-3 py-3">
               <p className="text-xs font-bold text-slate-800">
-                APPLICATION REVIEW
+                APPLICATION STEPS
               </p>
 
               <p className="mt-0.5 text-[10px] text-slate-500">

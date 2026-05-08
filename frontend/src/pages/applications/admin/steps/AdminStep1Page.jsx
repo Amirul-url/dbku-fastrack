@@ -820,7 +820,7 @@ function LocationMap({ value, onChange }) {
                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
               }`}
             >
-              Satelit
+              Satellite
             </button>
 
             <button

@@ -110,8 +110,8 @@ function AdminStep11Page() {
 
       return true;
     } catch (err) {
-      console.error("Step 11 save failed:", err);
-      alert("Failed to save Step 11.");
+      console.error("Declaration save failed:", err);
+      alert("Failed to save Declaration.");
       return false;
     } finally {
       setSaving(false);

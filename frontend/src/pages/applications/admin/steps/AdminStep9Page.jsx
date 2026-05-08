@@ -17,7 +17,6 @@ function AdminStep9Page() {
   const [step1, setStep1] = useState({});
   const [step2, setStep2] = useState({});
   const [step3, setStep3] = useState({});
-  const [step7, setStep7] = useState({});
   const [step9, setStep9] = useState({
     title: "Print Form",
     status: "Draft",
@@ -44,7 +43,6 @@ function AdminStep9Page() {
       setStep1(formData.step_1 || {});
       setStep2(formData.step_2 || {});
       setStep3(formData.step_3 || {});
-      setStep7(formData.step_7 || {});
 
       setStep9({
         title: "Print Form",
@@ -58,7 +56,7 @@ function AdminStep9Page() {
     }
   }
 
-  async function saveStep9({ goNext = false, printed = false } = {}) {
+  async function saveStep9({ submit = false, printed = false } = {}) {
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
       return false;
@@ -75,7 +73,7 @@ function AdminStep9Page() {
       const updatedStep9 = {
         ...step9,
         title: "Print Form",
-        status: printed || step9.printed ? "Generated" : "Saved",
+        status: submit ? "Submitted" : printed || step9.printed ? "Generated" : "Saved",
         printed: printed || step9.printed || false,
         printed_at: printed ? now : step9.printed_at || "",
         saved_at: now,
@@ -85,23 +83,29 @@ function AdminStep9Page() {
         method: "PATCH",
         body: JSON.stringify({
           current_step: 5,
+          status: submit ? "submitted" : undefined,
           form_data: {
             ...existingFormData,
             step_9: updatedStep9,
+            step_11: {
+              ...(existingFormData.step_11 || {}),
+              submitted: submit ? true : existingFormData.step_11?.submitted || false,
+              submitted_at: submit ? now : existingFormData.step_11?.submitted_at || "",
+            },
           },
         }),
       });
 
       setStep9(updatedStep9);
 
-      if (goNext) {
+      if (submit) {
         navigate("/admin/applications");
       }
 
       return true;
     } catch (err) {
-      console.error("Step 9 save failed:", err);
-      alert("Failed to save Step 9.");
+      console.error("Print Form save failed:", err);
+      alert("Failed to save Print Form.");
       return false;
     } finally {
       setSaving(false);
@@ -125,8 +129,8 @@ function AdminStep9Page() {
     }, 100);
   }
 
-  async function handleSaveAndNext() {
-    await saveStep9({ goNext: true });
+  async function handleSaveAndSubmit() {
+    await saveStep9({ submit: true });
   }
 
   const landArea = Number(step1.area_required || 0);
@@ -206,16 +210,16 @@ function AdminStep9Page() {
                 to={`/admin/applications/${applicationId}/step-4?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                ← Back
+                Back
               </Link>
 
               <button
                 type="button"
-                onClick={handleSaveAndNext}
+                onClick={handleSaveAndSubmit}
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Back to Applications"}
+                {saving ? "Saving..." : "Save & Submit Application"}
               </button>
             </div>
           </div>
@@ -228,7 +232,7 @@ function AdminStep9Page() {
             <div className="p-5 border-b border-slate-200 print-hide">
               <div className="bg-[#f7f7f7] border border-slate-200 p-4 text-sm text-slate-600">
                 Review the generated application form below. Click Print / Save
-                PDF to open the browser print dialog. Step 9 will be saved into
+                PDF to open the browser print dialog. Step 5 will be saved into
                 JSON automatically.
               </div>
 
@@ -239,7 +243,7 @@ function AdminStep9Page() {
                   disabled={saving}
                   className="px-4 py-2 bg-[#006d32] text-white rounded text-sm font-semibold hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "🖨 Print / Save PDF"}
+                  {saving ? "Saving..." : "Print / Save PDF"}
                 </button>
               </div>
             </div>
@@ -407,53 +411,6 @@ function AdminStep9Page() {
                     <PrintRow label="Mobile No." value={step3.mobile_no} />
                   </PrintSection>
 
-                  <PrintSection title="B. Site Inspection Summary">
-                    <PrintRow
-                      label="Inspection Date"
-                      value={formatDate(step7.inspection_date)}
-                    />
-
-                    <PrintRow
-                      label="Road Access"
-                      value={step7.road_access?.anyAccess}
-                    />
-
-                    <PrintRow
-                      label="Physical Access"
-                      value={step7.road_access?.physicalAccess}
-                    />
-
-                    <PrintRow
-                      label="Legal Access"
-                      value={step7.road_access?.legalAccess}
-                    />
-
-                    <PrintRow
-                      label="Road Surface"
-                      value={step7.road_access?.roadSurface}
-                    />
-
-                    <PrintRow
-                      label="Carriageway Width"
-                      value={step7.road_access?.carriagewayWidth}
-                    />
-
-                    <PrintRow
-                      label="Condition of Carriageway"
-                      value={step7.road_access?.carriagewayCondition}
-                    />
-
-                    <PrintRow
-                      label="Subject Land"
-                      value={step7.present_usage?.subjectLand}
-                    />
-
-                    <PrintRow
-                      label="Neighbouring Land"
-                      value={step7.present_usage?.neighbouringLand}
-                    />
-                  </PrintSection>
-
                   <div
                     style={{
                       display: "grid",
@@ -519,16 +476,16 @@ function AdminStep9Page() {
                 to={`/admin/applications/${applicationId}/step-4?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                ← Back
+                Back
               </Link>
 
               <button
                 type="button"
-                onClick={handleSaveAndNext}
+                onClick={handleSaveAndSubmit}
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Back to Applications"}
+                {saving ? "Saving..." : "Save & Submit Application"}
               </button>
             </div>
           </section>
@@ -677,15 +634,6 @@ function formatYesNo(value) {
   if (value === "yes") return "Yes";
   if (value === "no") return "No";
   return value;
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-GB");
 }
 
 export default AdminStep9Page;

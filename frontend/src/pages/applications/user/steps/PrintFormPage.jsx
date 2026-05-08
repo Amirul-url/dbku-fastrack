@@ -219,7 +219,7 @@ function PrintFormPage() {
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Submitting..." : "Submit Application"}
+                {saving ? "Submitting..." : "Save & Submit Application"}
               </button>
             </div>
           </div>
@@ -349,7 +349,7 @@ function PrintFormPage() {
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Submitting..." : "Submit Application"}
+                {saving ? "Submitting..." : "Save & Submit Application"}
               </button>
             </div>
           </section>

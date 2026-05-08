@@ -190,8 +190,8 @@ function AdminStep10Page() {
 
       return true;
     } catch (err) {
-      console.error("Step 10 save failed:", err);
-      alert("Failed to save Step 10.");
+      console.error("Supporting Document save failed:", err);
+      alert("Failed to save Supporting Document.");
       return false;
     } finally {
       setSaving(false);
@@ -447,7 +447,9 @@ function SupportingTable({ rows, onFileChange, onRemoveFile }) {
                 className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
               >
                 <TableCell center>
-                  <span className="text-base font-bold text-[#18b36b]">↻</span>
+                  <span className="text-base font-bold text-[#18b36b]">
+                    {index + 1}
+                  </span>
                 </TableCell>
 
                 <TableCell>
