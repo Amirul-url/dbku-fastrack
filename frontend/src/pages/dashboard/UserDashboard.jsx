@@ -1,57 +1,121 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
 import { apiRequest } from "../../services/api";
-import { useNavigate } from "react-router-dom";
+import {
+  Alert,
+  Button,
+  DataTable,
+  Field,
+  Info,
+  LinkButton,
+  PageHeader,
+  Panel,
+  StatCard,
+  StatusPill,
+  WorkflowStrip,
+} from "../../components/ui/SystemUI";
+import LicenseQrCard from "../../components/license/LicenseQrCard";
+import InvoicePreview from "../../components/payment/InvoicePreview";
+import {
+  canSubmitPayment,
+  canViewLicense,
+  formatCurrency,
+  formatDate,
+  formatWorkflowStatus,
+  getApplicantName,
+  getApplicationReference,
+  getApplicationType,
+  getInvoiceNo,
+  getLicenseId,
+  getProjectName,
+  normalizeStatus,
+} from "../../utils/workflow";
 
 function UserDashboard() {
   const navigate = useNavigate();
-
+  const { language, t } = useLanguage();
   const [applications, setApplications] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [selectedApplication, setSelectedApplication] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showGuidelines, setShowGuidelines] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [receiptReference, setReceiptReference] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("FPX");
+  const [message, setMessage] = useState({ type: "", text: "" });
+  const licenseCardRef = useRef(null);
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
-
-  const stats = useMemo(() => {
-    const total = applications.length;
-
-    const submitted = applications.filter((app) =>
-      isSubmittedApplication(app)
-    ).length;
-
-    const drafts = applications.filter((app) => !isSubmittedApplication(app))
-      .length;
-
-    return {
-      total,
-      submitted,
-      drafts,
-    };
-  }, [applications]);
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
+      setLoading(true);
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
       setApplications(list);
+      setSelectedId((current) => current || (list.length > 0 ? String(list[0].id) : ""));
     } catch (err) {
-      console.error("Failed to load applications", err);
+      console.error("Failed to load applications:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleProceed = () => {
-    setShowGuidelines(false);
-    navigate("/applications/new");
-  };
+  const fetchApplicationDetails = useCallback(async (id) => {
+    try {
+      setDetailsLoading(true);
+      const data = await apiRequest(`/applications/${id}/`);
+      setSelectedApplication(data);
+      setReceiptReference(data?.form_data?.payment?.receipt_reference || "");
+      setPaymentMethod(data?.form_data?.payment?.payment_channel || "FPX");
+    } catch (err) {
+      console.error("Failed to load application details:", err);
+      setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
+    } finally {
+      setDetailsLoading(false);
+    }
+  }, [t]);
 
-  const handleContinue = (app) => {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchApplications();
+  }, [fetchApplications]);
+
+  useEffect(() => {
+    if (selectedId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchApplicationDetails(selectedId);
+    }
+  }, [fetchApplicationDetails, selectedId]);
+
+  const stats = useMemo(() => {
+    const drafts = applications.filter(
+      (app) => normalizeStatus(app.status) === "draft"
+    ).length;
+    const submitted = applications.filter(
+      (app) => normalizeStatus(app.status) !== "draft"
+    ).length;
+    const payment = applications.filter((app) =>
+      ["approved", "invoice_generated", "payment_submitted"].includes(
+        normalizeStatus(app.status)
+      )
+    ).length;
+    const licenses = applications.filter(
+      (app) => normalizeStatus(app.status) === "license_issued"
+    ).length;
+
+    return { drafts, submitted, payment, licenses };
+  }, [applications]);
+
+  const latest = applications[0];
+  const activeApplication = selectedApplication || latest;
+  const payment = activeApplication?.form_data?.payment || {};
+  const license = activeApplication?.form_data?.license || {};
+  const paymentAmount = payment.amount || 250;
+
+  function openApplication(app) {
     const step = Number(app.current_step || 1);
-
-    const stepRoutes = {
+    const routes = {
       1: "edit",
       2: "client-department",
       3: "submitting-person",
@@ -65,400 +129,636 @@ function UserDashboard() {
       11: "declaration",
     };
 
-    const path = stepRoutes[step] || "edit";
+    if (normalizeStatus(app.status) === "draft") {
+      navigate(`/applications/${app.id}/${routes[step] || "edit"}?id=${app.id}`);
+      return;
+    }
 
-    navigate(`/applications/${app.id}/${path}?id=${app.id}`);
-  };
-
-  const handleView = (app) => {
     navigate(`/applications/${app.id}/declaration?id=${app.id}`);
-  };
+  }
+
+  async function submitPayment() {
+    if (!selectedApplication || !canSubmitPayment(selectedApplication)) return;
+
+    try {
+      setSaving(true);
+      setMessage({ type: "", text: "" });
+
+      const current = await apiRequest(`/applications/${selectedApplication.id}/`);
+      const currentPayment = current.form_data?.payment || {};
+      const receipt = receiptReference.trim() || `${paymentMethod}-${Date.now()}`;
+
+      await apiRequest(`/applications/${selectedApplication.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "payment_submitted",
+          form_data: {
+            ...(current.form_data || {}),
+            payment: {
+              ...currentPayment,
+              invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
+              amount: currentPayment.amount || 250,
+              status: "Payment Submitted",
+              payment_channel: paymentMethod,
+              receipt_reference: receipt,
+              submitted_at: new Date().toISOString(),
+            },
+          },
+        }),
+      });
+
+      setMessage({
+        type: "success",
+        text: t("applicant.paymentSubmittedSuccess"),
+      });
+      await fetchApplications();
+      await fetchApplicationDetails(selectedApplication.id);
+    } catch (err) {
+      setMessage({ type: "error", text: err.message || t("applicant.paymentSubmissionFailed") });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function downloadELicense() {
+    if (!activeApplication || !canViewLicense(activeApplication)) return;
+
+    const canvas = licenseCardRef.current?.querySelector("canvas");
+    const qrImage = canvas?.toDataURL("image/png") || "";
+    const licenseId = license.license_id || getLicenseId(activeApplication);
+    const safeReference = getApplicationReference(activeApplication).replace(/[^a-z0-9-]/gi, "_");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${licenseId}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #0f172a; margin: 32px; }
+    .license { max-width: 720px; border: 1px solid #d7dde5; padding: 28px; }
+    .eyebrow { color: #047857; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 8px 0 20px; font-size: 24px; }
+    dl { display: grid; grid-template-columns: 180px 1fr; gap: 10px 18px; font-size: 14px; }
+    dt { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 11px; }
+    dd { margin: 0; font-weight: 600; }
+    .qr { margin-top: 24px; }
+    .qr img { width: 180px; height: 180px; border: 1px solid #d7dde5; padding: 10px; }
+  </style>
+</head>
+<body>
+  <section class="license">
+    <p class="eyebrow">DBKU fasTrack Digital Advertisement License</p>
+    <h1>${licenseId}</h1>
+    <dl>
+      <dt>Reference</dt><dd>${getApplicationReference(activeApplication)}</dd>
+      <dt>License Holder</dt><dd>${getApplicantName(activeApplication)}</dd>
+      <dt>Project</dt><dd>${getProjectName(activeApplication)}</dd>
+      <dt>Type</dt><dd>${getApplicationType(activeApplication)}</dd>
+      <dt>Status</dt><dd>${license.status || "Active"}</dd>
+      <dt>Issue Date</dt><dd>${formatDate(license.issue_date)}</dd>
+      <dt>Expiry Date</dt><dd>${formatDate(license.expiry_date)}</dd>
+      <dt>Verification</dt><dd>${license.verification_url || "-"}</dd>
+    </dl>
+    ${qrImage ? `<div class="qr"><img src="${qrImage}" alt="License QR" /></div>` : ""}
+  </section>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${safeReference}-e-license.html`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <UserDashboardLayout>
-      <div className="space-y-6">
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="border-l-4 border-[#006d32] pl-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#006d32]">
-                Applicant Portal
-              </p>
-              <h1 className="mt-1 text-2xl font-bold text-[#1a1c1c]">
-                My Dashboard
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                View, continue, and monitor your siting applications.
-              </p>
-            </div>
+      <PageHeader
+        eyebrow={t("applicant.portal")}
+        title={t("applicant.dashboardTitle")}
+        description={t("applicant.dashboardDescription")}
+        actions={<LinkButton to="/applications/new" icon="add">{t("common.newApplication")}</LinkButton>}
+      />
 
-            <button
-              type="button"
-              onClick={() => setShowGuidelines(true)}
-              className="inline-flex items-center justify-center gap-2 rounded bg-[#006d32] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#005224]"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                add_circle
-              </span>
-              New Application
-            </button>
+      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label={t("common.drafts")} value={loading ? "..." : stats.drafts} icon="edit_document" tone="amber" />
+        <StatCard label={t("common.submitted")} value={loading ? "..." : stats.submitted} icon="task_alt" />
+        <StatCard label={t("common.paymentAction")} value={loading ? "..." : stats.payment} icon="payments" tone="blue" />
+        <StatCard label={t("common.eLicenses")} value={loading ? "..." : stats.licenses} icon="qr_code_2" />
+      </section>
+
+      <ApplicantFlowOverview
+        activeApplication={activeApplication}
+        onOpenApplication={() => activeApplication && openApplication(activeApplication)}
+        onDownloadELicense={downloadELicense}
+        language={language}
+        t={t}
+      />
+
+      <Panel
+        title={t("applicant.currentProgress")}
+        description={
+          activeApplication
+            ? `${getApplicationReference(activeApplication)} - ${translatedStatus(t, activeApplication.status)}`
+            : t("applicant.noApplicationSubmitted")
+        }
+        className="mb-6"
+      >
+        {activeApplication ? (
+          <WorkflowStrip currentStatus={activeApplication.status} language={language} />
+        ) : (
+          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+            {t("applicant.createApplicationHint")}
           </div>
-        </div>
+        )}
+      </Panel>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <StatCard label="Total Applications" value={stats.total} />
-          <StatCard label="Draft / In Progress" value={stats.drafts} />
-          <StatCard label="Submitted" value={stats.submitted} />
-        </div>
+      <Panel
+        title={t("applicant.actionsTitle")}
+        description={
+          activeApplication
+            ? t("applicant.actionsDescription")
+            : t("applicant.actionsEmptyDescription")
+        }
+        className="mb-6"
+      >
+        <Alert type={message.type || "success"} message={message.text} />
 
-        <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-[#f8faf9] px-5 py-4">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-base font-bold text-slate-900">
-                Application List
-              </h2>
-              <p className="text-xs text-slate-500">
-                Official record of your submitted and draft siting applications.
-              </p>
-            </div>
-          </div>
+        {activeApplication ? (
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-4">
+              <ApplicantStepCard
+                code="S1"
+                icon="account_circle"
+                title={t("applicant.s1ActionTitle")}
+                status={normalizeStatus(activeApplication.status) === "draft" ? t("applicant.actionRequired") : t("applicant.completed")}
+                tone={normalizeStatus(activeApplication.status) === "draft" ? "amber" : "emerald"}
+                details={[
+                  [t("common.application"), getApplicationReference(activeApplication)],
+                  [t("common.applicant"), getApplicantName(activeApplication)],
+                  [t("common.lastUpdated"), formatDate(activeApplication.updated_at)],
+                ]}
+                action={
+                  <Button variant="secondary" onClick={() => openApplication(activeApplication)}>
+                    {normalizeStatus(activeApplication.status) === "draft" ? t("applicant.continueApplication") : t("applicant.viewSubmission")}
+                  </Button>
+                }
+              />
 
-          <div className="p-5">
-            {loading ? (
-              <div className="rounded border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                Loading applications...
-              </div>
-            ) : applications.length === 0 ? (
-              <EmptyState onCreate={() => setShowGuidelines(true)} />
-            ) : (
-              <div className="overflow-x-auto rounded border border-slate-200">
-                <table className="w-full min-w-[980px] text-left text-xs">
-                  <thead className="bg-[#edf5ef] text-slate-700">
-                    <tr>
-                      <TableHead className="w-[52px] text-center">No.</TableHead>
-                      <TableHead className="w-[160px]">Reference No.</TableHead>
-                      <TableHead>Project / Application Title</TableHead>
-                      <TableHead className="w-[170px]">Application Type</TableHead>
-                      <TableHead className="w-[130px]">Status</TableHead>
-                      <TableHead className="w-[120px]">Progress</TableHead>
-                      <TableHead className="w-[140px]">Last Updated</TableHead>
-                      <TableHead className="w-[130px] text-center">
-                        Action
-                      </TableHead>
-                    </tr>
-                  </thead>
+              <ApplicantStepCard
+                code={language === "ms" ? "Pembetulan" : "Correction"}
+                icon="mark_email_unread"
+                title={t("applicant.correctionTitle")}
+                status={normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.correctionRequired") : t("applicant.noCorrectionRequest")}
+                tone={normalizeStatus(activeApplication.status) === "incomplete" ? "amber" : "slate"}
+                details={[
+                  [t("common.notification"), normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.emailCorrectionRequested") : t("applicant.noActiveCorrectionNotice")],
+                  [t("common.nextStep"), normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.updateApplicationForm") : t("applicant.waitLicensingReview")],
+                ]}
+                action={
+                  normalizeStatus(activeApplication.status) === "incomplete" ? (
+                    <Button variant="primary" onClick={() => openApplication(activeApplication)}>
+                      {t("applicant.openCorrection")}
+                    </Button>
+                  ) : null
+                }
+              />
 
-                  <tbody>
-                    {applications.map((app, index) => {
-                      const formData = app.form_data || {};
-                      const step1 = formData.step_1 || {};
-                      const submitted = isSubmittedApplication(app);
-                      const currentStep = Number(app.current_step || 1);
+              <ApplicantStepCard
+                code={language === "ms" ? "Keputusan" : "Decision"}
+                icon="notifications_active"
+                title={t("applicant.receiveDecisionTitle")}
+                status={getDecisionStatus(activeApplication, t)}
+                tone={getDecisionTone(activeApplication)}
+                details={getDecisionDetails(activeApplication, t)}
+              />
 
-                      return (
-                        <tr
-                          key={app.id}
-                          className={
-                            index % 2 === 0
-                              ? "bg-white"
-                              : "bg-[#fbfdfb]"
-                          }
+              <div className="rounded-lg border border-slate-200">
+                <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <span className="material-symbols-outlined rounded-md bg-blue-50 p-2 text-blue-700">
+                      payments
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">S13</p>
+                      <h3 className="text-sm font-semibold text-slate-950">
+                        {t("applicant.paymentByFpxCard")}
+                      </h3>
+                    </div>
+                  </div>
+                  <StatusPill value={translatedStatus(t, activeApplication.status)} />
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 p-4 lg:grid-cols-2">
+                  <div className="space-y-3 text-sm">
+                    <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(activeApplication)} />
+                    <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
+                    <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
+                    <Info label={t("common.receiptReference")} value={payment.receipt_reference || t("applicant.notSubmitted")} />
+                  </div>
+
+                  {canSubmitPayment(activeApplication) ? (
+                    <div className="space-y-3">
+                      <Field label={t("common.paymentMethod")}>
+                        <select
+                          value={paymentMethod}
+                          onChange={(event) => setPaymentMethod(event.target.value)}
+                          className="form-input"
                         >
-                          <TableCell center>{index + 1}</TableCell>
-
-                          <TableCell>
-                            <div className="font-bold text-[#006d32]">
-                              {app.reference_no || `APP-${app.id}`}
-                            </div>
-                            <div className="mt-0.5 text-[10px] text-slate-400">
-                              ID: {app.id}
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="font-semibold text-slate-900">
-                              {step1.project_name ||
-                                app.title ||
-                                "Untitled Application"}
-                            </div>
-                            <div className="mt-1 line-clamp-2 text-[11px] text-slate-500">
-                              {step1.locality_address ||
-                                step1.site_address ||
-                                step1.address ||
-                                "No site information provided."}
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            {step1.application_type_label ||
-                              "Application of Siting Project"}
-                          </TableCell>
-
-                          <TableCell>
-                            <StatusBadge submitted={submitted} app={app} />
-                          </TableCell>
-
-                          <TableCell>
-                            <div className="font-semibold text-slate-700">
-                              Step {currentStep} of 11
-                            </div>
-                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                              <div
-                                className="h-full rounded-full bg-[#18b36b]"
-                                style={{
-                                  width: `${Math.min(
-                                    100,
-                                    Math.max(8, (currentStep / 11) * 100)
-                                  )}%`,
-                                }}
-                              />
-                            </div>
-                          </TableCell>
-
-                          <TableCell>
-                            {formatDateTime(
-                              app.updated_at ||
-                                formData.step_11?.saved_at ||
-                                formData.step_10?.saved_at ||
-                                formData.step_9?.saved_at ||
-                                app.created_at
-                            )}
-                          </TableCell>
-
-                          <TableCell center>
-                            {submitted ? (
-                              <button
-                                type="button"
-                                onClick={() => handleView(app)}
-                                className="inline-flex items-center justify-center rounded border border-[#006d32] bg-white px-3 py-1.5 text-[11px] font-bold text-[#006d32] hover:bg-emerald-50"
-                              >
-                                View
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleContinue(app)}
-                                className="inline-flex items-center justify-center rounded bg-[#006d32] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#005224]"
-                              >
-                                Continue
-                              </button>
-                            )}
-                          </TableCell>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          <option value="FPX">FPX Online Banking</option>
+                          <option value="Card">Credit / Debit Card</option>
+                        </select>
+                      </Field>
+                      <Field label={t("common.receiptReference")}>
+                        <input
+                          value={receiptReference}
+                          onChange={(event) => setReceiptReference(event.target.value)}
+                          className="form-input"
+                          placeholder="Example: FPX-20260507-001"
+                        />
+                      </Field>
+                      <Button onClick={submitPayment} disabled={saving} icon="payments">
+                        {saving ? t("common.submitting") : t("applicant.submitPayment")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                      {getPaymentHint(activeApplication, t)}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {showGuidelines && (
-        <GuidelinesModal
-          onClose={() => setShowGuidelines(false)}
-          onProceed={handleProceed}
+            <aside className="space-y-5">
+              {detailsLoading ? (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+                  {t("common.loadingSelectedApplication")}
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {t("applicant.selectedApplication")}
+                    </p>
+                    <h3 className="mt-1 text-base font-semibold text-slate-950">
+                      {getApplicationReference(activeApplication)}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {getProjectName(activeApplication)}
+                    </p>
+                    <div className="mt-3">
+                      <StatusPill value={translatedStatus(t, activeApplication.status)} />
+                    </div>
+                  </div>
+
+                  {payment.invoice_no && (
+                    <InvoicePreview
+                      application={activeApplication}
+                      amount={paymentAmount}
+                      invoiceDate={payment.generated_at || activeApplication.updated_at}
+                      dueDate={payment.due_date || activeApplication.updated_at}
+                    />
+                  )}
+
+                  {canViewLicense(activeApplication) ? (
+                    <div className="space-y-3">
+                      <div ref={licenseCardRef}>
+                        <LicenseQrCard application={activeApplication} license={license} />
+                      </div>
+                      <Button onClick={downloadELicense} icon="download" className="w-full">
+                        {t("applicant.downloadQrELicense")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                      {t("applicant.qrLicensePending")}
+                    </div>
+                  )}
+                </>
+              )}
+            </aside>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+            {t("applicant.workflowInactive")}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title={t("applicant.applicationsTitle")} description={t("applicant.myApplicationsDesc")}>
+        <DataTable
+          loading={loading}
+          loadingText={t("common.loading")}
+          emptyText={t("applicant.noApplicationsYet")}
+          rows={applications}
+          columns={[
+            {
+              key: "reference",
+              label: t("common.reference"),
+              render: (app) => (
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(String(app.id))}
+                  className="font-semibold text-emerald-700 hover:underline"
+                >
+                  {getApplicationReference(app)}
+                </button>
+              ),
+            },
+            { key: "project", label: t("common.project"), render: getProjectName },
+            { key: "type", label: t("common.type"), render: getApplicationType },
+            {
+              key: "status",
+              label: t("common.status"),
+              render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+            },
+            { key: "updated", label: t("common.updated"), render: (app) => formatDate(app.updated_at) },
+            {
+              key: "action",
+              label: t("common.action"),
+              render: (app) => (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(String(app.id))}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    {t("common.manage")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openApplication(app)}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
+                  </button>
+                </div>
+              ),
+            },
+          ]}
         />
-      )}
+      </Panel>
     </UserDashboardLayout>
   );
 }
 
-function isSubmittedApplication(app) {
-  const formData = app.form_data || {};
-  const step11 = formData.step_11 || {};
+function ApplicantFlowOverview({ activeApplication, onOpenApplication, onDownloadELicense, language, t }) {
+  const status = normalizeStatus(activeApplication?.status);
+  const hasApplication = Boolean(activeApplication);
+  const correctionActive = status === "incomplete";
+  const decisionReady = [
+    "approved",
+    "approved_with_conditions",
+    "rejected",
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+    "license_revoked",
+  ].includes(status);
+  const paymentActive = [
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+  ].includes(status);
+  const licenseReady = status === "license_issued" || status === "license_revoked";
 
   return (
-    step11.submitted === true ||
-    step11.status === "Submitted" ||
-    app.status === "submitted" ||
-    app.status === "Submitted"
+    <Panel
+      title={t("applicant.flowTitle")}
+      description={t("applicant.flowDescription")}
+      className="mb-6"
+    >
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+        <FlowNode
+          tone="blue"
+          icon="play_arrow"
+          eyebrow="START"
+          title={t("applicant.startTitle")}
+          description={t("applicant.startDesc")}
+          state={t("common.ready")}
+        />
+        <FlowNode
+          tone={hasApplication ? "emerald" : "amber"}
+          icon="account_circle"
+          eyebrow="S1"
+          title={t("applicant.s1Title")}
+          description={t("applicant.s1Desc")}
+          state={hasApplication ? t("applicant.applicationSelected") : t("applicant.noApplicationYet")}
+        />
+        <FlowNode
+          tone={hasApplication && status !== "draft" ? "emerald" : "amber"}
+          icon="upload_file"
+          eyebrow={language === "ms" ? "BORANG" : "FORM"}
+          title={t("applicant.formUploadTitle")}
+          description={t("applicant.formUploadDesc")}
+          state={status === "draft" ? t("status.draft") : hasApplication ? t("status.submitted") : t("applicant.startRequired")}
+          action={
+            hasApplication ? (
+              <Button variant="secondary" onClick={onOpenApplication}>
+                {status === "draft" ? t("common.continue") : t("common.view")}
+              </Button>
+            ) : (
+              <LinkButton to="/applications/new" icon="add" variant="secondary">
+                {t("common.new")}
+              </LinkButton>
+            )
+          }
+        />
+        <FlowNode
+          tone={correctionActive ? "amber" : hasApplication ? "emerald" : "slate"}
+          icon={correctionActive ? "mark_email_unread" : "task_alt"}
+          eyebrow="STATUS"
+          title={t("applicant.statusCompleteTitle")}
+          description={correctionActive ? t("applicant.correctionEmailDesc") : t("applicant.memoDesc")}
+          state={correctionActive ? t("applicant.statusCorrection") : hasApplication ? t("applicant.statusCompleteYes") : t("common.pending")}
+        />
+        <FlowNode
+          tone={hasApplication && status !== "draft" && !correctionActive ? "emerald" : "slate"}
+          icon="description"
+          eyebrow="MEMO"
+          title={t("applicant.memoTitle")}
+          description={t("applicant.memoMoveDesc")}
+          state={hasApplication && status !== "draft" && !correctionActive ? t("common.done") : t("common.waiting")}
+        />
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-4">
+        <FlowNode
+          tone={decisionReady ? (status === "rejected" ? "red" : "emerald") : "slate"}
+          icon="notifications_active"
+          eyebrow={language === "ms" ? "KEPUTUSAN" : "DECISION"}
+          title={t("applicant.decisionNoticeTitle")}
+          description={t("applicant.decisionNoticeDesc")}
+          state={decisionReady ? translatedStatus(t, status) : t("common.waiting")}
+        />
+        <FlowNode
+          tone={paymentActive ? "blue" : "slate"}
+          icon="payments"
+          eyebrow="S13"
+          title={t("applicant.onlinePaymentTitle")}
+          description={t("applicant.onlinePaymentDesc")}
+          state={paymentActive ? translatedStatus(t, status) : t("applicant.waitingInvoice")}
+        />
+        <FlowNode
+          tone={licenseReady ? "emerald" : "slate"}
+          icon="qr_code_2"
+          eyebrow={language === "ms" ? "E-LESEN" : "E-LICENSE"}
+          title={t("applicant.licenseDownloadTitle")}
+          description={t("applicant.licenseDownloadDesc")}
+          state={licenseReady ? t("common.ready") : t("common.waiting")}
+          action={
+            licenseReady ? (
+              <Button variant="secondary" onClick={onDownloadELicense}>
+                {t("common.download")}
+              </Button>
+            ) : null
+          }
+        />
+        <FlowNode
+          tone={licenseReady ? "blue" : "slate"}
+          icon="flag"
+          eyebrow="SND"
+          title={t("applicant.endTitle")}
+          description={t("applicant.endDesc")}
+          state={licenseReady ? t("common.complete") : t("common.notComplete")}
+        />
+      </div>
+    </Panel>
   );
 }
 
-function StatusBadge({ submitted, app }) {
-  const rawStatus = app.status || "draft";
+function FlowNode({ tone = "slate", icon, eyebrow, title, description, state, action }) {
+  const tones = {
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    blue: "border-blue-200 bg-blue-50 text-blue-700",
+    red: "border-red-200 bg-red-50 text-red-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-600",
+  };
 
-  if (submitted) {
-    return (
-      <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
-        Submitted
-      </span>
-    );
+  return (
+    <div className={`rounded-lg border p-4 ${tones[tone]}`}>
+      <div className="flex items-start gap-3">
+        <span className="material-symbols-outlined text-[22px]">{icon}</span>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{eyebrow}</p>
+          <h3 className="mt-1 text-sm font-semibold text-slate-950">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex min-h-10 flex-wrap items-center justify-between gap-2">
+        <StatusPill value={state} />
+        {action}
+      </div>
+    </div>
+  );
+}
+
+function ApplicantStepCard({ code, icon, title, status, tone = "slate", details = [], action }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    amber: "bg-amber-50 text-amber-700",
+    blue: "bg-blue-50 text-blue-700",
+    red: "bg-red-50 text-red-700",
+    slate: "bg-slate-100 text-slate-700",
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className={`material-symbols-outlined rounded-md p-2 ${tones[tone]}`}>
+            {icon}
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {code}
+            </p>
+            <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+            <p className="mt-1 text-sm text-slate-500">{status}</p>
+          </div>
+        </div>
+        {action}
+      </div>
+
+      {details.length > 0 && (
+        <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+          {details.map(([label, value]) => (
+            <Info key={label} label={label} value={value} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function translatedStatus(t, status) {
+  return t(`status.${normalizeStatus(status)}`, formatWorkflowStatus(status));
+}
+
+function getDecisionStatus(app, t) {
+  const status = normalizeStatus(app?.status);
+
+  if (status === "rejected") return t("decision.notApproved");
+  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
+    return t("decision.approved");
+  }
+  return t("decision.waiting");
+}
+
+function getDecisionTone(app) {
+  const status = normalizeStatus(app?.status);
+
+  if (status === "rejected") return "red";
+  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
+    return "emerald";
+  }
+  return "slate";
+}
+
+function getDecisionDetails(app, t) {
+  const approval = app?.form_data?.approval || {};
+  const status = normalizeStatus(app?.status);
+
+  if (status === "rejected") {
+    return [
+      [t("common.decision"), t("decision.rejected")],
+      [t("common.remark"), approval.notes || approval.comment || t("decision.referNotice")],
+      [t("common.date"), formatDate(approval.signed_at || app?.updated_at)],
+    ];
   }
 
-  return (
-    <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold capitalize text-amber-700">
-      {rawStatus === "draft" ? "Draft" : rawStatus}
-    </span>
-  );
+  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
+    return [
+      [t("common.decision"), status === "approved_with_conditions" ? t("decision.approvedWithConditions") : t("decision.approved")],
+      [t("common.remark"), approval.notes || approval.comment || t("decision.notificationReceived")],
+      [t("common.date"), formatDate(approval.signed_at || app?.updated_at)],
+    ];
+  }
+
+  return [
+    [t("common.decision"), t("decision.pending")],
+    [t("common.currentPhase"), translatedStatus(t, app?.status)],
+    [t("common.updated"), formatDate(app?.updated_at)],
+  ];
 }
 
-function StatCard({ label, value }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-bold text-[#006d32]">{value}</p>
-    </div>
-  );
-}
+function getPaymentHint(app, t) {
+  const status = normalizeStatus(app?.status);
 
-function EmptyState({ onCreate }) {
-  return (
-    <div className="rounded border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-[#006d32]">
-        <span className="material-symbols-outlined">description</span>
-      </div>
-
-      <h3 className="mt-3 text-sm font-bold text-slate-800">
-        No applications yet
-      </h3>
-
-      <p className="mt-1 text-xs text-slate-500">
-        Start a new siting application to begin the submission process.
-      </p>
-
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-4 rounded bg-[#006d32] px-4 py-2 text-xs font-bold text-white hover:bg-[#005224]"
-      >
-        + New Application
-      </button>
-    </div>
-  );
-}
-
-function GuidelinesModal({ onClose, onProceed }) {
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 px-4">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-hidden rounded border border-slate-300 bg-white shadow-lg">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          <div className="flex items-center gap-3">
-            <div className="h-7 w-1 bg-[#18b36b]" />
-            <h2 className="text-lg font-normal text-slate-800">
-              fasTrack Guidelines
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xl leading-none text-slate-400 hover:text-slate-700"
-          >
-            ×
-          </button>
-        </div>
-
-        <div className="max-h-[75vh] overflow-y-auto px-9 py-7 text-[11px] leading-relaxed text-slate-700">
-          <ol className="list-decimal space-y-3 pl-5">
-            <li>
-              Applicant must first consult the{" "}
-              <strong>Department of Land and Surveys (L&amp;S)</strong> of the
-              division or Bintulu Development Authority (BDA). This is known as{" "}
-              <strong>Preliminary Stage</strong> which discussion between client
-              and agency to be held at L&amp;S/BDA office. Under this stage,
-              L&amp;S / BDA shall work together with the client:
-              <ul className="mt-1 list-disc space-y-1 pl-6">
-                <li>to identify the site;</li>
-                <li>to carry out joint-site inspection;</li>
-                <li>to accept the selected site.</li>
-              </ul>
-              Once the Preliminary Stage is completed, L&amp;S and BDA will
-              advise the client to proceed with online submission using
-              fasTrack.
-            </li>
-
-            <li>
-              The siting application for{" "}
-              <strong>federal government projects</strong> shall be submitted
-              through the relevant technical agency.
-            </li>
-
-            <li>
-              Application for cemeteries, mosques, surau and related religious
-              facilities shall be submitted through the relevant authority.
-            </li>
-
-            <li>
-              All applications submitted by NGOs related to religious purpose
-              should be submitted through the relevant unit with recommendation
-              to the approving department.
-            </li>
-
-            <li>
-              The applicant must submit the complete application form and all
-              supporting documents required by fasTrack.
-            </li>
-
-            <li>
-              The application for community hall, football field and other
-              public facilities shall be reviewed by the relevant government
-              agencies.
-            </li>
-
-            <li>
-              Availability of fund is <strong>compulsory</strong>. If there is
-              no fund, the application will not be able to register, process or
-              submit through the system.
-            </li>
-
-            <li>
-              All submissions must use the online <strong>Siting Form</strong>,
-              fully signed, printed and uploaded into Supporting Document.
-            </li>
-
-            <li>
-              All documents must be submitted <strong>electronically</strong> /
-              digitally via fasTrack online.
-            </li>
-          </ol>
-
-          <button
-            type="button"
-            onClick={onProceed}
-            className="mt-6 inline-flex items-center gap-2 rounded-sm bg-[#18b36b] px-3 py-2 text-xs font-semibold text-white hover:bg-[#12975a]"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
-            Proceed
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TableHead({ children, className = "" }) {
-  return (
-    <th
-      className={`border border-slate-200 px-3 py-2.5 align-middle font-bold ${className}`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function TableCell({ children, center = false }) {
-  return (
-    <td
-      className={`border border-slate-200 px-3 py-3 align-top ${
-        center ? "text-center align-middle" : ""
-      }`}
-    >
-      {children}
-    </td>
-  );
-}
-
-function formatDateTime(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-GB");
+  if (status === "draft") return t("applicant.paymentHintDraft");
+  if (status === "rejected") return t("applicant.paymentHintRejected");
+  if (status === "payment_submitted") return t("applicant.paymentHintSubmitted");
+  if (status === "payment_verified") return t("applicant.paymentHintVerified");
+  if (status === "license_issued") return t("applicant.paymentHintIssued");
+  return t("applicant.paymentHintDefault");
 }
 
 export default UserDashboard;

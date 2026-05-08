@@ -14,6 +14,7 @@ class SupportingDocumentSerializer(serializers.ModelSerializer):
             "file_url",
             "uploaded_at",
         ]
+        read_only_fields = ["id", "file_url", "uploaded_at"]
 
     def get_file_url(self, obj):
         request = self.context.get("request")
@@ -44,6 +45,14 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        read_only_fields = [
+            "id",
+            "reference_no",
+            "applicant",
+            "applicant_username",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):
@@ -69,6 +78,15 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "status",
             "current_step",
             "form_data",
+            "supporting_documents",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "reference_no",
+            "applicant",
+            "applicant_username",
             "supporting_documents",
             "created_at",
             "updated_at",

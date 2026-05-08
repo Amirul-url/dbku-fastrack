@@ -9,14 +9,38 @@ export function getStoredUser() {
   }
 }
 
-export function getUserRedirectPath(user) {
+export function getNormalizedRole(user) {
   const role = String(user?.role || "").toLowerCase();
 
-  if (role === "admin" || role === "staff") {
+  if (role === "admin" || role === "staff" || user?.is_staff || user?.is_superuser) {
+    return "admin";
+  }
+
+  if (role === "applicant" || role === "user") {
+    return "applicant";
+  }
+
+  return "";
+}
+
+export function isAdminUser(user) {
+  return getNormalizedRole(user) === "admin";
+}
+
+export function isApplicantUser(user) {
+  return getNormalizedRole(user) === "applicant";
+}
+
+export function getUserRedirectPath(user) {
+  if (isAdminUser(user)) {
     return "/dashboard/admin";
   }
 
-  return "/user/dashboard";
+  if (isApplicantUser(user)) {
+    return "/user/dashboard";
+  }
+
+  return "/login/malaysian";
 }
 
 export function saveAuthSession(data, rememberMe = false) {
@@ -29,7 +53,13 @@ export function saveAuthSession(data, rememberMe = false) {
   }
 
   if (data?.user) {
-    localStorage.setItem("fastrack_user", JSON.stringify(data.user));
+    localStorage.setItem(
+      "fastrack_user",
+      JSON.stringify({
+        ...data.user,
+        role: getNormalizedRole(data.user) || data.user.role,
+      })
+    );
   }
 
   localStorage.setItem("fastrack_remember_me", rememberMe ? "true" : "false");

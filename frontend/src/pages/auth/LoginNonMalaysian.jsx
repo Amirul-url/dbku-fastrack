@@ -1,10 +1,12 @@
 import { useState } from "react";
 import AuthLayout from "../../layout/AuthLayout";
 import { Link, useNavigate } from "react-router-dom";
+import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
 
 function LoginNonMalaysian() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -18,7 +20,7 @@ function LoginNonMalaysian() {
     setError("");
 
     if (!username.trim() || !password.trim()) {
-      setError("Please enter email and password.");
+      setError(t("auth.enterEmailPassword"));
       return;
     }
 
@@ -36,7 +38,7 @@ function LoginNonMalaysian() {
       saveAuthSession(data, rememberMe);
       navigate(getUserRedirectPath(data.user), { replace: true });
     } catch (err) {
-      setError(err.message || "Login failed. Please check your email and password.");
+      setError(err.message || t("auth.loginEmailFailed"));
     } finally {
       setLoading(false);
     }
@@ -52,9 +54,9 @@ function LoginNonMalaysian() {
   return (
     <AuthLayout>
       <div className="mb-10">
-        <h2 className="text-3xl font-bold text-[#1a1c1c]">Sign In</h2>
+        <h2 className="text-3xl font-bold text-[#1a1c1c]">{t("auth.loginTitle")}</h2>
         <p className="text-base text-[#3d4a3d] mt-2">
-          Access your personal dashboard and services.
+          {t("auth.loginDescription")}
         </p>
       </div>
 
@@ -63,14 +65,14 @@ function LoginNonMalaysian() {
           to="/login/malaysian"
           className="px-6 py-3 text-sm font-semibold border-b-2 border-transparent text-[#6c7b6c]"
         >
-          Malaysian
+          {t("auth.malaysian")}
         </Link>
 
         <Link
           to="/login/non-malaysian"
           className="px-6 py-3 text-sm font-semibold border-b-2 border-[#006d32] text-[#006d32]"
         >
-          Non-Malaysian
+          {t("auth.nonMalaysian")}
         </Link>
       </div>
 
@@ -83,7 +85,7 @@ function LoginNonMalaysian() {
       <form className="space-y-6" onSubmit={handleLogin}>
         <div>
           <label className="block text-sm font-semibold text-[#3d4a3d] mb-1">
-            Email Address
+            {t("auth.emailAddress")}
           </label>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6c7b6c]">
@@ -101,7 +103,7 @@ function LoginNonMalaysian() {
 
         <div>
           <label className="block text-sm font-semibold text-[#3d4a3d] mb-1">
-            Password
+            {t("auth.password")}
           </label>
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6c7b6c]">
@@ -132,11 +134,11 @@ function LoginNonMalaysian() {
               onChange={(e) => setRememberMe(e.target.checked)}
               className="w-4 h-4 text-[#006d32] rounded"
             />
-            <span className="text-sm text-[#3d4a3d]">Remember me</span>
+            <span className="text-sm text-[#3d4a3d]">{t("auth.rememberMe")}</span>
           </label>
 
           <a href="#" className="text-sm text-[#006d32] font-semibold hover:underline">
-            Forgot Password?
+            {t("auth.forgotPassword")}
           </a>
         </div>
 
@@ -147,7 +149,7 @@ function LoginNonMalaysian() {
             disabled={loading}
             className="py-3 px-4 border border-[#006d32] text-[#006d32] text-sm font-semibold rounded hover:bg-[#eeeeee] disabled:opacity-60"
           >
-            Reset
+            {t("common.reset")}
           </button>
 
           <button
@@ -155,18 +157,18 @@ function LoginNonMalaysian() {
             disabled={loading}
             className="py-3 px-4 bg-[#006d32] text-white text-sm font-semibold rounded hover:bg-[#005224] disabled:opacity-60"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? t("common.signingIn") : t("common.signIn")}
           </button>
         </div>
       </form>
 
       <p className="text-center mt-12 text-sm text-[#3d4a3d]">
-        Don&apos;t have an account?{" "}
+        {t("auth.noAccount")}{" "}
         <Link
           to="/register/non-malaysian"
           className="text-[#006d32] font-bold hover:underline"
         >
-          Register Now
+          {t("common.registerNow")}
         </Link>
       </p>
     </AuthLayout>

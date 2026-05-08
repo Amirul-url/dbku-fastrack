@@ -1,103 +1,186 @@
-import DashboardLayout from "../../layout/DashboardLayout";
+import { useMemo, useState } from "react";
+import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
+import { apiRequest } from "../../services/api";
+import {
+  formatDate,
+  getApplicantName,
+  getApplicationLocation,
+  getApplicationReference,
+  getApplicationType,
+} from "../../utils/workflow";
 
 function EnforcementScanPage() {
+  const [licenseInput, setLicenseInput] = useState("");
+  const [application, setApplication] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const license = application?.form_data?.license || {};
+
+  const isActive = useMemo(() => {
+    if (!license?.status) return false;
+    if (license.status !== "Active") return false;
+
+    const expiry = new Date(license.expiry_date);
+    if (Number.isNaN(expiry.getTime())) return false;
+
+    return expiry.getTime() >= Date.now();
+  }, [license]);
+
+  async function handleVerify() {
+    const value = licenseInput.trim();
+
+    if (!value) {
+      setMessage("Please enter license ID or verification link.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      setApplication(null);
+
+      const licenseId = extractLicenseId(value);
+      const data = await apiRequest("/applications/");
+      const list = Array.isArray(data) ? data : data?.results || [];
+
+      const found = list.find(
+        (app) => app.form_data?.license?.license_id === licenseId
+      );
+
+      if (!found) {
+        setMessage("License not found.");
+        return;
+      }
+
+      setApplication(found);
+    } catch (error) {
+      console.error("Verification failed:", error);
+      setMessage("Failed to verify license.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <DashboardLayout>
-      <div className="max-w-3xl mx-auto">
-        {/* HEADER */}
+    <AdminDashboardLayout>
+      <div className="mx-auto max-w-4xl">
         <div className="mb-6 border-l-4 border-[#006d32] pl-4">
-          <p className="text-xs uppercase tracking-wide font-semibold text-[#006d32] mb-1">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#006d32]">
             Enforcement Module
           </p>
-          <h1 className="text-2xl font-bold text-[#1a1c1c]">
-            QR Verification
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Scan advertisement license QR code to verify validity and compliance.
+          <h1 className="text-2xl font-bold text-[#1a1c1c]">QR Verification</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Scan or enter advertisement license QR link to verify validity and compliance.
           </p>
         </div>
 
-        {/* SCANNER */}
-        <section className="bg-white border border-slate-200 rounded-md p-5 mb-6">
-          <h2 className="text-base font-bold text-[#1a1c1c] mb-4">
-            QR Scanner
-          </h2>
+        <section className="mb-6 rounded-md border border-slate-200 bg-white p-5">
+          <h2 className="mb-4 text-base font-bold text-[#1a1c1c]">QR Scanner</h2>
 
           <div className="flex flex-col items-center">
-            <div className="w-full max-w-sm aspect-square border-2 border-dashed border-slate-300 rounded-md flex items-center justify-center mb-4 bg-[#fafafa]">
+            <div className="mb-4 flex aspect-square w-full max-w-sm items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-[#fafafa]">
               <div className="text-center">
                 <span className="material-symbols-outlined text-5xl text-slate-400">
                   qr_code_scanner
                 </span>
-                <p className="text-xs text-slate-500 mt-2">
-                  Camera scanner will appear here
+                <p className="mt-2 text-xs text-slate-500">
+                  Camera scanner can be connected later.
                 </p>
               </div>
             </div>
 
-            <button className="px-5 py-2.5 bg-[#006d32] text-white rounded text-sm font-semibold hover:bg-[#005224]">
-              Start Scanning
-            </button>
+            <div className="flex w-full max-w-xl flex-col gap-3 sm:flex-row">
+              <input
+                value={licenseInput}
+                onChange={(event) => setLicenseInput(event.target.value)}
+                className="form-input flex-1"
+                placeholder="Paste license ID or verification link..."
+              />
+
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={loading}
+                className="rounded bg-[#006d32] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#005224] disabled:opacity-60"
+              >
+                {loading ? "Verifying..." : "Verify"}
+              </button>
+            </div>
+
+            {message && (
+              <p className="mt-3 text-sm font-semibold text-red-600">{message}</p>
+            )}
           </div>
         </section>
 
-        {/* RESULT */}
-        <section className="bg-white border border-slate-200 rounded-md overflow-hidden">
-          <div className="border-t-4 border-[#006d32] px-5 py-4 border-b border-slate-200">
+        <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 border-t-4 border-[#006d32] px-5 py-4">
             <h2 className="text-base font-bold text-[#1a1c1c]">
               Verification Result
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="mt-1 text-xs text-slate-500">
               License information retrieved after QR scan.
             </p>
           </div>
 
           <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Info label="License ID" value="LIC-2026-0001" />
-              <Info label="Application ID" value="FT-2026-0002" />
-              <Info label="License Holder" value="Kuching Food Hub" />
-              <Info label="Advertisement Type" value="Shop Signage" />
-              <Info label="Approved Location" value="Jalan Satok, Kuching" />
-              <Info label="Expiry Date" value="26 Apr 2027" />
-              <Info label="License Status" value="Active" />
-              <Info label="QR Scan Result" value="Valid" />
-            </div>
+            {!application ? (
+              <div className="rounded border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+                No license selected.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Info label="License ID" value={license.license_id} />
+                  <Info label="Application ID" value={getApplicationReference(application)} />
+                  <Info label="License Holder" value={getApplicantName(application)} />
+                  <Info label="Advertisement Type" value={getApplicationType(application)} />
+                  <Info label="Approved Location" value={getApplicationLocation(application)} />
+                  <Info label="Expiry Date" value={formatDate(license.expiry_date)} />
+                  <Info label="License Status" value={license.status || "Not provided"} />
+                  <Info label="QR Scan Result" value={isActive ? "Valid" : "Invalid"} />
+                </div>
 
-            <div className="mt-5 border border-green-200 bg-green-50 px-4 py-3 rounded-md">
-              <p className="text-sm font-semibold text-green-800">
-                Valid License — Approved and Active
-              </p>
-              <p className="text-xs text-green-700 mt-1">
-                This advertisement license is registered and compliant under the
-                fasTrack system.
-              </p>
-            </div>
-
-            {/* ACTION */}
-            <div className="grid grid-cols-2 gap-3 mt-5">
-              <button className="py-2.5 bg-[#006d32] text-white rounded text-sm font-semibold hover:bg-[#005224]">
-                Mark as Checked
-              </button>
-
-              <button className="py-2.5 border border-slate-300 rounded text-sm font-semibold hover:bg-slate-50">
-                Report Issue
-              </button>
-            </div>
+                <div
+                  className={`mt-5 rounded-md border px-4 py-3 ${
+                    isActive
+                      ? "border-green-200 bg-green-50 text-green-800"
+                      : "border-red-200 bg-red-50 text-red-800"
+                  }`}
+                >
+                  <p className="text-sm font-semibold">
+                    {isActive
+                      ? "Valid License — Approved and Active"
+                      : "Invalid License — Action Required"}
+                  </p>
+                  <p className="mt-1 text-xs">
+                    {isActive
+                      ? "This advertisement license is registered and active under fasTrack."
+                      : "This license is expired, revoked, missing, or not active."}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </section>
       </div>
-    </DashboardLayout>
+    </AdminDashboardLayout>
   );
+}
+
+function extractLicenseId(value) {
+  const parts = value.split("/");
+  return parts[parts.length - 1].trim();
 }
 
 function Info({ label, value }) {
   return (
     <div>
-      <p className="text-xs uppercase text-slate-400 font-semibold mb-1">
+      <p className="mb-1 text-xs font-semibold uppercase text-slate-400">
         {label}
       </p>
-      <p className="text-sm font-semibold text-slate-800">{value}</p>
+      <p className="text-sm font-semibold text-slate-800">{value || "-"}</p>
     </div>
   );
 }

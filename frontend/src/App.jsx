@@ -12,41 +12,68 @@ import RegisterMalaysian from "./pages/auth/RegisterMalaysian";
 import RegisterNonMalaysian from "./pages/auth/RegisterNonMalaysian";
 
 /* HOME */
-import HomePage from "./pages/home/HomePage";
+import AdminHomePage from "./pages/home/admin/AdminHomePage";
 
 /* DASHBOARD */
 import UserDashboard from "./pages/dashboard/UserDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 
-/* APPLICATION */
-import UserApplicationsPage from "./pages/applications/UserApplicationsPage";
-import ApplicationsPage from "./pages/applications/ApplicationsPage";
-import ApplicationDetailPage from "./pages/applications/ApplicationDetailPage";
+/* USER APPLICATION */
+import UserApplicationsPage from "./pages/applications/user/UserApplicationsPage";
 
-/* APPLICATION STEPS */
-import SittingApplicationPage from "./pages/applications/steps/SittingApplicationPage";
-import ClientDepartmentPage from "./pages/applications/steps/ClientDepartmentPage";
-import SubmittingPersonPage from "./pages/applications/steps/SubmittingPersonPage";
-import LandDetailsPage from "./pages/applications/steps/LandDetailsPage";
-import BuildingPlanPage from "./pages/applications/steps/BuildingPlanPage";
-import ProposalAnalysisPage from "./pages/applications/steps/ProposalAnalysisPage";
-import SiteInspectionPage from "./pages/applications/steps/SiteInspectionPage";
-import BuildingPlanChecklistPage from "./pages/applications/steps/BuildingPlanChecklistPage";
-import PrintFormPage from "./pages/applications/steps/PrintFormPage";
-import SupportingDocumentPage from "./pages/applications/steps/SupportingDocumentPage";
-import DeclarationPage from "./pages/applications/steps/DeclarationPage";
+/* ADMIN APPLICATION */
+import AdminApplicationsPage from "./pages/applications/admin/AdminApplicationsPage";
+import AdminApplicationDetailPage from "./pages/applications/admin/AdminApplicationDetailPage";
+
+/* ADMIN APPLICATION STEPS */
+import AdminStep1Page from "./pages/applications/admin/steps/AdminStep1Page";
+import AdminStep2Page from "./pages/applications/admin/steps/AdminStep2Page";
+import AdminStep3Page from "./pages/applications/admin/steps/AdminStep3Page";
+import AdminStep4Page from "./pages/applications/admin/steps/AdminStep4Page";
+import AdminStep5Page from "./pages/applications/admin/steps/AdminStep5Page";
+import AdminStep6Page from "./pages/applications/admin/steps/AdminStep6Page";
+import AdminStep7Page from "./pages/applications/admin/steps/AdminStep7Page";
+import AdminStep8Page from "./pages/applications/admin/steps/AdminStep8Page";
+import AdminStep9Page from "./pages/applications/admin/steps/AdminStep9Page";
+import AdminStep10Page from "./pages/applications/admin/steps/AdminStep10Page";
+import AdminStep11Page from "./pages/applications/admin/steps/AdminStep11Page";
+
+/* USER APPLICATION STEPS */
+import SittingApplicationPage from "./pages/applications/user/steps/SittingApplicationPage";
+import ClientDepartmentPage from "./pages/applications/user/steps/ClientDepartmentPage";
+import SubmittingPersonPage from "./pages/applications/user/steps/SubmittingPersonPage";
+import LandDetailsPage from "./pages/applications/user/steps/LandDetailsPage";
+import BuildingPlanPage from "./pages/applications/user/steps/BuildingPlanPage";
+import ProposalAnalysisPage from "./pages/applications/user/steps/ProposalAnalysisPage";
+import SiteInspectionPage from "./pages/applications/user/steps/SiteInspectionPage";
+import BuildingPlanChecklistPage from "./pages/applications/user/steps/BuildingPlanChecklistPage";
+import PrintFormPage from "./pages/applications/user/steps/PrintFormPage";
+import SupportingDocumentPage from "./pages/applications/user/steps/SupportingDocumentPage";
+import DeclarationPage from "./pages/applications/user/steps/DeclarationPage";
+
+/* ADMIN FLOW PAGES */
+import AutoScreeningPage from "./pages/admin/auto-screening/AutoScreeningPage";
+import TechnicalReviewPage from "./pages/admin/technical-review/TechnicalReviewPage";
+import ApprovalPage from "./pages/admin/approval/ApprovalPage";
+import PaymentPage from "./pages/admin/payment/PaymentPage";
+import LicenseQrPage from "./pages/admin/license-qr/LicenseQrPage";
+
+/* ENFORCEMENT / LICENSE */
+import EnforcementScanPage from "./pages/enforcement/EnforcementScanPage";
+import LicenseVerificationPage from "./pages/license/LicenseVerificationPage";
 
 /* OTHER */
 import ReportsPage from "./pages/reports/ReportsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
+import {
+  clearAuthSession,
+  getStoredUser,
+  isAdminUser,
+  isApplicantUser,
+} from "./services/api";
 
-/* ===== AUTH HELPERS ===== */
 function getUser() {
-  try {
-    return JSON.parse(localStorage.getItem("fastrack_user"));
-  } catch {
-    return null;
-  }
+  return getStoredUser();
 }
 
 function isAuthenticated() {
@@ -54,16 +81,13 @@ function isAuthenticated() {
 }
 
 function isAdmin(user) {
-  const role = String(user?.role || "").toLowerCase();
-  return role === "admin" || role === "staff";
+  return isAdminUser(user);
 }
 
 function isUser(user) {
-  const role = String(user?.role || "").toLowerCase();
-  return role === "user" || role === "applicant";
+  return isApplicantUser(user);
 }
 
-/* ===== PROTECTED ROUTES ===== */
 function PrivateRoute({ children }) {
   if (!isAuthenticated()) {
     return <Navigate to="/login/malaysian" replace />;
@@ -80,6 +104,11 @@ function AdminRoute({ children }) {
   }
 
   if (!isAdmin(user)) {
+    if (!isUser(user)) {
+      clearAuthSession();
+      return <Navigate to="/login/malaysian" replace />;
+    }
+
     return <Navigate to="/user/dashboard" replace />;
   }
 
@@ -94,6 +123,11 @@ function UserRoute({ children }) {
   }
 
   if (!isUser(user)) {
+    if (!isAdmin(user)) {
+      clearAuthSession();
+      return <Navigate to="/login/malaysian" replace />;
+    }
+
     return <Navigate to="/dashboard/admin" replace />;
   }
 
@@ -104,28 +138,33 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* ===== AUTH ===== */}
+        {/* PUBLIC LICENSE VERIFY */}
+        <Route
+          path="/license/verify/:licenseId"
+          element={<LicenseVerificationPage />}
+        />
+
+        {/* AUTH */}
         <Route path="/" element={<LoginMalaysian />} />
         <Route path="/login/malaysian" element={<LoginMalaysian />} />
         <Route path="/login/non-malaysian" element={<LoginNonMalaysian />} />
-
         <Route path="/register/malaysian" element={<RegisterMalaysian />} />
         <Route
           path="/register/non-malaysian"
           element={<RegisterNonMalaysian />}
         />
 
-        {/* ===== HOME ===== */}
+        {/* ADMIN HOME */}
         <Route
           path="/home"
           element={
-            <PrivateRoute>
-              <HomePage />
-            </PrivateRoute>
+            <AdminRoute>
+              <AdminHomePage />
+            </AdminRoute>
           }
         />
 
-        {/* ===== DASHBOARD ===== */}
+        {/* DASHBOARDS */}
         <Route
           path="/dashboard/admin"
           element={
@@ -144,7 +183,7 @@ function App() {
           }
         />
 
-        {/* ===== USER APPLICATION LIST ===== */}
+        {/* APPLICATION LISTS */}
         <Route
           path="/applications"
           element={
@@ -154,17 +193,136 @@ function App() {
           }
         />
 
-        {/* ===== ADMIN APPLICATION LIST ===== */}
         <Route
           path="/admin/applications"
           element={
             <AdminRoute>
-              <ApplicationsPage />
+              <AdminApplicationsPage />
             </AdminRoute>
           }
         />
 
-        {/* ===== NEW APPLICATION STEP 1 ===== */}
+        {/* ADMIN NEW APPLICATION */}
+        <Route
+          path="/admin/applications/new"
+          element={
+            <AdminRoute>
+              <AdminStep1Page />
+            </AdminRoute>
+          }
+        />
+
+        {/* ADMIN APPLICATION DETAIL */}
+        <Route
+          path="/admin/applications/:id"
+          element={
+            <AdminRoute>
+              <AdminApplicationDetailPage />
+            </AdminRoute>
+          }
+        />
+
+        {/* ADMIN APPLICATION STEPS */}
+        <Route
+          path="/admin/applications/:applicationId/step-1"
+          element={
+            <AdminRoute>
+              <AdminStep1Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-2"
+          element={
+            <AdminRoute>
+              <AdminStep2Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-3"
+          element={
+            <AdminRoute>
+              <AdminStep3Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-4"
+          element={
+            <AdminRoute>
+              <AdminStep4Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-5"
+          element={
+            <AdminRoute>
+              <AdminStep5Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-6"
+          element={
+            <AdminRoute>
+              <AdminStep6Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-7"
+          element={
+            <AdminRoute>
+              <AdminStep7Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-8"
+          element={
+            <AdminRoute>
+              <AdminStep8Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-9"
+          element={
+            <AdminRoute>
+              <AdminStep9Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-10"
+          element={
+            <AdminRoute>
+              <AdminStep10Page />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/step-11"
+          element={
+            <AdminRoute>
+              <AdminStep11Page />
+            </AdminRoute>
+          }
+        />
+
+        {/* USER APPLICATION STEPS */}
         <Route
           path="/applications/new"
           element={
@@ -174,7 +332,6 @@ function App() {
           }
         />
 
-        {/* ===== APPLICATION STEP ROUTES ===== */}
         <Route
           path="/applications/:applicationId/edit"
           element={
@@ -274,17 +431,62 @@ function App() {
           }
         />
 
-        {/* ===== APPLICATION DETAIL ===== */}
+        {/* ADMIN FLOW PAGES */}
         <Route
-          path="/applications/:id"
+          path="/admin/auto-screening"
           element={
-            <PrivateRoute>
-              <ApplicationDetailPage />
-            </PrivateRoute>
+            <AdminRoute>
+              <AutoScreeningPage />
+            </AdminRoute>
           }
         />
 
-        {/* ===== REPORTS ===== */}
+        <Route
+          path="/admin/technical-review"
+          element={
+            <AdminRoute>
+              <TechnicalReviewPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/approval"
+          element={
+            <AdminRoute>
+              <ApprovalPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/payment"
+          element={
+            <AdminRoute>
+              <PaymentPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/license-qr"
+          element={
+            <AdminRoute>
+              <LicenseQrPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/enforcement"
+          element={
+            <AdminRoute>
+              <EnforcementScanPage />
+            </AdminRoute>
+          }
+        />
+
+        {/* OTHER */}
         <Route
           path="/reports"
           element={
@@ -294,7 +496,6 @@ function App() {
           }
         />
 
-        {/* ===== NOTIFICATIONS ===== */}
         <Route
           path="/notifications"
           element={
@@ -304,7 +505,6 @@ function App() {
           }
         />
 
-        {/* ===== FALLBACK ===== */}
         <Route path="*" element={<Navigate to="/login/malaysian" replace />} />
       </Routes>
     </Router>

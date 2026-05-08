@@ -5,10 +5,23 @@ from django.db import models
 class Application(models.Model):
     STATUS_CHOICES = (
         ("draft", "Draft"),
+        ("incomplete", "Incomplete"),
         ("submitted", "Submitted"),
         ("under_review", "Under Review"),
+        ("auto_screened", "S2 Verification"),
+        ("technical_review", "Technical Review"),
+        ("technical_review_completed", "Technical Review Completed"),
+        ("management_review", "Management Review"),
+        ("mphlg_processing", "MPHLG Processing"),
+        ("mphlg_decision_received", "MPHLG Decision Received"),
         ("approved", "Approved"),
+        ("approved_with_conditions", "Approved with Conditions"),
         ("rejected", "Rejected"),
+        ("invoice_generated", "Invoice Generated"),
+        ("payment_submitted", "Payment Submitted"),
+        ("payment_verified", "Payment Verified"),
+        ("license_issued", "License Issued"),
+        ("license_revoked", "License Revoked"),
     )
 
     APPLICATION_TYPE_CHOICES = (

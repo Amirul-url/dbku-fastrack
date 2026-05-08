@@ -36,9 +36,9 @@ def register_view(request):
     password2 = data.get("password2", "")
 
     full_name = str(data.get("full_name", "")).strip()
-    role = str(data.get("role", "user")).strip().lower()
+    role = str(data.get("role", "applicant")).strip().lower()
 
-    allowed_public_roles = ["user"]
+    allowed_public_roles = ["applicant", "user"]
 
     if role not in allowed_public_roles:
         return Response(
@@ -88,7 +88,7 @@ def register_view(request):
         password=password,
     )
 
-    user.role = "user"
+    user.role = "applicant"
 
     if full_name:
         name_parts = full_name.split(" ", 1)

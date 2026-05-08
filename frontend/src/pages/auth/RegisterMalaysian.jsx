@@ -1,6 +1,7 @@
 import { useState } from "react";
 import TopBar from "../../layout/TopBar";
 import { Link, useNavigate } from "react-router-dom";
+import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest } from "../../services/api";
 
 const initialForm = {
@@ -17,6 +18,7 @@ const initialForm = {
 
 function RegisterMalaysian() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [form, setForm] = useState(initialForm);
   const [showPassword, setShowPassword] = useState(false);
@@ -61,12 +63,12 @@ function RegisterMalaysian() {
     try {
       setLoading(true);
 
-      const data = await apiRequest("/auth/register/", {
+      await apiRequest("/auth/register/", {
         method: "POST",
         body: JSON.stringify({
           account_type: "applicant",
           nationality_type: "malaysian",
-          role: "user",
+          role: "applicant",
           full_name: form.fullName.trim(),
           username: form.mykadNumber.trim(),
           mykad_number: form.mykadNumber.trim(),
@@ -100,10 +102,9 @@ function RegisterMalaysian() {
 
       <main className="max-w-4xl mx-auto px-6 py-12 flex-1 w-full">
         <div className="mb-10">
-          <h1 className="text-4xl font-bold mb-2">Account Registration</h1>
+          <h1 className="text-4xl font-bold mb-2">{t("auth.registrationTitle")}</h1>
           <p className="text-slate-600 max-w-2xl">
-            Complete the form below to create your account. Ensure all
-            information matches your official identification documents.
+            {t("auth.registrationMalaysianDescription")}
           </p>
         </div>
 
@@ -123,18 +124,18 @@ function RegisterMalaysian() {
                   person
                 </span>
                 <h2 className="text-2xl font-semibold">
-                  Personal Information
+                  {t("auth.personalInformation")}
                 </h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold mb-2">
-                    Full Name (as per MyKad/Passport)
+                    {t("auth.fullNameMyKadPassport")}
                   </label>
                   <input
                     type="text"
-                    placeholder="Enter your full legal name"
+                    placeholder={t("auth.fullNamePlaceholder")}
                     value={form.fullName}
                     onChange={(e) => updateField("fullName", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
@@ -143,28 +144,28 @@ function RegisterMalaysian() {
 
                 <div>
                   <label className="block text-sm font-semibold mb-2">
-                    Nationality
+                    {t("auth.nationality")}
                   </label>
                   <div className="flex bg-slate-100 p-1 rounded-lg">
                     <button
                       type="button"
                       className="flex-1 py-2 text-sm font-semibold rounded bg-white shadow-sm text-[#006d32]"
                     >
-                      Malaysian
+                      {t("auth.malaysian")}
                     </button>
 
                     <Link
                       to="/register/non-malaysian"
                       className="flex-1 py-2 text-sm font-semibold text-slate-500 text-center"
                     >
-                      Non-Malaysian
+                      {t("auth.nonMalaysian")}
                     </Link>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-semibold mb-2">
-                    MyKad Number
+                    {t("auth.mykadNumber")}
                   </label>
                   <input
                     type="text"
@@ -174,7 +175,7 @@ function RegisterMalaysian() {
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                   <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">
-                    Enter without dashes
+                    {t("auth.enterWithoutDashes")}
                   </p>
                 </div>
               </div>
@@ -187,13 +188,13 @@ function RegisterMalaysian() {
                 <span className="material-symbols-outlined text-[#006d32]">
                   contact_mail
                 </span>
-                <h2 className="text-2xl font-semibold">Contact Details</h2>
+                <h2 className="text-2xl font-semibold">{t("auth.contactDetails")}</h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
-                    Mobile Number
+                    {t("auth.mobileNumber")}
                   </label>
                   <div className="flex">
                     <span className="inline-flex items-center px-4 bg-slate-100 border border-r-0 border-slate-200 text-slate-500 rounded-l-lg text-sm">
@@ -211,7 +212,7 @@ function RegisterMalaysian() {
 
                 <div>
                   <label className="block text-sm font-semibold mb-2">
-                    Email Address
+                    {t("auth.emailAddress")}
                   </label>
                   <input
                     type="email"
@@ -224,11 +225,11 @@ function RegisterMalaysian() {
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold mb-2">
-                    Residential Address
+                    {t("auth.residentialAddress")}
                   </label>
                   <textarea
                     rows="4"
-                    placeholder="Enter your full correspondence address"
+                    placeholder={t("auth.addressPlaceholder")}
                     value={form.address}
                     onChange={(e) => updateField("address", e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
@@ -244,13 +245,13 @@ function RegisterMalaysian() {
                 <span className="material-symbols-outlined text-[#006d32]">
                   security
                 </span>
-                <h2 className="text-2xl font-semibold">Account Security</h2>
+                <h2 className="text-2xl font-semibold">{t("auth.accountSecurity")}</h2>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
-                    Password
+                    {t("auth.password")}
                   </label>
                   <div className="relative">
                     <input
@@ -272,7 +273,7 @@ function RegisterMalaysian() {
 
                 <div>
                   <label className="block text-sm font-semibold mb-2">
-                    Retype Password
+                    {t("auth.retypePassword")}
                   </label>
                   <div className="relative">
                     <input
@@ -299,15 +300,13 @@ function RegisterMalaysian() {
                         info
                       </span>
                       <p className="text-sm text-yellow-700">
-                        The 'Secure Word' is used to verify the authenticity of
-                        the portal during login. Never enter your password if
-                        the secure word displayed does not match.
+                        {t("auth.secureWordHint")}
                       </p>
                     </div>
                   </div>
 
                   <label className="block text-sm font-semibold mb-2">
-                    Secure Word
+                    {t("auth.secureWord")}
                   </label>
                   <input
                     type="text"
@@ -329,15 +328,15 @@ function RegisterMalaysian() {
               className="mt-1"
             />
             <span>
-              I have agreed to the{" "}
+              {t("auth.agreePrefix")}{" "}
               <a href="#" className="text-[#006d32] font-semibold underline">
-                Terms and Conditions
+                {t("auth.terms")}
               </a>{" "}
-              and{" "}
+              {t("common.and")}{" "}
               <a href="#" className="text-[#006d32] font-semibold underline">
-                Privacy Policy
+                {t("auth.privacy")}
               </a>{" "}
-              governing the use of DBKU Portal.
+              {t("auth.agreeSuffix")}
             </span>
           </label>
 
@@ -347,7 +346,7 @@ function RegisterMalaysian() {
               disabled={loading}
               className="flex-1 py-4 bg-[#07c25f] text-white rounded-lg font-bold hover:bg-[#006d32] disabled:opacity-60"
             >
-              {loading ? "Submitting..." : "Submit Registration"}
+              {loading ? t("common.submitting") : t("auth.submitRegistration")}
             </button>
 
             <button
@@ -356,14 +355,14 @@ function RegisterMalaysian() {
               disabled={loading}
               className="flex-1 py-4 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 disabled:opacity-60"
             >
-              Reset
+              {t("common.reset")}
             </button>
 
             <Link
               to="/login/malaysian"
               className="flex-1 py-4 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 text-center"
             >
-              Back to Login
+              {t("auth.backToLogin")}
             </Link>
           </div>
         </form>
@@ -377,10 +376,10 @@ function RegisterMalaysian() {
           </div>
 
           <div className="flex gap-6">
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">FAQ</a>
-            <a href="#">Contact Us</a>
+            <a href="#">{t("auth.privacy")}</a>
+            <a href="#">{t("auth.termsService")}</a>
+            <a href="#">{t("auth.faq")}</a>
+            <a href="#">{t("auth.contactUs")}</a>
           </div>
         </div>
       </footer>

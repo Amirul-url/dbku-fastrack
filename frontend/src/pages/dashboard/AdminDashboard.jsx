@@ -1,381 +1,354 @@
-import DashboardLayout from "../../layout/DashboardLayout";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
+import { apiRequest, getStoredUser } from "../../services/api";
+import {
+  Alert,
+  DataTable,
+  PageHeader,
+  Panel,
+  StatusPill,
+} from "../../components/ui/SystemUI";
+import {
+  formatDate,
+  formatWorkflowStatus,
+  getApplicantName,
+  getApplicationReference,
+  getProjectName,
+  normalizeStatus,
+} from "../../utils/workflow";
 
-const summaryCards = [
-  { label: "Total Applications", value: "128", note: "All advertisement license applications" },
-  { label: "Under Review", value: "24", note: "Waiting for technical review" },
-  { label: "Pending Payment", value: "11", note: "Approved but payment not completed" },
-  { label: "Licenses Issued", value: "76", note: "Active digital licenses" },
-];
-
-const statusSummary = [
-  { label: "New Applications", value: 18 },
-  { label: "Auto Screening", value: 9 },
-  { label: "Technical Review", value: 24 },
-  { label: "Officer Approval", value: 13 },
-  { label: "Payment", value: 11 },
-  { label: "License Issued", value: 76 },
-];
-
-const applications = [
+const units = [
   {
-    id: "FT-2026-0001",
-    applicant: "Syarikat Borneo Media Sdn. Bhd.",
-    licenseType: "Billboard Advertisement",
-    zone: "Petra Jaya",
-    status: "Technical Review",
-    department: "BLG / IMT / ENG",
-    sla: "2 days left",
+    code: "Unit Iklan",
+    title: "Unit Iklan",
+    description: "Semakan awal iklan, dokumen dan kelengkapan permohonan.",
+    icon: "description",
+    color: "bg-cyan-700",
+    statuses: ["submitted", "incomplete"],
+    path: "/admin/auto-screening",
   },
   {
-    id: "FT-2026-0002",
-    applicant: "Kuching Food Hub",
-    licenseType: "Shop Signage License",
-    zone: "City Centre",
-    status: "Pending Payment",
-    department: "Advertisement Unit",
-    sla: "On track",
+    code: "BLG",
+    title: "BLG",
+    description: "Semakan kawasan, syarat lesen dan rekod sokongan.",
+    icon: "edit_square",
+    color: "bg-emerald-600",
+    statuses: ["auto_screened"],
+    path: "/admin/applications",
   },
   {
-    id: "FT-2026-0003",
-    applicant: "Petra Jaya Enterprise",
-    licenseType: "Temporary Banner Permit",
-    zone: "Petra Jaya",
-    status: "Correction Required",
-    department: "Auto Screening",
-    sla: "Action required",
+    code: "IMT",
+    title: "IMT",
+    description: "Semakan teknikal imej, lokasi, pemetaan dan integrasi.",
+    icon: "hub",
+    color: "bg-yellow-400",
+    iconClassName: "text-slate-900",
+    statuses: ["technical_review"],
+    path: "/admin/technical-review",
   },
   {
-    id: "FT-2026-0004",
-    applicant: "Sarawak Retail Group",
-    licenseType: "Shop Signage",
-    zone: "City Centre",
-    status: "Officer Approval",
-    department: "Authorised Officer",
-    sla: "1 day left",
+    code: "MNE",
+    title: "MNE",
+    description: "Penilaian maklumat dan sokongan pengurusan.",
+    icon: "account_balance",
+    color: "bg-sky-600",
+    statuses: ["technical_review_completed", "management_review"],
+    path: "/admin/approval",
+  },
+  {
+    code: "ENG",
+    title: "ENG",
+    description: "Semakan kejuruteraan dan keselamatan struktur iklan.",
+    icon: "engineering",
+    color: "bg-teal-600",
+    statuses: ["technical_review"],
+    path: "/admin/technical-review",
+  },
+  {
+    code: "GPM",
+    title: "GPM",
+    description: "Keputusan, caj, invois dan pengesahan bayaran.",
+    icon: "payments",
+    color: "bg-blue-600",
+    statuses: ["approved", "approved_with_conditions", "invoice_generated", "payment_submitted"],
+    path: "/admin/payment",
+  },
+  {
+    code: "LNP",
+    title: "LNP",
+    description: "Pengeluaran, pengaktifan dan rekod e-lesen QR.",
+    icon: "fact_check",
+    color: "bg-green-600",
+    statuses: ["payment_verified", "license_issued", "license_revoked"],
+    path: "/admin/license-qr",
   },
 ];
 
-const departmentPerformance = [
-  { department: "Advertisement Unit", assigned: 42, pending: 6, completed: 36 },
-  { department: "BLG", assigned: 28, pending: 8, completed: 20 },
-  { department: "IMT", assigned: 31, pending: 5, completed: 26 },
-  { department: "MNE", assigned: 22, pending: 4, completed: 18 },
-  { department: "ENG", assigned: 35, pending: 12, completed: 23 },
-  { department: "GPM", assigned: 19, pending: 3, completed: 16 },
-  { department: "LNP", assigned: 16, pending: 2, completed: 14 },
-];
-
-const workflow = [
-  "Application",
-  "Screening",
-  "Technical Review",
-  "Coordination",
-  "Approval",
-  "Payment",
-  "Digital License",
+const menuViews = [
+  {
+    key: "personal",
+    label: "Personal Task",
+  },
+  {
+    key: "claimable",
+    label: "List of Task to be Claimed",
+  },
+  {
+    key: "claimed",
+    label: "List of All Claimed Task",
+  },
+  {
+    key: "approval",
+    label: "Awaiting Approval",
+  },
 ];
 
 function AdminDashboard() {
+  const [applications, setApplications] = useState([]);
+  const [selectedUnit, setSelectedUnit] = useState("Unit Iklan");
+  const [activeView, setActiveView] = useState("claimable");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const user = getStoredUser();
+
+  const fetchApplications = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await apiRequest("/applications/");
+      setApplications(Array.isArray(data) ? data : data?.results || []);
+    } catch (err) {
+      setError(err.message || "Failed to load admin dashboard tasks.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchApplications();
+  }, [fetchApplications]);
+
+  const unitTasks = useMemo(() => {
+    return units.map((unit) => ({
+      ...unit,
+      tasks: applications.filter((application) =>
+        unit.statuses.includes(normalizeStatus(application.status))
+      ),
+    }));
+  }, [applications]);
+
+  const selected = unitTasks.find((unit) => unit.code === selectedUnit) || unitTasks[0];
+  const workflowRows = applications.filter(
+    (application) => normalizeStatus(application.status) !== "draft"
+  );
+  const totalClaimable = unitTasks.reduce((sum, unit) => sum + unit.tasks.length, 0);
+  const submitted = workflowRows.length;
+
   return (
-    <DashboardLayout>
+    <AdminDashboardLayout>
       <PageHeader
-        eyebrow="fasTrack System"
-        title="Advertisement License Dashboard"
-        description="Overview of advertisement license applications, technical reviews, approvals, payments, SLA performance, and digital license issuance."
+        eyebrow="Admin Dashboard"
+        title="List of Task"
+        description="Tasks will appear here after an applicant successfully submits the advertisement license form. Each unit claims and completes its own queue."
       />
 
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        {summaryCards.map((item) => (
-          <SummaryCard key={item.label} item={item} />
-        ))}
-      </section>
+      <Alert message={error} />
 
-      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-        <Panel
-          title="Application Status Summary"
-          description="Total applications by workflow stage."
-          className="xl:col-span-2"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {statusSummary.map((item) => (
-              <div
-                key={item.label}
-                className="border border-slate-200 bg-[#fafafa] rounded-md px-4 py-3"
-              >
-                <p className="text-xs text-slate-500 mb-1">{item.label}</p>
-                <p className="text-2xl font-bold text-[#1a1c1c]">
-                  {item.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel
-          title="SLA Monitoring"
-          description="Workflow stages approaching the target processing time."
-        >
-          <div className="space-y-4">
-            <SlaItem label="Technical Review" value="72%" color="green" />
-            <SlaItem label="Officer Approval" value="58%" color="yellow" />
-            <SlaItem label="Payment Verification" value="84%" color="green" />
-          </div>
-
-          <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 rounded-md">
-            <p className="text-sm font-semibold text-red-700">
-              Bottleneck Alert
-            </p>
-            <p className="text-xs text-red-600 mt-1">
-              ENG has the highest pending review count this week.
+      <section className="mb-6 grid grid-cols-1 gap-4 border border-slate-300 bg-white p-4 lg:grid-cols-[250px_minmax(0,1fr)]">
+        <aside className="overflow-hidden border border-slate-200 bg-slate-50">
+          <div className="bg-emerald-900 px-4 py-4 text-white">
+            <p className="text-xs font-semibold">Welcome {user?.full_name || user?.username || "Admin"}</p>
+            <p className="mt-1 text-[11px] font-semibold uppercase text-emerald-100">
+              Administrator
             </p>
           </div>
-        </Panel>
-      </section>
 
-      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
-        <Panel
-          title="Recent Applications"
-          description="Latest advertisement license applications received or currently being processed."
-          className="xl:col-span-2"
-          action={<SmallButton label="View All" />}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border border-slate-200">
-              <thead className="bg-[#f1f5f4] text-slate-600">
-                <tr>
-                  <TableHead>Application ID</TableHead>
-                  <TableHead>Applicant</TableHead>
-                  <TableHead>License Type</TableHead>
-                  <TableHead>Zone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>SLA</TableHead>
-                </tr>
-              </thead>
-
-              <tbody>
-                {applications.map((item) => (
-                  <tr key={item.id} className="border-t hover:bg-[#fafafa]">
-                    <TableCell strong>{item.id}</TableCell>
-                    <TableCell>
-                      <p className="font-semibold text-slate-800">
-                        {item.applicant}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {item.department}
-                      </p>
-                    </TableCell>
-                    <TableCell>{item.licenseType}</TableCell>
-                    <TableCell>{item.zone}</TableCell>
-                    <TableCell>
-                      <StatusBadge value={item.status} />
-                    </TableCell>
-                    <TableCell>{item.sla}</TableCell>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-
-        <Panel
-          title="Workflow"
-          description="Application process from submission to digital license issuance."
-        >
-          <div className="space-y-2">
-            {workflow.map((step, index) => (
-              <div
-                key={step}
-                className="flex items-center gap-3 border border-slate-200 bg-white px-3 py-2 rounded-md"
-              >
-                <div className="w-6 h-6 rounded-full bg-[#006d32] text-white text-xs font-bold flex items-center justify-center">
-                  {index + 1}
-                </div>
-                <p className="text-sm font-medium text-slate-700">{step}</p>
-              </div>
+          <nav className="text-sm">
+            <SidebarItem active label="Application" />
+            {menuViews.slice(0, 3).map((item) => (
+              <SidebarButton
+                key={item.key}
+                active={activeView === item.key}
+                label={item.label}
+                onClick={() => setActiveView(item.key)}
+              />
             ))}
+            <SidebarItem label="License / Code" />
+            <SidebarButton
+              active={activeView === "approval"}
+              label="Awaiting Approval"
+              onClick={() => setActiveView("approval")}
+            />
+          </nav>
+        </aside>
+
+        <main className="min-w-0">
+          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <SummaryBox label="Submitted Forms" value={loading ? "..." : submitted} />
+            <SummaryBox label="Task to be Claimed" value={loading ? "..." : totalClaimable} />
+            <SummaryBox label="Units" value={units.length} />
           </div>
-        </Panel>
+
+          <ClaimableTaskView
+            loading={loading}
+            selected={selected}
+            selectedUnit={selectedUnit}
+            setSelectedUnit={setSelectedUnit}
+            unitTasks={unitTasks}
+          />
+        </main>
       </section>
+    </AdminDashboardLayout>
+  );
+}
 
-      <Panel
-        title="Department Performance"
-        description="Monitor assigned, pending, and completed reviews by department."
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-slate-200">
-            <thead className="bg-[#f1f5f4] text-slate-600">
-              <tr>
-                <TableHead>Department / Unit</TableHead>
-                <TableHead>Total Assigned</TableHead>
-                <TableHead>Pending</TableHead>
-                <TableHead>Completed</TableHead>
-                <TableHead>Performance</TableHead>
-              </tr>
-            </thead>
+function ClaimableTaskView({
+  loading,
+  selected,
+  selectedUnit,
+  setSelectedUnit,
+  unitTasks,
+}) {
+  return (
+    <>
+      <fieldset className="border border-slate-300 px-4 pb-5 pt-3">
+        <legend className="px-2 text-sm font-semibold italic text-slate-700">
+          PROCESS LIST
+        </legend>
 
-            <tbody>
-              {departmentPerformance.map((item) => {
-                const percent = Math.round(
-                  (item.completed / item.assigned) * 100
-                );
-
-                return (
-                  <tr key={item.department} className="border-t">
-                    <TableCell strong>{item.department}</TableCell>
-                    <TableCell>{item.assigned}</TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-yellow-700">
-                        {item.pending}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold text-green-700">
-                        {item.completed}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#006d32]"
-                            style={{ width: `${percent}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-semibold">
-                          {percent}%
-                        </span>
-                      </div>
-                    </TableCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7">
+          {unitTasks.map((unit) => (
+            <button
+              type="button"
+              key={unit.code}
+              onClick={() => setSelectedUnit(unit.code)}
+              className={`group flex flex-col items-center rounded-md border p-3 text-center transition ${
+                selectedUnit === unit.code
+                  ? "border-emerald-600 bg-emerald-50"
+                  : "border-transparent bg-white hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              <span
+                className={`flex aspect-square w-24 items-center justify-center rounded-full text-white shadow-sm ${unit.color}`}
+              >
+                <span className={`material-symbols-outlined text-5xl ${unit.iconClassName || ""}`}>
+                  {unit.icon}
+                </span>
+              </span>
+              <span className="mt-3 text-sm font-bold italic text-slate-700">
+                {unit.title}
+              </span>
+              <span className="text-xs font-semibold italic text-slate-950">
+                Task Count : {loading ? "..." : unit.tasks.length}
+              </span>
+            </button>
+          ))}
         </div>
-      </Panel>
-    </DashboardLayout>
-  );
-}
+      </fieldset>
 
-function PageHeader({ eyebrow, title, description }) {
-  return (
-    <div className="mb-5 border-l-4 border-[#006d32] pl-4">
-      <p className="text-xs uppercase tracking-wide font-semibold text-[#006d32] mb-1">
-        {eyebrow}
-      </p>
-      <h1 className="text-2xl font-bold text-[#1a1c1c]">{title}</h1>
-      <p className="text-sm text-slate-500 mt-1 max-w-4xl">{description}</p>
-    </div>
-  );
-}
-
-function Panel({ title, description, children, action, className = "" }) {
-  return (
-    <section
-      className={`bg-white border border-slate-200 rounded-md overflow-hidden ${className}`}
-    >
-      <div className="border-t-4 border-[#006d32] px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-base font-bold text-[#1a1c1c]">{title}</h2>
-          {description && (
-            <p className="text-xs text-slate-500 mt-1">{description}</p>
-          )}
+      <div className="mt-5 border border-slate-300">
+        <div className="bg-blue-700 px-3 py-1 text-sm font-semibold text-white">
+          {selected.title}
         </div>
+        <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+            <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full text-white ${selected.color}`}>
+              <span className={`material-symbols-outlined text-3xl ${selected.iconClassName || ""}`}>
+                {selected.icon}
+              </span>
+            </div>
+            <h2 className="text-lg font-semibold text-slate-950">{selected.title}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{selected.description}</p>
+            <Link
+              to={selected.path}
+              className="mt-4 inline-flex min-h-10 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+            >
+              Open Unit Workspace
+            </Link>
+          </div>
 
-        {action}
+          <Panel
+            title={`${selected.title} Task Queue`}
+            description="Submitted applications waiting for this unit."
+          >
+            <DataTable
+              loading={loading}
+              emptyText="No task to be claimed for this unit."
+              rows={selected.tasks}
+              columns={[
+                {
+                  key: "reference",
+                  label: "Reference",
+                  render: (application) => (
+                    <Link
+                      to={`/admin/applications/${application.id}`}
+                      className="font-semibold text-emerald-700 hover:underline"
+                    >
+                      {getApplicationReference(application)}
+                    </Link>
+                  ),
+                },
+                { key: "applicant", label: "Applicant", render: getApplicantName },
+                { key: "project", label: "Project", render: getProjectName },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (application) => (
+                    <StatusPill value={formatWorkflowStatus(application.status)} />
+                  ),
+                },
+                {
+                  key: "updated",
+                  label: "Updated",
+                  render: (application) => formatDate(application.updated_at),
+                },
+              ]}
+            />
+          </Panel>
+        </div>
       </div>
-
-      <div className="p-5">{children}</div>
-    </section>
+    </>
   );
 }
 
-function SummaryCard({ item }) {
+function SidebarItem({ label, active = false }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-md overflow-hidden">
-      <div className="h-1 bg-[#006d32]" />
-      <div className="p-4">
-        <p className="text-xs text-slate-500">{item.label}</p>
-        <p className="text-3xl font-bold text-[#1a1c1c] mt-1">{item.value}</p>
-        <p className="text-xs text-slate-500 mt-2">{item.note}</p>
-      </div>
-    </div>
-  );
-}
-
-function SlaItem({ label, value, color }) {
-  const barColor = color === "yellow" ? "bg-yellow-500" : "bg-[#006d32]";
-
-  return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-slate-600">{label}</span>
-        <span className="font-semibold">{value}</span>
-      </div>
-
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-        <div className={`h-full ${barColor}`} style={{ width: value }} />
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ value }) {
-  let className = "bg-slate-100 text-slate-700 border-slate-200";
-
-  if (value === "Technical Review") {
-    className = "bg-yellow-50 text-yellow-700 border-yellow-200";
-  }
-
-  if (value === "Pending Payment") {
-    className = "bg-blue-50 text-blue-700 border-blue-200";
-  }
-
-  if (value === "Correction Required") {
-    className = "bg-red-50 text-red-700 border-red-200";
-  }
-
-  if (value === "Officer Approval") {
-    className = "bg-purple-50 text-purple-700 border-purple-200";
-  }
-
-  return (
-    <span
-      className={`inline-flex px-2.5 py-1 rounded text-xs font-semibold border ${className}`}
+    <div
+      className={`border-b border-white/70 px-4 py-3 font-semibold ${
+        active ? "bg-green-700 text-white" : "bg-lime-100 text-slate-700"
+      }`}
     >
-      {value}
-    </span>
+      {label}
+    </div>
   );
 }
 
-function SmallButton({ label }) {
+function SidebarButton({ label, active = false, onClick }) {
   return (
     <button
       type="button"
-      className="px-3 py-2 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+      onClick={onClick}
+      className={`block w-full border-b border-white/70 px-4 py-3 text-left transition ${
+        active
+          ? "bg-lime-200 font-semibold text-slate-950"
+          : "bg-lime-100 text-slate-700 hover:bg-lime-200"
+      }`}
     >
       {label}
     </button>
   );
 }
 
-function TableHead({ children }) {
+function SummaryBox({ label, value }) {
   return (
-    <th className="px-3 py-3 text-left text-xs font-bold uppercase border-r last:border-r-0 border-slate-200 whitespace-nowrap">
-      {children}
-    </th>
-  );
-}
-
-function TableCell({ children, strong = false }) {
-  return (
-    <td
-      className={`px-3 py-3 border-r last:border-r-0 border-slate-100 align-top ${
-        strong ? "font-semibold text-slate-800" : "text-slate-600"
-      }`}
-    >
-      {children}
-    </td>
+    <div className="border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
+    </div>
   );
 }
 

@@ -1,37 +1,21 @@
 import logo from "../assets/logo-dbku.png";
+import LanguageSwitcher from "../components/LanguageSwitcher";
+import { useLanguage } from "../context/LanguageContext";
 
 function TopBar() {
+  const { t } = useLanguage();
+
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-      <div className="flex justify-between items-center h-16 px-6 w-full">
-
-        {/* LEFT - LOGO IMAGE */}
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
-          <img
-            src={logo}
-            alt="DBKU Logo"
-            className="h-10 w-auto object-contain"
-          />
-
+          <img src={logo} alt="DBKU Logo" className="h-9 w-auto object-contain" />
           <div>
-            <p className="font-bold text-slate-900 leading-none">
-              DBKU
-            </p>
-            <p className="text-xs text-slate-500 leading-none">
-              fasTrack System
-            </p>
+            <p className="text-sm font-semibold text-slate-950">DBKU fasTrack</p>
+            <p className="text-xs text-slate-500">{t("app.digitalLicensePortal")}</p>
           </div>
         </div>
-
-        {/* RIGHT */}
-        <div className="flex items-center gap-5">
-          <span className="material-symbols-outlined text-slate-600">
-            language
-          </span>
-          <span className="material-symbols-outlined text-slate-600">
-            help_outline
-          </span>
-        </div>
+        <LanguageSwitcher />
       </div>
     </header>
   );

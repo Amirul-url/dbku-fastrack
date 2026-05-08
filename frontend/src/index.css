@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --primary: #006d32;
-  --primary-dark: #005224;
-  --secondary: #064e3b;
-  --accent: #10b981;
-  --bg: #f5f7f6;
+  --primary: #047857;
+  --primary-dark: #065f46;
+  --secondary: #0f172a;
+  --accent: #2563eb;
+  --bg: #f8fafc;
   --card: #ffffff;
-  --text: #1a1c1c;
-  --border: #cbd5e1;
+  --text: #0f172a;
+  --border: #d7dde5;
 }
 
 * {
@@ -24,6 +24,7 @@ body {
   font-family: "Public Sans", Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
+  font-size: 14px;
 }
 
 button,
@@ -49,7 +50,7 @@ button {
 .form-input {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 0.625rem 0.75rem;
   font-size: 0.875rem;
   outline: none;
@@ -63,7 +64,7 @@ button {
 
 .form-input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(0, 109, 50, 0.12);
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
 }
 
 /* SPA form style */
@@ -138,8 +139,8 @@ button {
 .official-input {
   width: 100%;
   height: 38px;
-  border: 1px solid #cbd5e1;
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: #ffffff;
   padding: 0.45rem 0.65rem;
   font-size: 0.8125rem;
@@ -152,6 +153,11 @@ button {
 }
 
 .official-input:focus {
-  border-color: #18b36b;
-  box-shadow: 0 0 0 2px rgba(24, 179, 107, 0.12);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
 }

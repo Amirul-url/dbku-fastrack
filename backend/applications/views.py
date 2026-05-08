@@ -1,17 +1,35 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
 from .models import Application, SupportingDocument
 from .serializers import (
     ApplicationListSerializer,
     ApplicationDetailSerializer,
+    SupportingDocumentSerializer,
 )
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ApplicationListSerializer
+
+        return ApplicationDetailSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.role in ["admin", "staff"]:
+            return Application.objects.all().order_by("-updated_at")
+
+        return Application.objects.filter(applicant=user).order_by("-updated_at")
+
+    def perform_create(self, serializer):
+        serializer.save(applicant=self.request.user)
 
     @action(detail=True, methods=["post"])
     def upload_document(self, request, pk=None):
@@ -37,26 +55,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             context={"request": request},
         )
 
-        return Response(serializer.data)
-
-    def get_serializer_class(self):
-        if self.action == "list":
-            return ApplicationListSerializer
-
-        return ApplicationDetailSerializer
-
-    def get_queryset(self):
-        user = self.request.user
-
-        if user.role in ["admin", "staff"]:
-            return Application.objects.all().order_by("-updated_at")
-
-        return Application.objects.filter(
-            applicant=user
-        ).order_by("-updated_at")
-
-    def perform_create(self, serializer):
-        serializer.save(applicant=self.request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
@@ -69,12 +68,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             )
 
         application.status = "submitted"
+        application.current_step = max(application.current_step, 11)
         application.save()
 
         return Response(
             {
                 "message": "Application submitted successfully.",
-                "data": ApplicationDetailSerializer(application).data,
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
             }
         )
 
@@ -96,7 +99,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "message": "Application approved successfully.",
-                "data": ApplicationDetailSerializer(application).data,
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
             }
         )
 
@@ -118,6 +124,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "message": "Application rejected successfully.",
-                "data": ApplicationDetailSerializer(application).data,
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
             }
         )
