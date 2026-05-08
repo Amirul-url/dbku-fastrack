@@ -19,7 +19,7 @@ function StepPlaceholderPage({ active, title, description }) {
               <span className="bg-[#006d32] text-white text-sm font-bold px-3 py-1">
                 {active}
               </span>
-              <h1 className="text-xl font-semibold text-[#1a1c1c]">
+              <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 {title}
               </h1>
             </div>

@@ -138,7 +138,7 @@ function AdminStep11Page() {
 
   return (
     <Layout>
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         <AdminApplicationStepNav active={4} />
 
         <main className="flex-1 min-w-0">
@@ -153,7 +153,7 @@ function AdminStep11Page() {
               <span className="bg-[#18b36b] px-3 py-1 text-sm font-bold text-white">
                 4
               </span>
-              <h1 className="text-xl font-semibold text-[#1a1c1c]">
+              <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 Declaration
               </h1>
             </div>

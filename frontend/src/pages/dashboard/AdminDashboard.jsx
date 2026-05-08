@@ -186,9 +186,9 @@ function AdminDashboard() {
 
       <Alert message={error} />
 
-      <section className="mb-6 grid grid-cols-1 gap-4 border border-slate-300 bg-white p-4 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <section className="mb-5 grid grid-cols-1 gap-3 border border-slate-300 bg-white p-3 lg:grid-cols-[230px_minmax(0,1fr)]">
         <aside className="overflow-hidden border border-slate-200 bg-slate-50">
-          <div className="bg-emerald-900 px-4 py-4 text-white">
+          <div className="bg-emerald-900 px-4 py-3 text-white">
             <p className="text-xs font-semibold">
               {t("admin.dashboard.welcome")} {user?.full_name || user?.username || "Admin"}
             </p>
@@ -235,9 +235,9 @@ function AdminDashboard() {
       </section>
 
       <Panel title={t("admin.workflow.title")} description={t("admin.workflow.description")}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
           {workflowCards.map((item) => (
-            <div key={item.titleKey} className="rounded-md border border-slate-200 bg-white p-4">
+            <div key={item.titleKey} className="rounded-md border border-slate-200 bg-white p-3">
               <span className="material-symbols-outlined text-2xl text-emerald-700">
                 {item.icon}
               </span>
@@ -265,27 +265,27 @@ function ClaimableTaskView({
 }) {
   return (
     <>
-      <fieldset className="border border-slate-300 px-4 pb-5 pt-3">
+      <fieldset className="border border-slate-300 px-3 pb-4 pt-2">
         <legend className="px-2 text-sm font-semibold italic text-slate-700">
           {t("admin.dashboard.processList")}
         </legend>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-7">
           {unitTasks.map((unit) => (
             <button
               type="button"
               key={unit.code}
               onClick={() => setSelectedUnit(unit.code)}
-              className={`group flex flex-col items-center rounded-md border p-3 text-center transition ${
+              className={`group flex flex-col items-center rounded-md border p-2.5 text-center transition ${
                 selectedUnit === unit.code
                   ? "border-emerald-600 bg-emerald-50"
                   : "border-transparent bg-white hover:border-slate-300 hover:bg-slate-50"
               }`}
             >
               <span
-                className={`flex aspect-square w-24 items-center justify-center rounded-full text-white shadow-sm ${unit.color}`}
+                className={`flex aspect-square w-20 items-center justify-center rounded-full text-white shadow-sm ${unit.color}`}
               >
-                <span className={`material-symbols-outlined text-5xl ${unit.iconClassName || ""}`}>
+                <span className={`material-symbols-outlined text-4xl ${unit.iconClassName || ""}`}>
                   {unit.icon}
                 </span>
               </span>
@@ -304,8 +304,8 @@ function ClaimableTaskView({
         <div className="bg-blue-700 px-3 py-1 text-sm font-semibold text-white">
           {selected.title}
         </div>
-        <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+        <div className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full text-white ${selected.color}`}>
               <span className={`material-symbols-outlined text-3xl ${selected.iconClassName || ""}`}>
                 {selected.icon}
@@ -329,7 +329,7 @@ function ClaimableTaskView({
             )}
             <Link
               to={selected.path}
-              className="mt-4 inline-flex min-h-10 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+                className="mt-4 inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
             >
               {t("admin.dashboard.openWorkspace")}
             </Link>
@@ -382,7 +382,7 @@ function ClaimableTaskView({
 function SidebarItem({ label, active = false }) {
   return (
     <div
-      className={`border-b border-white/70 px-4 py-3 font-semibold ${
+      className={`border-b border-white/70 px-4 py-2.5 font-semibold ${
         active ? "bg-green-700 text-white" : "bg-lime-100 text-slate-700"
       }`}
     >
@@ -396,7 +396,7 @@ function SidebarButton({ label, active = false, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`block w-full border-b border-white/70 px-4 py-3 text-left transition ${
+      className={`block w-full border-b border-white/70 px-4 py-2.5 text-left transition ${
         active
           ? "bg-lime-200 font-semibold text-slate-950"
           : "bg-lime-100 text-slate-700 hover:bg-lime-200"
@@ -409,11 +409,11 @@ function SidebarButton({ label, active = false, onClick }) {
 
 function SummaryBox({ label, value }) {
   return (
-    <div className="border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="border border-slate-200 bg-slate-50 px-3 py-2.5">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
-      <p className="mt-1 text-2xl font-bold text-slate-950">{value}</p>
+      <p className="mt-1 text-xl font-bold text-slate-950">{value}</p>
     </div>
   );
 }

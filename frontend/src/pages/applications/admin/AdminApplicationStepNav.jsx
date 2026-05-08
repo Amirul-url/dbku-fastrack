@@ -44,15 +44,15 @@ function AdminApplicationStepNav({ active = 1 }) {
 
   return (
     <aside
-      className={`hidden md:block sticky top-24 h-[calc(100vh-120px)] shrink-0 transition-all duration-300 ${
-        open ? "w-[260px]" : "w-[52px]"
+      className={`hidden md:block sticky top-20 h-[calc(100vh-96px)] shrink-0 transition-all duration-300 ${
+        open ? "w-[230px]" : "w-[48px]"
       }`}
     >
       <div className="h-full bg-white border border-slate-200 rounded-md shadow-sm overflow-hidden">
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
-          className="w-full flex items-center justify-between gap-2 bg-[#006d32] text-white px-3 py-3 text-xs font-semibold hover:bg-[#005224]"
+          className="w-full flex items-center justify-between gap-2 bg-[#006d32] text-white px-3 py-2.5 text-xs font-semibold hover:bg-[#005224]"
         >
           <span className="material-symbols-outlined text-[18px]">
             {open ? "menu_open" : "menu"}
@@ -69,7 +69,7 @@ function AdminApplicationStepNav({ active = 1 }) {
 
         {open && (
           <>
-            <div className="border-b bg-[#f7f7f7] px-3 py-3">
+            <div className="border-b bg-[#f7f7f7] px-3 py-2.5">
               <p className="text-xs font-bold text-slate-800">
                 APPLICATION STEPS
               </p>
@@ -85,7 +85,7 @@ function AdminApplicationStepNav({ active = 1 }) {
               )}
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(100vh-230px)]">
+            <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
               {steps.map((step) => {
                 const isActive =
                   active === step.no || location.pathname === step.path;
@@ -94,7 +94,7 @@ function AdminApplicationStepNav({ active = 1 }) {
                   <Link
                     key={step.no}
                     to={step.path}
-                    className={`flex items-start gap-2 border-b px-3 py-3 text-xs transition ${
+                    className={`flex items-start gap-2 border-b px-3 py-2.5 text-xs transition ${
                       isActive
                         ? "bg-[#006d32] font-semibold text-white"
                         : "text-slate-600 hover:bg-slate-50"

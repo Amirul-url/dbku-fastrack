@@ -33,16 +33,16 @@ function AppShell({ children, role = "admin" }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 bg-white lg:flex lg:flex-col">
-        <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-          <img src={logo} alt="fasTrack Logo" className="h-9 w-auto object-contain" />
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+        <div className="flex h-14 items-center gap-3 border-b border-slate-200 px-4">
+          <img src={logo} alt="fasTrack Logo" className="h-8 w-auto object-contain" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-950">DBKU fasTrack</p>
             <p className="text-xs text-slate-500">{t("app.digitalLicenseSystem")}</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
           {nav.map((item) => {
             const active =
               location.pathname === item.path ||
@@ -53,7 +53,7 @@ function AppShell({ children, role = "admin" }) {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium ${
+                className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium ${
                   active
                     ? "bg-emerald-50 text-emerald-800"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
@@ -75,11 +75,11 @@ function AppShell({ children, role = "admin" }) {
           })}
         </nav>
 
-        <div className="border-t border-slate-200 p-3">
+        <div className="border-t border-slate-200 p-2.5">
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
             {t("common.logout")}
@@ -87,9 +87,9 @@ function AppShell({ children, role = "admin" }) {
         </div>
       </aside>
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-60">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-5">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 {role === "admin" ? t("role.officerPortal") : t("role.applicantPortal")}
@@ -141,7 +141,7 @@ function AppShell({ children, role = "admin" }) {
           </nav>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="mx-auto max-w-[1680px] px-4 py-5 sm:px-5 lg:px-6">{children}</main>
       </div>
     </div>
   );

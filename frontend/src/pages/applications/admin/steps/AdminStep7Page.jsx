@@ -170,7 +170,7 @@ function AdminStep7Page() {
 
   return (
     <Layout>
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         <AdminApplicationStepNav active={7} />
 
         <main className="flex-1 min-w-0">
@@ -179,7 +179,7 @@ function AdminStep7Page() {
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
                 7
               </span>
-              <h1 className="text-xl font-semibold text-[#1a1c1c]">
+              <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 Site Inspection
               </h1>
             </div>

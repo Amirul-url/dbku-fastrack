@@ -66,8 +66,8 @@ function UserApplicationStepNav({ active }) {
   function renderStep(step, mobile = false) {
     const isActive = active === step.no;
     const baseClass = mobile
-      ? "flex items-center gap-2 px-3 py-3 border-b text-xs"
-      : "flex items-start gap-2 px-3 py-3 border-b text-xs transition";
+      ? "flex items-center gap-2 px-3 py-2.5 border-b text-xs"
+      : "flex items-start gap-2 px-3 py-2.5 border-b text-xs transition";
     const stateClass = isActive
       ? "bg-[#006d32] text-white font-semibold"
       : step.disabled
@@ -121,15 +121,15 @@ function UserApplicationStepNav({ active }) {
   return (
     <>
       <aside
-        className={`hidden md:block sticky top-24 h-[calc(100vh-120px)] shrink-0 transition-all duration-300 ${
-          open ? "w-[260px]" : "w-[52px]"
+        className={`hidden md:block sticky top-20 h-[calc(100vh-96px)] shrink-0 transition-all duration-300 ${
+          open ? "w-[230px]" : "w-[48px]"
         }`}
       >
         <div className="h-full bg-white border border-slate-200 rounded-md shadow-sm overflow-hidden">
           <button
             type="button"
             onClick={() => setOpen((current) => !current)}
-            className="w-full flex items-center justify-between gap-2 bg-[#006d32] text-white px-3 py-3 text-xs font-semibold hover:bg-[#005224]"
+            className="w-full flex items-center justify-between gap-2 bg-[#006d32] text-white px-3 py-2.5 text-xs font-semibold hover:bg-[#005224]"
           >
             <span className="material-symbols-outlined text-[18px]">
               {open ? "menu_open" : "menu"}
@@ -146,7 +146,7 @@ function UserApplicationStepNav({ active }) {
 
           {open && (
             <>
-              <div className="bg-[#f7f7f7] border-b px-3 py-3">
+              <div className="bg-[#f7f7f7] border-b px-3 py-2.5">
                 <p className="text-xs font-bold text-slate-800">
                   {t("steps.applicationSteps").toUpperCase()}
                 </p>
@@ -167,7 +167,7 @@ function UserApplicationStepNav({ active }) {
                 )}
               </div>
 
-              <div className="overflow-y-auto h-[calc(100%-112px)]">
+              <div className="overflow-y-auto h-[calc(100%-100px)]">
                 {steps.map((step) => renderStep(step))}
               </div>
             </>

@@ -191,7 +191,7 @@ function AdminStep9Page() {
         `}
       </style>
 
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         <AdminApplicationStepNav active={5} />
 
         <main className="flex-1 min-w-0">
@@ -200,7 +200,7 @@ function AdminStep9Page() {
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
                 5
               </span>
-              <h1 className="text-xl font-semibold text-[#1a1c1c]">
+              <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 Print Form
               </h1>
             </div>

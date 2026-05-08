@@ -360,16 +360,16 @@ function SupportingDocumentPage({
 
   return (
     <Layout>
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         <StepNav active={3} />
 
-        <main className="flex-1 min-w-0 pb-10">
+        <main className="flex-1 min-w-0 pb-8">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
                 3
               </span>
-              <h1 className="text-xl font-semibold text-[#1a1c1c]">
+              <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 Supporting Document
               </h1>
             </div>

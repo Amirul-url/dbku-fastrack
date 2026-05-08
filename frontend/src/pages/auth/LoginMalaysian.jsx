@@ -53,36 +53,36 @@ function LoginMalaysian() {
 
   return (
     <AuthLayout>
-      <div className="mb-10">
-        <h2 className="text-3xl font-bold text-[#1a1c1c]">{t("auth.loginTitle")}</h2>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-[#1a1c1c]">{t("auth.loginTitle")}</h2>
         <p className="text-base text-[#3d4a3d] mt-2">
           {t("auth.loginDescription")}
         </p>
       </div>
 
-      <div className="flex border-b border-[#bbcbba] mb-8">
+      <div className="flex border-b border-[#bbcbba] mb-5">
         <Link
           to="/login/malaysian"
-          className="px-6 py-3 text-sm font-semibold border-b-2 border-[#006d32] text-[#006d32]"
+          className="px-3 py-2.5 text-sm font-semibold border-b-2 border-[#006d32] text-[#006d32]"
         >
           {t("auth.malaysian")}
         </Link>
 
         <Link
           to="/login/non-malaysian"
-          className="px-6 py-3 text-sm font-semibold border-b-2 border-transparent text-[#6c7b6c]"
+          className="px-3 py-2.5 text-sm font-semibold border-b-2 border-transparent text-[#6c7b6c]"
         >
           {t("auth.nonMalaysian")}
         </Link>
       </div>
 
       {error && (
-        <div className="mb-5 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-5 rounded border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      <form className="space-y-6" onSubmit={handleLogin}>
+      <form className="space-y-4" onSubmit={handleLogin}>
         <div>
           <label className="block text-sm font-semibold text-[#3d4a3d] mb-1">
             {t("auth.icNumber")}
@@ -96,7 +96,7 @@ function LoginMalaysian() {
               placeholder="000000-00-0000"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
+              className="w-full pl-10 pr-4 py-2.5 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
             />
           </div>
         </div>
@@ -114,7 +114,7 @@ function LoginMalaysian() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
+              className="w-full pl-10 pr-10 py-2.5 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
             />
             <button
               type="button"
@@ -147,7 +147,7 @@ function LoginMalaysian() {
             type="button"
             onClick={handleReset}
             disabled={loading}
-            className="py-3 px-4 border border-[#006d32] text-[#006d32] text-sm font-semibold rounded hover:bg-[#eeeeee] disabled:opacity-60"
+            className="py-2.5 px-3 border border-[#006d32] text-[#006d32] text-sm font-semibold rounded hover:bg-[#eeeeee] disabled:opacity-60"
           >
             {t("common.reset")}
           </button>
@@ -155,7 +155,7 @@ function LoginMalaysian() {
           <button
             type="submit"
             disabled={loading}
-            className="py-3 px-4 bg-[#006d32] text-white text-sm font-semibold rounded hover:bg-[#005224] disabled:opacity-60"
+            className="py-2.5 px-3 bg-[#006d32] text-white text-sm font-semibold rounded hover:bg-[#005224] disabled:opacity-60"
           >
             {loading ? t("common.signingIn") : t("common.signIn")}
           </button>

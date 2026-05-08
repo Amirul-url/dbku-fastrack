@@ -14,18 +14,18 @@ export function PageHeader({
   actions,
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0">
         {eyebrow && (
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
             {eyebrow}
           </p>
         )}
-        <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">
+        <h1 className="mt-1 text-xl font-semibold tracking-normal text-slate-950">
           {title}
         </h1>
         {description && (
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          <p className="mt-1.5 max-w-3xl text-sm leading-5 text-slate-600">
             {description}
           </p>
         )}
@@ -60,7 +60,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${className}`}
       {...props}
     >
       {icon && (
@@ -82,7 +82,7 @@ export function LinkButton({ to, children, icon, variant = "primary" }) {
   return (
     <Link
       to={to}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold transition ${variants[variant]}`}
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition ${variants[variant]}`}
     >
       {icon && (
         <span className="material-symbols-outlined text-[18px]">{icon}</span>
@@ -94,9 +94,9 @@ export function LinkButton({ to, children, icon, variant = "primary" }) {
 
 export function Panel({ title, description, action, children, className = "" }) {
   return (
-    <section className={`rounded-lg border border-slate-200 bg-white ${className}`}>
+    <section className={`rounded-md border border-slate-200 bg-white ${className}`}>
       {(title || description || action) && (
-        <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             {title && (
               <h2 className="text-base font-semibold text-slate-950">{title}</h2>
@@ -110,7 +110,7 @@ export function Panel({ title, description, action, children, className = "" }) 
           {action}
         </div>
       )}
-      <div className="p-5">{children}</div>
+      <div className="p-4">{children}</div>
     </section>
   );
 }
@@ -125,11 +125,11 @@ export function StatCard({ label, value, note, icon, tone = "emerald" }) {
   };
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
+    <div className="rounded-md border border-slate-200 bg-white p-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
+          <p className="text-xs font-semibold text-slate-500">{label}</p>
+          <p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p>
         </div>
         {icon && (
           <span
@@ -164,7 +164,7 @@ export function Alert({ type = "error", message }) {
       : "border-red-200 bg-red-50 text-red-800";
 
   return (
-    <div className={`mb-5 rounded-md border px-4 py-3 text-sm ${styles}`}>
+    <div className={`mb-4 rounded-md border px-3 py-2.5 text-sm ${styles}`}>
       {message}
     </div>
   );
@@ -209,7 +209,7 @@ export function StatusPill({ value }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${className}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-5 ${className}`}
     >
       {value || "Draft"}
     </span>
@@ -233,11 +233,11 @@ export function EmptyState({ title = "No data", description, icon = "inbox" }) {
 export function DataTable({ columns, rows, loading, emptyText, loadingText = "Loading..." }) {
   return (
     <div className="overflow-x-auto rounded-md border border-slate-200">
-      <table className="w-full min-w-[920px] text-left text-sm">
+      <table className="w-full min-w-[720px] text-left text-xs">
         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="border-b border-slate-200 px-4 py-3">
+              <th key={column.key} className="border-b border-slate-200 px-3 py-2.5">
                 {column.label}
               </th>
             ))}
@@ -246,13 +246,13 @@ export function DataTable({ columns, rows, loading, emptyText, loadingText = "Lo
         <tbody className="divide-y divide-slate-100 bg-white">
           {loading ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-10 text-center text-slate-500">
+              <td colSpan={columns.length} className="px-3 py-8 text-center text-slate-500">
                 {loadingText}
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-10 text-center text-slate-500">
+              <td colSpan={columns.length} className="px-3 py-8 text-center text-slate-500">
                 {emptyText || "No records found."}
               </td>
             </tr>
@@ -260,7 +260,7 @@ export function DataTable({ columns, rows, loading, emptyText, loadingText = "Lo
             rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50">
                 {columns.map((column) => (
-                  <td key={column.key} className="px-4 py-3 align-top text-slate-700">
+                  <td key={column.key} className="px-3 py-2.5 align-top text-slate-700">
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
                 ))}
@@ -314,13 +314,13 @@ export function ApplicationSummary({ app, labels = {} }) {
   const currentStep = Math.min(Number(app.current_step || 1), 5);
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             {labels.selectedApplication || "Selected Application"}
           </p>
-          <p className="mt-1 text-base font-semibold text-slate-950">
+          <p className="mt-1 text-sm font-semibold text-slate-950">
             {getApplicationReference(app)}
           </p>
           <p className="text-sm text-slate-600">
@@ -329,7 +329,7 @@ export function ApplicationSummary({ app, labels = {} }) {
         </div>
         <StatusPill value={formatWorkflowStatus(app.status)} />
       </div>
-      <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
         <Info label={labels.created || "Created"} value={formatDate(app.created_at)} />
         <Info label={labels.updated || "Updated"} value={formatDate(app.updated_at)} />
         <Info label={labels.step || "Step"} value={`${currentStep} / 5`} />
@@ -344,7 +344,7 @@ export function Info({ label, value }) {
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </p>
-      <p className="mt-1 font-medium text-slate-800">{value || "-"}</p>
+      <p className="mt-1 text-sm font-medium text-slate-800">{value || "-"}</p>
     </div>
   );
 }

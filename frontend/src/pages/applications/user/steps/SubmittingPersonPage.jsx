@@ -192,7 +192,7 @@ function SubmittingPersonPage({
 
   return (
     <Layout>
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         <StepNav active={2} />
 
         <main className="flex-1 min-w-0">
@@ -201,7 +201,7 @@ function SubmittingPersonPage({
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
                 2
               </span>
-              <h1 className="text-xl font-semibold text-[#1a1c1c]">
+              <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 Details of Submitting Person
               </h1>
             </div>

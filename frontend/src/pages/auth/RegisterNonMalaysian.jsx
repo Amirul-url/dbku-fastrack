@@ -106,35 +106,35 @@ function RegisterNonMalaysian() {
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-slate-900">
       <TopBar />
 
-      <main className="max-w-4xl mx-auto px-6 py-12 flex-1 w-full">
-        <div className="mb-10">
-          <h1 className="text-4xl font-bold mb-2">{t("auth.registrationTitle")}</h1>
+      <main className="max-w-4xl mx-auto px-3 py-6 flex-1 w-full">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-2">{t("auth.registrationTitle")}</h1>
           <p className="text-slate-600 max-w-2xl">
             {t("auth.registrationNonMalaysianDescription")}
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
             {error}
           </div>
         )}
 
-        <form className="space-y-8" onSubmit={handleSubmit}>
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             <div className="h-1 bg-[#07c25f]" />
 
-            <div className="p-8">
+            <div className="p-5">
               <div className="flex items-center gap-3 mb-6">
                 <span className="material-symbols-outlined text-[#006d32]">
                   person
                 </span>
-                <h2 className="text-2xl font-semibold">
+                <h2 className="text-xl font-semibold">
                   {t("auth.personalInformation")}
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.fullNamePassport")}
@@ -144,7 +144,7 @@ function RegisterNonMalaysian() {
                     placeholder={t("auth.fullNamePlaceholder")}
                     value={form.fullName}
                     onChange={(e) => updateField("fullName", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
 
@@ -178,7 +178,7 @@ function RegisterNonMalaysian() {
                     placeholder={t("auth.passportPlaceholder")}
                     value={form.passportNumber}
                     onChange={(e) => updateField("passportNumber", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
 
@@ -189,7 +189,7 @@ function RegisterNonMalaysian() {
                   <select
                     value={form.countryOfOrigin}
                     onChange={(e) => updateField("countryOfOrigin", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   >
                     <option value="">{t("auth.selectCountry")}</option>
                     <option value="Indonesia">Indonesia</option>
@@ -213,7 +213,7 @@ function RegisterNonMalaysian() {
                     type="date"
                     value={form.passportExpiryDate}
                     onChange={(e) => updateField("passportExpiryDate", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
               </div>
@@ -221,21 +221,21 @@ function RegisterNonMalaysian() {
           </section>
 
           <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-            <div className="p-8">
+            <div className="p-5">
               <div className="flex items-center gap-3 mb-6">
                 <span className="material-symbols-outlined text-[#006d32]">
                   contact_mail
                 </span>
-                <h2 className="text-2xl font-semibold">{t("auth.contactDetails")}</h2>
+                <h2 className="text-xl font-semibold">{t("auth.contactDetails")}</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.mobileNumber")}
                   </label>
                   <div className="flex">
-                    <span className="inline-flex items-center px-4 bg-slate-100 border border-r-0 border-slate-200 text-slate-500 rounded-l-lg text-sm">
+                    <span className="inline-flex items-center px-3 bg-slate-100 border border-r-0 border-slate-200 text-slate-500 rounded-l-lg text-sm">
                       +60
                     </span>
                     <input
@@ -243,7 +243,7 @@ function RegisterNonMalaysian() {
                       placeholder="123456789"
                       value={form.mobileNumber}
                       onChange={(e) => updateField("mobileNumber", e.target.value)}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-r-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-r-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                     />
                   </div>
                 </div>
@@ -257,7 +257,7 @@ function RegisterNonMalaysian() {
                     placeholder="example@email.com"
                     value={form.email}
                     onChange={(e) => updateField("email", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
 
@@ -270,7 +270,7 @@ function RegisterNonMalaysian() {
                     placeholder={t("auth.addressPlaceholder")}
                     value={form.address}
                     onChange={(e) => updateField("address", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
               </div>
@@ -278,15 +278,15 @@ function RegisterNonMalaysian() {
           </section>
 
           <section className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-            <div className="p-8">
+            <div className="p-5">
               <div className="flex items-center gap-3 mb-6">
                 <span className="material-symbols-outlined text-[#006d32]">
                   security
                 </span>
-                <h2 className="text-2xl font-semibold">{t("auth.accountSecurity")}</h2>
+                <h2 className="text-xl font-semibold">{t("auth.accountSecurity")}</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.password")}
@@ -297,7 +297,7 @@ function RegisterNonMalaysian() {
                       placeholder="••••••••"
                       value={form.password}
                       onChange={(e) => updateField("password", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 pr-11 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 pr-11 outline-none focus:ring-2 focus:ring-[#07c25f]"
                     />
                     <button
                       type="button"
@@ -319,7 +319,7 @@ function RegisterNonMalaysian() {
                       placeholder="••••••••"
                       value={form.confirmPassword}
                       onChange={(e) => updateField("confirmPassword", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 pr-11 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 pr-11 outline-none focus:ring-2 focus:ring-[#07c25f]"
                     />
                     <button
                       type="button"
@@ -351,7 +351,7 @@ function RegisterNonMalaysian() {
                     placeholder="e.g. BlueSky2024"
                     value={form.secureWord}
                     onChange={(e) => updateField("secureWord", e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#07c25f]"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#07c25f]"
                   />
                 </div>
               </div>
@@ -406,14 +406,14 @@ function RegisterNonMalaysian() {
         </form>
       </main>
 
-      <footer className="bg-white border-t border-slate-200 py-8 px-6">
+      <footer className="bg-white border-t border-slate-200 py-8 px-3">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between gap-4 text-sm text-slate-500">
           <div>
             <p className="font-bold text-slate-700">fasTrack DBKU Portal</p>
             <p>© 2026 Sarawak Government. All Rights Reserved.</p>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex gap-4">
             <a href="#">{t("auth.privacy")}</a>
             <a href="#">{t("auth.termsService")}</a>
             <a href="#">{t("auth.faq")}</a>
