@@ -19,12 +19,12 @@ const defaultDocuments = [
     description:
       "Cadastral plan (preferred scale 1:1000) showing the subject land and the surrounding land.\nDigital copy is available from eLASIS website.",
     format: "PDF/ IMAGE",
-    required: false,
+    required: true,
     guideline: false,
     attachment: null,
   },
   {
-    title: "Site Photo",
+    title: "Site Photographs",
     description: "-",
     format: "PDF/ IMAGE",
     required: true,
@@ -35,13 +35,14 @@ const defaultDocuments = [
     title: "Tenancy Agreement",
     description: "-",
     format: "PDF",
-    required: false,
+    required: true,
     guideline: false,
     attachment: null,
   },
 ];
 
-const DUMMY_LAND_VALUE = "Lot 3786 Block 207 Kuching North Land District";
+const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
+const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -67,11 +68,21 @@ function normalizeDocuments(savedDocuments, defaults) {
     return defaults;
   }
 
-  return defaults.map((defaultItem, index) => ({
-    ...defaultItem,
-    ...(savedDocuments[index] || {}),
-    attachment: savedDocuments[index]?.attachment || null,
-  }));
+  return defaults.map((defaultItem, index) => {
+    const savedByTitle = savedDocuments.find(
+      (item) => item?.title === defaultItem.title
+    );
+    const savedItem = savedByTitle || savedDocuments[index] || {};
+
+    return {
+      ...defaultItem,
+      attachment: savedItem.attachment || null,
+    };
+  });
+}
+
+function getSavedAttachmentByTitle(savedDocuments, title) {
+  return savedDocuments.find((item) => item?.title === title)?.attachment || null;
 }
 
 function getLandInformationFromStep1(step1) {
@@ -87,7 +98,7 @@ function getLandInformationFromStep1(step1) {
   );
 }
 
-function buildTitleDocumentsFromStep1(step1) {
+function buildTitleDocumentsFromStep1(step1, attachment = null) {
   const landInfo = getLandInformationFromStep1(step1);
 
   if (!landInfo) return [];
@@ -96,7 +107,7 @@ function buildTitleDocumentsFromStep1(step1) {
     {
       land: landInfo,
       format: "PDF",
-      attachment: null,
+      attachment,
     },
   ];
 }
@@ -130,24 +141,45 @@ function SupportingDocumentPage() {
       const formData = data.form_data || {};
       const step1Data = formData.step_1 || {};
       const step10 = formData.step_10 || {};
-
+      const savedDocuments = Array.isArray(step10.documents)
+        ? [...step10.documents]
+        : [];
       const savedTitleDocuments = Array.isArray(step10.title_documents)
         ? step10.title_documents
         : [];
-
-      const hasOldDummy =
-        savedTitleDocuments?.[0]?.land === DUMMY_LAND_VALUE;
-
-      const generatedTitleDocuments = buildTitleDocumentsFromStep1(step1Data);
+      const savedOtherDocuments = Array.isArray(step10.other_documents)
+        ? step10.other_documents
+        : [];
+      const titleAttachment =
+        savedTitleDocuments[0]?.attachment ||
+        getSavedAttachmentByTitle(savedDocuments, TITLE_DOCUMENT_NAME);
+      const otherAttachment =
+        savedOtherDocuments[0]?.attachment ||
+        getSavedAttachmentByTitle(savedDocuments, OTHER_DOCUMENT_NAME);
+      const generatedTitleDocuments = buildTitleDocumentsFromStep1(
+        step1Data,
+        titleAttachment
+      );
+      const generatedOtherDocuments = otherAttachment
+        ? [
+            {
+              description: OTHER_DOCUMENT_NAME,
+              format: "PDF/ IMAGE",
+              attachment: otherAttachment,
+            },
+          ]
+        : [];
 
       setStep1(step1Data);
-      setDocuments(normalizeDocuments(step10.documents, defaultDocuments));
+      setDocuments(normalizeDocuments(savedDocuments, defaultDocuments));
       setTitleDocuments(
-        savedTitleDocuments.length > 0 && !hasOldDummy
+        savedTitleDocuments.length > 0
           ? savedTitleDocuments
           : generatedTitleDocuments
       );
-      setOtherDocuments(step10.other_documents || []);
+      setOtherDocuments(
+        savedOtherDocuments.length > 0 ? savedOtherDocuments : generatedOtherDocuments
+      );
     } catch (err) {
       console.error("Load supporting document failed:", err);
     }
@@ -156,6 +188,19 @@ function SupportingDocumentPage() {
   async function saveStep10({ goNext = false } = {}) {
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
+      return false;
+    }
+
+    const missingDocuments = documents.filter(
+      (document) => document.required && !document.attachment
+    );
+
+    if (missingDocuments.length > 0) {
+      alert(
+        `Please upload all required supporting documents before continuing:\n\n${missingDocuments
+          .map((document) => `- ${document.title}`)
+          .join("\n")}`
+      );
       return false;
     }
 
@@ -279,7 +324,7 @@ function SupportingDocumentPage() {
       ...prev,
       {
         description: "",
-        format: "PDF/IMAGE",
+        format: "PDF/ IMAGE",
         attachment: null,
       },
     ]);
@@ -373,15 +418,6 @@ function SupportingDocumentPage() {
 
                 <button
                   type="button"
-                  onClick={() => saveStep10({ goNext: false })}
-                  disabled={saving}
-                  className="px-3 py-1.5 border border-[#006d32] text-[#006d32] rounded text-xs font-semibold hover:bg-emerald-50 disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-
-                <button
-                  type="button"
                   onClick={handleSaveAndNext}
                   disabled={saving}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
@@ -457,7 +493,9 @@ function SupportingTable({ rows, onFileChange, onRemoveFile }) {
                 className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
               >
                 <TableCell center>
-                  <span className="text-base font-bold text-[#18b36b]">↻</span>
+                  <span className="text-base font-bold text-[#18b36b]">
+                    {index + 1}
+                  </span>
                 </TableCell>
 
                 <TableCell>
