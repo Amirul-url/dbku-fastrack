@@ -309,27 +309,30 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 }
 
-export function ApplicationSummary({ app }) {
+export function ApplicationSummary({ app, labels = {} }) {
   if (!app) return null;
+  const currentStep = Math.min(Number(app.current_step || 1), 5);
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Selected Application
+            {labels.selectedApplication || "Selected Application"}
           </p>
           <p className="mt-1 text-base font-semibold text-slate-950">
             {getApplicationReference(app)}
           </p>
-          <p className="text-sm text-slate-600">{app.title || "Advertisement License Application"}</p>
+          <p className="text-sm text-slate-600">
+            {app.title || labels.defaultTitle || "Advertisement License Application"}
+          </p>
         </div>
         <StatusPill value={formatWorkflowStatus(app.status)} />
       </div>
       <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <Info label="Created" value={formatDate(app.created_at)} />
-        <Info label="Updated" value={formatDate(app.updated_at)} />
-        <Info label="Step" value={`${app.current_step || 1} / 11`} />
+        <Info label={labels.created || "Created"} value={formatDate(app.created_at)} />
+        <Info label={labels.updated || "Updated"} value={formatDate(app.updated_at)} />
+        <Info label={labels.step || "Step"} value={`${currentStep} / 5`} />
       </div>
     </div>
   );

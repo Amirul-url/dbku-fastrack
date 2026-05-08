@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
+import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getStoredUser } from "../../services/api";
 import {
   Alert,
@@ -22,25 +23,43 @@ const units = [
   {
     code: "Unit Iklan",
     title: "Unit Iklan",
-    description: "Semakan awal iklan, dokumen dan kelengkapan permohonan.",
+    descriptionKey: "admin.unit.ikl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete"],
+    statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment"],
     path: "/admin/auto-screening",
   },
   {
     code: "BLG",
     title: "BLG",
-    description: "Semakan kawasan, syarat lesen dan rekod sokongan.",
+    descriptionKey: "admin.unit.blg.desc",
     icon: "edit_square",
     color: "bg-emerald-600",
-    statuses: ["auto_screened"],
-    path: "/admin/applications",
+    statuses: ["technical_review", "technical_site_visit"],
+    path: "/admin/technical-review",
+  },
+  {
+    code: "GPM",
+    title: "GPM",
+    descriptionKey: "admin.unit.gpm.desc",
+    icon: "payments",
+    color: "bg-blue-600",
+    statuses: ["technical_review", "technical_site_visit"],
+    path: "/admin/technical-review",
+  },
+  {
+    code: "MNE",
+    title: "MNE",
+    descriptionKey: "admin.unit.mne.desc",
+    icon: "account_balance",
+    color: "bg-sky-600",
+    statuses: ["technical_review", "technical_site_visit"],
+    path: "/admin/technical-review",
   },
   {
     code: "IMT",
     title: "IMT",
-    description: "Semakan teknikal imej, lokasi, pemetaan dan integrasi.",
+    descriptionKey: "admin.unit.imt.desc",
     icon: "hub",
     color: "bg-yellow-400",
     iconClassName: "text-slate-900",
@@ -48,63 +67,74 @@ const units = [
     path: "/admin/technical-review",
   },
   {
-    code: "MNE",
-    title: "MNE",
-    description: "Penilaian maklumat dan sokongan pengurusan.",
-    icon: "account_balance",
-    color: "bg-sky-600",
-    statuses: ["technical_review_completed", "management_review"],
-    path: "/admin/approval",
+    code: "LNP",
+    title: "LNP",
+    descriptionKey: "admin.unit.lnp.desc",
+    icon: "fact_check",
+    color: "bg-green-600",
+    statuses: ["technical_review", "technical_site_visit"],
+    path: "/admin/technical-review",
   },
   {
     code: "ENG",
     title: "ENG",
-    description: "Semakan kejuruteraan dan keselamatan struktur iklan.",
+    descriptionKey: "admin.unit.eng.desc",
     icon: "engineering",
     color: "bg-teal-600",
     statuses: ["technical_review"],
     path: "/admin/technical-review",
-  },
-  {
-    code: "GPM",
-    title: "GPM",
-    description: "Keputusan, caj, invois dan pengesahan bayaran.",
-    icon: "payments",
-    color: "bg-blue-600",
-    statuses: ["approved", "approved_with_conditions", "invoice_generated", "payment_submitted"],
-    path: "/admin/payment",
-  },
-  {
-    code: "LNP",
-    title: "LNP",
-    description: "Pengeluaran, pengaktifan dan rekod e-lesen QR.",
-    icon: "fact_check",
-    color: "bg-green-600",
-    statuses: ["payment_verified", "license_issued", "license_revoked"],
-    path: "/admin/license-qr",
   },
 ];
 
 const menuViews = [
   {
     key: "personal",
-    label: "Personal Task",
+    labelKey: "admin.dashboard.personalTask",
   },
   {
     key: "claimable",
-    label: "List of Task to be Claimed",
+    labelKey: "admin.dashboard.claimableTask",
   },
   {
     key: "claimed",
-    label: "List of All Claimed Task",
+    labelKey: "admin.dashboard.allClaimedTask",
   },
   {
     key: "approval",
-    label: "Awaiting Approval",
+    labelKey: "admin.dashboard.awaitingApproval",
+  },
+];
+
+const workflowCards = [
+  {
+    titleKey: "admin.workflow.screening",
+    descriptionKey: "admin.workflow.screeningDesc",
+    icon: "rule",
+  },
+  {
+    titleKey: "admin.workflow.technical",
+    descriptionKey: "admin.workflow.technicalDesc",
+    icon: "engineering",
+  },
+  {
+    titleKey: "admin.workflow.management",
+    descriptionKey: "admin.workflow.managementDesc",
+    icon: "approval_delegation",
+  },
+  {
+    titleKey: "admin.workflow.payment",
+    descriptionKey: "admin.workflow.paymentDesc",
+    icon: "receipt_long",
+  },
+  {
+    titleKey: "admin.workflow.renewal",
+    descriptionKey: "admin.workflow.renewalDesc",
+    icon: "event_repeat",
   },
 ];
 
 function AdminDashboard() {
+  const { t } = useLanguage();
   const [applications, setApplications] = useState([]);
   const [selectedUnit, setSelectedUnit] = useState("Unit Iklan");
   const [activeView, setActiveView] = useState("claimable");
@@ -149,9 +179,9 @@ function AdminDashboard() {
   return (
     <AdminDashboardLayout>
       <PageHeader
-        eyebrow="Admin Dashboard"
-        title="List of Task"
-        description="Tasks will appear here after an applicant successfully submits the advertisement license form. Each unit claims and completes its own queue."
+        eyebrow={t("admin.dashboard.eyebrow")}
+        title={t("admin.dashboard.title")}
+        description={t("admin.dashboard.description")}
       />
 
       <Alert message={error} />
@@ -159,26 +189,28 @@ function AdminDashboard() {
       <section className="mb-6 grid grid-cols-1 gap-4 border border-slate-300 bg-white p-4 lg:grid-cols-[250px_minmax(0,1fr)]">
         <aside className="overflow-hidden border border-slate-200 bg-slate-50">
           <div className="bg-emerald-900 px-4 py-4 text-white">
-            <p className="text-xs font-semibold">Welcome {user?.full_name || user?.username || "Admin"}</p>
+            <p className="text-xs font-semibold">
+              {t("admin.dashboard.welcome")} {user?.full_name || user?.username || "Admin"}
+            </p>
             <p className="mt-1 text-[11px] font-semibold uppercase text-emerald-100">
-              Administrator
+              {t("admin.dashboard.dataEntry")}
             </p>
           </div>
 
           <nav className="text-sm">
-            <SidebarItem active label="Application" />
+            <SidebarItem active label={t("admin.dashboard.application")} />
             {menuViews.slice(0, 3).map((item) => (
               <SidebarButton
                 key={item.key}
                 active={activeView === item.key}
-                label={item.label}
+                label={t(item.labelKey)}
                 onClick={() => setActiveView(item.key)}
               />
             ))}
-            <SidebarItem label="License / Code" />
+            <SidebarItem label={t("admin.dashboard.licenseCode")} />
             <SidebarButton
               active={activeView === "approval"}
-              label="Awaiting Approval"
+              label={t("admin.dashboard.awaitingApproval")}
               onClick={() => setActiveView("approval")}
             />
           </nav>
@@ -186,12 +218,13 @@ function AdminDashboard() {
 
         <main className="min-w-0">
           <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <SummaryBox label="Submitted Forms" value={loading ? "..." : submitted} />
-            <SummaryBox label="Task to be Claimed" value={loading ? "..." : totalClaimable} />
-            <SummaryBox label="Units" value={units.length} />
+            <SummaryBox label={t("admin.dashboard.submittedForms")} value={loading ? "..." : submitted} />
+            <SummaryBox label={t("admin.dashboard.taskToClaim")} value={loading ? "..." : totalClaimable} />
+            <SummaryBox label={t("admin.dashboard.units")} value={units.length} />
           </div>
 
           <ClaimableTaskView
+            t={t}
             loading={loading}
             selected={selected}
             selectedUnit={selectedUnit}
@@ -200,11 +233,30 @@ function AdminDashboard() {
           />
         </main>
       </section>
+
+      <Panel title={t("admin.workflow.title")} description={t("admin.workflow.description")}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+          {workflowCards.map((item) => (
+            <div key={item.titleKey} className="rounded-md border border-slate-200 bg-white p-4">
+              <span className="material-symbols-outlined text-2xl text-emerald-700">
+                {item.icon}
+              </span>
+              <h3 className="mt-3 text-sm font-semibold text-slate-950">
+                {t(item.titleKey)}
+              </h3>
+              <p className="mt-2 text-xs leading-5 text-slate-600">
+                {t(item.descriptionKey)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </Panel>
     </AdminDashboardLayout>
   );
 }
 
 function ClaimableTaskView({
+  t,
   loading,
   selected,
   selectedUnit,
@@ -215,7 +267,7 @@ function ClaimableTaskView({
     <>
       <fieldset className="border border-slate-300 px-4 pb-5 pt-3">
         <legend className="px-2 text-sm font-semibold italic text-slate-700">
-          PROCESS LIST
+          {t("admin.dashboard.processList")}
         </legend>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-7">
@@ -241,7 +293,7 @@ function ClaimableTaskView({
                 {unit.title}
               </span>
               <span className="text-xs font-semibold italic text-slate-950">
-                Task Count : {loading ? "..." : unit.tasks.length}
+                {t("admin.dashboard.taskCount")} : {loading ? "..." : unit.tasks.length}
               </span>
             </button>
           ))}
@@ -260,27 +312,41 @@ function ClaimableTaskView({
               </span>
             </div>
             <h2 className="text-lg font-semibold text-slate-950">{selected.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{selected.description}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {t(selected.descriptionKey)}
+            </p>
+            {selected.code === "Unit Iklan" && (
+              <div className="mt-4 rounded-md border border-emerald-100 bg-white p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                  {t("admin.dashboard.roleTitle")}
+                </p>
+                <ul className="mt-2 space-y-2 text-xs leading-5 text-slate-700">
+                  <li>{t("admin.dashboard.ptIklRole")}</li>
+                  <li>{t("admin.dashboard.kuIklRole")}</li>
+                  <li>{t("admin.dashboard.unitIklanTechnicalRole")}</li>
+                </ul>
+              </div>
+            )}
             <Link
               to={selected.path}
               className="mt-4 inline-flex min-h-10 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
             >
-              Open Unit Workspace
+              {t("admin.dashboard.openWorkspace")}
             </Link>
           </div>
 
           <Panel
-            title={`${selected.title} Task Queue`}
-            description="Submitted applications waiting for this unit."
+            title={`${selected.title} ${t("admin.dashboard.taskQueue")}`}
+            description={t("admin.dashboard.queueDescription")}
           >
             <DataTable
               loading={loading}
-              emptyText="No task to be claimed for this unit."
+              emptyText={t("admin.dashboard.noTask")}
               rows={selected.tasks}
               columns={[
                 {
                   key: "reference",
-                  label: "Reference",
+                  label: t("common.reference"),
                   render: (application) => (
                     <Link
                       to={`/admin/applications/${application.id}`}
@@ -290,18 +356,18 @@ function ClaimableTaskView({
                     </Link>
                   ),
                 },
-                { key: "applicant", label: "Applicant", render: getApplicantName },
-                { key: "project", label: "Project", render: getProjectName },
+                { key: "applicant", label: t("common.applicant"), render: getApplicantName },
+                { key: "project", label: t("common.project"), render: getProjectName },
                 {
                   key: "status",
-                  label: "Status",
+                  label: t("common.status"),
                   render: (application) => (
                     <StatusPill value={formatWorkflowStatus(application.status)} />
                   ),
                 },
                 {
                   key: "updated",
-                  label: "Updated",
+                  label: t("common.updated"),
                   render: (application) => formatDate(application.updated_at),
                 },
               ]}
