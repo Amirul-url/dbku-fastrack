@@ -74,16 +74,10 @@ function UserApplicationsPage() {
   function openApplication(app) {
     const routes = {
       1: "edit",
-      2: "client-department",
-      3: "submitting-person",
-      4: "land-details",
-      5: "building-plan",
-      6: "proposal-analysis",
-      7: "site-inspection",
-      8: "building-plan-checklist",
-      9: "print-form",
-      10: "supporting-document",
-      11: "declaration",
+      2: "submitting-person",
+      3: "supporting-document",
+      4: "declaration",
+      5: "print-form",
     };
     const step = Number(app.current_step || 1);
 

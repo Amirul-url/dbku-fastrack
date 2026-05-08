@@ -9,32 +9,27 @@ function PrintFormPage() {
   const navigate = useNavigate();
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
-
   const applicationId = routeApplicationId || queryParams.get("id");
 
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
-  const Layout = UserDashboardLayout;
-
   const [step1, setStep1] = useState({});
-  const [step2, setStep2] = useState({});
   const [step3, setStep3] = useState({});
-  const [step7, setStep7] = useState({});
+  const [step10, setStep10] = useState({});
+  const [step11, setStep11] = useState({});
   const [step9, setStep9] = useState({
     title: "Print Form",
     status: "Draft",
     printed: false,
     printed_at: "",
     saved_at: "",
+    submitted_at: "",
   });
-
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     document.title = "SITING APPLICATION FORM";
 
     if (applicationId) {
+      // eslint-disable-next-line react-hooks/immutability
       loadApplication();
     }
   }, [applicationId]);
@@ -45,23 +40,23 @@ function PrintFormPage() {
       const formData = data.form_data || {};
 
       setStep1(formData.step_1 || {});
-      setStep2(formData.step_2 || {});
       setStep3(formData.step_3 || {});
-      setStep7(formData.step_7 || {});
-
+      setStep10(formData.step_10 || {});
+      setStep11(formData.step_11 || {});
       setStep9({
         title: "Print Form",
         status: formData.step_9?.status || "Draft",
         printed: formData.step_9?.printed || false,
         printed_at: formData.step_9?.printed_at || "",
         saved_at: formData.step_9?.saved_at || "",
+        submitted_at: formData.step_9?.submitted_at || "",
       });
     } catch (err) {
       console.error("Load print form failed:", err);
     }
   }
 
-  async function saveStep9({ goNext = false, printed = false } = {}) {
+  async function saveStep9({ printed = false, submit = false } = {}) {
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
       return false;
@@ -72,41 +67,41 @@ function PrintFormPage() {
 
       const existingData = await apiRequest(`/applications/${applicationId}/`);
       const existingFormData = existingData.form_data || {};
-
       const now = new Date().toISOString();
 
       const updatedStep9 = {
         ...step9,
         title: "Print Form",
-        status: printed || step9.printed ? "Generated" : "Saved",
+        status: submit ? "Submitted" : printed || step9.printed ? "Generated" : "Saved",
         printed: printed || step9.printed || false,
         printed_at: printed ? now : step9.printed_at || "",
         saved_at: now,
+        submitted_at: submit ? now : step9.submitted_at || "",
       };
 
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: goNext ? 10 : 9,
+          current_step: 5,
+          status: submit ? "submitted" : undefined,
           form_data: {
             ...existingFormData,
             step_9: updatedStep9,
+            step_11: {
+              ...(existingFormData.step_11 || {}),
+              ...step11,
+              submitted: submit ? true : step11.submitted || false,
+              submitted_at: submit ? now : step11.submitted_at || "",
+            },
           },
         }),
       });
 
       setStep9(updatedStep9);
-
-      if (goNext) {
-        navigate(
-          `/applications/${applicationId}/supporting-document?id=${applicationId}`
-        );
-      }
-
       return true;
     } catch (err) {
-      console.error("Step 9 save failed:", err);
-      alert("Failed to save Step 9.");
+      console.error("Print form save failed:", err);
+      alert("Failed to save Print Form.");
       return false;
     } finally {
       setSaving(false);
@@ -115,7 +110,6 @@ function PrintFormPage() {
 
   async function handlePrint() {
     const saved = await saveStep9({ printed: true });
-
     if (!saved) return;
 
     const previousTitle = document.title;
@@ -130,15 +124,23 @@ function PrintFormPage() {
     }, 100);
   }
 
-  async function handleSaveAndNext() {
-    await saveStep9({ goNext: true });
+  async function handleSubmitApplication() {
+    const saved = await saveStep9({ submit: true });
+    if (saved) {
+      navigate("/user/dashboard");
+    }
   }
 
-  const landArea = Number(step1.area_required || 0);
-  const landAreaAc = landArea ? (landArea * 0.000247105).toFixed(4) : "-";
+  const requiredDocuments = Array.isArray(step10.documents) ? step10.documents : [];
+  const titleDocuments = Array.isArray(step10.title_documents)
+    ? step10.title_documents
+    : [];
+  const otherDocuments = Array.isArray(step10.other_documents)
+    ? step10.other_documents
+    : [];
 
   return (
-    <Layout>
+    <UserDashboardLayout>
       <style>
         {`
           @media print {
@@ -167,17 +169,14 @@ function PrintFormPage() {
               left: 0 !important;
               top: 0 !important;
               width: 210mm !important;
-              height: 297mm !important;
+              min-height: 297mm !important;
               margin: 0 !important;
               padding: 12mm 14mm 10mm 14mm !important;
               box-shadow: none !important;
               border: none !important;
-              overflow: hidden !important;
+              overflow: visible !important;
               background: #ffffff !important;
               box-sizing: border-box !important;
-              page-break-after: avoid !important;
-              page-break-before: avoid !important;
-              page-break-inside: avoid !important;
             }
 
             .print-hide {
@@ -193,13 +192,13 @@ function PrintFormPage() {
       </style>
 
       <div className="flex gap-5">
-        <UserApplicationStepNav active={9} />
+        <UserApplicationStepNav active={5} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between print-hide">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                9
+                5
               </span>
               <h1 className="text-xl font-semibold text-[#1a1c1c]">
                 Print Form
@@ -208,19 +207,19 @@ function PrintFormPage() {
 
             <div className="flex gap-2">
               <Link
-                to={`/applications/${applicationId}/building-plan-checklist?id=${applicationId}`}
+                to={`/applications/${applicationId}/declaration?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                ← Back
+                Back
               </Link>
 
               <button
                 type="button"
-                onClick={handleSaveAndNext}
+                onClick={handleSubmitApplication}
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save & Next"}
+                {saving ? "Submitting..." : "Submit Application"}
               </button>
             </div>
           </div>
@@ -233,8 +232,7 @@ function PrintFormPage() {
             <div className="p-5 border-b border-slate-200 print-hide">
               <div className="bg-[#f7f7f7] border border-slate-200 p-4 text-sm text-slate-600">
                 Review the generated application form below. Click Print / Save
-                PDF to open the browser print dialog. Step 9 will be saved into
-                JSON automatically.
+                PDF to open the browser print dialog.
               </div>
 
               <div className="flex flex-wrap gap-3 mt-4">
@@ -244,7 +242,7 @@ function PrintFormPage() {
                   disabled={saving}
                   className="px-4 py-2 bg-[#006d32] text-white rounded text-sm font-semibold hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "🖨 Print / Save PDF"}
+                  {saving ? "Saving..." : "Print / Save PDF"}
                 </button>
               </div>
             </div>
@@ -255,291 +253,109 @@ function PrintFormPage() {
                 className="mx-auto bg-white text-black shadow-sm"
                 style={{
                   width: "210mm",
-                  height: "297mm",
+                  minHeight: "297mm",
                   padding: "12mm 14mm 10mm 14mm",
                   fontFamily: "Arial, sans-serif",
                   boxSizing: "border-box",
-                  overflow: "hidden",
-                  display: "flex",
-                  flexDirection: "column",
                 }}
               >
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "105px 1fr 105px",
-                    alignItems: "center",
-                    marginBottom: "7mm",
-                  }}
-                >
-                  <img
-                    src="/logo-dbku.png"
-                    alt="DBKU Logo"
+                <div style={{ textAlign: "center", marginBottom: "9mm" }}>
+                  <h1
                     style={{
-                      width: "96px",
-                      height: "96px",
-                      objectFit: "contain",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      textDecoration: "underline",
+                      margin: 0,
                     }}
+                  >
+                    SITING APPLICATION FORM
+                  </h1>
+                </div>
+
+                <PrintSection title="Step 1: Sitting Application">
+                  <PrintLine no="1." label="Name of Project" value={step1.project_name} />
+                  <PrintLine no="2." label="Applicant" value={step1.applicant} />
+                  <PrintLine
+                    no="3."
+                    label="Contact Person / Tel No."
+                    value={`${step1.contact_person || "-"} / ${step1.tel_no || "-"}`}
                   />
+                  <PrintLine no="4." label="Locality / Address" value={step1.locality_address} />
+                  <PrintLine no="5." label="Area Required" value={step1.area_required} />
+                  <PrintLine
+                    no="6."
+                    label="Total Scheme Value, RM"
+                    value={formatRM(step1.total_scheme_value)}
+                  />
+                  <PrintLine
+                    no="7."
+                    label="Amount of fund approved in the Malaysia Plan, RM"
+                    value={`${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`}
+                  />
+                  <PrintLine
+                    no="8."
+                    label="Amount of fund available now, RM"
+                    value={formatRM(step1.amount_fund_available)}
+                  />
+                  <PrintBlock
+                    no="9."
+                    label="Project Justification and Description on Project Components"
+                    value={stripHtml(step1.project_justification)}
+                  />
+                  <PrintBlock
+                    no="10."
+                    label="Reason for Selecting the Site"
+                    value={stripHtml(step1.site_selection_reason)}
+                  />
+                  <PrintLine no="11." label="Designation" value={step1.designation} />
+                  <PrintLine no="12." label="Name of Officer" value={step1.officer_name} />
+                  <PrintLine no="13." label="Date" value={formatDate(step1.application_date)} />
+                </PrintSection>
 
-                  <div style={{ textAlign: "center" }}>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "700",
-                        lineHeight: "1.25",
-                      }}
-                    >
-                      STATE DEVELOPMENT PLANNING AND MANAGEMENT
-                    </div>
+                <PrintSection title="Step 2: Details of Submitting Person">
+                  <PrintLine label="Organisation Type" value={step3.org_type} />
+                  <PrintLine label="Registration Number" value={step3.registration_no} />
+                  <PrintLine label="Organisation Name" value={step3.org_name} />
+                  <PrintLine label="Postal Address" value={step3.postal_address} />
+                  <PrintLine label="City / State" value={`${step3.city || "-"} / ${step3.state || "-"}`} />
+                  <PrintLine label="Telephone No." value={step3.telephone_no} />
+                  <PrintLine label="Submitting Person" value={step3.full_name} />
+                  <PrintLine label="Designation" value={step3.designation} />
+                  <PrintLine label="Identity Card No." value={step3.identity_card_no} />
+                  <PrintLine label="Mobile No." value={step3.mobile_no} />
+                  <PrintLine label="Office No." value={step3.office_no} />
+                  <PrintLine label="Email" value={step3.email} />
+                </PrintSection>
 
-                    <div
-                      style={{
-                        marginTop: "4mm",
-                        fontSize: "13px",
-                        fontWeight: "700",
-                        lineHeight: "1.25",
-                      }}
-                    >
-                      SITING APPLICATION FORM
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: "3mm",
-                        fontSize: "13px",
-                        fontWeight: "700",
-                        lineHeight: "1.25",
-                      }}
-                    >
-                      {step1.division || "KUCHING"}
-                    </div>
-                  </div>
-
-                  <div />
-                </div>
-
-                <div style={{ flex: "0 0 auto" }}>
-                  <PrintSection title="A. Project Profile">
-                    <PrintRow label="Name of Project" value={step1.project_name} />
-
-                    <PrintRow
-                      label="Application Type"
-                      value={
-                        step1.application_type_label ||
-                        "Application of Siting Project"
-                      }
-                    />
-
-                    <PrintRow
-                      label="Area Required"
-                      value={
-                        step1.area_required
-                          ? `${Number(step1.area_required).toFixed(4)} Sq. M`
-                          : "-"
-                      }
-                    />
-
-                    <PrintRow
-                      label="Total Scheme Value"
-                      value={formatRM(step1.total_scheme_value)}
-                    />
-
-                    <PrintRow
-                      label="Fund Availability"
-                      value={formatYesNo(step1.fund_availability)}
-                    />
-
-                    <PrintRow
-                      label="Amount of Fund Approved in the Malaysia Plan"
-                      value={formatRM(step1.amount_fund_approved)}
-                    />
-
-                    <PrintRow
-                      label="Malaysia Plan No."
-                      value={step1.malaysia_plan_no}
-                    />
-
-                    <PrintRow
-                      label="Amount of Fund Available"
-                      value={formatRM(step1.amount_fund_available)}
-                    />
-
-                    <PrintSubTitle title="Information on Proposed Site (if any)" />
-
-                    <PrintRow
-                      label="Affected Land"
-                      value={step1.locality_address}
-                    />
-
-                    <PrintRow
-                      label="Land Area"
-                      value={
-                        step1.area_required
-                          ? `${Number(step1.area_required).toFixed(
-                              2
-                            )} Sq. M / ${landAreaAc} Ac.`
-                          : "-"
-                      }
-                    />
-
-                    <PrintSubTitle title="Client Profile" />
-
-                    <PrintRow
-                      label="Department / Agency Name"
-                      value={step2.org_name}
-                    />
-
-                    <PrintRow
-                      label="Representative / Applicant"
-                      value={step2.full_name}
-                    />
-
-                    <PrintRow label="Designation" value={step2.designation} />
-                    <PrintRow label="Email" value={step2.email} />
-
-                    <PrintRow
-                      label="Telephone No."
-                      value={step2.office_no || step2.telephone_no}
-                    />
-
-                    <PrintSubTitle title="Submitting Person" />
-
-                    <PrintRow label="Organisation Name" value={step3.org_name} />
-                    <PrintRow label="Submitting Person" value={step3.full_name} />
-                    <PrintRow label="Designation" value={step3.designation} />
-                    <PrintRow label="Email" value={step3.email} />
-                    <PrintRow label="Mobile No." value={step3.mobile_no} />
-                  </PrintSection>
-
-                  <PrintSection title="B. Site Inspection Summary">
-                    <PrintRow
-                      label="Inspection Date"
-                      value={formatDate(step7.inspection_date)}
-                    />
-
-                    <PrintRow
-                      label="Road Access"
-                      value={step7.road_access?.anyAccess}
-                    />
-
-                    <PrintRow
-                      label="Physical Access"
-                      value={step7.road_access?.physicalAccess}
-                    />
-
-                    <PrintRow
-                      label="Legal Access"
-                      value={step7.road_access?.legalAccess}
-                    />
-
-                    <PrintRow
-                      label="Road Surface"
-                      value={step7.road_access?.roadSurface}
-                    />
-
-                    <PrintRow
-                      label="Carriageway Width"
-                      value={step7.road_access?.carriagewayWidth}
-                    />
-
-                    <PrintRow
-                      label="Condition of Carriageway"
-                      value={step7.road_access?.carriagewayCondition}
-                    />
-
-                    <PrintRow
-                      label="Subject Land"
-                      value={step7.present_usage?.subjectLand}
-                    />
-
-                    <PrintRow
-                      label="Neighbouring Land"
-                      value={step7.present_usage?.neighbouringLand}
-                    />
-                  </PrintSection>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "30mm",
-                      marginTop: "16mm",
-                      fontSize: "10px",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          borderTop: "1px solid #000000",
-                          paddingTop: "2mm",
-                        }}
-                      >
-                        Applicant Signature
-                      </div>
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          borderTop: "1px solid #000000",
-                          paddingTop: "2mm",
-                        }}
-                      >
-                        Date
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <footer
-                  style={{
-                    marginTop: "auto",
-                    paddingTop: "4mm",
-                    fontSize: "8px",
-                    color: "#64748b",
-                  }}
-                >
-                  <div>
-                    This form is generated from fasTrack Portal data. Please
-                    verify all details before submission.
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "3mm",
-                      textAlign: "center",
-                      fontSize: "8px",
-                      color: "#000000",
-                    }}
-                  >
-                    Page : 1 of 1
-                  </div>
-                </footer>
+                <PrintSection title="Step 3: Supporting Documents">
+                  <DocumentSummary title="Required Supporting Documents" rows={requiredDocuments} />
+                  <DocumentSummary title="Extract of Document of Titles of the Land" rows={titleDocuments} land />
+                  <DocumentSummary title="Other Relevant Supporting Documents" rows={otherDocuments} other />
+                </PrintSection>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 p-5 print-hide">
               <Link
-                to={`/applications/${applicationId}/building-plan-checklist?id=${applicationId}`}
+                to={`/applications/${applicationId}/declaration?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                ← Back
+                Back
               </Link>
 
               <button
                 type="button"
-                onClick={handleSaveAndNext}
+                onClick={handleSubmitApplication}
                 disabled={saving}
                 className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save & Next"}
+                {saving ? "Submitting..." : "Submit Application"}
               </button>
             </div>
           </section>
         </main>
       </div>
-    </Layout>
+    </UserDashboardLayout>
   );
 }
 
@@ -554,9 +370,6 @@ function ApplicationReference({ step1 }) {
           <>
             <p>Digital Reference</p>
             <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
-
-            <p>Agency Reference</p>
-            <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
           </>
         )}
 
@@ -567,7 +380,7 @@ function ApplicationReference({ step1 }) {
 
         <p>Application Type</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.application_type_label || "Application of Siting Project"}
+          {step1.application_type_label || "Application for Site (New Site)"}
         </p>
       </div>
     </div>
@@ -576,90 +389,101 @@ function ApplicationReference({ step1 }) {
 
 function PrintSection({ title, children }) {
   return (
-    <section style={{ marginTop: "3.2mm" }}>
-      <div
+    <section style={{ marginTop: "7mm" }}>
+      <h2
         style={{
-          backgroundColor: "#dcebc8",
-          height: "5.6mm",
-          display: "flex",
-          alignItems: "center",
-          paddingLeft: "2mm",
-          paddingRight: "2mm",
-          boxSizing: "border-box",
-          WebkitPrintColorAdjust: "exact",
-          printColorAdjust: "exact",
+          borderBottom: "1px solid #000000",
+          fontSize: "11px",
+          fontWeight: 700,
+          margin: "0 0 3mm",
+          paddingBottom: "1mm",
         }}
       >
-        <span
-          style={{
-            fontSize: "10px",
-            fontWeight: "700",
-            lineHeight: "1",
-            color: "#000000",
-          }}
-        >
-          {title}
-        </span>
-      </div>
-
-      <div
-        style={{
-          marginTop: "3mm",
-          paddingLeft: "6mm",
-          paddingRight: "4mm",
-          fontSize: "10px",
-        }}
-      >
-        {children}
-      </div>
+        {title}
+      </h2>
+      <div>{children}</div>
     </section>
   );
 }
 
-function PrintSubTitle({ title }) {
-  return (
-    <div
-      style={{
-        marginTop: "4.2mm",
-        marginBottom: "1.4mm",
-        fontSize: "10px",
-        fontWeight: "700",
-        textDecoration: "underline",
-        lineHeight: "1.15",
-      }}
-    >
-      {title}
-    </div>
-  );
-}
-
-function PrintRow({ label, value }) {
+function PrintLine({ no, label, value }) {
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "68mm 5mm 1fr",
-        columnGap: "0",
-        paddingTop: "0.35mm",
-        paddingBottom: "0.35mm",
-        lineHeight: "1.15",
+        gridTemplateColumns: no ? "8mm 55mm 1fr" : "63mm 1fr",
+        gap: "2mm",
         fontSize: "10px",
-        alignItems: "start",
+        lineHeight: 1.45,
+        padding: "0.8mm 0",
       }}
     >
+      {no && <div>{no}</div>}
       <div>{label}</div>
-      <div>:</div>
+      <div style={{ borderBottom: "1px dotted #888888", minHeight: "4mm" }}>
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function PrintBlock({ no, label, value }) {
+  return (
+    <div style={{ fontSize: "10px", lineHeight: 1.45, padding: "1.4mm 0" }}>
+      <div style={{ display: "flex", gap: "2mm", fontWeight: 700 }}>
+        {no && <span>{no}</span>}
+        <span>{label}</span>
+      </div>
       <div
         style={{
-          fontWeight: "700",
+          border: "1px dotted #aaaaaa",
+          minHeight: "18mm",
+          marginTop: "1mm",
+          padding: "2mm",
           whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
         }}
       >
         {value || "-"}
       </div>
     </div>
   );
+}
+
+function DocumentSummary({ title, rows, land = false, other = false }) {
+  return (
+    <div style={{ marginTop: "3mm", fontSize: "10px" }}>
+      <div style={{ fontWeight: 700, marginBottom: "1mm" }}>{title}</div>
+      {rows.length === 0 ? (
+        <div>-</div>
+      ) : (
+        rows.map((row, index) => {
+          const label = land
+            ? row.land
+            : other
+              ? row.description
+              : row.title;
+          const attachment = row.attachment?.name || "No attachment";
+
+          return (
+            <div key={`${title}-${index}`} style={{ display: "flex", gap: "2mm" }}>
+              <span>{index + 1}.</span>
+              <span>
+                {label || "-"} ({attachment})
+              </span>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function stripHtml(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatRM(value) {
@@ -675,13 +499,6 @@ function formatRM(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-function formatYesNo(value) {
-  if (!value) return "-";
-  if (value === "yes") return "Yes";
-  if (value === "no") return "No";
-  return value;
 }
 
 function formatDate(value) {

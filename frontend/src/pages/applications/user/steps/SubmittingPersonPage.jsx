@@ -15,9 +15,6 @@ function SubmittingPersonPage() {
 
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
-
   const Layout = UserDashboardLayout;
 
   const [orgType, setOrgType] = useState("");
@@ -68,6 +65,7 @@ function SubmittingPersonPage() {
 
   useEffect(() => {
     if (applicationId) {
+      // eslint-disable-next-line react-hooks/immutability
       loadStep3();
     }
   }, [applicationId]);
@@ -141,7 +139,7 @@ function SubmittingPersonPage() {
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: 3,
+          current_step: 2,
           form_data: {
             ...(existingData.form_data || {}),
             step_3: {
@@ -175,7 +173,7 @@ function SubmittingPersonPage() {
         }),
       });
 
-      navigate(`/applications/${applicationId}/land-details?id=${applicationId}`);
+      navigate(`/applications/${applicationId}/supporting-document?id=${applicationId}`);
     } catch (err) {
       console.error("Step 3 save failed:", err);
       alert("Failed to save Step 3.");
@@ -185,13 +183,13 @@ function SubmittingPersonPage() {
   return (
     <Layout>
       <div className="flex gap-5">
-        <UserApplicationStepNav active={3} />
+        <UserApplicationStepNav active={2} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                3
+                2
               </span>
               <h1 className="text-xl font-semibold text-[#1a1c1c]">
                 Details of Submitting Person
@@ -200,10 +198,10 @@ function SubmittingPersonPage() {
 
             <div className="flex gap-2">
               <Link
-                to={`/applications/${applicationId}/client-department?id=${applicationId}`}
+                to={`/applications/${applicationId}/edit?id=${applicationId}`}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                ← Back
+                Back
               </Link>
 
               <button
@@ -459,10 +457,10 @@ function SubmittingPersonPage() {
 
               <div className="flex justify-end gap-2 pt-2">
                 <Link
-                  to={`/applications/${applicationId}/client-department?id=${applicationId}`}
+                  to={`/applications/${applicationId}/edit?id=${applicationId}`}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  ← Back
+                  Back
                 </Link>
 
                 <button

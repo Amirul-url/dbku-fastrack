@@ -15,62 +15,26 @@ function getSteps(applicationId, t) {
     },
     {
       no: 2,
-      label: t("steps.clientDepartment"),
-      path: `${base}/client-department`,
-      disabled: !editing,
-    },
-    {
-      no: 3,
       label: t("steps.submittingPerson"),
       path: `${base}/submitting-person`,
       disabled: !editing,
     },
     {
-      no: 4,
-      label: t("steps.landDetails"),
-      path: `${base}/land-details`,
-      disabled: !editing,
-    },
-    {
-      no: 5,
-      label: t("steps.buildingPlan"),
-      path: `${base}/building-plan`,
-      disabled: !editing,
-    },
-    {
-      no: 6,
-      label: t("steps.proposalAnalysis"),
-      path: `${base}/proposal-analysis`,
-      disabled: !editing,
-    },
-    {
-      no: 7,
-      label: t("steps.siteInspection"),
-      path: `${base}/site-inspection`,
-      disabled: !editing,
-    },
-    {
-      no: 8,
-      label: t("steps.buildingPlanChecklist"),
-      path: `${base}/building-plan-checklist`,
-      disabled: !editing,
-    },
-    {
-      no: 9,
-      label: t("steps.printForm"),
-      path: `${base}/print-form`,
-      disabled: !editing,
-    },
-    {
-      no: 10,
+      no: 3,
       label: t("steps.supportingDocument"),
       path: `${base}/supporting-document`,
       disabled: !editing,
     },
     {
-      no: 11,
+      no: 4,
       label: t("steps.declaration"),
       path: `${base}/declaration`,
+      disabled: !editing,
+    },
+    {
+      no: 5,
+      label: t("steps.printForm"),
+      path: `${base}/print-form`,
       disabled: !editing,
     },
   ];
@@ -86,6 +50,7 @@ function UserApplicationStepNav({ active }) {
   const queryApplicationId = queryParams.get("id");
   const applicationId = routeApplicationId || queryApplicationId || "";
   const query = applicationId ? `?id=${applicationId}` : "";
+  const steps = useMemo(() => getSteps(applicationId, t), [applicationId, t]);
 
   useEffect(() => {
     if (applicationId) {
@@ -97,8 +62,6 @@ function UserApplicationStepNav({ active }) {
       localStorage.removeItem("current_application_id");
     }
   }, [applicationId, location.pathname]);
-
-  const steps = useMemo(() => getSteps(applicationId, t), [applicationId, t]);
 
   function renderStep(step, mobile = false) {
     const isActive = active === step.no;
@@ -188,9 +151,9 @@ function UserApplicationStepNav({ active }) {
                   {t("steps.applicationSteps").toUpperCase()}
                 </p>
                 <p className="text-[10px] text-slate-500 mt-0.5">
-                  {t("steps.stepOf", `Step ${active} of 11`)
+                  {t("steps.stepOf", `Step ${active} of ${steps.length}`)
                     .replace("{active}", active)
-                    .replace("{total}", 11)}
+                    .replace("{total}", steps.length)}
                 </p>
                 {applicationId && (
                   <p className="text-[10px] text-[#006d32] font-semibold mt-1 truncate">

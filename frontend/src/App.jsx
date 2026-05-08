@@ -40,13 +40,7 @@ import AdminStep11Page from "./pages/applications/admin/steps/AdminStep11Page";
 
 /* USER APPLICATION STEPS */
 import SittingApplicationPage from "./pages/applications/user/steps/SittingApplicationPage";
-import ClientDepartmentPage from "./pages/applications/user/steps/ClientDepartmentPage";
 import SubmittingPersonPage from "./pages/applications/user/steps/SubmittingPersonPage";
-import LandDetailsPage from "./pages/applications/user/steps/LandDetailsPage";
-import BuildingPlanPage from "./pages/applications/user/steps/BuildingPlanPage";
-import ProposalAnalysisPage from "./pages/applications/user/steps/ProposalAnalysisPage";
-import SiteInspectionPage from "./pages/applications/user/steps/SiteInspectionPage";
-import BuildingPlanChecklistPage from "./pages/applications/user/steps/BuildingPlanChecklistPage";
 import PrintFormPage from "./pages/applications/user/steps/PrintFormPage";
 import SupportingDocumentPage from "./pages/applications/user/steps/SupportingDocumentPage";
 import DeclarationPage from "./pages/applications/user/steps/DeclarationPage";
@@ -342,64 +336,10 @@ function App() {
         />
 
         <Route
-          path="/applications/:applicationId/client-department"
-          element={
-            <UserRoute>
-              <ClientDepartmentPage />
-            </UserRoute>
-          }
-        />
-
-        <Route
           path="/applications/:applicationId/submitting-person"
           element={
             <UserRoute>
               <SubmittingPersonPage />
-            </UserRoute>
-          }
-        />
-
-        <Route
-          path="/applications/:applicationId/land-details"
-          element={
-            <UserRoute>
-              <LandDetailsPage />
-            </UserRoute>
-          }
-        />
-
-        <Route
-          path="/applications/:applicationId/building-plan"
-          element={
-            <UserRoute>
-              <BuildingPlanPage />
-            </UserRoute>
-          }
-        />
-
-        <Route
-          path="/applications/:applicationId/proposal-analysis"
-          element={
-            <UserRoute>
-              <ProposalAnalysisPage />
-            </UserRoute>
-          }
-        />
-
-        <Route
-          path="/applications/:applicationId/site-inspection"
-          element={
-            <UserRoute>
-              <SiteInspectionPage />
-            </UserRoute>
-          }
-        />
-
-        <Route
-          path="/applications/:applicationId/building-plan-checklist"
-          element={
-            <UserRoute>
-              <BuildingPlanChecklistPage />
             </UserRoute>
           }
         />

@@ -11,8 +11,6 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
 function SittingApplicationPage() {
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
   const Layout = UserDashboardLayout;
 
   const navigate = useNavigate();
@@ -25,17 +23,23 @@ function SittingApplicationPage() {
 
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
-  const [division, setDivision] = useState("");
-  const [projectCategory, setProjectCategory] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [applicant, setApplicant] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [telNo, setTelNo] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
   const [areaRequired, setAreaRequired] = useState("");
-  const [areaUnit, setAreaUnit] = useState("Sq. M");
   const [totalSchemeValue, setTotalSchemeValue] = useState("");
-  const [sourceOfFund, setSourceOfFund] = useState("");
-  const [fundAvailability, setFundAvailability] = useState("");
-  const [amountFundAvailable, setAmountFundAvailable] = useState("");
+  const [malaysiaPlan, setMalaysiaPlan] = useState("");
   const [amountFundApproved, setAmountFundApproved] = useState("");
+  const [amountFundAvailable, setAmountFundAvailable] = useState("");
+  const [projectJustification, setProjectJustification] = useState("");
+  const [siteSelectionReason, setSiteSelectionReason] = useState("");
+  const [designation, setDesignation] = useState("");
+  const [officerName, setOfficerName] = useState("");
+  const [applicationDate, setApplicationDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
 
   const [siteImageName, setSiteImageName] = useState("");
   const [siteImagePreview, setSiteImagePreview] = useState("");
@@ -47,10 +51,8 @@ function SittingApplicationPage() {
     longitude: 110.334028,
   });
 
-  const [projectJustification, setProjectJustification] = useState("");
-  const [siteSelectionReason, setSiteSelectionReason] = useState("");
-
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
     if (applicationId) loadDraft();
   }, [applicationId]);
 
@@ -59,17 +61,21 @@ function SittingApplicationPage() {
       const data = await apiRequest(`/applications/${applicationId}/`);
       const step1 = data.form_data?.step_1 || {};
 
-      setDivision(step1.division || "");
-      setProjectCategory(step1.project_category || "");
       setProjectName(step1.project_name || "");
+      setApplicant(step1.applicant || "");
+      setContactPerson(step1.contact_person || "");
+      setTelNo(step1.tel_no || "");
       setLocalityAddress(step1.locality_address || "");
       setAreaRequired(step1.area_required || "");
-      setAreaUnit(step1.area_unit || "Sq. M");
       setTotalSchemeValue(step1.total_scheme_value || "");
-      setSourceOfFund(step1.source_of_fund || "");
-      setFundAvailability(step1.fund_availability || "");
-      setAmountFundAvailable(step1.amount_fund_available || "");
+      setMalaysiaPlan(step1.malaysia_plan || "");
       setAmountFundApproved(step1.amount_fund_approved || "");
+      setAmountFundAvailable(step1.amount_fund_available || "");
+      setProjectJustification(step1.project_justification || "");
+      setSiteSelectionReason(step1.site_selection_reason || "");
+      setDesignation(step1.designation || "");
+      setOfficerName(step1.officer_name || "");
+      setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
 
       setSiteImageName(step1.site_image_name || "");
       setSiteImagePreview(step1.site_image_preview || "");
@@ -79,9 +85,6 @@ function SittingApplicationPage() {
         latitude: Number(step1.latitude || 1.586684),
         longitude: Number(step1.longitude || 110.334028),
       });
-
-      setProjectJustification(step1.project_justification || "");
-      setSiteSelectionReason(step1.site_selection_reason || "");
     } catch (err) {
       console.error("Failed to load draft:", err);
     }
@@ -107,16 +110,21 @@ function SittingApplicationPage() {
         ...existingFormData,
         step_1: {
           status: "Prepare Case",
-          application_type_label: "Application of Siting Project",
-          division,
-          project_category: projectCategory,
+          application_type: "Application for Site (New Site)",
+          application_type_label: "Application for Site (New Site)",
+          division: "",
+          project_category: "",
           project_name: projectName,
+          applicant,
+          contact_person: contactPerson,
+          tel_no: telNo,
           locality_address: localityAddress,
           area_required: areaRequired,
-          area_unit: areaUnit,
+          area_unit: "",
           total_scheme_value: totalSchemeValue,
-          source_of_fund: sourceOfFund,
-          fund_availability: fundAvailability,
+          source_of_fund: "",
+          fund_availability: "",
+          malaysia_plan: malaysiaPlan,
           amount_fund_available: amountFundAvailable,
           amount_fund_approved: amountFundApproved,
 
@@ -129,6 +137,9 @@ function SittingApplicationPage() {
 
           project_justification: projectJustification,
           site_selection_reason: siteSelectionReason,
+          designation,
+          officer_name: officerName,
+          application_date: applicationDate,
         },
       },
     };
@@ -146,14 +157,20 @@ function SittingApplicationPage() {
 
   async function handleSave() {
     if (
-      !division ||
-      !projectCategory ||
       !projectName.trim() ||
+      !applicant.trim() ||
+      !contactPerson.trim() ||
+      !telNo.trim() ||
       !localityAddress.trim() ||
       !areaRequired.trim() ||
-      !sourceOfFund ||
-      !fundAvailability ||
-      !amountFundApproved.trim()
+      !totalSchemeValue.trim() ||
+      !amountFundApproved.trim() ||
+      !amountFundAvailable.trim() ||
+      !projectJustification.trim() ||
+      !siteSelectionReason.trim() ||
+      !designation.trim() ||
+      !officerName.trim() ||
+      !applicationDate
     ) {
       alert("Please fill in all required fields before proceeding to the next step.");
       return;
@@ -163,7 +180,7 @@ function SittingApplicationPage() {
       const payload = await buildStepOnePayload(projectName);
       const data = await saveApplication(payload);
 
-      navigate(`/applications/${data.id}/client-department?id=${data.id}`);
+      navigate(`/applications/${data.id}/submitting-person?id=${data.id}`);
     } catch (err) {
       console.error("Save failed:", err);
       alert("Failed to save Step 1. Please try again.");
@@ -215,7 +232,7 @@ function SittingApplicationPage() {
                 onClick={handleSaveDraftAndBack}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                ← Back
+                Back
               </button>
 
               <button
@@ -233,43 +250,8 @@ function SittingApplicationPage() {
 
             <div className="p-4 space-y-3">
               <FormSection title="Type of Application">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                  <Checkbox label="Application for Site (New Site)" checked />
-                  <Checkbox label="Submission of Detailed Building Plan" />
-                  <Checkbox label="Site Legalisation (Permit / Tapak Sedia)" />
-                  <Checkbox label="Road / Access / Water Alignment / Transmission Line" />
-                  <Checkbox label="Application for Site Extension" />
-                  <Checkbox label="Communication Tower / Structure" />
-                  <Checkbox label="Temporary Change of Use" />
-                  <Checkbox label="Other" />
-                </div>
+                <Checkbox label="Application for Site (New Site)" checked />
               </FormSection>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Division" required>
-                  <select
-                    className="spa-input"
-                    value={division}
-                    onChange={(e) => setDivision(e.target.value)}
-                  >
-                    <option value="">-- Please Select --</option>
-                    <option value="KUCHING">KUCHING</option>
-                  </select>
-                </Field>
-
-                <Field label="Project Category" required>
-                  <select
-                    className="spa-input"
-                    value={projectCategory}
-                    onChange={(e) => setProjectCategory(e.target.value)}
-                  >
-                    <option value="">-- Please Select --</option>
-                    <option value="STATE">STATE</option>
-                    <option value="PRIVATE">PRIVATE</option>
-                    <option value="FEDERAL">FEDERAL</option>
-                  </select>
-                </Field>
-              </div>
 
               <Field label="Name of Project" required>
                 <input
@@ -278,6 +260,32 @@ function SittingApplicationPage() {
                   onChange={(e) => setProjectName(e.target.value)}
                 />
               </Field>
+
+              <Field label="Applicant" required>
+                <input
+                  className="spa-input"
+                  value={applicant}
+                  onChange={(e) => setApplicant(e.target.value)}
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
+                <Field label="Contact Person" required>
+                  <input
+                    className="spa-input"
+                    value={contactPerson}
+                    onChange={(e) => setContactPerson(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Tel No." required>
+                  <input
+                    className="spa-input"
+                    value={telNo}
+                    onChange={(e) => setTelNo(e.target.value)}
+                  />
+                </Field>
+              </div>
 
               <Field label="Locality / Address" required>
                 <input
@@ -308,87 +316,33 @@ function SittingApplicationPage() {
                 }}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Field label="Area Required" required>
+              <Field label="Area Required" required>
+                <input
+                  className="spa-input"
+                  value={areaRequired}
+                  onChange={(e) => setAreaRequired(e.target.value)}
+                />
+              </Field>
+
+              <Field label="Total Scheme Value, RM" required>
+                <input
+                  className="spa-input"
+                  value={totalSchemeValue}
+                  onChange={(e) => setTotalSchemeValue(e.target.value)}
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
+                <Field label="Amount of fund approved in the" required>
                   <input
                     className="spa-input"
-                    value={areaRequired}
-                    onChange={(e) => setAreaRequired(e.target.value)}
+                    value={malaysiaPlan}
+                    onChange={(e) => setMalaysiaPlan(e.target.value)}
+                    placeholder="Malaysia Plan"
                   />
                 </Field>
 
-                <Field label="Area Unit" required>
-                  <select
-                    className="spa-input"
-                    value={areaUnit}
-                    onChange={(e) => setAreaUnit(e.target.value)}
-                  >
-                    <option value="Sq. M">Sq. M</option>
-                    <option value="Ac.">Ac.</option>
-                  </select>
-                </Field>
-
-                <Field label="Total Scheme Value (RM)">
-                  <input
-                    className="spa-input"
-                    value={totalSchemeValue}
-                    onChange={(e) => setTotalSchemeValue(e.target.value)}
-                    placeholder="Total Scheme Value"
-                  />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Source of Fund" required>
-                  <select
-                    className="spa-input"
-                    value={sourceOfFund}
-                    onChange={(e) => setSourceOfFund(e.target.value)}
-                  >
-                    <option value="">-- Please Select --</option>
-                    <option value="Project Rakyat">Project Rakyat</option>
-                    <option value="Private Fund">Private Fund</option>
-                    <option value="Government Fund">Government Fund</option>
-                  </select>
-                </Field>
-
-                <Field label="Fund Availability" required>
-                  <div className="flex items-center gap-4 h-[34px] text-xs">
-                    <label className="flex items-center gap-1">
-                      <input
-                        type="radio"
-                        name="fund"
-                        value="yes"
-                        checked={fundAvailability === "yes"}
-                        onChange={(e) => setFundAvailability(e.target.value)}
-                      />
-                      Yes
-                    </label>
-
-                    <label className="flex items-center gap-1">
-                      <input
-                        type="radio"
-                        name="fund"
-                        value="no"
-                        checked={fundAvailability === "no"}
-                        onChange={(e) => setFundAvailability(e.target.value)}
-                      />
-                      No
-                    </label>
-                  </div>
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Amount of Fund Available (RM)">
-                  <input
-                    className="spa-input"
-                    value={amountFundAvailable}
-                    onChange={(e) => setAmountFundAvailable(e.target.value)}
-                  />
-                </Field>
-
-                <Field label="Amount of Fund Approved (RM)" required>
+                <Field label="Malaysia Plan, RM" required>
                   <input
                     className="spa-input"
                     value={amountFundApproved}
@@ -396,6 +350,14 @@ function SittingApplicationPage() {
                   />
                 </Field>
               </div>
+
+              <Field label="Amount of fund available now, RM" required>
+                <input
+                  className="spa-input"
+                  value={amountFundAvailable}
+                  onChange={(e) => setAmountFundAvailable(e.target.value)}
+                />
+              </Field>
 
               <SimpleWysiwygEditor
                 key={`project-justification-${applicationId || "new"}`}
@@ -405,6 +367,12 @@ function SittingApplicationPage() {
                 max={3000}
               />
 
+              <p className="-mt-2 text-[11px] italic text-slate-500">
+                Project brief to be submitted, together with conceptual site
+                layout plan if available; additional sheet to be attached if
+                insufficient space.
+              </p>
+
               <SimpleWysiwygEditor
                 key={`site-selection-reason-${applicationId || "new"}`}
                 label="Reason for Selecting the Site"
@@ -413,13 +381,44 @@ function SittingApplicationPage() {
                 max={1500}
               />
 
+              <p className="-mt-2 text-[11px] italic text-slate-500">
+                Additional sheet to be attached if insufficient space.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Field label="Designation" required>
+                  <input
+                    className="spa-input"
+                    value={designation}
+                    onChange={(e) => setDesignation(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Name of Officer" required>
+                  <input
+                    className="spa-input"
+                    value={officerName}
+                    onChange={(e) => setOfficerName(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Date" required>
+                  <input
+                    type="date"
+                    className="spa-input"
+                    value={applicationDate}
+                    onChange={(e) => setApplicationDate(e.target.value)}
+                  />
+                </Field>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={handleSaveDraftAndBack}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  ← Back
+                  Back
                 </button>
 
                 <button
@@ -470,6 +469,7 @@ function LocationMap({ value, onChange }) {
     const nextLat = Number(value?.latitude || defaultLat);
     const nextAddress = value?.address || address;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLng(nextLng);
     setLat(nextLat);
     setAddress(nextAddress);
@@ -508,6 +508,7 @@ function LocationMap({ value, onChange }) {
 
     markerRef.current.on("dragend", () => {
       const position = markerRef.current.getLngLat();
+      // eslint-disable-next-line react-hooks/immutability
       updateLocationFromCoordinates(position.lng, position.lat, true);
     });
 
@@ -911,7 +912,7 @@ function LocationMap({ value, onChange }) {
                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
               }`}
             >
-              Satelit
+              Satellite
             </button>
 
             <button
@@ -969,7 +970,7 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
   }
 
   return (
-    <FormSection title="Gambar Tapak (Site Image)">
+    <FormSection title="Site Image">
       <div className="space-y-3">
         {!preview && (
           <div className="flex items-center justify-center border-2 border-dashed border-slate-300 rounded-md h-[160px] bg-slate-50">
@@ -1064,7 +1065,7 @@ function ApplicationReference() {
 
         <p>Application Type</p>
         <p className="font-semibold text-[#006d32]">
-          Application of Siting Project
+          Application for Site (New Site)
         </p>
       </div>
     </div>
@@ -1099,7 +1100,7 @@ function Field({ label, children, required = false }) {
 function Checkbox({ label, checked = false }) {
   return (
     <label className="flex items-center gap-2">
-      <input type="checkbox" defaultChecked={checked} />
+      <input type="checkbox" checked={checked} readOnly />
       <span>{label}</span>
     </label>
   );
