@@ -18,6 +18,7 @@ import AdminHomePage from "./pages/home/admin/AdminHomePage";
 /* DASHBOARD */
 import UserDashboard from "./pages/dashboard/UserDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import AdminDashboardLayout from "./layout/AdminDashboardLayout";
 
 /* USER APPLICATION */
 import UserApplicationsPage from "./pages/applications/user/UserApplicationsPage";
@@ -25,13 +26,10 @@ import UserApplicationsPage from "./pages/applications/user/UserApplicationsPage
 /* ADMIN APPLICATION */
 import AdminApplicationsPage from "./pages/applications/admin/AdminApplicationsPage";
 import AdminApplicationDetailPage from "./pages/applications/admin/AdminApplicationDetailPage";
+import AdminApplicationStepNav from "./pages/applications/admin/AdminApplicationStepNav";
 
 /* ADMIN APPLICATION STEPS */
 import AdminStep1Page from "./pages/applications/admin/steps/AdminStep1Page";
-import AdminStep3Page from "./pages/applications/admin/steps/AdminStep3Page";
-import AdminStep9Page from "./pages/applications/admin/steps/AdminStep9Page";
-import AdminStep10Page from "./pages/applications/admin/steps/AdminStep10Page";
-import AdminStep11Page from "./pages/applications/admin/steps/AdminStep11Page";
 
 /* USER APPLICATION STEPS */
 import SittingApplicationPage from "./pages/applications/user/steps/SittingApplicationPage";
@@ -227,7 +225,11 @@ function App() {
           path="/admin/applications/:applicationId/step-1"
           element={
             <AdminRoute>
-              <AdminStep1Page />
+              <SittingApplicationPage
+                LayoutComponent={AdminDashboardLayout}
+                StepNavComponent={AdminApplicationStepNav}
+                mode="admin"
+              />
             </AdminRoute>
           }
         />
@@ -236,7 +238,11 @@ function App() {
           path="/admin/applications/:applicationId/step-2"
           element={
             <AdminRoute>
-              <AdminStep3Page />
+              <SubmittingPersonPage
+                LayoutComponent={AdminDashboardLayout}
+                StepNavComponent={AdminApplicationStepNav}
+                mode="admin"
+              />
             </AdminRoute>
           }
         />
@@ -245,7 +251,11 @@ function App() {
           path="/admin/applications/:applicationId/step-3"
           element={
             <AdminRoute>
-              <AdminStep10Page />
+              <SupportingDocumentPage
+                LayoutComponent={AdminDashboardLayout}
+                StepNavComponent={AdminApplicationStepNav}
+                mode="admin"
+              />
             </AdminRoute>
           }
         />
@@ -254,7 +264,11 @@ function App() {
           path="/admin/applications/:applicationId/step-4"
           element={
             <AdminRoute>
-              <AdminStep11Page />
+              <DeclarationPage
+                LayoutComponent={AdminDashboardLayout}
+                StepNavComponent={AdminApplicationStepNav}
+                mode="admin"
+              />
             </AdminRoute>
           }
         />
@@ -263,7 +277,11 @@ function App() {
           path="/admin/applications/:applicationId/step-5"
           element={
             <AdminRoute>
-              <AdminStep9Page />
+              <PrintFormPage
+                LayoutComponent={AdminDashboardLayout}
+                StepNavComponent={AdminApplicationStepNav}
+                mode="admin"
+              />
             </AdminRoute>
           }
         />

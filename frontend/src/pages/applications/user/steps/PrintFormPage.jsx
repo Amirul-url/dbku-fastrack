@@ -4,12 +4,19 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
 import UserApplicationStepNav from "../UserApplicationStepNav";
 
-function PrintFormPage() {
+function PrintFormPage({
+  LayoutComponent = UserDashboardLayout,
+  StepNavComponent = UserApplicationStepNav,
+  mode = "user",
+} = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
   const applicationId = routeApplicationId || queryParams.get("id");
+  const Layout = LayoutComponent;
+  const StepNav = StepNavComponent;
+  const isAdminReview = mode === "admin";
 
   const [step1, setStep1] = useState({});
   const [step3, setStep3] = useState({});
@@ -127,7 +134,7 @@ function PrintFormPage() {
   async function handleSubmitApplication() {
     const saved = await saveStep9({ submit: true });
     if (saved) {
-      navigate("/user/dashboard");
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
     }
   }
 
@@ -140,7 +147,7 @@ function PrintFormPage() {
     : [];
 
   return (
-    <UserDashboardLayout>
+    <Layout>
       <style>
         {`
           @media print {
@@ -192,7 +199,7 @@ function PrintFormPage() {
       </style>
 
       <div className="flex gap-5">
-        <UserApplicationStepNav active={5} />
+        <StepNav active={5} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between print-hide">
@@ -207,7 +214,11 @@ function PrintFormPage() {
 
             <div className="flex gap-2">
               <Link
-                to={`/applications/${applicationId}/declaration?id=${applicationId}`}
+                to={
+                  isAdminReview
+                    ? `/admin/applications/${applicationId}/step-4?id=${applicationId}`
+                    : `/applications/${applicationId}/declaration?id=${applicationId}`
+                }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 Back
@@ -337,7 +348,11 @@ function PrintFormPage() {
 
             <div className="flex justify-end gap-2 p-5 print-hide">
               <Link
-                to={`/applications/${applicationId}/declaration?id=${applicationId}`}
+                to={
+                  isAdminReview
+                    ? `/admin/applications/${applicationId}/step-4?id=${applicationId}`
+                    : `/applications/${applicationId}/declaration?id=${applicationId}`
+                }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 Back
@@ -355,7 +370,7 @@ function PrintFormPage() {
           </section>
         </main>
       </div>
-    </UserDashboardLayout>
+    </Layout>
   );
 }
 

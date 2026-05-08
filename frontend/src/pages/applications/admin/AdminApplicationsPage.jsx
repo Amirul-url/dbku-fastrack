@@ -33,13 +33,11 @@ function AdminApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
-
-  async function fetchApplications() {
+  async function fetchApplications({ silent = false } = {}) {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError("");
       const data = await apiRequest("/applications/");
       setApplications(Array.isArray(data) ? data : data?.results || []);
@@ -49,6 +47,29 @@ function AdminApplicationsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    fetchApplications();
+
+    const refreshTimer = window.setInterval(() => {
+      fetchApplications({ silent: true });
+    }, 10000);
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") {
+        fetchApplications({ silent: true });
+      }
+    }
+
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();

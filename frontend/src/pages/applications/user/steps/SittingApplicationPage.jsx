@@ -10,8 +10,14 @@ import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
-function SittingApplicationPage() {
-  const Layout = UserDashboardLayout;
+function SittingApplicationPage({
+  LayoutComponent = UserDashboardLayout,
+  StepNavComponent = UserApplicationStepNav,
+  mode = "user",
+} = {}) {
+  const Layout = LayoutComponent;
+  const StepNav = StepNavComponent;
+  const isAdminReview = mode === "admin";
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -180,7 +186,11 @@ function SittingApplicationPage() {
       const payload = await buildStepOnePayload(projectName);
       const data = await saveApplication(payload);
 
-      navigate(`/applications/${data.id}/submitting-person?id=${data.id}`);
+      navigate(
+        isAdminReview
+          ? `/admin/applications/${data.id}/step-2?id=${data.id}`
+          : `/applications/${data.id}/submitting-person?id=${data.id}`
+      );
     } catch (err) {
       console.error("Save failed:", err);
       alert("Failed to save Step 1. Please try again.");
@@ -193,7 +203,7 @@ function SittingApplicationPage() {
     );
 
     if (!confirmSave) {
-      navigate("/user/dashboard");
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
       return;
     }
 
@@ -203,7 +213,7 @@ function SittingApplicationPage() {
       );
       await saveApplication(payload);
 
-      navigate("/user/dashboard");
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
     } catch (err) {
       console.error("Draft save failed:", err);
       alert("Failed to save draft.");
@@ -213,7 +223,7 @@ function SittingApplicationPage() {
   return (
     <Layout>
       <div className="flex gap-5">
-        <UserApplicationStepNav active={1} />
+        <StepNav active={1} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
@@ -863,7 +873,7 @@ function LocationMap({ value, onChange }) {
               title="Fly back to pinned location"
               className="px-3 py-1.5 rounded text-[11px] font-bold border bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex items-center gap-1"
             >
-              📍 Focus
+              Focus
             </button>
 
             <span className="border-l border-slate-200 self-stretch" />

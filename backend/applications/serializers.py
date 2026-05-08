@@ -30,6 +30,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         source="applicant.username",
         read_only=True,
     )
+    application_type_label = serializers.SerializerMethodField()
+    project_location = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -39,6 +41,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "applicant",
             "applicant_username",
             "application_type",
+            "application_type_label",
+            "project_location",
             "title",
             "status",
             "current_step",
@@ -53,6 +57,31 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def get_application_type_label(self, obj):
+        step1 = (obj.form_data or {}).get("step_1", {})
+
+        return (
+            step1.get("application_type_label")
+            or step1.get("application_type")
+            or obj.get_application_type_display()
+        )
+
+    def get_project_location(self, obj):
+        form_data = obj.form_data or {}
+        step1 = form_data.get("step_1", {})
+        step4 = form_data.get("step_4", {})
+
+        return (
+            step1.get("locality_address")
+            or step1.get("map_address")
+            or step1.get("site_address")
+            or step1.get("address")
+            or step1.get("selected_address")
+            or step4.get("land_location")
+            or step4.get("location")
+            or ""
+        )
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):

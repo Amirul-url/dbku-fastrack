@@ -234,13 +234,23 @@ export function getProjectName(app) {
 
 export function getApplicationType(app) {
   const step1 = getStep(app, "step_1");
-
-  return (
+  const rawType =
+    step1.application_type_label ||
+    step1.application_type ||
     step1.project_category ||
     step1.nature_of_application ||
+    app?.application_type_label ||
     app?.application_type ||
-    "Siting Application"
-  );
+    "Siting Application";
+
+  const labelMap = {
+    sitting_application: "Sitting Application",
+    signboard_license: "Signboard License",
+    building_plan: "Building Plan",
+    other: "Other",
+  };
+
+  return labelMap[rawType] || rawType;
 }
 
 export function getApplicationLocation(app) {
@@ -248,9 +258,13 @@ export function getApplicationLocation(app) {
   const step4 = getStep(app, "step_4");
 
   return (
+    app?.project_location ||
     step1.locality_address ||
     step1.map_address ||
     step1.site_address ||
+    step1.address ||
+    step1.selected_address ||
+    step1.location ||
     step4.land_location ||
     step4.location ||
     "Not provided"

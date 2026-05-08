@@ -4,7 +4,11 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
 import UserApplicationStepNav from "../UserApplicationStepNav";
 
-function SubmittingPersonPage() {
+function SubmittingPersonPage({
+  LayoutComponent = UserDashboardLayout,
+  StepNavComponent = UserApplicationStepNav,
+  mode = "user",
+} = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { applicationId: routeApplicationId } = useParams();
@@ -15,7 +19,9 @@ function SubmittingPersonPage() {
 
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
-  const Layout = UserDashboardLayout;
+  const Layout = LayoutComponent;
+  const StepNav = StepNavComponent;
+  const isAdminReview = mode === "admin";
 
   const [orgType, setOrgType] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");
@@ -37,10 +43,10 @@ function SubmittingPersonPage() {
     "Toh Puan",
     "Tan Sri",
     "Puan Sri",
-    "Dato’ Seri",
+    "Dato' Seri",
     "Datuk Seri",
     "Datin Seri",
-    "Dato’",
+    "Dato'",
     "Datuk",
     "Datin",
     "Prof.",
@@ -173,7 +179,11 @@ function SubmittingPersonPage() {
         }),
       });
 
-      navigate(`/applications/${applicationId}/supporting-document?id=${applicationId}`);
+      navigate(
+        isAdminReview
+          ? `/admin/applications/${applicationId}/step-3?id=${applicationId}`
+          : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+      );
     } catch (err) {
       console.error("Step 3 save failed:", err);
       alert("Failed to save Step 3.");
@@ -183,7 +193,7 @@ function SubmittingPersonPage() {
   return (
     <Layout>
       <div className="flex gap-5">
-        <UserApplicationStepNav active={2} />
+        <StepNav active={2} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
@@ -198,7 +208,11 @@ function SubmittingPersonPage() {
 
             <div className="flex gap-2">
               <Link
-                to={`/applications/${applicationId}/edit?id=${applicationId}`}
+                to={
+                  isAdminReview
+                    ? `/admin/applications/${applicationId}/step-1?id=${applicationId}`
+                    : `/applications/${applicationId}/edit?id=${applicationId}`
+                }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 Back
@@ -457,7 +471,11 @@ function SubmittingPersonPage() {
 
               <div className="flex justify-end gap-2 pt-2">
                 <Link
-                  to={`/applications/${applicationId}/edit?id=${applicationId}`}
+                  to={
+                    isAdminReview
+                      ? `/admin/applications/${applicationId}/step-1?id=${applicationId}`
+                      : `/applications/${applicationId}/edit?id=${applicationId}`
+                  }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
                   Back

@@ -112,7 +112,11 @@ function buildTitleDocumentsFromStep1(step1, attachment = null) {
   ];
 }
 
-function SupportingDocumentPage() {
+function SupportingDocumentPage({
+  LayoutComponent = UserDashboardLayout,
+  StepNavComponent = UserApplicationStepNav,
+  mode = "user",
+} = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { applicationId: routeApplicationId } = useParams();
@@ -120,7 +124,9 @@ function SupportingDocumentPage() {
 
   const applicationId = routeApplicationId || queryParams.get("id");
 
-  const Layout = UserDashboardLayout;
+  const Layout = LayoutComponent;
+  const StepNav = StepNavComponent;
+  const isAdminReview = mode === "admin";
 
   const [step1, setStep1] = useState({});
   const [documents, setDocuments] = useState(defaultDocuments);
@@ -231,13 +237,17 @@ function SupportingDocumentPage() {
       });
 
       if (goNext) {
-        navigate(`/applications/${applicationId}/declaration?id=${applicationId}`);
+        navigate(
+          isAdminReview
+            ? `/admin/applications/${applicationId}/step-4?id=${applicationId}`
+            : `/applications/${applicationId}/declaration?id=${applicationId}`
+        );
       }
 
       return true;
     } catch (err) {
-      console.error("Step 10 save failed:", err);
-      alert("Failed to save Step 10.");
+      console.error("Supporting Document save failed:", err);
+      alert("Failed to save Supporting Document.");
       return false;
     } finally {
       setSaving(false);
@@ -351,7 +361,7 @@ function SupportingDocumentPage() {
   return (
     <Layout>
       <div className="flex gap-5">
-        <UserApplicationStepNav active={3} />
+        <StepNav active={3} />
 
         <main className="flex-1 min-w-0 pb-10">
           <div className="mb-3 flex items-center justify-between">
@@ -366,7 +376,11 @@ function SupportingDocumentPage() {
 
             <div className="flex gap-2">
               <Link
-                to={`/applications/${applicationId}/submitting-person?id=${applicationId}`}
+                to={
+                  isAdminReview
+                    ? `/admin/applications/${applicationId}/step-2?id=${applicationId}`
+                    : `/applications/${applicationId}/submitting-person?id=${applicationId}`
+                }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
                 Back
@@ -410,7 +424,11 @@ function SupportingDocumentPage() {
 
               <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
                 <Link
-                  to={`/applications/${applicationId}/submitting-person?id=${applicationId}`}
+                  to={
+                    isAdminReview
+                      ? `/admin/applications/${applicationId}/step-2?id=${applicationId}`
+                      : `/applications/${applicationId}/submitting-person?id=${applicationId}`
+                  }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
                   Back

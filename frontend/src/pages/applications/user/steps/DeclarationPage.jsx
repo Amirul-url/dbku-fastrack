@@ -4,7 +4,11 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
 import UserApplicationStepNav from "../UserApplicationStepNav";
 
-function DeclarationPage() {
+function DeclarationPage({
+  LayoutComponent = UserDashboardLayout,
+  StepNavComponent = UserApplicationStepNav,
+  mode = "user",
+} = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { applicationId: routeApplicationId } = useParams();
@@ -14,6 +18,9 @@ function DeclarationPage() {
 
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
+  const Layout = LayoutComponent;
+  const StepNav = StepNavComponent;
+  const isAdminReview = mode === "admin";
 
   const [step1, setStep1] = useState({});
   const [step3, setStep3] = useState({});
@@ -97,7 +104,11 @@ function DeclarationPage() {
       });
 
       setStep11(updatedStep11);
-      navigate(`/applications/${applicationId}/print-form?id=${applicationId}`);
+      navigate(
+        isAdminReview
+          ? `/admin/applications/${applicationId}/step-5?id=${applicationId}`
+          : `/applications/${applicationId}/print-form?id=${applicationId}`
+      );
     } catch (err) {
       console.error("Step 4 save failed:", err);
       alert("Failed to save declaration.");
@@ -121,9 +132,9 @@ function DeclarationPage() {
     "-";
 
   return (
-    <UserDashboardLayout>
+    <Layout>
       <div className="flex gap-5">
-        <UserApplicationStepNav active={4} />
+        <StepNav active={4} />
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
@@ -138,7 +149,11 @@ function DeclarationPage() {
 
             <div className="flex gap-2">
               <Link
-                to={`/applications/${applicationId}/supporting-document?id=${applicationId}`}
+                to={
+                  isAdminReview
+                    ? `/admin/applications/${applicationId}/step-3?id=${applicationId}`
+                    : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+                }
                 className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
               >
                 Back
@@ -188,7 +203,11 @@ function DeclarationPage() {
 
               <div className="flex justify-end gap-2 pt-3">
                 <Link
-                  to={`/applications/${applicationId}/supporting-document?id=${applicationId}`}
+                  to={
+                    isAdminReview
+                      ? `/admin/applications/${applicationId}/step-3?id=${applicationId}`
+                      : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+                  }
                   className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                 >
                   Back
@@ -207,7 +226,7 @@ function DeclarationPage() {
           </section>
         </main>
       </div>
-    </UserDashboardLayout>
+    </Layout>
   );
 }
 
