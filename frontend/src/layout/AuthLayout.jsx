@@ -1,6 +1,6 @@
 import TopBar from "./TopBar";
 import { useLanguage } from "../context/LanguageContext";
-import logo from "../assets/logo-dbku.png";
+import logo from "../assets/fasTrack.png";
 
 function AuthLayout({ children }) {
   const { t } = useLanguage();
@@ -17,7 +17,7 @@ function AuthLayout({ children }) {
         <section className="hidden lg:block">
           <div className="max-w-xl">
             <div className="mb-8 flex items-center gap-4">
-              <img src={logo} alt="DBKU Logo" className="h-14 w-auto" />
+              <img src={logo} alt="fasTrack Logo" className="h-14 w-auto" />
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
                   DBKU fasTrack
@@ -42,7 +42,7 @@ function AuthLayout({ children }) {
 
         <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <img src={logo} alt="DBKU Logo" className="h-10 w-auto" />
+            <img src={logo} alt="fasTrack Logo" className="h-10 w-auto" />
             <div>
               <p className="font-semibold text-slate-950">DBKU fasTrack</p>
               <p className="text-xs text-slate-500">{t("app.digitalAdvertisementLicense")}</p>

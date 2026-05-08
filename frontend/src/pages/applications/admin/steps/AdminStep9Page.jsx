@@ -272,8 +272,8 @@ function AdminStep9Page() {
                   }}
                 >
                   <img
-                    src="/logo-dbku.png"
-                    alt="DBKU Logo"
+                    src="/fasTrack.png"
+                    alt="fasTrack Logo"
                     style={{
                       width: "96px",
                       height: "96px",

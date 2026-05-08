@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useLanguage } from "../context/LanguageContext";
 import { useNotifications } from "../context/NotificationContext";
-import logo from "../assets/logo-dbku.png";
+import logo from "../assets/fasTrack.png";
 
 const adminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/dashboard/admin", icon: "dashboard" },
@@ -35,7 +35,7 @@ function AppShell({ children, role = "admin" }) {
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 bg-white lg:flex lg:flex-col">
         <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-          <img src={logo} alt="DBKU Logo" className="h-9 w-auto object-contain" />
+          <img src={logo} alt="fasTrack Logo" className="h-9 w-auto object-contain" />
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-950">DBKU fasTrack</p>
             <p className="text-xs text-slate-500">{t("app.digitalLicenseSystem")}</p>
