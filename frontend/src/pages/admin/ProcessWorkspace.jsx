@@ -45,7 +45,7 @@ function ProcessWorkspace({ type }) {
   const [decision, setDecision] = useState(config.defaultDecision || "");
   const [comment, setComment] = useState("");
   const [technicalSite, setTechnicalSite] = useState({
-    site_photo: null,
+    site_photos: [],
     license_fee_calculation: "",
     deposit_calculation: "",
     site_remarks: "",
@@ -87,8 +87,13 @@ function ProcessWorkspace({ type }) {
 
   useEffect(() => {
     const saved = selectedDetail?.form_data?.technical_site_visit || {};
+    const savedPhotos = Array.isArray(saved.site_photos)
+      ? saved.site_photos
+      : saved.site_photo
+        ? [saved.site_photo]
+        : [];
     setTechnicalSite({
-      site_photo: saved.site_photo || null,
+      site_photos: savedPhotos,
       license_fee_calculation: saved.license_fee_calculation || "",
       deposit_calculation: saved.deposit_calculation || "",
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
@@ -299,10 +304,14 @@ function ProcessWorkspace({ type }) {
                   t={t}
                   value={technicalSite}
                   onChange={setTechnicalSite}
-                  onFileChange={async (file) => {
-                    if (!file) return;
-                    const sitePhoto = await readFileAsDataUrl(file);
-                    setTechnicalSite((prev) => ({ ...prev, site_photo: sitePhoto }));
+                  onFileChange={async (files) => {
+                    const fileList = Array.from(files || []);
+                    if (fileList.length === 0) return;
+                    const sitePhotos = await Promise.all(fileList.map(readFileAsDataUrl));
+                    setTechnicalSite((prev) => ({
+                      ...prev,
+                      site_photos: [...(prev.site_photos || []), ...sitePhotos],
+                    }));
                   }}
                 />
               )}
@@ -313,9 +322,10 @@ function ProcessWorkspace({ type }) {
                 config.details && <config.details app={selectedRecord} t={t} />
               )}
 
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
                 <Button
                   variant="secondary"
+                  className="w-full"
                   onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
                 >
                   {t("workspace.openForm")}
@@ -327,6 +337,7 @@ function ProcessWorkspace({ type }) {
                     disabled={saving}
                     variant={action.variant || "primary"}
                     icon={action.icon}
+                    className="w-full"
                   >
                     {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
                   </Button>
@@ -531,7 +542,8 @@ const configs = {
           form_data: mergeFormData(app, {
             technical_site_visit: {
               ...(app.form_data?.technical_site_visit || {}),
-              site_photo: data.technicalSite.site_photo,
+              site_photos: data.technicalSite.site_photos || [],
+              site_photo: data.technicalSite.site_photos?.[0] || null,
               license_fee_calculation: data.technicalSite.license_fee_calculation,
               deposit_calculation: data.technicalSite.deposit_calculation,
               site_remarks: data.technicalSite.site_remarks,
@@ -596,7 +608,8 @@ const configs = {
                 },
                 technical_site_visit: {
                   ...(app.form_data?.technical_site_visit || {}),
-                  site_photo: data.technicalSite.site_photo,
+                  site_photos: data.technicalSite.site_photos || [],
+                  site_photo: data.technicalSite.site_photos?.[0] || null,
                   site_photo_note: data.comment,
                   license_fee_calculation: data.technicalSite.license_fee_calculation,
                   deposit_calculation: data.technicalSite.deposit_calculation,
@@ -903,8 +916,17 @@ function ScreeningDetails({ app, t }) {
 }
 
 function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
+  const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
+
   function updateField(field, nextValue) {
     onChange((prev) => ({ ...prev, [field]: nextValue }));
+  }
+
+  function removePhoto(index) {
+    onChange((prev) => ({
+      ...prev,
+      site_photos: (prev.site_photos || []).filter((_, itemIndex) => itemIndex !== index),
+    }));
   }
 
   return (
@@ -920,7 +942,7 @@ function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
 
       <Field label={t("workspace.technical.sitePhoto")}>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800">
+          <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800">
             <span className="material-symbols-outlined mr-1 text-base">
               add_photo_alternate
             </span>
@@ -928,40 +950,65 @@ function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
             <input
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={(event) => onFileChange(event.target.files?.[0])}
+              onChange={(event) => {
+                onFileChange(event.target.files);
+                event.target.value = "";
+              }}
             />
           </label>
-          {value.site_photo?.name && (
+          {sitePhotos.length > 0 && (
             <span className="text-xs font-medium text-emerald-700">
-              {t("workspace.technical.sitePhotoUploaded")}: {value.site_photo.name}
+              {t("workspace.technical.sitePhotoUploaded")}: {sitePhotos.length}
             </span>
           )}
         </div>
       </Field>
 
-      {value.site_photo?.dataUrl && (
-        <img
-          src={value.site_photo.dataUrl}
-          alt={t("workspace.technical.sitePhoto")}
-          className="max-h-44 w-full rounded-md border border-slate-200 object-cover"
-        />
+      {sitePhotos.length > 0 && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {sitePhotos.map((photo, index) => (
+            <div key={`${photo.name || "site-photo"}-${index}`} className="overflow-hidden rounded-md border border-slate-200 bg-white">
+              {photo.dataUrl && (
+                <img
+                  src={photo.dataUrl}
+                  alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
+                  className="h-32 w-full object-cover"
+                />
+              )}
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <span className="truncate text-xs font-medium text-slate-600">
+                  {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removePhoto(index)}
+                  className="material-symbols-outlined text-base text-red-600 hover:text-red-700"
+                  aria-label="Remove site photo"
+                >
+                  close
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <Field label={t("workspace.technical.licenseFee")}>
+      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+        <Field label={t("workspace.technical.licenseFee")} className="min-w-0">
           <input
             value={value.license_fee_calculation}
             onChange={(event) => updateField("license_fee_calculation", event.target.value)}
-            className="form-input"
+            className="form-input min-h-9"
             inputMode="decimal"
           />
         </Field>
-        <Field label={t("workspace.technical.deposit")}>
+        <Field label={t("workspace.technical.deposit")} className="min-w-0">
           <input
             value={value.deposit_calculation}
             onChange={(event) => updateField("deposit_calculation", event.target.value)}
-            className="form-input"
+            className="form-input min-h-9"
             inputMode="decimal"
           />
         </Field>
