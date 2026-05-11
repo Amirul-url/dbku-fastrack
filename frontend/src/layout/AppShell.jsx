@@ -12,7 +12,6 @@ const adminNav = [
 
 const applicantNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/user/dashboard", icon: "dashboard" },
-  { labelKey: "nav.myApplications", fallback: "My Applications", path: "/applications", icon: "description" },
   { labelKey: "nav.notifications", fallback: "Notifications", path: "/notifications", icon: "notifications" },
 ];
 

@@ -44,6 +44,7 @@ function UserDashboard() {
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
+  const [activeTab, setActiveTab] = useState("applications");
   const licenseCardRef = useRef(null);
 
   const fetchApplications = useCallback(async () => {
@@ -92,6 +93,7 @@ function UserDashboard() {
   }, [fetchApplicationDetails, selectedId]);
 
   const stats = useMemo(() => {
+    const total = applications.length;
     const drafts = applications.filter(
       (app) => normalizeStatus(app.status) === "draft"
     ).length;
@@ -107,7 +109,7 @@ function UserDashboard() {
       (app) => normalizeStatus(app.status) === "license_issued"
     ).length;
 
-    return { drafts, submitted, payment, licenses };
+    return { total, drafts, submitted, payment, licenses };
   }, [applications]);
 
   const latest = applications[0];
@@ -115,6 +117,12 @@ function UserDashboard() {
   const payment = activeApplication?.form_data?.payment || {};
   const license = activeApplication?.form_data?.license || {};
   const paymentAmount = payment.amount || 250;
+  const dashboardTabs = [
+    { id: "applications", label: t("applicant.tabApplications"), icon: "list_alt" },
+    { id: "status", label: t("applicant.tabStatus"), icon: "timeline" },
+    { id: "payment", label: t("applicant.tabPayment"), icon: "receipt_long" },
+    { id: "license", label: t("applicant.tabLicense"), icon: "qr_code_2" },
+  ];
 
   function openApplication(app) {
     const step = Number(app.current_step || 1);
@@ -267,211 +275,229 @@ function UserDashboard() {
         actions={<LinkButton to="/applications/new" icon="add">{t("common.newApplication")}</LinkButton>}
       />
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <StatCard label={t("applicant.totalApplications")} value={loading ? "..." : stats.total} icon="folder_open" tone="slate" />
         <StatCard label={t("common.drafts")} value={loading ? "..." : stats.drafts} icon="edit_document" tone="amber" />
         <StatCard label={t("common.submitted")} value={loading ? "..." : stats.submitted} icon="task_alt" />
         <StatCard label={t("common.paymentAction")} value={loading ? "..." : stats.payment} icon="payments" tone="blue" />
         <StatCard label={t("common.eLicenses")} value={loading ? "..." : stats.licenses} icon="qr_code_2" />
       </section>
 
-      <ApplicantFlowOverview
-        activeApplication={activeApplication}
-        onOpenApplication={() => activeApplication && openApplication(activeApplication)}
-        onDownloadELicense={downloadELicense}
-        language={language}
-        t={t}
-      />
-
       <Panel
-        title={t("applicant.currentProgress")}
+        title={t("applicant.workspaceTitle")}
         description={
           activeApplication
-            ? `${getApplicationReference(activeApplication)} - ${translatedStatus(t, activeApplication.status)}`
-            : t("applicant.noApplicationSubmitted")
+            ? `${t("applicant.selectedApplication")}: ${getApplicationReference(activeApplication)}`
+            : t("applicant.myApplicationsDesc")
         }
-        className="mb-6"
-      >
-        {activeApplication ? (
-          <WorkflowStrip currentStatus={activeApplication.status} language={language} />
-        ) : (
-          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-            {t("applicant.createApplicationHint")}
-          </div>
-        )}
-      </Panel>
-
-      <Panel
-        title={t("applicant.actionsTitle")}
-        description={
-          activeApplication
-            ? t("applicant.actionsDescription")
-            : t("applicant.actionsEmptyDescription")
-        }
-        className="mb-6"
       >
         <Alert type={message.type || "success"} message={message.text} />
 
+        <DashboardTabs tabs={dashboardTabs} activeTab={activeTab} onChange={setActiveTab} />
+
         {activeApplication ? (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="space-y-4">
-              <ApplicantStepCard
-                code="S1"
-                icon="account_circle"
-                title={t("applicant.s1ActionTitle")}
-                status={normalizeStatus(activeApplication.status) === "draft" ? t("applicant.actionRequired") : t("applicant.completed")}
-                tone={normalizeStatus(activeApplication.status) === "draft" ? "amber" : "emerald"}
-                details={[
-                  [t("common.application"), getApplicationReference(activeApplication)],
-                  [t("common.applicant"), getApplicantName(activeApplication)],
-                  [t("common.lastUpdated"), formatDate(activeApplication.updated_at)],
-                ]}
-                action={
-                  <Button variant="secondary" onClick={() => openApplication(activeApplication)}>
-                    {normalizeStatus(activeApplication.status) === "draft" ? t("applicant.continueApplication") : t("applicant.viewSubmission")}
-                  </Button>
-                }
-              />
+          <div className="mt-4">
+            {activeTab === "applications" && (
+              <div className="space-y-4">
+                <SelectedApplicationSummary
+                  app={activeApplication}
+                  t={t}
+                  manageLabel={t("applicant.tabStatus")}
+                  manageIcon="timeline"
+                  onManage={() => setActiveTab("status")}
+                  onOpen={() => openApplication(activeApplication)}
+                />
+                <ApplicationTable
+                  applications={applications}
+                  loading={loading}
+                  t={t}
+                  onSelect={(app) => {
+                    setSelectedId(String(app.id));
+                    setActiveTab("status");
+                  }}
+                  onOpen={openApplication}
+                />
+              </div>
+            )}
 
-              <ApplicantStepCard
-                code={language === "ms" ? "Pembetulan" : "Correction"}
-                icon="mark_email_unread"
-                title={t("applicant.correctionTitle")}
-                status={normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.correctionRequired") : t("applicant.noCorrectionRequest")}
-                tone={normalizeStatus(activeApplication.status) === "incomplete" ? "amber" : "slate"}
-                details={[
-                  [t("common.notification"), normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.emailCorrectionRequested") : t("applicant.noActiveCorrectionNotice")],
-                  [t("common.nextStep"), normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.updateApplicationForm") : t("applicant.waitLicensingReview")],
-                ]}
-                action={
-                  normalizeStatus(activeApplication.status) === "incomplete" ? (
-                    <Button variant="primary" onClick={() => openApplication(activeApplication)}>
-                      {t("applicant.openCorrection")}
-                    </Button>
-                  ) : null
-                }
-              />
-
-              <ApplicantStepCard
-                code={language === "ms" ? "Keputusan" : "Decision"}
-                icon="notifications_active"
-                title={t("applicant.receiveDecisionTitle")}
-                status={getDecisionStatus(activeApplication, t)}
-                tone={getDecisionTone(activeApplication)}
-                details={getDecisionDetails(activeApplication, t)}
-              />
-
-              <div className="rounded-lg border border-slate-200">
-                <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined rounded-md bg-blue-50 p-2 text-blue-700">
-                      payments
-                    </span>
+            {activeTab === "status" && (
+              <div className="space-y-4">
+                <SelectedApplicationSummary
+                  app={activeApplication}
+                  t={t}
+                  manageLabel={t("applicant.tabPayment")}
+                  manageIcon="receipt_long"
+                  onManage={() => setActiveTab("payment")}
+                  onOpen={() => openApplication(activeApplication)}
+                />
+                <div className="rounded-md border border-slate-200 p-4">
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">S13</p>
+                      <h3 className="text-sm font-semibold text-slate-950">
+                        {t("applicant.currentProgress")}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {translatedStatus(t, activeApplication.status)}
+                      </p>
+                    </div>
+                    <StatusPill value={translatedStatus(t, activeApplication.status)} />
+                  </div>
+                  <WorkflowStrip currentStatus={activeApplication.status} language={language} />
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                  <ApplicantStepCard
+                    code="S1"
+                    icon="description"
+                    title={t("applicant.s1ActionTitle")}
+                    status={normalizeStatus(activeApplication.status) === "draft" ? t("applicant.actionRequired") : t("applicant.completed")}
+                    tone={normalizeStatus(activeApplication.status) === "draft" ? "amber" : "emerald"}
+                    action={
+                      <Button variant="secondary" onClick={() => openApplication(activeApplication)}>
+                        {normalizeStatus(activeApplication.status) === "draft" ? t("applicant.continueApplication") : t("applicant.viewSubmission")}
+                      </Button>
+                    }
+                  />
+                  <ApplicantStepCard
+                    code={language === "ms" ? "Pembetulan" : "Correction"}
+                    icon="mark_email_unread"
+                    title={t("applicant.correctionTitle")}
+                    status={normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.correctionRequired") : t("applicant.noCorrectionRequest")}
+                    tone={normalizeStatus(activeApplication.status) === "incomplete" ? "amber" : "slate"}
+                    action={
+                      normalizeStatus(activeApplication.status) === "incomplete" ? (
+                        <Button variant="primary" onClick={() => openApplication(activeApplication)}>
+                          {t("applicant.openCorrection")}
+                        </Button>
+                      ) : null
+                    }
+                  />
+                  <ApplicantStepCard
+                    code={language === "ms" ? "Keputusan" : "Decision"}
+                    icon="notifications_active"
+                    title={t("applicant.receiveDecisionTitle")}
+                    status={getDecisionStatus(activeApplication, t)}
+                    tone={getDecisionTone(activeApplication)}
+                    details={getDecisionDetails(activeApplication, t)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeTab === "payment" && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="rounded-md border border-slate-200 p-4">
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
                       <h3 className="text-sm font-semibold text-slate-950">
                         {t("applicant.paymentByFpxCard")}
                       </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {getPaymentHint(activeApplication, t)}
+                      </p>
                     </div>
+                    <StatusPill value={translatedStatus(t, activeApplication.status)} />
                   </div>
-                  <StatusPill value={translatedStatus(t, activeApplication.status)} />
-                </div>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                      <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(activeApplication)} />
+                      <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
+                      <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
+                      <Info label={t("common.receipt")} value={payment.receipt_file?.name || payment.receipt_reference || t("applicant.notSubmitted")} />
+                    </div>
 
-                <div className="grid grid-cols-1 gap-5 p-4 lg:grid-cols-2">
-                  <div className="space-y-3 text-sm">
-                    <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(activeApplication)} />
-                    <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
-                    <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
-                    <Info label={t("common.receipt")} value={payment.receipt_file?.name || payment.receipt_reference || t("applicant.notSubmitted")} />
+                    {canSubmitPayment(activeApplication) ? (
+                      <div className="space-y-3">
+                        {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
+                          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                            {t("applicant.paymentHintReceiptRejected")}
+                          </div>
+                        )}
+                        <Field label={t("common.uploadReceipt")}>
+                          <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/40">
+                            <span className="material-symbols-outlined mb-1 text-2xl text-emerald-700">
+                              upload_file
+                            </span>
+                            <span className="font-semibold text-slate-800">
+                              {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+                            </span>
+                            <span className="mt-1 text-xs text-slate-500">
+                              {t("applicant.receiptUploadHint")}
+                            </span>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              onChange={(event) => {
+                                handlePaymentReceiptChange(event.target.files?.[0]);
+                                event.target.value = "";
+                              }}
+                            />
+                          </label>
+                        </Field>
+                        {paymentReceipt?.dataUrl && (
+                          <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+                            <span className="truncate font-medium text-slate-700">
+                              {paymentReceipt.name}
+                            </span>
+                            <a
+                              href={paymentReceipt.dataUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="shrink-0 font-semibold text-emerald-700 hover:underline"
+                            >
+                              {t("common.view")}
+                            </a>
+                          </div>
+                        )}
+                        <Button onClick={submitPayment} disabled={saving} icon="upload_file">
+                          {saving ? t("common.submitting") : t("applicant.submitPayment")}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                        {getPaymentHint(activeApplication, t)}
+                      </div>
+                    )}
                   </div>
-
-                  {canSubmitPayment(activeApplication) ? (
-                    <div className="space-y-3">
-                      {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
-                        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                          {t("applicant.paymentHintReceiptRejected")}
-                        </div>
-                      )}
-                      <Field label={t("common.uploadReceipt")}>
-                        <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/40">
-                          <span className="material-symbols-outlined mb-1 text-2xl text-emerald-700">
-                            upload_file
-                          </span>
-                          <span className="font-semibold text-slate-800">
-                            {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
-                          </span>
-                          <span className="mt-1 text-xs text-slate-500">
-                            {t("applicant.receiptUploadHint")}
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*,.pdf"
-                            className="hidden"
-                            onChange={(event) => {
-                              handlePaymentReceiptChange(event.target.files?.[0]);
-                              event.target.value = "";
-                            }}
-                          />
-                        </label>
-                      </Field>
-                      {paymentReceipt?.dataUrl && (
-                        <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
-                          <span className="truncate font-medium text-slate-700">
-                            {paymentReceipt.name}
-                          </span>
-                          <a
-                            href={paymentReceipt.dataUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="shrink-0 font-semibold text-emerald-700 hover:underline"
-                          >
-                            {t("common.view")}
-                          </a>
-                        </div>
-                      )}
-                      <Button onClick={submitPayment} disabled={saving} icon="upload_file">
-                        {saving ? t("common.submitting") : t("applicant.submitPayment")}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                      {getPaymentHint(activeApplication, t)}
-                    </div>
-                  )}
                 </div>
+                {payment.invoice_no ? (
+                  <InvoicePreview
+                    application={activeApplication}
+                    amount={paymentAmount}
+                    invoiceDate={payment.generated_at || activeApplication.updated_at}
+                    dueDate={payment.due_date || activeApplication.updated_at}
+                  />
+                ) : (
+                  <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                    {t("applicant.waitingInvoice")}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
-            <aside className="space-y-5">
-              {detailsLoading ? (
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                  {t("common.loadingSelectedApplication")}
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {t("applicant.selectedApplication")}
-                    </p>
-                    <h3 className="mt-1 text-base font-semibold text-slate-950">
-                      {getApplicationReference(activeApplication)}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {getProjectName(activeApplication)}
-                    </p>
-                    <div className="mt-3">
-                      <StatusPill value={translatedStatus(t, activeApplication.status)} />
+            {activeTab === "license" && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="rounded-md border border-slate-200 p-4">
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-950">
+                        {t("applicant.licenseDownloadTitle")}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {canViewLicense(activeApplication) ? t("applicant.licenseDownloadDesc") : t("applicant.qrLicensePending")}
+                      </p>
                     </div>
+                    <StatusPill value={translatedStatus(t, activeApplication.status)} />
                   </div>
+                  <div className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                    <Info label={t("common.reference")} value={getApplicationReference(activeApplication)} />
+                    <Info label={t("common.applicant")} value={getApplicantName(activeApplication)} />
+                    <Info label={t("common.project")} value={getProjectName(activeApplication)} />
+                    <Info label={t("common.status")} value={translatedStatus(t, activeApplication.status)} />
+                  </div>
+                </div>
 
-                  {payment.invoice_no && (
-                    <InvoicePreview
-                      application={activeApplication}
-                      amount={paymentAmount}
-                      invoiceDate={payment.generated_at || activeApplication.updated_at}
-                      dueDate={payment.due_date || activeApplication.updated_at}
-                    />
-                  )}
-
+                <div>
                   {canViewLicense(activeApplication) ? (
                     <div className="space-y-3">
                       <div ref={licenseCardRef}>
@@ -486,69 +512,30 @@ function UserDashboard() {
                       {t("applicant.qrLicensePending")}
                     </div>
                   )}
-                </>
-              )}
-            </aside>
+                </div>
+              </div>
+            )}
+
+            {detailsLoading && (
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                {t("common.loadingSelectedApplication")}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-            {t("applicant.workflowInactive")}
+          <div className="mt-4 space-y-4">
+            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+              {t("applicant.createApplicationHint")}
+            </div>
+            <ApplicationTable
+              applications={applications}
+              loading={loading}
+              t={t}
+              onSelect={(app) => setSelectedId(String(app.id))}
+              onOpen={openApplication}
+            />
           </div>
         )}
-      </Panel>
-
-      <Panel title={t("applicant.applicationsTitle")} description={t("applicant.myApplicationsDesc")}>
-        <DataTable
-          loading={loading}
-          loadingText={t("common.loading")}
-          emptyText={t("applicant.noApplicationsYet")}
-          rows={applications}
-          columns={[
-            {
-              key: "reference",
-              label: t("common.reference"),
-              render: (app) => (
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(String(app.id))}
-                  className="font-semibold text-emerald-700 hover:underline"
-                >
-                  {getApplicationReference(app)}
-                </button>
-              ),
-            },
-            { key: "project", label: t("common.project"), render: getProjectName },
-            { key: "type", label: t("common.type"), render: getApplicationType },
-            {
-              key: "status",
-              label: t("common.status"),
-              render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
-            },
-            { key: "updated", label: t("common.updated"), render: (app) => formatDate(app.updated_at) },
-            {
-              key: "action",
-              label: t("common.action"),
-              render: (app) => (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(String(app.id))}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    {t("common.manage")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openApplication(app)}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
-                  </button>
-                </div>
-              ),
-            },
-          ]}
-        />
       </Panel>
     </UserDashboardLayout>
   );
@@ -573,157 +560,121 @@ function readFileAsDataUrl(file) {
   });
 }
 
-function ApplicantFlowOverview({ activeApplication, onOpenApplication, onDownloadELicense, language, t }) {
-  const status = normalizeStatus(activeApplication?.status);
-  const hasApplication = Boolean(activeApplication);
-  const correctionActive = status === "incomplete";
-  const decisionReady = [
-    "approved",
-    "approved_with_conditions",
-    "rejected",
-    "invoice_generated",
-    "payment_submitted",
-    "payment_verified",
-    "license_issued",
-    "license_revoked",
-  ].includes(status);
-  const paymentActive = [
-    "invoice_generated",
-    "payment_submitted",
-    "payment_verified",
-    "license_issued",
-  ].includes(status);
-  const licenseReady = status === "license_issued" || status === "license_revoked";
-
+function DashboardTabs({ tabs, activeTab, onChange }) {
   return (
-    <Panel
-      title={t("applicant.flowTitle")}
-      description={t("applicant.flowDescription")}
-      className="mb-6"
-    >
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-        <FlowNode
-          tone="blue"
-          icon="play_arrow"
-          eyebrow="START"
-          title={t("applicant.startTitle")}
-          description={t("applicant.startDesc")}
-          state={t("common.ready")}
-        />
-        <FlowNode
-          tone={hasApplication ? "emerald" : "amber"}
-          icon="account_circle"
-          eyebrow="S1"
-          title={t("applicant.s1Title")}
-          description={t("applicant.s1Desc")}
-          state={hasApplication ? t("applicant.applicationSelected") : t("applicant.noApplicationYet")}
-        />
-        <FlowNode
-          tone={hasApplication && status !== "draft" ? "emerald" : "amber"}
-          icon="upload_file"
-          eyebrow={language === "ms" ? "BORANG" : "FORM"}
-          title={t("applicant.formUploadTitle")}
-          description={t("applicant.formUploadDesc")}
-          state={status === "draft" ? t("status.draft") : hasApplication ? t("status.submitted") : t("applicant.startRequired")}
-          action={
-            hasApplication ? (
-              <Button variant="secondary" onClick={onOpenApplication}>
-                {status === "draft" ? t("common.continue") : t("common.view")}
-              </Button>
-            ) : (
-              <LinkButton to="/applications/new" icon="add" variant="secondary">
-                {t("common.new")}
-              </LinkButton>
-            )
-          }
-        />
-        <FlowNode
-          tone={correctionActive ? "amber" : hasApplication ? "emerald" : "slate"}
-          icon={correctionActive ? "mark_email_unread" : "task_alt"}
-          eyebrow="STATUS"
-          title={t("applicant.statusCompleteTitle")}
-          description={correctionActive ? t("applicant.correctionEmailDesc") : t("applicant.memoDesc")}
-          state={correctionActive ? t("applicant.statusCorrection") : hasApplication ? t("applicant.statusCompleteYes") : t("common.pending")}
-        />
-        <FlowNode
-          tone={hasApplication && status !== "draft" && !correctionActive ? "emerald" : "slate"}
-          icon="description"
-          eyebrow="MEMO"
-          title={t("applicant.memoTitle")}
-          description={t("applicant.memoMoveDesc")}
-          state={hasApplication && status !== "draft" && !correctionActive ? t("common.done") : t("common.waiting")}
-        />
-      </div>
+    <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
+      {tabs.map((tab) => {
+        const active = tab.id === activeTab;
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-4">
-        <FlowNode
-          tone={decisionReady ? (status === "rejected" ? "red" : "emerald") : "slate"}
-          icon="notifications_active"
-          eyebrow={language === "ms" ? "KEPUTUSAN" : "DECISION"}
-          title={t("applicant.decisionNoticeTitle")}
-          description={t("applicant.decisionNoticeDesc")}
-          state={decisionReady ? translatedStatus(t, status) : t("common.waiting")}
-        />
-        <FlowNode
-          tone={paymentActive ? "blue" : "slate"}
-          icon="payments"
-          eyebrow="S13"
-          title={t("applicant.onlinePaymentTitle")}
-          description={t("applicant.onlinePaymentDesc")}
-          state={paymentActive ? translatedStatus(t, status) : t("applicant.waitingInvoice")}
-        />
-        <FlowNode
-          tone={licenseReady ? "emerald" : "slate"}
-          icon="qr_code_2"
-          eyebrow={language === "ms" ? "E-LESEN" : "E-LICENSE"}
-          title={t("applicant.licenseDownloadTitle")}
-          description={t("applicant.licenseDownloadDesc")}
-          state={licenseReady ? t("common.ready") : t("common.waiting")}
-          action={
-            licenseReady ? (
-              <Button variant="secondary" onClick={onDownloadELicense}>
-                {t("common.download")}
-              </Button>
-            ) : null
-          }
-        />
-        <FlowNode
-          tone={licenseReady ? "blue" : "slate"}
-          icon="flag"
-          eyebrow="SND"
-          title={t("applicant.endTitle")}
-          description={t("applicant.endDesc")}
-          state={licenseReady ? t("common.complete") : t("common.notComplete")}
-        />
-      </div>
-    </Panel>
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+              active
+                ? "bg-emerald-700 text-white"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-function FlowNode({ tone = "slate", icon, eyebrow, title, description, state, action }) {
-  const tones = {
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    amber: "border-amber-200 bg-amber-50 text-amber-700",
-    blue: "border-blue-200 bg-blue-50 text-blue-700",
-    red: "border-red-200 bg-red-50 text-red-700",
-    slate: "border-slate-200 bg-slate-50 text-slate-600",
-  };
-
+function SelectedApplicationSummary({ app, t, manageLabel, manageIcon = "visibility", onManage, onOpen }) {
   return (
-    <div className={`rounded-lg border p-4 ${tones[tone]}`}>
-      <div className="flex items-start gap-3">
-        <span className="material-symbols-outlined text-[22px]">{icon}</span>
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{eyebrow}</p>
-          <h3 className="mt-1 text-sm font-semibold text-slate-950">{title}</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t("applicant.selectedApplication")}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-950">
+              {getApplicationReference(app)}
+            </h3>
+            <StatusPill value={translatedStatus(t, app.status)} />
+          </div>
+          <p className="mt-1 truncate text-sm text-slate-600">
+            {getProjectName(app)}
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 lg:min-w-[420px]">
+          <Info label={t("common.type")} value={getApplicationType(app)} />
+          <Info label={t("common.applicant")} value={getApplicantName(app)} />
+          <Info label={t("common.updated")} value={formatDate(app.updated_at)} />
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button variant="secondary" onClick={onManage} icon={manageIcon}>
+            {manageLabel}
+          </Button>
+          <Button variant="secondary" onClick={onOpen} icon="open_in_new">
+            {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
+          </Button>
         </div>
       </div>
-      <div className="mt-4 flex min-h-10 flex-wrap items-center justify-between gap-2">
-        <StatusPill value={state} />
-        {action}
-      </div>
     </div>
+  );
+}
+
+function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
+  return (
+    <DataTable
+      loading={loading}
+      loadingText={t("common.loading")}
+      emptyText={t("applicant.noApplicationsYet")}
+      rows={applications}
+      columns={[
+        {
+          key: "reference",
+          label: t("common.reference"),
+          render: (app) => (
+            <button
+              type="button"
+              onClick={() => onSelect(app)}
+              className="font-semibold text-emerald-700 hover:underline"
+            >
+              {getApplicationReference(app)}
+            </button>
+          ),
+        },
+        { key: "project", label: t("common.project"), render: getProjectName },
+        { key: "type", label: t("common.type"), render: getApplicationType },
+        {
+          key: "status",
+          label: t("common.status"),
+          render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+        },
+        { key: "updated", label: t("common.updated"), render: (app) => formatDate(app.updated_at) },
+        {
+          key: "action",
+          label: t("common.action"),
+          render: (app) => (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onSelect(app)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                {t("common.manage")}
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpen(app)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
+              </button>
+            </div>
+          ),
+        },
+      ]}
+    />
   );
 }
 
