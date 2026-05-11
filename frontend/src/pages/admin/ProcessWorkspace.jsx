@@ -153,6 +153,16 @@ function ProcessWorkspace({ type }) {
       return;
     }
 
+    if (action.requiresReceipt && !selectedRecord.form_data?.payment?.receipt_file) {
+      setError("Please wait for the applicant to upload a payment receipt first.");
+      return;
+    }
+
+    if (action.requiresSubmittedReceipt && normalizeStatus(selectedRecord.status) !== "payment_submitted") {
+      setError("Receipt verification is available after the applicant submits a receipt.");
+      return;
+    }
+
     try {
       setSaving(true);
       setError("");
@@ -699,16 +709,16 @@ const configs = {
     eyebrowKey: "workspace.payment.eyebrow",
     title: "Invoice and Payment",
     titleKey: "workspace.payment.title",
-    description: "Generate invoices, record Bank Islam online/counter cash payment, and verify uploaded proof.",
+    description: "Generate invoices and verify uploaded payment receipt proof.",
     descriptionKey: "workspace.payment.description",
     queueTitle: "Payment Queue",
     queueTitleKey: "workspace.payment.queue",
-    actionDescription: "Generate or verify payment for the selected application.",
+    actionDescription: "Generate an invoice, then verify whether the uploaded receipt is valid or fake.",
     actionDescriptionKey: "workspace.payment.action",
     showComment: true,
-    commentLabel: "Payment Reference / Notes",
+    commentLabel: "Receipt Verification Notes",
     commentLabelKey: "workspace.comment.payment",
-    commentPlaceholder: "Receipt reference, transfer notes, or verification remarks.",
+    commentPlaceholder: "Add verification notes, receipt issues, or rejection reason.",
     commentPlaceholderKey: "workspace.comment.paymentPlaceholder",
     stats: (apps) => [
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !app.form_data?.payment), icon: "pending", tone: "amber" },
@@ -739,41 +749,45 @@ const configs = {
         }),
       },
       {
-        label: "Submit Payment",
-        labelKey: "workspace.action.submitPayment",
-        icon: "payments",
-        success: "Payment submission recorded.",
-        successKey: "workspace.message.paymentRecorded",
-        buildPayload: (app, data) => ({
-          status: "payment_submitted",
-          form_data: mergeFormData(app, {
-            payment: {
-              ...(app.form_data?.payment || {}),
-              invoice_no: getInvoiceNo(app),
-              amount: app.form_data?.payment?.amount || 250,
-              status: "Payment Submitted",
-              method: data.comment?.toLowerCase().includes("cash")
-                ? "Counter Cash"
-                : "Bank Islam Online Banking",
-              receipt_reference: data.comment || "Manual submission",
-              submitted_at: new Date().toISOString(),
-            },
-          }),
-        }),
-      },
-      {
-        label: "Verify Payment",
+        label: "Verify Receipt",
         labelKey: "workspace.action.verifyPayment",
         icon: "verified",
         success: "Payment verified.",
         successKey: "workspace.message.paymentVerified",
-        buildPayload: (app) => ({
+        requiresReceipt: true,
+        requiresSubmittedReceipt: true,
+        buildPayload: (app, data) => ({
           status: "payment_verified",
           form_data: mergeFormData(app, {
             payment: {
               ...(app.form_data?.payment || {}),
               status: "Payment Verified",
+              verification_result: "Valid",
+              verification_notes: data.comment,
               verified_at: new Date().toISOString(),
+            },
+          }),
+        }),
+      },
+      {
+        label: "Reject Receipt",
+        labelKey: "workspace.action.rejectReceipt",
+        icon: "report",
+        variant: "danger",
+        requiresComment: true,
+        requiresReceipt: true,
+        requiresSubmittedReceipt: true,
+        success: "Receipt rejected. Applicant can upload a new receipt.",
+        successKey: "workspace.message.receiptRejected",
+        buildPayload: (app, data) => ({
+          status: "invoice_generated",
+          form_data: mergeFormData(app, {
+            payment: {
+              ...(app.form_data?.payment || {}),
+              status: "Receipt Rejected",
+              verification_result: "Invalid/Fake",
+              verification_notes: data.comment,
+              rejected_at: new Date().toISOString(),
             },
           }),
         }),
@@ -1029,12 +1043,30 @@ function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
 
 function PaymentDetails({ app, t }) {
   const payment = app.form_data?.payment || {};
+  const receiptFile = payment.receipt_file;
   return (
     <div className="grid grid-cols-1 gap-3 text-sm">
       <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(app)} />
       <Info label={t("common.amount")} value={formatCurrency(payment.amount || 250)} />
       <Info label={t("common.status")} value={payment.status || t("workspace.info.notGenerated")} />
-      <Info label={t("workspace.info.receipt")} value={payment.receipt_reference || t("workspace.info.notSubmitted")} />
+      <Info label={t("workspace.info.receipt")} value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")} />
+      {receiptFile?.dataUrl && (
+        <a
+          href={receiptFile.dataUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
+        >
+          <span className="material-symbols-outlined text-base">visibility</span>
+          {t("workspace.info.viewReceipt")}
+        </a>
+      )}
+      {payment.verification_result && (
+        <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
+      )}
+      {payment.verification_notes && (
+        <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
+      )}
     </div>
   );
 }

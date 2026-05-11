@@ -42,8 +42,7 @@ function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [receiptReference, setReceiptReference] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("FPX");
+  const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
   const licenseCardRef = useRef(null);
 
@@ -65,9 +64,13 @@ function UserDashboard() {
     try {
       setDetailsLoading(true);
       const data = await apiRequest(`/applications/${id}/`);
+      const paymentData = data?.form_data?.payment || {};
+      const receiptWasRejected =
+        paymentData.status === "Receipt Rejected" ||
+        paymentData.verification_result === "Invalid/Fake";
+
       setSelectedApplication(data);
-      setReceiptReference(data?.form_data?.payment?.receipt_reference || "");
-      setPaymentMethod(data?.form_data?.payment?.payment_channel || "FPX");
+      setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
     } catch (err) {
       console.error("Failed to load application details:", err);
       setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
@@ -140,7 +143,17 @@ function UserDashboard() {
 
       const current = await apiRequest(`/applications/${selectedApplication.id}/`);
       const currentPayment = current.form_data?.payment || {};
-      const receipt = receiptReference.trim() || `${paymentMethod}-${Date.now()}`;
+      const receiptWasRejected =
+        currentPayment.status === "Receipt Rejected" ||
+        currentPayment.verification_result === "Invalid/Fake";
+      const receiptFile = paymentReceipt || (receiptWasRejected ? null : currentPayment.receipt_file);
+
+      if (!receiptFile) {
+        setMessage({ type: "error", text: t("applicant.receiptUploadRequired") });
+        return;
+      }
+
+      const receipt = receiptFile.name || currentPayment.receipt_reference || `RECEIPT-${Date.now()}`;
 
       await apiRequest(`/applications/${selectedApplication.id}/`, {
         method: "PATCH",
@@ -153,8 +166,11 @@ function UserDashboard() {
               invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
               amount: currentPayment.amount || 250,
               status: "Payment Submitted",
-              payment_channel: paymentMethod,
+              verification_result: null,
+              verification_notes: "",
+              rejected_at: null,
               receipt_reference: receipt,
+              receipt_file: receiptFile,
               submitted_at: new Date().toISOString(),
             },
           },
@@ -171,6 +187,19 @@ function UserDashboard() {
       setMessage({ type: "error", text: err.message || t("applicant.paymentSubmissionFailed") });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePaymentReceiptChange(file) {
+    if (!file) return;
+
+    try {
+      const receipt = await readFileAsDataUrl(file);
+      setPaymentReceipt(receipt);
+      setMessage({ type: "", text: "" });
+    } catch (err) {
+      console.error("Receipt upload failed:", err);
+      setMessage({ type: "error", text: t("applicant.receiptUploadFailed") });
     }
   }
 
@@ -352,30 +381,54 @@ function UserDashboard() {
                     <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(activeApplication)} />
                     <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
                     <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
-                    <Info label={t("common.receiptReference")} value={payment.receipt_reference || t("applicant.notSubmitted")} />
+                    <Info label={t("common.receipt")} value={payment.receipt_file?.name || payment.receipt_reference || t("applicant.notSubmitted")} />
                   </div>
 
                   {canSubmitPayment(activeApplication) ? (
                     <div className="space-y-3">
-                      <Field label={t("common.paymentMethod")}>
-                        <select
-                          value={paymentMethod}
-                          onChange={(event) => setPaymentMethod(event.target.value)}
-                          className="form-input"
-                        >
-                          <option value="FPX">FPX Online Banking</option>
-                          <option value="Card">Credit / Debit Card</option>
-                        </select>
+                      {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
+                        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                          {t("applicant.paymentHintReceiptRejected")}
+                        </div>
+                      )}
+                      <Field label={t("common.uploadReceipt")}>
+                        <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/40">
+                          <span className="material-symbols-outlined mb-1 text-2xl text-emerald-700">
+                            upload_file
+                          </span>
+                          <span className="font-semibold text-slate-800">
+                            {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+                          </span>
+                          <span className="mt-1 text-xs text-slate-500">
+                            {t("applicant.receiptUploadHint")}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            onChange={(event) => {
+                              handlePaymentReceiptChange(event.target.files?.[0]);
+                              event.target.value = "";
+                            }}
+                          />
+                        </label>
                       </Field>
-                      <Field label={t("common.receiptReference")}>
-                        <input
-                          value={receiptReference}
-                          onChange={(event) => setReceiptReference(event.target.value)}
-                          className="form-input"
-                          placeholder="Example: FPX-20260507-001"
-                        />
-                      </Field>
-                      <Button onClick={submitPayment} disabled={saving} icon="payments">
+                      {paymentReceipt?.dataUrl && (
+                        <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+                          <span className="truncate font-medium text-slate-700">
+                            {paymentReceipt.name}
+                          </span>
+                          <a
+                            href={paymentReceipt.dataUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 font-semibold text-emerald-700 hover:underline"
+                          >
+                            {t("common.view")}
+                          </a>
+                        </div>
+                      )}
+                      <Button onClick={submitPayment} disabled={saving} icon="upload_file">
                         {saving ? t("common.submitting") : t("applicant.submitPayment")}
                       </Button>
                     </div>
@@ -499,6 +552,25 @@ function UserDashboard() {
       </Panel>
     </UserDashboardLayout>
   );
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        dataUrl: reader.result,
+      });
+    };
+
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function ApplicantFlowOverview({ activeApplication, onOpenApplication, onDownloadELicense, language, t }) {
@@ -746,9 +818,13 @@ function getDecisionDetails(app, t) {
 
 function getPaymentHint(app, t) {
   const status = normalizeStatus(app?.status);
+  const payment = app?.form_data?.payment || {};
 
   if (status === "draft") return t("applicant.paymentHintDraft");
   if (status === "rejected") return t("applicant.paymentHintRejected");
+  if (payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") {
+    return t("applicant.paymentHintReceiptRejected");
+  }
   if (status === "payment_submitted") return t("applicant.paymentHintSubmitted");
   if (status === "payment_verified") return t("applicant.paymentHintVerified");
   if (status === "license_issued") return t("applicant.paymentHintIssued");

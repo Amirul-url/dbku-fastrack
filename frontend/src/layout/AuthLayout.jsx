@@ -7,7 +7,6 @@ function AuthLayout({ children }) {
   const features = [
     t("app.authFeatureSubmit"),
     t("app.authFeatureTrack"),
-    t("app.authFeatureComplete"),
   ];
 
   return (
