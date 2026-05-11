@@ -63,6 +63,7 @@ export function saveAuthSession(data, rememberMe = false) {
   }
 
   localStorage.setItem("fastrack_remember_me", rememberMe ? "true" : "false");
+  window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
 
 export function clearAuthSession() {
@@ -70,6 +71,7 @@ export function clearAuthSession() {
   localStorage.removeItem("fastrack_refresh_token");
   localStorage.removeItem("fastrack_user");
   localStorage.removeItem("fastrack_remember_me");
+  window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
 
 async function refreshAccessToken() {
@@ -162,6 +164,11 @@ export async function apiRequest(path, options = {}) {
       `Request failed (${response.status})`;
 
     throw new Error(message);
+  }
+
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" && path.startsWith("/applications")) {
+    window.dispatchEvent(new Event("fastrack:applications-changed"));
   }
 
   return data;

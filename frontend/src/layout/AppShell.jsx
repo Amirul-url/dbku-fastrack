@@ -7,6 +7,7 @@ import logo from "../assets/fasTrack.png";
 const adminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/dashboard/admin", icon: "dashboard" },
   { labelKey: "nav.applications", fallback: "Applications", path: "/admin/applications", icon: "description" },
+  { labelKey: "nav.notifications", fallback: "Notifications", path: "/notifications", icon: "notifications" },
 ];
 
 const applicantNav = [
