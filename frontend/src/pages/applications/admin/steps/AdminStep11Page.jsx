@@ -77,8 +77,6 @@ function AdminStep11Page() {
       setSaving(true);
       setError("");
 
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-      const existingFormData = existingData.form_data || {};
       const now = new Date().toISOString();
 
       const updatedStep11 = {
@@ -96,7 +94,6 @@ function AdminStep11Page() {
         body: JSON.stringify({
           current_step: goNext ? 5 : 4,
           form_data: {
-            ...existingFormData,
             step_11: updatedStep11,
           },
         }),

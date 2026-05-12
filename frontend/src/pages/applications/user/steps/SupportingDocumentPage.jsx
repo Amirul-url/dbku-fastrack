@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { apiRequest } from "../../../../services/api";
+import {
+  apiRequest,
+  uploadApplicationDocument,
+} from "../../../../services/api";
 import UserApplicationStepNav from "../UserApplicationStepNav";
 
 const defaultDocuments = [
@@ -43,25 +46,6 @@ const defaultDocuments = [
 
 const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
 const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      resolve({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-        dataUrl: reader.result,
-      });
-    };
-
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
 
 function normalizeDocuments(savedDocuments, defaults) {
   if (!Array.isArray(savedDocuments) || savedDocuments.length === 0) {
@@ -213,9 +197,6 @@ function SupportingDocumentPage({
     try {
       setSaving(true);
 
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-      const existingFormData = existingData.form_data || {};
-
       const updatedStep10 = {
         title: "Supporting Document",
         status: "Saved",
@@ -230,7 +211,6 @@ function SupportingDocumentPage({
         body: JSON.stringify({
           current_step: goNext ? 4 : 3,
           form_data: {
-            ...existingFormData,
             step_10: updatedStep10,
           },
         }),
@@ -258,7 +238,11 @@ function SupportingDocumentPage({
     if (!file) return;
 
     try {
-      const attachment = await readFileAsDataUrl(file);
+      const attachment = await uploadApplicationDocument(
+        applicationId,
+        documents[index]?.title || file.name,
+        file
+      );
 
       setDocuments((prev) =>
         prev.map((item, itemIndex) =>
@@ -275,7 +259,11 @@ function SupportingDocumentPage({
     if (!file) return;
 
     try {
-      const attachment = await readFileAsDataUrl(file);
+      const attachment = await uploadApplicationDocument(
+        applicationId,
+        titleDocuments[index]?.land || TITLE_DOCUMENT_NAME,
+        file
+      );
 
       setTitleDocuments((prev) =>
         prev.map((item, itemIndex) =>
@@ -292,7 +280,11 @@ function SupportingDocumentPage({
     if (!file) return;
 
     try {
-      const attachment = await readFileAsDataUrl(file);
+      const attachment = await uploadApplicationDocument(
+        applicationId,
+        otherDocuments[index]?.description || OTHER_DOCUMENT_NAME,
+        file
+      );
 
       setOtherDocuments((prev) =>
         prev.map((item, itemIndex) =>
@@ -760,6 +752,8 @@ function FileAction({
   onFileChange,
   onRemoveFile,
 }) {
+  const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
+
   return (
     <div className="flex items-center justify-center">
       <div className="grid grid-cols-[10px_32px_32px_32px] items-center gap-2">
@@ -790,7 +784,7 @@ function FileAction({
         {attachment ? (
           <>
             <a
-              href={attachment.dataUrl}
+              href={attachmentUrl}
               download={attachment.name}
               className="inline-flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-white shadow-sm hover:bg-slate-900"
               title="Download"

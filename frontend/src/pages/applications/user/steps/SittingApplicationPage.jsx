@@ -3,7 +3,10 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { apiRequest } from "../../../../services/api";
+import {
+  apiRequest,
+  uploadApplicationDocument,
+} from "../../../../services/api";
 import UserApplicationStepNav from "../UserApplicationStepNav";
 import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 
@@ -49,6 +52,8 @@ function SittingApplicationPage({
 
   const [siteImageName, setSiteImageName] = useState("");
   const [siteImagePreview, setSiteImagePreview] = useState("");
+  const [siteImageFile, setSiteImageFile] = useState(null);
+  const [siteImageAttachment, setSiteImageAttachment] = useState(null);
 
   const [mapData, setMapData] = useState({
     address:
@@ -83,8 +88,11 @@ function SittingApplicationPage({
       setOfficerName(step1.officer_name || "");
       setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
 
-      setSiteImageName(step1.site_image_name || "");
-      setSiteImagePreview(step1.site_image_preview || "");
+      const savedSiteImage = step1.site_image || null;
+      setSiteImageName(savedSiteImage?.name || step1.site_image_name || "");
+      setSiteImagePreview(savedSiteImage?.url || step1.site_image_preview || "");
+      setSiteImageFile(null);
+      setSiteImageAttachment(savedSiteImage);
 
       setMapData({
         address: step1.map_address || step1.locality_address || "",
@@ -97,23 +105,11 @@ function SittingApplicationPage({
   }
 
   async function buildStepOnePayload(titleValue) {
-    let existingFormData = {};
-
-    if (applicationId) {
-      try {
-        const existingData = await apiRequest(`/applications/${applicationId}/`);
-        existingFormData = existingData.form_data || {};
-      } catch (err) {
-        console.error("Failed to load existing form data:", err);
-      }
-    }
-
     return {
       application_type: "sitting_application",
       title: titleValue,
       current_step: 1,
       form_data: {
-        ...existingFormData,
         step_1: {
           status: "Prepare Case",
           application_type: "Application for Site (New Site)",
@@ -139,7 +135,11 @@ function SittingApplicationPage({
           longitude: mapData.longitude,
 
           site_image_name: siteImageName,
-          site_image_preview: siteImagePreview,
+          site_image: siteImageAttachment,
+          site_image_url: siteImageAttachment?.url || "",
+          site_image_preview: siteImagePreview?.startsWith("blob:")
+            ? ""
+            : siteImagePreview,
 
           project_justification: projectJustification,
           site_selection_reason: siteSelectionReason,
@@ -159,6 +159,40 @@ function SittingApplicationPage({
         body: JSON.stringify(payload),
       }
     );
+  }
+
+  async function uploadPendingSiteImage(application, payload) {
+    if (!siteImageFile) return application;
+
+    const attachment = await uploadApplicationDocument(
+      application.id,
+      "Site Image",
+      siteImageFile
+    );
+    const formData = application.form_data || payload.form_data || {};
+    const step1 = formData.step_1 || payload.form_data?.step_1 || {};
+
+    const updatedApplication = await apiRequest(`/applications/${application.id}/`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        form_data: {
+          ...formData,
+          step_1: {
+            ...step1,
+            site_image_name: attachment.name,
+            site_image: attachment,
+            site_image_url: attachment.url,
+            site_image_preview: "",
+          },
+        },
+      }),
+    });
+
+    setSiteImageAttachment(attachment);
+    setSiteImageFile(null);
+    setSiteImagePreview(attachment.url);
+
+    return updatedApplication;
   }
 
   async function handleSave() {
@@ -185,11 +219,12 @@ function SittingApplicationPage({
     try {
       const payload = await buildStepOnePayload(projectName);
       const data = await saveApplication(payload);
+      const savedData = await uploadPendingSiteImage(data, payload);
 
       navigate(
         isAdminReview
-          ? `/admin/applications/${data.id}/step-2?id=${data.id}`
-          : `/applications/${data.id}/submitting-person?id=${data.id}`
+          ? `/admin/applications/${savedData.id}/step-2?id=${savedData.id}`
+          : `/applications/${savedData.id}/submitting-person?id=${savedData.id}`
       );
     } catch (err) {
       console.error("Save failed:", err);
@@ -211,7 +246,8 @@ function SittingApplicationPage({
       const payload = await buildStepOnePayload(
         projectName || "Draft Sitting Application"
       );
-      await saveApplication(payload);
+      const data = await saveApplication(payload);
+      await uploadPendingSiteImage(data, payload);
 
       navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
     } catch (err) {
@@ -319,10 +355,14 @@ function SittingApplicationPage({
                 onChange={(data) => {
                   setSiteImageName(data.name);
                   setSiteImagePreview(data.preview);
+                  setSiteImageFile(data.file);
+                  setSiteImageAttachment(null);
                 }}
                 onRemove={() => {
                   setSiteImageName("");
                   setSiteImagePreview("");
+                  setSiteImageFile(null);
+                  setSiteImageAttachment(null);
                 }}
               />
 
@@ -967,16 +1007,11 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      onChange?.({
-        name: file.name,
-        preview: reader.result,
-      });
-    };
-
-    reader.readAsDataURL(file);
+    onChange?.({
+      name: file.name,
+      preview: URL.createObjectURL(file),
+      file,
+    });
   }
 
   return (

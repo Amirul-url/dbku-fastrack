@@ -78,8 +78,6 @@ function DeclarationPage({
       setSaving(true);
       setError("");
 
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-      const existingFormData = existingData.form_data || {};
       const now = new Date().toISOString();
 
       const updatedStep11 = {
@@ -97,7 +95,6 @@ function DeclarationPage({
         body: JSON.stringify({
           current_step: 5,
           form_data: {
-            ...existingFormData,
             step_11: updatedStep11,
           },
         }),

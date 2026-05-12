@@ -65,9 +65,6 @@ function AdminStep9Page() {
     try {
       setSaving(true);
 
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-      const existingFormData = existingData.form_data || {};
-
       const now = new Date().toISOString();
 
       const updatedStep9 = {
@@ -85,12 +82,10 @@ function AdminStep9Page() {
           current_step: 5,
           status: submit ? "submitted" : undefined,
           form_data: {
-            ...existingFormData,
             step_9: updatedStep9,
             step_11: {
-              ...(existingFormData.step_11 || {}),
-              submitted: submit ? true : existingFormData.step_11?.submitted || false,
-              submitted_at: submit ? now : existingFormData.step_11?.submitted_at || "",
+              submitted: submit ? true : undefined,
+              submitted_at: submit ? now : undefined,
             },
           },
         }),

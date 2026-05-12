@@ -386,16 +386,7 @@ export function NotificationProvider({ children }) {
       setError("");
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
-      const detailList = await Promise.all(
-        list.map(async (app) => {
-          try {
-            return await apiRequest(`/applications/${app.id}/`);
-          } catch {
-            return app;
-          }
-        })
-      );
-      setNotifications(buildNotifications(detailList, user));
+      setNotifications(buildNotifications(list, user));
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
       setError(err.message || "Unable to load notifications.");

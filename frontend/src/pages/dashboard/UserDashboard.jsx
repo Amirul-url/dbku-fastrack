@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
-import { apiRequest } from "../../services/api";
+import {
+  apiRequest,
+  uploadApplicationDocument,
+} from "../../services/api";
 import {
   Alert,
   Button,
@@ -86,11 +89,11 @@ function UserDashboard() {
   }, [fetchApplications]);
 
   useEffect(() => {
-    if (selectedId) {
+    if (selectedId && activeTab !== "applications") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApplicationDetails(selectedId);
     }
-  }, [fetchApplicationDetails, selectedId]);
+  }, [activeTab, fetchApplicationDetails, selectedId]);
 
   const stats = useMemo(() => {
     const total = applications.length;
@@ -149,7 +152,7 @@ function UserDashboard() {
       setSaving(true);
       setMessage({ type: "", text: "" });
 
-      const current = await apiRequest(`/applications/${selectedApplication.id}/`);
+      const current = selectedApplication;
       const currentPayment = current.form_data?.payment || {};
       const receiptWasRejected =
         currentPayment.status === "Receipt Rejected" ||
@@ -202,7 +205,16 @@ function UserDashboard() {
     if (!file) return;
 
     try {
-      const receipt = await readFileAsDataUrl(file);
+      if (!activeApplication?.id) {
+        setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
+        return;
+      }
+
+      const receipt = await uploadApplicationDocument(
+        activeApplication.id,
+        "Payment Receipt",
+        file
+      );
       setPaymentReceipt(receipt);
       setMessage({ type: "", text: "" });
     } catch (err) {
@@ -434,13 +446,13 @@ function UserDashboard() {
                             />
                           </label>
                         </Field>
-                        {paymentReceipt?.dataUrl && (
+                        {(paymentReceipt?.url || paymentReceipt?.file_url || paymentReceipt?.dataUrl) && (
                           <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
                             <span className="truncate font-medium text-slate-700">
                               {paymentReceipt.name}
                             </span>
                             <a
-                              href={paymentReceipt.dataUrl}
+                              href={paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl}
                               target="_blank"
                               rel="noreferrer"
                               className="shrink-0 font-semibold text-emerald-700 hover:underline"
@@ -539,25 +551,6 @@ function UserDashboard() {
       </Panel>
     </UserDashboardLayout>
   );
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      resolve({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-        dataUrl: reader.result,
-      });
-    };
-
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 function DashboardTabs({ tabs, activeTab, onChange }) {

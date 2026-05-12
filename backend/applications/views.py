@@ -24,9 +24,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if user.role in ["admin", "staff"]:
-            return Application.objects.all().order_by("-updated_at")
+            queryset = Application.objects.all()
+        else:
+            queryset = Application.objects.filter(applicant=user)
 
-        return Application.objects.filter(applicant=user).order_by("-updated_at")
+        queryset = queryset.select_related("applicant").order_by("-updated_at")
+
+        if self.action == "list":
+            return queryset.defer("form_data")
+
+        return queryset.prefetch_related("supporting_documents")
 
     def perform_create(self, serializer):
         serializer.save(applicant=self.request.user)

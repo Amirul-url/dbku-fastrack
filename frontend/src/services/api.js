@@ -147,7 +147,7 @@ export async function apiRequest(path, options = {}) {
     response = await makeRequest(newAccessToken);
   }
 
-  let data = {};
+  let data;
 
   try {
     data = await response.json();
@@ -172,4 +172,29 @@ export async function apiRequest(path, options = {}) {
   }
 
   return data;
+}
+
+export async function uploadApplicationDocument(applicationId, title, file) {
+  const body = new FormData();
+  body.append("title", title || file.name || "Document");
+  body.append("file", file);
+
+  const document = await apiRequest(
+    `/applications/${applicationId}/upload_document/`,
+    {
+      method: "POST",
+      body,
+    }
+  );
+
+  return {
+    document_id: document.id,
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: file.lastModified,
+    url: document.file_url || document.file,
+    file: document.file,
+    uploaded_at: document.uploaded_at,
+  };
 }

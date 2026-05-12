@@ -2,6 +2,40 @@ from rest_framework import serializers
 from .models import Application, SupportingDocument
 
 
+def strip_inline_file_data(value):
+    if isinstance(value, dict):
+        cleaned = {}
+
+        for key, item in value.items():
+            if key in ["dataUrl", "site_image_preview"] and isinstance(item, str):
+                cleaned[key] = "" if item.startswith("data:") else item
+                continue
+
+            cleaned[key] = strip_inline_file_data(item)
+
+        return cleaned
+
+    if isinstance(value, list):
+        return [strip_inline_file_data(item) for item in value]
+
+    if isinstance(value, str) and value.startswith("data:"):
+        return ""
+
+    return value
+
+
+def merge_dicts(current, updates):
+    merged = dict(current or {})
+
+    for key, value in (updates or {}).items():
+        if isinstance(merged.get(key), dict) and isinstance(value, dict):
+            merged[key] = merge_dicts(merged[key], value)
+        else:
+            merged[key] = value
+
+    return merged
+
+
 class SupportingDocumentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
 
@@ -31,7 +65,6 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     application_type_label = serializers.SerializerMethodField()
-    project_location = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -59,29 +92,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         ]
 
     def get_application_type_label(self, obj):
-        step1 = (obj.form_data or {}).get("step_1", {})
-
-        return (
-            step1.get("application_type_label")
-            or step1.get("application_type")
-            or obj.get_application_type_display()
-        )
-
-    def get_project_location(self, obj):
-        form_data = obj.form_data or {}
-        step1 = form_data.get("step_1", {})
-        step4 = form_data.get("step_4", {})
-
-        return (
-            step1.get("locality_address")
-            or step1.get("map_address")
-            or step1.get("site_address")
-            or step1.get("address")
-            or step1.get("selected_address")
-            or step4.get("land_location")
-            or step4.get("location")
-            or ""
-        )
+        return obj.get_application_type_display()
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):
@@ -103,6 +114,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant",
             "applicant_username",
             "application_type",
+            "project_location",
             "title",
             "status",
             "current_step",
@@ -116,7 +128,58 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "reference_no",
             "applicant",
             "applicant_username",
+            "project_location",
             "supporting_documents",
             "created_at",
             "updated_at",
         ]
+
+    def create(self, validated_data):
+        instance = Application(**validated_data)
+        sync_application_summary(instance)
+        instance.save()
+        return instance
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["form_data"] = strip_inline_file_data(data.get("form_data") or {})
+        return data
+
+    def update(self, instance, validated_data):
+        next_form_data = validated_data.pop("form_data", None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if next_form_data is not None:
+            instance.form_data = merge_dicts(instance.form_data, next_form_data)
+            sync_application_summary(instance)
+
+        instance.save()
+        return instance
+
+
+def get_project_location_from_form_data(form_data):
+    step1 = (form_data or {}).get("step_1", {})
+    step4 = (form_data or {}).get("step_4", {})
+
+    return (
+        step1.get("locality_address")
+        or step1.get("map_address")
+        or step1.get("site_address")
+        or step1.get("address")
+        or step1.get("selected_address")
+        or step4.get("land_location")
+        or step4.get("location")
+        or ""
+    )
+
+
+def sync_application_summary(instance):
+    form_data = instance.form_data or {}
+    step1 = form_data.get("step_1", {})
+
+    if not instance.title and step1.get("project_name"):
+        instance.title = step1.get("project_name")
+
+    instance.project_location = get_project_location_from_form_data(form_data)[:500]

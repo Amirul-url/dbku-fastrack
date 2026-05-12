@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import AdminDashboardLayout from "../../../../layout/AdminDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { apiRequest } from "../../../../services/api";
+import {
+  apiRequest,
+  uploadApplicationDocument,
+} from "../../../../services/api";
 import AdminApplicationStepNav from "../AdminApplicationStepNav";
 
 const defaultDocuments = [
@@ -42,25 +45,6 @@ const defaultDocuments = [
 ];
 
 const DUMMY_LAND_VALUE = "Lot 3786 Block 207 Kuching North Land District";
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      resolve({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-        dataUrl: reader.result,
-      });
-    };
-
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
 
 function normalizeDocuments(savedDocuments, defaults) {
   if (!Array.isArray(savedDocuments) || savedDocuments.length === 0) {
@@ -161,9 +145,6 @@ function AdminStep10Page() {
     try {
       setSaving(true);
 
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-      const existingFormData = existingData.form_data || {};
-
       const updatedStep10 = {
         title: "Supporting Document",
         status: "Saved",
@@ -178,7 +159,6 @@ function AdminStep10Page() {
         body: JSON.stringify({
           current_step: goNext ? 4 : 3,
           form_data: {
-            ...existingFormData,
             step_10: updatedStep10,
           },
         }),
@@ -202,7 +182,11 @@ function AdminStep10Page() {
     if (!file) return;
 
     try {
-      const attachment = await readFileAsDataUrl(file);
+      const attachment = await uploadApplicationDocument(
+        applicationId,
+        documents[index]?.title || file.name,
+        file
+      );
 
       setDocuments((prev) =>
         prev.map((item, itemIndex) =>
@@ -219,7 +203,11 @@ function AdminStep10Page() {
     if (!file) return;
 
     try {
-      const attachment = await readFileAsDataUrl(file);
+      const attachment = await uploadApplicationDocument(
+        applicationId,
+        titleDocuments[index]?.land || "Extract of Document of Titles of the Land",
+        file
+      );
 
       setTitleDocuments((prev) =>
         prev.map((item, itemIndex) =>
@@ -236,7 +224,11 @@ function AdminStep10Page() {
     if (!file) return;
 
     try {
-      const attachment = await readFileAsDataUrl(file);
+      const attachment = await uploadApplicationDocument(
+        applicationId,
+        otherDocuments[index]?.description || "Other Relevant Supporting Documents",
+        file
+      );
 
       setOtherDocuments((prev) =>
         prev.map((item, itemIndex) =>
@@ -696,6 +688,8 @@ function FileAction({
   onFileChange,
   onRemoveFile,
 }) {
+  const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
+
   return (
     <div className="flex items-center justify-center">
       <div className="grid grid-cols-[10px_32px_32px_32px] items-center gap-2">
@@ -726,7 +720,7 @@ function FileAction({
         {attachment ? (
           <>
             <a
-              href={attachment.dataUrl}
+              href={attachmentUrl}
               download={attachment.name}
               className="inline-flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-white shadow-sm hover:bg-slate-900"
               title="Download"

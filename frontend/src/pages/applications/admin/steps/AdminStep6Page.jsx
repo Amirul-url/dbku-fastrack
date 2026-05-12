@@ -23,14 +23,11 @@ function AdminStep6Page() {
     }
 
     try {
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
           current_step: 6,
           form_data: {
-            ...(existingData.form_data || {}),
             step_6: {
               skipped: true,
               title: "Analysis of Proposal",

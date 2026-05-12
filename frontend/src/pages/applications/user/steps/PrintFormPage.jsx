@@ -72,8 +72,6 @@ function PrintFormPage({
     try {
       setSaving(true);
 
-      const existingData = await apiRequest(`/applications/${applicationId}/`);
-      const existingFormData = existingData.form_data || {};
       const now = new Date().toISOString();
 
       const updatedStep9 = {
@@ -92,10 +90,8 @@ function PrintFormPage({
           current_step: 5,
           status: submit ? "submitted" : undefined,
           form_data: {
-            ...existingFormData,
             step_9: updatedStep9,
             step_11: {
-              ...(existingFormData.step_11 || {}),
               ...step11,
               submitted: submit ? true : step11.submitted || false,
               submitted_at: submit ? now : step11.submitted_at || "",

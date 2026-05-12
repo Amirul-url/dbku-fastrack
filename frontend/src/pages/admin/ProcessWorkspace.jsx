@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest } from "../../services/api";
+import {
+  apiRequest,
+  uploadApplicationDocument,
+} from "../../services/api";
 import {
   Alert,
   ApplicationSummary,
@@ -167,7 +170,7 @@ function ProcessWorkspace({ type }) {
       setSaving(true);
       setError("");
       setSuccess("");
-      const current = await apiRequest(`/applications/${selectedRecord.id}/`);
+      const current = selectedRecord;
       const body = action.buildPayload(current, { decision, comment, technicalSite });
 
       await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -317,7 +320,15 @@ function ProcessWorkspace({ type }) {
                   onFileChange={async (files) => {
                     const fileList = Array.from(files || []);
                     if (fileList.length === 0) return;
-                    const sitePhotos = await Promise.all(fileList.map(readFileAsDataUrl));
+                    const sitePhotos = await Promise.all(
+                      fileList.map((file) =>
+                        uploadApplicationDocument(
+                          selectedRecord.id,
+                          "Technical Site Photo",
+                          file
+                        )
+                      )
+                    );
                     setTechnicalSite((prev) => ({
                       ...prev,
                       site_photos: [...(prev.site_photos || []), ...sitePhotos],
@@ -385,25 +396,6 @@ function mergeFormData(app, next) {
 
 function countBy(applications, predicate) {
   return applications.filter(predicate).length;
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      resolve({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-        dataUrl: reader.result,
-      });
-    };
-
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 function hasValue(value) {
@@ -984,9 +976,9 @@ function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {sitePhotos.map((photo, index) => (
             <div key={`${photo.name || "site-photo"}-${index}`} className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              {photo.dataUrl && (
+              {(photo.url || photo.file_url || photo.dataUrl) && (
                 <img
-                  src={photo.dataUrl}
+                  src={photo.url || photo.file_url || photo.dataUrl}
                   alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
                   className="h-32 w-full object-cover"
                 />
@@ -1050,9 +1042,9 @@ function PaymentDetails({ app, t }) {
       <Info label={t("common.amount")} value={formatCurrency(payment.amount || 250)} />
       <Info label={t("common.status")} value={payment.status || t("workspace.info.notGenerated")} />
       <Info label={t("workspace.info.receipt")} value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")} />
-      {receiptFile?.dataUrl && (
+      {(receiptFile?.url || receiptFile?.file_url || receiptFile?.dataUrl) && (
         <a
-          href={receiptFile.dataUrl}
+          href={receiptFile.url || receiptFile.file_url || receiptFile.dataUrl}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
