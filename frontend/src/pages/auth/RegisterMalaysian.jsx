@@ -350,13 +350,11 @@ function RegisterMalaysian() {
       <footer className="bg-white border-t border-slate-200 py-8 px-6">
         <div className="max-w-4xl mx-auto flex justify-between gap-4 text-sm text-slate-500">
           <div>
-            <p className="font-bold text-slate-700">fasTrack DBKU Portal</p>
-            <p>© 2026 Sarawak Government. All Rights Reserved.</p>
+            <p className="font-bold text-slate-700">DBKU fasTrack</p>
+            <p>© 2026 Advertisement License Application. All Rights Reserved.</p>
           </div>
 
           <div className="flex gap-4">
-            <a href="#">{t("auth.privacy")}</a>
-            <a href="#">{t("auth.termsService")}</a>
             <a href="#">{t("auth.faq")}</a>
             <a href="#">{t("auth.contactUs")}</a>
           </div>
