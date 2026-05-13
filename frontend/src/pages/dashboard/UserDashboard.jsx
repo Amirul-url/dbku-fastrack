@@ -375,6 +375,7 @@ function UserDashboard() {
                     title={t("applicant.correctionTitle")}
                     status={normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.correctionRequired") : t("applicant.noCorrectionRequest")}
                     tone={normalizeStatus(activeApplication.status) === "incomplete" ? "amber" : "slate"}
+                    details={getCorrectionDetails(activeApplication, t)}
                     action={
                       normalizeStatus(activeApplication.status) === "incomplete" ? (
                         <Button variant="primary" onClick={() => openApplication(activeApplication)}>
@@ -756,6 +757,37 @@ function getDecisionDetails(app, t) {
   return [
     [t("common.decision"), t("decision.pending")],
     [t("common.currentPhase"), translatedStatus(t, app?.status)],
+    [t("common.updated"), formatDate(app?.updated_at)],
+  ];
+}
+
+function getLatestRemark(app) {
+  const summaryRemark = cleanRemark(app?.latest_remark);
+  if (summaryRemark) return summaryRemark;
+
+  const form = app?.form_data || {};
+  return cleanRemark(
+    form.correction_request?.remarks ||
+    form.auto_screening?.remarks ||
+    form.technical_review?.comment ||
+    form.technical_review?.remarks ||
+    form.approval?.notes ||
+    form.approval?.comment ||
+    form.payment?.verification_notes ||
+    ""
+  );
+}
+
+function cleanRemark(value) {
+  const remark = String(value || "").trim();
+  return ["", "-", "[]"].includes(remark) ? "" : remark;
+}
+
+function getCorrectionDetails(app, t) {
+  if (normalizeStatus(app?.status) !== "incomplete") return [];
+
+  return [
+    [t("common.remark"), getLatestRemark(app) || t("decision.referNotice")],
     [t("common.updated"), formatDate(app?.updated_at)],
   ];
 }

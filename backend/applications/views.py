@@ -8,6 +8,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     SupportingDocumentSerializer,
 )
+from notifications.services import notify_application_status_change
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -37,6 +38,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(applicant=self.request.user)
+
+    def perform_update(self, serializer):
+        old_status = serializer.instance.status
+        old_remark = serializer.instance.latest_remark
+        application = serializer.save()
+        notify_application_status_change(application, old_status, old_remark)
 
     @action(detail=True, methods=["post"])
     def upload_document(self, request, pk=None):
@@ -74,9 +81,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        old_status = application.status
+        old_remark = application.latest_remark
         application.status = "submitted"
         application.current_step = max(application.current_step, 11)
         application.save()
+        notify_application_status_change(application, old_status, old_remark)
 
         return Response(
             {
@@ -100,8 +110,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        old_status = application.status
+        old_remark = application.latest_remark
         application.status = "approved"
         application.save()
+        notify_application_status_change(application, old_status, old_remark)
 
         return Response(
             {
@@ -125,8 +138,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        old_status = application.status
+        old_remark = application.latest_remark
         application.status = "rejected"
         application.save()
+        notify_application_status_change(application, old_status, old_remark)
 
         return Response(
             {

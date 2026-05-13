@@ -18,7 +18,7 @@ import {
 
 const NotificationContext = createContext();
 const READ_STORAGE_KEY = "fastrack_notification_read_ids";
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = 5000;
 
 function readStoredIds() {
   try {
@@ -34,8 +34,11 @@ function saveStoredIds(ids) {
 }
 
 function getLatestRemark(app) {
+  const summaryRemark = cleanRemark(app?.latest_remark);
+  if (summaryRemark) return summaryRemark;
+
   const form = app?.form_data || {};
-  return (
+  return cleanRemark(
     form.correction_request?.remarks ||
     form.auto_screening?.remarks ||
     form.technical_review?.comment ||
@@ -43,6 +46,11 @@ function getLatestRemark(app) {
     form.payment?.receipt_reference ||
     ""
   );
+}
+
+function cleanRemark(value) {
+  const remark = String(value || "").trim();
+  return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
 function getNotificationUrl(role, app, category) {
@@ -64,9 +72,11 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
   const status = normalizeStatus(app.status);
   const reference = getApplicationReference(app);
   const updatedAt = app.updated_at || app.created_at || new Date().toISOString();
+  const remark = getLatestRemark(app);
+  const remarkKey = remark ? `:${remark}` : "";
 
   return {
-    id: `${role}:${app.id}:${status}:${category}:${updatedAt}`,
+    id: `${role}:${app.id}:${status}:${category}:${updatedAt}${remarkKey}`,
     appId: app.id,
     reference,
     project: getProjectName(app),
@@ -363,6 +373,60 @@ function buildNotifications(applications, user) {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
+function getTitleFromSubject(subject) {
+  return String(subject || "")
+    .replace(/^DBKU fasTrack\s*[-:]\s*/i, "")
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .trim();
+}
+
+function getMessageSummary(message) {
+  const lines = String(message || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const skipPrefixes = ["DBKU fasTrack", "Reference:", "Status:", "Project:", "Open:"];
+  return lines.find((line) => !skipPrefixes.some((prefix) => line.startsWith(prefix))) || "";
+}
+
+function buildNotificationsFromDeliveries(deliveries, user) {
+  const role = getNormalizedRole(user);
+
+  return deliveries
+    .map((delivery) => {
+      const metadata = delivery.metadata || {};
+      const category = metadata.category || "progress";
+      const type = metadata.type || "info";
+      const title = metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject);
+      const message = metadata.message_en || metadata.message || getMessageSummary(delivery.message);
+      const status = normalizeStatus(delivery.status);
+      const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
+
+      return {
+        id: `web:${delivery.id}`,
+        serverId: delivery.id,
+        appId: delivery.application_id,
+        reference: delivery.reference_no || "-",
+        project: delivery.project || "-",
+        status,
+        statusLabel: formatWorkflowStatus(status),
+        category,
+        type,
+        title,
+        titleEn: title,
+        titleMs: metadata.title_ms || title,
+        message,
+        messageEn: message,
+        messageMs: metadata.message_ms || message,
+        time: formatDate(timestamp),
+        timestamp,
+        actionUrl: getNotificationUrl(role, { id: delivery.application_id }, category),
+        read: Boolean(delivery.read_at),
+      };
+    })
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [readIds, setReadIds] = useState(readStoredIds);
@@ -384,12 +448,27 @@ export function NotificationProvider({ children }) {
     try {
       setLoading(true);
       setError("");
-      const data = await apiRequest("/applications/");
+      const data = await apiRequest("/notifications/");
       const list = Array.isArray(data) ? data : data?.results || [];
-      setNotifications(buildNotifications(list, user));
+      if (list.length > 0) {
+        setNotifications(buildNotificationsFromDeliveries(list, user));
+      } else {
+        const fallbackData = await apiRequest("/applications/");
+        const fallbackList = Array.isArray(fallbackData)
+          ? fallbackData
+          : fallbackData?.results || [];
+        setNotifications(buildNotifications(fallbackList, user));
+      }
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
-      setError(err.message || "Unable to load notifications.");
+      try {
+        const data = await apiRequest("/applications/");
+        const list = Array.isArray(data) ? data : data?.results || [];
+        setNotifications(buildNotifications(list, user));
+        setLastSyncedAt(new Date().toISOString());
+      } catch {
+        setError(err.message || "Unable to load notifications.");
+      }
     } finally {
       setLoading(false);
     }
@@ -401,30 +480,47 @@ export function NotificationProvider({ children }) {
     const handleRefresh = () => refreshNotifications();
 
     window.addEventListener("focus", handleRefresh);
+    window.addEventListener("visibilitychange", handleRefresh);
     window.addEventListener("fastrack:auth-changed", handleRefresh);
     window.addEventListener("fastrack:applications-changed", handleRefresh);
 
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("visibilitychange", handleRefresh);
       window.removeEventListener("fastrack:auth-changed", handleRefresh);
       window.removeEventListener("fastrack:applications-changed", handleRefresh);
     };
   }, [refreshNotifications]);
 
   function markAsRead(id) {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read: true } : item))
+    );
     setReadIds((prev) => {
       const next = [...new Set([...prev, id])];
       saveStoredIds(next);
       return next;
     });
+
+    if (String(id).startsWith("web:")) {
+      const serverId = String(id).replace("web:", "");
+      apiRequest(`/notifications/${serverId}/mark_read/`, { method: "POST" }).catch(() => {
+        refreshNotifications();
+      });
+    }
   }
 
   function markAllAsRead() {
+    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
     setReadIds((prev) => {
       const next = [...new Set([...prev, ...notifications.map((item) => item.id)])];
       saveStoredIds(next);
       return next;
+    });
+
+    apiRequest("/notifications/mark_all_read/", { method: "POST" }).catch(() => {
+      refreshNotifications();
     });
   }
 

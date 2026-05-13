@@ -151,7 +151,12 @@ function ProcessWorkspace({ type }) {
       return;
     }
 
-    if (action.requiresComment && !comment.trim()) {
+    const cleanedComment = cleanRemark(comment);
+    const requiresDecisionRemark =
+      config.showComment &&
+      /reject|amendment|condition/i.test(String(decision || ""));
+
+    if ((action.requiresComment || requiresDecisionRemark) && !cleanedComment) {
       setError("Please enter notes or comments first.");
       return;
     }
@@ -171,7 +176,11 @@ function ProcessWorkspace({ type }) {
       setError("");
       setSuccess("");
       const current = selectedRecord;
-      const body = action.buildPayload(current, { decision, comment, technicalSite });
+      const body = action.buildPayload(current, {
+        decision,
+        comment: cleanedComment,
+        technicalSite,
+      });
 
       await apiRequest(`/applications/${selectedRecord.id}/`, {
         method: "PATCH",
@@ -401,6 +410,11 @@ function countBy(applications, predicate) {
 function hasValue(value) {
   if (value === null || value === undefined) return false;
   return String(value).trim().length > 0;
+}
+
+function cleanRemark(value) {
+  const remark = String(value || "").trim();
+  return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
 function hasAttachment(row) {

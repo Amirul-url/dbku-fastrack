@@ -50,6 +50,7 @@ class Application(models.Model):
 
     title = models.CharField(max_length=255, blank=True)
     project_location = models.CharField(max_length=500, blank=True)
+    latest_remark = models.TextField(blank=True)
 
     status = models.CharField(
         max_length=30,

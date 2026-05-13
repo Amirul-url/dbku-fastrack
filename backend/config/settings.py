@@ -118,6 +118,37 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Outbound notifications
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "")
+
+NOTIFICATION_EMAIL_ENABLED = os.getenv("NOTIFICATION_EMAIL_ENABLED", "False") == "True"
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+BREVO_FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", DEFAULT_FROM_EMAIL)
+BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "DBKU fasTrack")
+NOTIFICATION_EMAIL_REDIRECT_TO = os.getenv("NOTIFICATION_EMAIL_REDIRECT_TO", "")
+NOTIFICATION_ADMIN_EMAILS = [
+    value.strip()
+    for value in os.getenv("NOTIFICATION_ADMIN_EMAILS", "").split(",")
+    if value.strip()
+]
+
+WHATSAPP_ENABLED = os.getenv("WHATSAPP_ENABLED", "False") == "True"
+WHATSAPP_PROVIDER = os.getenv("WHATSAPP_PROVIDER", "webhook").strip().lower()
+WHATSAPP_WEBHOOK_URL = os.getenv("WHATSAPP_WEBHOOK_URL", "")
+WHATSAPP_WEBHOOK_TOKEN = os.getenv("WHATSAPP_WEBHOOK_TOKEN", "")
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "").rstrip("/")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE_NAME = os.getenv("EVOLUTION_INSTANCE_NAME", "")
+WHATSAPP_META_PHONE_NUMBER_ID = os.getenv("WHATSAPP_META_PHONE_NUMBER_ID", "")
+WHATSAPP_META_ACCESS_TOKEN = os.getenv("WHATSAPP_META_ACCESS_TOKEN", "")
+NOTIFICATION_ADMIN_WHATSAPP_NUMBERS = [
+    value.strip()
+    for value in os.getenv("NOTIFICATION_ADMIN_WHATSAPP_NUMBERS", "").split(",")
+    if value.strip()
+]
+
 # Default PK
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'accounts.User'

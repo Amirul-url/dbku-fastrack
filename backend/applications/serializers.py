@@ -78,6 +78,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "project_location",
             "title",
             "status",
+            "latest_remark",
             "current_step",
             "created_at",
             "updated_at",
@@ -117,6 +118,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "project_location",
             "title",
             "status",
+            "latest_remark",
             "current_step",
             "form_data",
             "supporting_documents",
@@ -183,3 +185,37 @@ def sync_application_summary(instance):
         instance.title = step1.get("project_name")
 
     instance.project_location = get_project_location_from_form_data(form_data)[:500]
+    instance.latest_remark = get_latest_remark_from_form_data(form_data)
+
+
+def get_latest_remark_from_form_data(form_data):
+    form_data = form_data or {}
+
+    def section(name):
+        value = form_data.get(name) or {}
+        return value if isinstance(value, dict) else {}
+
+    candidates = [
+        section("correction_request").get("remarks"),
+        section("auto_screening").get("remarks"),
+        section("technical_review").get("comment"),
+        section("technical_review").get("remarks"),
+        section("approval").get("notes"),
+        section("approval").get("comment"),
+        section("payment").get("verification_notes"),
+    ]
+
+    for value in candidates:
+        remark = clean_remark(value)
+        if remark:
+            return remark
+
+    return ""
+
+
+def clean_remark(value):
+    remark = str(value or "").strip()
+    if remark in {"", "-", "[]"}:
+        return ""
+
+    return remark

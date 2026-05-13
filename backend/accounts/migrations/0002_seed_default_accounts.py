@@ -18,7 +18,7 @@ def seed_default_accounts(apps, schema_editor):
         {
             "username": "admin",
             "password": ADMIN_PASSWORD_HASH,
-            "email": "admin@dbku.local",
+            "email": "",
             "first_name": "System",
             "last_name": "Administrator",
             "role": "admin",
@@ -29,7 +29,7 @@ def seed_default_accounts(apps, schema_editor):
         {
             "username": "applicant",
             "password": APPLICANT_PASSWORD_HASH,
-            "email": "applicant@dbku.local",
+            "email": "",
             "first_name": "Demo",
             "last_name": "Applicant",
             "role": "applicant",
