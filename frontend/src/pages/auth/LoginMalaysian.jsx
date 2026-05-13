@@ -3,6 +3,7 @@ import AuthLayout from "../../layout/AuthLayout";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
+import SocialShare from "../../components/SocialShare";
 
 function LoginMalaysian() {
   const navigate = useNavigate();
@@ -44,133 +45,147 @@ function LoginMalaysian() {
     }
   };
 
-  const handleReset = () => {
-    setUsername("");
-    setPassword("");
-    setRememberMe(false);
-    setError("");
-  };
-
   return (
     <AuthLayout>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-[#1a1c1c]">{t("auth.loginTitle")}</h2>
-        <p className="text-base text-[#3d4a3d] mt-2">
-          {t("auth.loginDescription")}
-        </p>
-      </div>
+      <div className="w-full max-w-[410px]">
+        <h2 className="text-center text-[56px] font-bold leading-tight text-[#006d32]">
+          Welcome
+        </h2>
 
-      <div className="flex border-b border-[#bbcbba] mb-5">
-        <Link
-          to="/login/malaysian"
-          className="px-3 py-2.5 text-sm font-semibold border-b-2 border-[#006d32] text-[#006d32]"
-        >
-          {t("auth.malaysian")}
-        </Link>
+        {error && (
+          <div className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
-        <Link
-          to="/login/non-malaysian"
-          className="px-3 py-2.5 text-sm font-semibold border-b-2 border-transparent text-[#6c7b6c]"
-        >
-          {t("auth.nonMalaysian")}
-        </Link>
-      </div>
-
-      {error && (
-        <div className="mb-5 rounded border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <form className="space-y-4" onSubmit={handleLogin}>
-        <div>
-          <label className="block text-sm font-semibold text-[#3d4a3d] mb-1">
-            {t("auth.icNumber")}
-          </label>
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6c7b6c]">
-              badge
-            </span>
+        <form className="mt-8 space-y-4" onSubmit={handleLogin}>
+          <label className="relative block">
+            <svg
+              aria-hidden="true"
+              className="absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="4" y="5" width="16" height="14" rx="2" />
+              <path d="M9 9h6" />
+              <path d="M9 13h3" />
+              <path d="M8 5V3h8v2" />
+            </svg>
             <input
               type="text"
-              placeholder="000000-00-0000"
+              placeholder={t("auth.icNumber")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
+              className="h-[52px] w-full rounded-full border border-slate-300 bg-white pl-14 pr-5 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#006d32] focus:ring-2 focus:ring-[#006d32]/20"
             />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-[#3d4a3d] mb-1">
-            {t("auth.password")}
           </label>
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#6c7b6c]">
-              lock
-            </span>
+
+          <label className="relative block">
+            <svg
+              aria-hidden="true"
+              className="absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="5" y="10" width="14" height="10" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
+              placeholder={t("auth.password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 bg-[#f3f3f4] border border-[#bbcbba] rounded focus:ring-2 focus:ring-[#006d32] focus:border-[#006d32] outline-none"
+              className="h-[52px] w-full rounded-full border border-slate-300 bg-white pl-14 pr-14 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#006d32] focus:ring-2 focus:ring-[#006d32]/20"
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#6c7b6c]"
+              className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#006d32]"
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? "visibility_off" : "visibility"}
+              {showPassword ? (
+                <svg
+                  aria-hidden="true"
+                  className="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 3l18 18" />
+                  <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                  <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 5 9 8a9.6 9.6 0 0 1-2 3.8" />
+                  <path d="M6.1 6.1C4.2 7.5 3 9.9 3 12c0 3 4 8 9 8 1.1 0 2.2-.2 3.1-.6" />
+                </svg>
+              ) : (
+                <svg
+                  aria-hidden="true"
+                  className="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              )}
             </button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 text-[#006d32] border-[#bbcbba] rounded"
-            />
-            <span className="text-sm text-[#3d4a3d]">{t("auth.rememberMe")}</span>
           </label>
 
-          <a href="#" className="text-sm text-[#006d32] font-semibold hover:underline">
-            {t("auth.forgotPassword")}
-          </a>
-        </div>
+          <div className="flex items-center justify-between pt-1 text-sm text-slate-600">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-[#006d32]"
+              />
+              <span>{t("auth.rememberMe")}</span>
+            </label>
 
-        <div className="grid grid-cols-2 gap-4 pt-2">
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={loading}
-            className="py-2.5 px-3 border border-[#006d32] text-[#006d32] text-sm font-semibold rounded hover:bg-[#eeeeee] disabled:opacity-60"
-          >
-            {t("common.reset")}
-          </button>
+            <a
+              href="#"
+              className="font-semibold text-[#006d32] hover:text-[#004f24]"
+              style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}
+            >
+              {t("auth.forgotPassword")}
+            </a>
+          </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="py-2.5 px-3 bg-[#006d32] text-white text-sm font-semibold rounded hover:bg-[#005224] disabled:opacity-60"
+            className="mt-6 h-[52px] w-full rounded-full bg-[#006d32] px-5 text-base font-semibold text-white shadow-lg shadow-emerald-900/20 transition hover:bg-[#005224] disabled:opacity-60"
           >
             {loading ? t("common.signingIn") : t("common.signIn")}
           </button>
-        </div>
-      </form>
+        </form>
 
-      <p className="text-center mt-12 text-sm text-[#3d4a3d]">
-        {t("auth.noAccount")}{" "}
-        <Link
-          to="/register/malaysian"
-          className="text-[#006d32] font-bold hover:underline"
-        >
-          {t("common.registerNow")}
-        </Link>
-      </p>
+        <p className="mt-7 text-center text-sm text-slate-500">
+          {t("auth.noAccount")}{" "}
+          <Link
+            to="/register/malaysian"
+            className="font-semibold text-[#006d32] hover:text-[#004f24]"
+            style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}
+          >
+            {t("common.registerNow")}
+          </Link>
+        </p>
+        <SocialShare />
+      </div>
     </AuthLayout>
   );
 }

@@ -8,9 +8,7 @@ import {
 
 /* AUTH */
 import LoginMalaysian from "./pages/auth/LoginMalaysian";
-import LoginNonMalaysian from "./pages/auth/LoginNonMalaysian";
 import RegisterMalaysian from "./pages/auth/RegisterMalaysian";
-import RegisterNonMalaysian from "./pages/auth/RegisterNonMalaysian";
 
 /* HOME */
 import AdminHomePage from "./pages/home/admin/AdminHomePage";
@@ -145,12 +143,7 @@ function App() {
         {/* AUTH */}
         <Route path="/" element={<LoginMalaysian />} />
         <Route path="/login/malaysian" element={<LoginMalaysian />} />
-        <Route path="/login/non-malaysian" element={<LoginNonMalaysian />} />
         <Route path="/register/malaysian" element={<RegisterMalaysian />} />
-        <Route
-          path="/register/non-malaysian"
-          element={<RegisterNonMalaysian />}
-        />
 
         {/* ADMIN HOME */}
         <Route

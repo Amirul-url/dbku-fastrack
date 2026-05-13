@@ -44,7 +44,7 @@ function AdminApplicationStepNav({ active = 1 }) {
 
   return (
     <aside
-      className={`hidden md:block sticky top-20 h-[calc(100vh-96px)] shrink-0 transition-all duration-300 ${
+      className={`sticky top-20 h-[calc(100vh-96px)] shrink-0 transition-all duration-300 ${
         open ? "w-[230px]" : "w-[48px]"
       }`}
     >

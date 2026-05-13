@@ -3,9 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo-dbku.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=block" rel="stylesheet">
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var fontFace = "24px 'Material Symbols Outlined'";
+
+        function markReady() {
+          root.classList.add("material-symbols-ready");
+        }
+
+        if (!document.fonts || !document.fonts.load) {
+          markReady();
+          return;
+        }
+
+        function loadIconFont() {
+          if (document.fonts.check(fontFace)) {
+            markReady();
+            return;
+          }
+
+          document.fonts.load(fontFace).then(function () {
+            if (document.fonts.check(fontFace)) {
+              markReady();
+            }
+          });
+        }
+
+        loadIconFont();
+        document.fonts.ready.then(loadIconFont);
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DBKU fasTrack</title>
   </head>

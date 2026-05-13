@@ -14,7 +14,7 @@ export function PageHeader({
   actions,
 }) {
   return (
-    <div className="mb-5 flex flex-col gap-3 border-b border-slate-200 pb-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mb-5 flex items-end justify-between gap-3 border-b border-slate-200 pb-4">
       <div className="min-w-0">
         {eyebrow && (
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -96,7 +96,7 @@ export function Panel({ title, description, action, children, className = "" }) 
   return (
     <section className={`rounded-md border border-slate-200 bg-white ${className}`}>
       {(title || description || action) && (
-        <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
           <div>
             {title && (
               <h2 className="text-base font-semibold text-slate-950">{title}</h2>
@@ -280,7 +280,7 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
+    <div className="grid grid-cols-7 gap-2">
       {AD_LICENSE_FLOW.map((step, index) => {
         const active = index <= currentIndex;
 
@@ -315,7 +315,7 @@ export function ApplicationSummary({ app, labels = {} }) {
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3.5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             {labels.selectedApplication || "Selected Application"}
@@ -329,7 +329,7 @@ export function ApplicationSummary({ app, labels = {} }) {
         </div>
         <StatusPill value={formatWorkflowStatus(app.status)} />
       </div>
-      <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
         <Info label={labels.created || "Created"} value={formatDate(app.created_at)} />
         <Info label={labels.updated || "Updated"} value={formatDate(app.updated_at)} />
         <Info label={labels.step || "Step"} value={`${currentStep} / 5`} />

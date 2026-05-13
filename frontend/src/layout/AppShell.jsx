@@ -32,8 +32,8 @@ function AppShell({ children, role = "admin" }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 border-r border-slate-200 bg-white lg:flex lg:flex-col">
+    <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-slate-200 bg-white">
         <div className="flex h-14 items-center gap-3 border-b border-slate-200 px-4">
           <img src={logo} alt="fasTrack Logo" className="h-8 w-auto object-contain" />
           <div className="min-w-0">
@@ -87,9 +87,9 @@ function AppShell({ children, role = "admin" }) {
         </div>
       </aside>
 
-      <div className="lg:pl-60">
+      <div className="pl-60">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-5">
+          <div className="flex h-14 items-center justify-between gap-4 px-6">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                 {role === "admin" ? t("role.officerPortal") : t("role.applicantPortal")}
@@ -113,35 +113,11 @@ function AppShell({ children, role = "admin" }) {
                   <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-600" />
                 )}
               </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex h-10 w-10 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 lg:hidden"
-                aria-label={t("common.logout")}
-              >
-                <span className="material-symbols-outlined text-[21px]">logout</span>
-              </button>
             </div>
           </div>
-
-          <nav className="flex gap-1 overflow-x-auto border-t border-slate-100 px-4 py-2 lg:hidden">
-            {nav.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`whitespace-nowrap rounded-md px-3 py-2 text-xs font-semibold ${
-                  location.pathname === item.path
-                    ? "bg-emerald-50 text-emerald-800"
-                    : "text-slate-600"
-                }`}
-              >
-                {t(item.labelKey, item.fallback)}
-              </Link>
-            ))}
-          </nav>
         </header>
 
-        <main className="mx-auto max-w-[1680px] px-4 py-5 sm:px-5 lg:px-6">{children}</main>
+        <main className="mx-auto max-w-[1680px] px-6 py-5">{children}</main>
       </div>
     </div>
   );

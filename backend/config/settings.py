@@ -30,10 +30,7 @@ INSTALLED_APPS = [
     # Local apps
     'accounts',
     'applications',
-    'documents',
-    'payments',
     'notifications',
-    'reports',
 ]
 
 # Middleware

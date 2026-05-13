@@ -18,6 +18,7 @@
 html {
   scroll-behavior: smooth;
   font-size: 14px;
+  min-width: 1280px;
 }
 
 body {
@@ -28,6 +29,12 @@ body {
   font-size: 13px;
   line-height: 1.45;
   text-rendering: geometricPrecision;
+  min-width: 1280px;
+  overflow-x: auto;
+}
+
+#root {
+  min-width: 1280px;
 }
 
 button,
@@ -42,11 +49,37 @@ button {
 }
 
 .material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1em;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  visibility: hidden;
   font-variation-settings:
     "FILL" 0,
     "wght" 400,
     "GRAD" 0,
     "opsz" 24;
+}
+
+html:not(.material-symbols-ready) .material-symbols-outlined {
+  max-width: 1em;
+  overflow: hidden;
+}
+
+html.material-symbols-ready .material-symbols-outlined {
+  visibility: visible;
 }
 
 /* Shared form style */

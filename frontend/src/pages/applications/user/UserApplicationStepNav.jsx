@@ -63,11 +63,9 @@ function UserApplicationStepNav({ active }) {
     }
   }, [applicationId, location.pathname]);
 
-  function renderStep(step, mobile = false) {
+  function renderStep(step) {
     const isActive = active === step.no;
-    const baseClass = mobile
-      ? "flex items-center gap-2 px-3 py-2.5 border-b text-xs"
-      : "flex items-start gap-2 px-3 py-2.5 border-b text-xs transition";
+    const baseClass = "flex items-start gap-2 px-3 py-2.5 border-b text-xs transition";
     const stateClass = isActive
       ? "bg-[#006d32] text-white font-semibold"
       : step.disabled
@@ -76,17 +74,13 @@ function UserApplicationStepNav({ active }) {
     const content = (
       <>
         <span
-          className={
-            mobile
-              ? ""
-              : `w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
-                  isActive
-                    ? "bg-white text-[#006d32]"
-                    : "bg-slate-100 text-slate-500"
-                }`
-          }
+          className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+            isActive
+              ? "bg-white text-[#006d32]"
+              : "bg-slate-100 text-slate-500"
+          }`}
         >
-          {mobile ? `${step.no}.` : step.no}
+          {step.no}
         </span>
         <span className="leading-snug">{step.label}</span>
         {step.disabled && (
@@ -121,7 +115,7 @@ function UserApplicationStepNav({ active }) {
   return (
     <>
       <aside
-        className={`hidden md:block sticky top-20 h-[calc(100vh-96px)] shrink-0 transition-all duration-300 ${
+        className={`sticky top-20 h-[calc(100vh-96px)] shrink-0 transition-all duration-300 ${
           open ? "w-[230px]" : "w-[48px]"
         }`}
       >
@@ -175,24 +169,6 @@ function UserApplicationStepNav({ active }) {
         </div>
       </aside>
 
-      <div className="md:hidden mb-4">
-        <button
-          type="button"
-          onClick={() => setOpen((current) => !current)}
-          className="w-full flex items-center justify-between bg-[#006d32] text-white px-4 py-3 rounded text-sm font-semibold"
-        >
-          <span>{t("steps.applicationSteps")}</span>
-          <span className="material-symbols-outlined text-[20px]">
-            {open ? "expand_less" : "expand_more"}
-          </span>
-        </button>
-
-        {open && (
-          <div className="mt-2 bg-white border border-slate-200 rounded-md overflow-hidden">
-            {steps.map((step) => renderStep(step, true))}
-          </div>
-        )}
-      </div>
     </>
   );
 }

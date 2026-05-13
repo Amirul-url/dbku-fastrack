@@ -10,43 +10,54 @@ function AuthLayout({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
+    <div className="h-screen min-w-[1280px] overflow-hidden bg-slate-50 text-slate-950">
       <TopBar />
-      <main className="mx-auto grid min-h-[calc(100vh-56px)] w-full max-w-6xl grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[1fr_420px] lg:items-center lg:px-6">
-        <section className="hidden lg:block">
-          <div className="max-w-xl">
-            <div className="mb-8 flex items-center gap-4">
-              <img src={logo} alt="fasTrack Logo" className="h-12 w-auto" />
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
-                  DBKU fasTrack
-                </p>
-                <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-                  {t("app.digitalAdvertisementLicenseSystem")}
-                </h1>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {features.map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-                  <span className="material-symbols-outlined text-[20px] text-emerald-700">
-                    task_alt
-                  </span>
-                  <p className="text-sm text-slate-700">{item}</p>
+      <main className="grid h-[calc(100vh-73px)] grid-cols-[58%_42%] overflow-hidden">
+        <section
+          className="h-full bg-cover bg-center"
+          style={{ backgroundImage: "url('/DUN.jpg')" }}
+        >
+          <div className="flex h-full items-end px-16 pb-12">
+            <div className="max-w-[790px] rounded-md bg-[#053b2e]/90 p-8 text-white shadow-2xl shadow-black/30">
+              <div className="mb-7 flex items-center gap-5">
+                <img src={logo} alt="fasTrack Logo" className="h-[52px] w-auto" />
+                <div>
+                  <p className="text-base font-semibold tracking-wide text-white">
+                    DBKU fasTrack
+                  </p>
+                  <h1 className="mt-2 max-w-[620px] text-[30px] font-semibold leading-tight text-white">
+                    {t("app.digitalAdvertisementLicenseSystem")}
+                  </h1>
                 </div>
-              ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                {features.map((item) => (
+                  <div key={item} className="flex items-center gap-5 text-white">
+                    <svg
+                      aria-hidden="true"
+                      className="h-7 w-7 shrink-0 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="m8 12.5 2.7 2.7L16.5 9" />
+                    </svg>
+                    <p className="max-w-[650px] text-[15px] leading-6">
+                      {item}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <img src={logo} alt="fasTrack Logo" className="h-10 w-auto" />
-            <div>
-              <p className="font-semibold text-slate-950">DBKU fasTrack</p>
-              <p className="text-xs text-slate-500">{t("app.digitalAdvertisementLicense")}</p>
-            </div>
-          </div>
+        <section className="flex h-full items-center justify-center bg-slate-50 px-12">
           {children}
         </section>
       </main>

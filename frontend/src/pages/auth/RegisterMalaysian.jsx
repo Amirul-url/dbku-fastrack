@@ -100,7 +100,7 @@ function RegisterMalaysian() {
     <div className="min-h-screen flex flex-col bg-[#f9f9f9] text-slate-900">
       <TopBar />
 
-      <main className="max-w-4xl mx-auto px-3 py-6 flex-1 w-full">
+      <main className="max-w-4xl mx-auto px-6 py-6 flex-1 w-full">
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">{t("auth.registrationTitle")}</h1>
           <p className="text-slate-600 max-w-2xl">
@@ -128,10 +128,10 @@ function RegisterMalaysian() {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
                   <label className="block text-sm font-semibold mb-2">
-                    {t("auth.fullNameMyKadPassport")}
+                    {t("auth.fullNameMyKad")}
                   </label>
                   <input
                     type="text"
@@ -142,28 +142,7 @@ function RegisterMalaysian() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold mb-2">
-                    {t("auth.nationality")}
-                  </label>
-                  <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <button
-                      type="button"
-                      className="flex-1 py-2 text-sm font-semibold rounded bg-white shadow-sm text-[#006d32]"
-                    >
-                      {t("auth.malaysian")}
-                    </button>
-
-                    <Link
-                      to="/register/non-malaysian"
-                      className="flex-1 py-2 text-sm font-semibold text-slate-500 text-center"
-                    >
-                      {t("auth.nonMalaysian")}
-                    </Link>
-                  </div>
-                </div>
-
-                <div>
+                <div className="col-span-2">
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.mykadNumber")}
                   </label>
@@ -191,7 +170,7 @@ function RegisterMalaysian() {
                 <h2 className="text-xl font-semibold">{t("auth.contactDetails")}</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.mobileNumber")}
@@ -223,7 +202,7 @@ function RegisterMalaysian() {
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="col-span-2">
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.residentialAddress")}
                   </label>
@@ -248,7 +227,7 @@ function RegisterMalaysian() {
                 <h2 className="text-xl font-semibold">{t("auth.accountSecurity")}</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
                     {t("auth.password")}
@@ -293,7 +272,7 @@ function RegisterMalaysian() {
                   </div>
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="col-span-2">
                   <div className="bg-yellow-50 border border-yellow-300 p-4 rounded-lg mb-4">
                     <div className="flex gap-3">
                       <span className="material-symbols-outlined text-yellow-700">
@@ -340,7 +319,7 @@ function RegisterMalaysian() {
             </span>
           </label>
 
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
+          <div className="flex gap-4 pt-4">
             <button
               type="submit"
               disabled={loading}
@@ -368,8 +347,8 @@ function RegisterMalaysian() {
         </form>
       </main>
 
-      <footer className="bg-white border-t border-slate-200 py-8 px-3">
-        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between gap-4 text-sm text-slate-500">
+      <footer className="bg-white border-t border-slate-200 py-8 px-6">
+        <div className="max-w-4xl mx-auto flex justify-between gap-4 text-sm text-slate-500">
           <div>
             <p className="font-bold text-slate-700">fasTrack DBKU Portal</p>
             <p>© 2026 Sarawak Government. All Rights Reserved.</p>

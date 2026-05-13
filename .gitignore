@@ -17,6 +17,8 @@ backend/env/
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+frontend/.chrome-review-profile/
+frontend/login-review.png
 
 # =========================
 # General
