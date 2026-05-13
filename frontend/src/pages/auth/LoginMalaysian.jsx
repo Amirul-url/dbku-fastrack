@@ -5,6 +5,8 @@ import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
 import SocialShare from "../../components/SocialShare";
 
+const ADMIN_LOGIN_IDS = ["admin"];
+
 function LoginMalaysian() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -59,13 +61,16 @@ function LoginMalaysian() {
     setError("");
     setFieldErrors({});
 
-    const normalizedIcNumber = username.replace(/\D/g, "");
+    const rawUsername = username.trim();
+    const normalizedIcNumber = rawUsername.replace(/\D/g, "");
+    const isAdminLogin = ADMIN_LOGIN_IDS.includes(rawUsername.toLowerCase());
+    const loginUsername = isAdminLogin ? rawUsername : normalizedIcNumber;
     const nextFieldErrors = {};
 
-    if (!username.trim()) {
-      nextFieldErrors.username = t("auth.validation.loginIc");
-    } else if (normalizedIcNumber.length !== 12) {
-      nextFieldErrors.username = t("auth.validation.loginMykadFormat");
+    if (!rawUsername) {
+      nextFieldErrors.username = t("auth.validation.loginIdentifier");
+    } else if (!isAdminLogin && normalizedIcNumber.length !== 12) {
+      nextFieldErrors.username = t("auth.validation.loginIdentifierFormat");
     }
 
     if (!password.trim()) {
@@ -84,7 +89,7 @@ function LoginMalaysian() {
       const data = await apiRequest("/auth/login/", {
         method: "POST",
         body: JSON.stringify({
-          username: normalizedIcNumber,
+          username: loginUsername,
           password,
         }),
       });
@@ -140,7 +145,7 @@ function LoginMalaysian() {
               autoComplete="off"
               autoCorrect="off"
               spellCheck="false"
-              placeholder={t("auth.icNumber")}
+              placeholder={t("auth.loginIdentifier")}
               value={username}
               onChange={(e) => updateUsername(e.target.value)}
               aria-invalid={Boolean(fieldErrors.username)}

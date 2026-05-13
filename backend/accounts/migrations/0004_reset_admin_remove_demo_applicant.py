@@ -2,12 +2,12 @@ from django.contrib.auth.hashers import make_password
 from django.db import migrations
 
 
-def seed_default_accounts(apps, schema_editor):
+def reset_admin_remove_demo_applicant(apps, schema_editor):
     User = apps.get_model("accounts", "User")
 
-    defaults = [
-        {
-            "username": "admin",
+    User.objects.update_or_create(
+        username="admin",
+        defaults={
             "password": make_password("Admin@12345"),
             "email": "",
             "first_name": "System",
@@ -17,19 +17,16 @@ def seed_default_accounts(apps, schema_editor):
             "is_superuser": True,
             "is_active": True,
         },
-    ]
-
-    for account in defaults:
-        username = account.pop("username")
-        User.objects.update_or_create(username=username, defaults=account)
+    )
+    User.objects.filter(username="applicant").delete()
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("accounts", "0001_initial"),
+        ("accounts", "0003_ensure_admin_account"),
     ]
 
     operations = [
-        migrations.RunPython(seed_default_accounts, migrations.RunPython.noop),
+        migrations.RunPython(reset_admin_remove_demo_applicant, migrations.RunPython.noop),
     ]
