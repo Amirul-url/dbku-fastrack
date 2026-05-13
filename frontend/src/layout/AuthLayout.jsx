@@ -10,11 +10,11 @@ function AuthLayout({ children }) {
   ];
 
   return (
-    <div className="h-screen min-w-[1280px] overflow-hidden bg-slate-50 text-slate-950">
+    <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
       <TopBar />
-      <main className="grid h-[calc(100vh-73px)] grid-cols-[58%_42%] overflow-hidden">
+      <main className="grid min-h-[calc(100vh-73px-81px)] grid-cols-[58%_42%]">
         <section
-          className="h-full bg-cover bg-center"
+          className="min-h-full bg-cover bg-center"
           style={{ backgroundImage: "url('/DUN.jpg')" }}
         >
           <div className="flex h-full items-end px-16 pb-12">
@@ -61,6 +61,19 @@ function AuthLayout({ children }) {
           {children}
         </section>
       </main>
+      <footer className="bg-white border-t border-slate-200 px-12 py-5">
+        <div className="flex items-center justify-between gap-8 text-sm text-slate-500">
+          <div>
+            <p className="font-bold text-slate-700">DBKU fasTrack</p>
+            <p>© 2026 Advertisement License Application. All Rights Reserved.</p>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <a href="#">{t("auth.faq")}</a>
+            <a href="#">{t("auth.contactUs")}</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

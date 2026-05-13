@@ -1,12 +1,13 @@
 import { useState } from "react";
 import AuthLayout from "../../layout/AuthLayout";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
 import SocialShare from "../../components/SocialShare";
 
 function LoginMalaysian() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useLanguage();
 
   const [username, setUsername] = useState("");
@@ -15,12 +16,64 @@ function LoginMalaysian() {
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const showRegistrationSuccess = Boolean(location.state?.registrationSuccess);
+
+  const updateUsername = (value) => {
+    setUsername(value);
+    setError("");
+    setFieldErrors((prev) => {
+      if (!prev.username) return prev;
+      const next = { ...prev };
+      delete next.username;
+      return next;
+    });
+  };
+
+  const updatePassword = (value) => {
+    setPassword(value);
+    setError("");
+    setFieldErrors((prev) => {
+      if (!prev.password) return prev;
+      const next = { ...prev };
+      delete next.password;
+      return next;
+    });
+  };
+
+  const getLoginErrorMessage = (message) => {
+    const normalized = String(message || "").toLowerCase();
+
+    if (
+      normalized.includes("invalid credentials") ||
+      normalized.includes("no active account")
+    ) {
+      return t("auth.loginIcFailed");
+    }
+
+    return message || t("auth.loginIcFailed");
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
 
-    if (!username.trim() || !password.trim()) {
+    const normalizedIcNumber = username.replace(/\D/g, "");
+    const nextFieldErrors = {};
+
+    if (!username.trim()) {
+      nextFieldErrors.username = t("auth.validation.loginIc");
+    } else if (normalizedIcNumber.length !== 12) {
+      nextFieldErrors.username = t("auth.validation.loginMykadFormat");
+    }
+
+    if (!password.trim()) {
+      nextFieldErrors.password = t("auth.validation.loginPassword");
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
       setError(t("auth.enterIcPassword"));
       return;
     }
@@ -31,7 +84,7 @@ function LoginMalaysian() {
       const data = await apiRequest("/auth/login/", {
         method: "POST",
         body: JSON.stringify({
-          username: username.trim(),
+          username: normalizedIcNumber,
           password,
         }),
       });
@@ -39,7 +92,7 @@ function LoginMalaysian() {
       saveAuthSession(data, rememberMe);
       navigate(getUserRedirectPath(data.user), { replace: true });
     } catch (err) {
-      setError(err.message || t("auth.loginIcFailed"));
+      setError(getLoginErrorMessage(err.message));
     } finally {
       setLoading(false);
     }
@@ -49,8 +102,14 @@ function LoginMalaysian() {
     <AuthLayout>
       <div className="w-full max-w-[410px]">
         <h2 className="text-center text-[56px] font-bold leading-tight text-[#006d32]">
-          Welcome
+          {t("auth.welcome")}
         </h2>
+
+        {showRegistrationSuccess && (
+          <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-[#006d32]">
+            {t("auth.registerSuccessLogin")}
+          </div>
+        )}
 
         {error && (
           <div className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -58,7 +117,7 @@ function LoginMalaysian() {
           </div>
         )}
 
-        <form className="mt-8 space-y-4" onSubmit={handleLogin}>
+        <form className="mt-8 space-y-4" onSubmit={handleLogin} autoComplete="off">
           <label className="relative block">
             <svg
               aria-hidden="true"
@@ -77,11 +136,26 @@ function LoginMalaysian() {
             </svg>
             <input
               type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck="false"
               placeholder={t("auth.icNumber")}
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="h-[52px] w-full rounded-full border border-slate-300 bg-white pl-14 pr-5 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#006d32] focus:ring-2 focus:ring-[#006d32]/20"
+              onChange={(e) => updateUsername(e.target.value)}
+              aria-invalid={Boolean(fieldErrors.username)}
+              aria-describedby={fieldErrors.username ? "login-username-error" : undefined}
+              className={`h-[52px] w-full rounded-full border bg-white pl-14 pr-5 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-2 ${
+                fieldErrors.username
+                  ? "border-red-400 focus:border-red-500 focus:ring-red-100"
+                  : "border-slate-300 focus:border-[#006d32] focus:ring-[#006d32]/20"
+              }`}
             />
+            {fieldErrors.username && (
+              <p id="login-username-error" className="mt-2 px-5 text-xs font-semibold text-red-600">
+                {fieldErrors.username}
+              </p>
+            )}
           </label>
 
           <label className="relative block">
@@ -100,10 +174,19 @@ function LoginMalaysian() {
             </svg>
             <input
               type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              autoCorrect="off"
+              spellCheck="false"
               placeholder={t("auth.password")}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-[52px] w-full rounded-full border border-slate-300 bg-white pl-14 pr-14 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#006d32] focus:ring-2 focus:ring-[#006d32]/20"
+              onChange={(e) => updatePassword(e.target.value)}
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
+              className={`h-[52px] w-full rounded-full border bg-white pl-14 pr-14 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-2 ${
+                fieldErrors.password
+                  ? "border-red-400 focus:border-red-500 focus:ring-red-100"
+                  : "border-slate-300 focus:border-[#006d32] focus:ring-[#006d32]/20"
+              }`}
             />
             <button
               type="button"
@@ -143,6 +226,11 @@ function LoginMalaysian() {
                 </svg>
               )}
             </button>
+            {fieldErrors.password && (
+              <p id="login-password-error" className="mt-2 px-5 text-xs font-semibold text-red-600">
+                {fieldErrors.password}
+              </p>
+            )}
           </label>
 
           <div className="flex items-center justify-between pt-1 text-sm text-slate-600">

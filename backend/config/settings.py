@@ -14,6 +14,9 @@ DEBUG = os.getenv("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",")
 
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
+RECAPTCHA_REQUIRED = os.getenv("RECAPTCHA_REQUIRED", "False" if DEBUG else "True") == "True"
+
 # Apps
 INSTALLED_APPS = [
     'django.contrib.admin',

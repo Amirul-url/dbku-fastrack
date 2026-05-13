@@ -118,6 +118,11 @@ export async function apiRequest(path, options = {}) {
   let token = localStorage.getItem("fastrack_access_token");
 
   const isFormData = options.body instanceof FormData;
+  const canRefreshAuth =
+    Boolean(token) &&
+    !path.startsWith("/auth/login/") &&
+    !path.startsWith("/auth/register/") &&
+    !path.startsWith("/token/");
 
   const makeRequest = async (accessToken) => {
     return fetch(`${API_URL}${path}`, {
@@ -136,7 +141,7 @@ export async function apiRequest(path, options = {}) {
 
   let response = await makeRequest(token);
 
-  if (response.status === 401) {
+  if (response.status === 401 && canRefreshAuth) {
     const newAccessToken = await refreshAccessToken();
 
     if (!newAccessToken) {
