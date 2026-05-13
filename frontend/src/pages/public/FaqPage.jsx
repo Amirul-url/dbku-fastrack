@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import TopBar from "../../layout/TopBar";
 import { useLanguage } from "../../context/LanguageContext";
+import { getStoredUser, getUserRedirectPath } from "../../services/api";
 
 const faqItems = [
   {
@@ -27,6 +28,21 @@ const faqItems = [
 
 function FaqPage() {
   const { t } = useLanguage();
+  const location = useLocation();
+  const source = new URLSearchParams(location.search).get("from");
+  const hasSession = Boolean(
+    localStorage.getItem("fastrack_access_token") ||
+      localStorage.getItem("fastrack_refresh_token")
+  );
+  const storedUser = getStoredUser();
+  const userDashboardPath = getUserRedirectPath(storedUser);
+  const backPath = hasSession || source === "dashboard"
+    ? userDashboardPath === "/login/malaysian"
+      ? "/user/dashboard"
+      : userDashboardPath
+    : "/login/malaysian";
+  const isLoggedIn = backPath !== "/login/malaysian";
+  const backLabel = isLoggedIn ? t("profile.backToDashboard") : t("auth.backToLogin");
 
   return (
     <div className="flex min-h-screen min-w-[1280px] flex-col bg-slate-50 text-slate-950">
@@ -35,7 +51,7 @@ function FaqPage() {
       <main className="flex-1 px-12 py-10">
         <div className="mx-auto max-w-[1180px]">
           <Link
-            to="/login/malaysian"
+            to={backPath}
             className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-[#006d32] shadow-sm transition hover:border-[#006d32] hover:bg-emerald-50 hover:text-[#004f24]"
           >
             <svg
@@ -50,7 +66,7 @@ function FaqPage() {
             >
               <path d="m15 18-6-6 6-6" />
             </svg>
-            {t("auth.backToLogin")}
+            {backLabel}
           </Link>
 
           <section className="mt-7 rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -98,7 +114,7 @@ function FaqPage() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link to="/faq" className="font-medium hover:text-[#006d32]">
+            <Link to={isLoggedIn ? "/faq?from=dashboard" : "/faq?from=login"} className="font-medium hover:text-[#006d32]">
               {t("auth.faq")}
             </Link>
             <a href="mailto:support@example.com" className="font-medium hover:text-[#006d32]">

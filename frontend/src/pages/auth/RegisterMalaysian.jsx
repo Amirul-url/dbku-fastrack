@@ -424,6 +424,11 @@ function RegisterMalaysian() {
           mykad_number: form.mykadNumber.trim(),
           mobile_number: form.mobileNumber.trim(),
           email: form.email.trim(),
+          address_line1: form.addressLine1.trim(),
+          address_line2: form.addressLine2.trim(),
+          postcode: form.postcode.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
           address: [
             form.addressLine1.trim(),
             form.addressLine2.trim(),
@@ -955,7 +960,7 @@ function RegisterMalaysian() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link to="/faq" className="font-medium hover:text-[#006d32]">
+            <Link to="/faq?from=login" className="font-medium hover:text-[#006d32]">
               {t("auth.faq")}
             </Link>
             <a href="mailto:support@example.com" className="font-medium hover:text-[#006d32]">

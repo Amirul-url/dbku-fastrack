@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
 import {
@@ -12,9 +12,7 @@ import {
   DataTable,
   Field,
   Info,
-  LinkButton,
   PageHeader,
-  Panel,
   StatCard,
   StatusPill,
   WorkflowStrip,
@@ -36,19 +34,25 @@ import {
   normalizeStatus,
 } from "../../utils/workflow";
 
+const VALID_SECTIONS = ["applications", "status", "license"];
+
 function UserDashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { language, t } = useLanguage();
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
-  const [activeTab, setActiveTab] = useState("applications");
+  const [search, setSearch] = useState("");
   const licenseCardRef = useRef(null);
+
+  const activeSection = VALID_SECTIONS.includes(searchParams.get("tab"))
+    ? searchParams.get("tab")
+    : "applications";
 
   const fetchApplications = useCallback(async () => {
     try {
@@ -66,7 +70,6 @@ function UserDashboard() {
 
   const fetchApplicationDetails = useCallback(async (id) => {
     try {
-      setDetailsLoading(true);
       const data = await apiRequest(`/applications/${id}/`);
       const paymentData = data?.form_data?.payment || {};
       const receiptWasRejected =
@@ -78,8 +81,6 @@ function UserDashboard() {
     } catch (err) {
       console.error("Failed to load application details:", err);
       setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
-    } finally {
-      setDetailsLoading(false);
     }
   }, [t]);
 
@@ -89,43 +90,55 @@ function UserDashboard() {
   }, [fetchApplications]);
 
   useEffect(() => {
-    if (selectedId && activeTab !== "applications") {
+    if (selectedId && activeSection !== "applications") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApplicationDetails(selectedId);
     }
-  }, [activeTab, fetchApplicationDetails, selectedId]);
+  }, [activeSection, fetchApplicationDetails, selectedId]);
 
   const stats = useMemo(() => {
     const total = applications.length;
-    const drafts = applications.filter(
-      (app) => normalizeStatus(app.status) === "draft"
-    ).length;
     const submitted = applications.filter(
       (app) => normalizeStatus(app.status) !== "draft"
-    ).length;
-    const payment = applications.filter((app) =>
-      ["approved", "invoice_generated", "payment_submitted"].includes(
-        normalizeStatus(app.status)
-      )
     ).length;
     const licenses = applications.filter(
       (app) => normalizeStatus(app.status) === "license_issued"
     ).length;
 
-    return { total, drafts, submitted, payment, licenses };
+    return { total, submitted, licenses };
   }, [applications]);
+
+  const submittedApplications = useMemo(
+    () => applications.filter((app) => normalizeStatus(app.status) !== "draft"),
+    [applications]
+  );
+
+  const filteredApplications = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return applications;
+
+    return applications.filter((app) =>
+      [
+        getApplicationReference(app),
+        getProjectName(app),
+        getApplicationType(app),
+        formatWorkflowStatus(app.status),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [applications, search]);
 
   const latest = applications[0];
   const activeApplication = selectedApplication || latest;
   const payment = activeApplication?.form_data?.payment || {};
   const license = activeApplication?.form_data?.license || {};
   const paymentAmount = payment.amount || 250;
-  const dashboardTabs = [
-    { id: "applications", label: t("applicant.tabApplications"), icon: "list_alt" },
-    { id: "status", label: t("applicant.tabStatus"), icon: "timeline" },
-    { id: "payment", label: t("applicant.tabPayment"), icon: "receipt_long" },
-    { id: "license", label: t("applicant.tabLicense"), icon: "qr_code_2" },
-  ];
+
+  function showSection(tab) {
+    setSearchParams({ tab });
+  }
 
   function openApplication(app) {
     const step = Number(app.current_step || 1);
@@ -281,302 +294,367 @@ function UserDashboard() {
   return (
     <UserDashboardLayout>
       <PageHeader
-        eyebrow={t("applicant.portal")}
         title={t("applicant.dashboardTitle")}
         description={t("applicant.dashboardDescription")}
-        actions={<LinkButton to="/applications/new" icon="add">{t("common.newApplication")}</LinkButton>}
       />
 
-      <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label={t("applicant.totalApplications")} value={loading ? "..." : stats.total} icon="folder_open" tone="slate" />
-        <StatCard label={t("common.drafts")} value={loading ? "..." : stats.drafts} icon="edit_document" tone="amber" />
-        <StatCard label={t("common.submitted")} value={loading ? "..." : stats.submitted} icon="task_alt" />
-        <StatCard label={t("common.paymentAction")} value={loading ? "..." : stats.payment} icon="payments" tone="blue" />
+      <section className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <StatCard label={t("applicant.tabApplications")} value={loading ? "..." : stats.total} icon="folder_open" tone="slate" />
+        <StatCard label={t("applicant.tabStatus")} value={loading ? "..." : stats.submitted} icon="task_alt" />
         <StatCard label={t("common.eLicenses")} value={loading ? "..." : stats.licenses} icon="qr_code_2" />
       </section>
 
-      <Panel
-        title={t("applicant.workspaceTitle")}
-        description={
-          activeApplication
-            ? `${t("applicant.selectedApplication")}: ${getApplicationReference(activeApplication)}`
-            : t("applicant.myApplicationsDesc")
-        }
-      >
-        <Alert type={message.type || "success"} message={message.text} />
+      <Alert type={message.type || "success"} message={message.text} />
 
-        <DashboardTabs tabs={dashboardTabs} activeTab={activeTab} onChange={setActiveTab} />
+      {activeSection === "applications" && (
+        <ApplicationsSection
+          applications={filteredApplications}
+          loading={loading}
+          search={search}
+          t={t}
+          onSearch={setSearch}
+          onSelect={(app) => {
+            setSelectedId(String(app.id));
+            showSection("status");
+          }}
+          onOpen={openApplication}
+        />
+      )}
 
-        {activeApplication ? (
-          <div className="mt-4">
-            {activeTab === "applications" && (
-              <div className="space-y-4">
-                <SelectedApplicationSummary
-                  app={activeApplication}
-                  t={t}
-                  manageLabel={t("applicant.tabStatus")}
-                  manageIcon="timeline"
-                  onManage={() => setActiveTab("status")}
-                  onOpen={() => openApplication(activeApplication)}
-                />
-                <ApplicationTable
-                  applications={applications}
-                  loading={loading}
-                  t={t}
-                  onSelect={(app) => {
-                    setSelectedId(String(app.id));
-                    setActiveTab("status");
-                  }}
-                  onOpen={openApplication}
-                />
-              </div>
-            )}
+      {activeSection === "status" && (
+        <StatusSection
+          applications={submittedApplications}
+          loading={loading}
+          language={language}
+          t={t}
+          onOpen={openApplication}
+          onLicense={(app) => {
+            setSelectedId(String(app.id));
+            showSection("license");
+          }}
+        />
+      )}
 
-            {activeTab === "status" && (
-              <div className="space-y-4">
-                <SelectedApplicationSummary
-                  app={activeApplication}
-                  t={t}
-                  manageLabel={t("applicant.tabPayment")}
-                  manageIcon="receipt_long"
-                  onManage={() => setActiveTab("payment")}
-                  onOpen={() => openApplication(activeApplication)}
-                />
-                <div className="rounded-md border border-slate-200 p-4">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-950">
-                        {t("applicant.currentProgress")}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {translatedStatus(t, activeApplication.status)}
-                      </p>
-                    </div>
-                    <StatusPill value={translatedStatus(t, activeApplication.status)} />
-                  </div>
-                  <WorkflowStrip currentStatus={activeApplication.status} language={language} />
-                </div>
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                  <ApplicantStepCard
-                    code="S1"
-                    icon="description"
-                    title={t("applicant.s1ActionTitle")}
-                    status={normalizeStatus(activeApplication.status) === "draft" ? t("applicant.actionRequired") : t("applicant.completed")}
-                    tone={normalizeStatus(activeApplication.status) === "draft" ? "amber" : "emerald"}
-                    action={
-                      <Button variant="secondary" onClick={() => openApplication(activeApplication)}>
-                        {normalizeStatus(activeApplication.status) === "draft" ? t("applicant.continueApplication") : t("applicant.viewSubmission")}
-                      </Button>
-                    }
-                  />
-                  <ApplicantStepCard
-                    code={language === "ms" ? "Pembetulan" : "Correction"}
-                    icon="mark_email_unread"
-                    title={t("applicant.correctionTitle")}
-                    status={normalizeStatus(activeApplication.status) === "incomplete" ? t("applicant.correctionRequired") : t("applicant.noCorrectionRequest")}
-                    tone={normalizeStatus(activeApplication.status) === "incomplete" ? "amber" : "slate"}
-                    details={getCorrectionDetails(activeApplication, t)}
-                    action={
-                      normalizeStatus(activeApplication.status) === "incomplete" ? (
-                        <Button variant="primary" onClick={() => openApplication(activeApplication)}>
-                          {t("applicant.openCorrection")}
-                        </Button>
-                      ) : null
-                    }
-                  />
-                  <ApplicantStepCard
-                    code={language === "ms" ? "Keputusan" : "Decision"}
-                    icon="notifications_active"
-                    title={t("applicant.receiveDecisionTitle")}
-                    status={getDecisionStatus(activeApplication, t)}
-                    tone={getDecisionTone(activeApplication)}
-                    details={getDecisionDetails(activeApplication, t)}
-                  />
-                </div>
-              </div>
-            )}
-
-            {activeTab === "payment" && (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="rounded-md border border-slate-200 p-4">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-950">
-                        {t("applicant.paymentByFpxCard")}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {getPaymentHint(activeApplication, t)}
-                      </p>
-                    </div>
-                    <StatusPill value={translatedStatus(t, activeApplication.status)} />
-                  </div>
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <div className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-4 text-sm sm:grid-cols-2">
-                      <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(activeApplication)} />
-                      <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
-                      <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
-                      <Info label={t("common.receipt")} value={payment.receipt_file?.name || payment.receipt_reference || t("applicant.notSubmitted")} />
-                    </div>
-
-                    {canSubmitPayment(activeApplication) ? (
-                      <div className="space-y-3">
-                        {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
-                          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                            {t("applicant.paymentHintReceiptRejected")}
-                          </div>
-                        )}
-                        <Field label={t("common.uploadReceipt")}>
-                          <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/40">
-                            <span className="material-symbols-outlined mb-1 text-2xl text-emerald-700">
-                              upload_file
-                            </span>
-                            <span className="font-semibold text-slate-800">
-                              {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
-                            </span>
-                            <span className="mt-1 text-xs text-slate-500">
-                              {t("applicant.receiptUploadHint")}
-                            </span>
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              className="hidden"
-                              onChange={(event) => {
-                                handlePaymentReceiptChange(event.target.files?.[0]);
-                                event.target.value = "";
-                              }}
-                            />
-                          </label>
-                        </Field>
-                        {(paymentReceipt?.url || paymentReceipt?.file_url || paymentReceipt?.dataUrl) && (
-                          <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
-                            <span className="truncate font-medium text-slate-700">
-                              {paymentReceipt.name}
-                            </span>
-                            <a
-                              href={paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="shrink-0 font-semibold text-emerald-700 hover:underline"
-                            >
-                              {t("common.view")}
-                            </a>
-                          </div>
-                        )}
-                        <Button onClick={submitPayment} disabled={saving} icon="upload_file">
-                          {saving ? t("common.submitting") : t("applicant.submitPayment")}
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                        {getPaymentHint(activeApplication, t)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {payment.invoice_no ? (
-                  <InvoicePreview
-                    application={activeApplication}
-                    amount={paymentAmount}
-                    invoiceDate={payment.generated_at || activeApplication.updated_at}
-                    dueDate={payment.due_date || activeApplication.updated_at}
-                  />
-                ) : (
-                  <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                    {t("applicant.waitingInvoice")}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "license" && (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="rounded-md border border-slate-200 p-4">
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-950">
-                        {t("applicant.licenseDownloadTitle")}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {canViewLicense(activeApplication) ? t("applicant.licenseDownloadDesc") : t("applicant.qrLicensePending")}
-                      </p>
-                    </div>
-                    <StatusPill value={translatedStatus(t, activeApplication.status)} />
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-4 text-sm sm:grid-cols-2">
-                    <Info label={t("common.reference")} value={getApplicationReference(activeApplication)} />
-                    <Info label={t("common.applicant")} value={getApplicantName(activeApplication)} />
-                    <Info label={t("common.project")} value={getProjectName(activeApplication)} />
-                    <Info label={t("common.status")} value={translatedStatus(t, activeApplication.status)} />
-                  </div>
-                </div>
-
-                <div>
-                  {canViewLicense(activeApplication) ? (
-                    <div className="space-y-3">
-                      <div ref={licenseCardRef}>
-                        <LicenseQrCard application={activeApplication} license={license} />
-                      </div>
-                      <Button onClick={downloadELicense} icon="download" className="w-full">
-                        {t("applicant.downloadQrELicense")}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                      {t("applicant.qrLicensePending")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {detailsLoading && (
-              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                {t("common.loadingSelectedApplication")}
-              </div>
-            )}
-          </div>
+      {activeSection === "license" && (
+        activeApplication ? (
+          <LicenseSection
+            app={activeApplication}
+            license={license}
+            payment={payment}
+            paymentAmount={paymentAmount}
+            paymentReceipt={paymentReceipt}
+            saving={saving}
+            t={t}
+            licenseCardRef={licenseCardRef}
+            onOpen={() => openApplication(activeApplication)}
+            onStatus={() => showSection("status")}
+            onReceiptChange={handlePaymentReceiptChange}
+            onSubmitPayment={submitPayment}
+            onDownload={downloadELicense}
+          />
         ) : (
-          <div className="mt-4 space-y-4">
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-              {t("applicant.createApplicationHint")}
-            </div>
-            <ApplicationTable
-              applications={applications}
-              loading={loading}
-              t={t}
-              onSelect={(app) => setSelectedId(String(app.id))}
-              onOpen={openApplication}
-            />
-          </div>
-        )}
-      </Panel>
+          <EmptyLicenseSection t={t} />
+        )
+      )}
     </UserDashboardLayout>
   );
 }
 
-function DashboardTabs({ tabs, activeTab, onChange }) {
+function ApplicationsSection({
+  applications,
+  loading,
+  search,
+  t,
+  onSearch,
+  onSelect,
+  onOpen,
+}) {
   return (
-    <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
-      {tabs.map((tab) => {
-        const active = tab.id === activeTab;
-
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onChange(tab.id)}
-            className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-              active
-                ? "bg-emerald-700 text-white"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-            }`}
+    <section className="space-y-4">
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-950">
+              {t("applicant.tabApplications")}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {t("applicant.myApplicationsDesc")}
+            </p>
+          </div>
+          <Link
+            to="/applications/new"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#006d32] px-4 py-2 text-sm font-semibold !text-white hover:bg-[#005224]"
+            style={{ color: "#fff" }}
           >
-            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
-            {tab.label}
-          </button>
-        );
-      })}
+            <span className="material-symbols-outlined text-[20px] text-white">add</span>
+            <span className="text-white">{t("common.newApplication")}</span>
+          </Link>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t("common.search")}
+          </span>
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400">
+              search
+            </span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => onSearch(event.target.value)}
+              placeholder={t("applicant.searchPlaceholder")}
+              className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            />
+          </div>
+        </label>
+      </div>
+
+      <ApplicationTable
+        applications={applications}
+        loading={loading}
+        t={t}
+        onSelect={onSelect}
+        onOpen={onOpen}
+      />
+    </section>
+  );
+}
+
+function StatusSection({ applications, loading, language, t, onOpen, onLicense }) {
+  if (loading) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        {t("common.loading")}
+      </div>
+    );
+  }
+
+  if (applications.length === 0) {
+    return <EmptyDashboardSection message={t("applicant.noApplicationSubmitted")} />;
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <h2 className="text-base font-semibold text-slate-950">
+          {t("applicant.tabStatus")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("applicant.statusTrackingDescription")}
+        </p>
+      </div>
+
+      {applications.map((app) => (
+        <div key={app.id} className="rounded-md border border-slate-200 bg-white p-4">
+          <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-slate-950">
+                  {getApplicationReference(app)}
+                </h3>
+                <StatusPill value={translatedStatus(t, app.status)} />
+              </div>
+              <p className="mt-1 truncate text-sm text-slate-600">
+                {getProjectName(app)}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button variant="secondary" icon="visibility" onClick={() => onOpen(app)}>
+                {t("common.view")}
+              </Button>
+              <Button variant="secondary" icon="qr_code_2" onClick={() => onLicense(app)}>
+                {t("applicant.tabLicense")}
+              </Button>
+            </div>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+            <Info label={t("common.type")} value={getApplicationType(app)} />
+            <Info label={t("common.updated")} value={formatDate(app.updated_at)} />
+            <Info label={t("common.currentPhase")} value={translatedStatus(t, app.status)} />
+          </div>
+
+          <WorkflowStrip currentStatus={app.status} language={language} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function LicenseSection({
+  app,
+  license,
+  payment,
+  paymentAmount,
+  paymentReceipt,
+  saving,
+  t,
+  licenseCardRef,
+  onOpen,
+  onStatus,
+  onReceiptChange,
+  onSubmitPayment,
+  onDownload,
+}) {
+  return (
+    <section className="space-y-4">
+      <SelectedApplicationSummary
+        app={app}
+        t={t}
+        manageLabel={t("applicant.tabStatus")}
+        manageIcon="timeline"
+        onManage={onStatus}
+        onOpen={onOpen}
+      />
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          <div className="rounded-md border border-slate-200 bg-white p-4">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">
+                  {t("applicant.paymentProofTitle")}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {getPaymentHint(app, t)}
+                </p>
+              </div>
+              <StatusPill value={translatedStatus(t, app.status)} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(app)} />
+                <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
+                <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
+                <Info label={t("applicant.paymentProofTitle")} value={payment.receipt_file?.name || payment.receipt_reference || t("applicant.notSubmitted")} />
+              </div>
+
+              {canSubmitPayment(app) ? (
+                <div className="space-y-3">
+                  {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                      {t("applicant.paymentHintReceiptRejected")}
+                    </div>
+                  )}
+                  <Field label={t("applicant.paymentProofTitle")}>
+                    <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/40">
+                      <span className="material-symbols-outlined mb-1 text-2xl text-emerald-700">
+                        upload_file
+                      </span>
+                      <span className="font-semibold text-slate-800">
+                        {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+                      </span>
+                      <span className="mt-1 text-xs text-slate-500">
+                        {t("applicant.receiptUploadHint")}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(event) => {
+                          onReceiptChange(event.target.files?.[0]);
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </Field>
+                  {(paymentReceipt?.url || paymentReceipt?.file_url || paymentReceipt?.dataUrl) && (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+                      <span className="truncate font-medium text-slate-700">
+                        {paymentReceipt.name}
+                      </span>
+                      <a
+                        href={paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 font-semibold text-emerald-700 hover:underline"
+                      >
+                        {t("common.view")}
+                      </a>
+                    </div>
+                  )}
+                  <Button onClick={onSubmitPayment} disabled={saving} icon="upload_file">
+                    {saving ? t("common.submitting") : t("applicant.submitPayment")}
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                  {getPaymentHint(app, t)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {payment.invoice_no && (
+            <InvoicePreview
+              application={app}
+              amount={paymentAmount}
+              invoiceDate={payment.generated_at || app.updated_at}
+              dueDate={payment.due_date || app.updated_at}
+            />
+          )}
+        </div>
+
+        <div>
+          <div className="mb-3 rounded-md border border-slate-200 bg-white p-4">
+            <h3 className="text-sm font-semibold text-slate-950">
+              {t("applicant.licenseDownloadTitle")}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {canViewLicense(app) ? t("applicant.licenseDownloadDesc") : t("applicant.qrLicensePending")}
+            </p>
+          </div>
+          {canViewLicense(app) ? (
+            <div className="space-y-3">
+              <div ref={licenseCardRef}>
+                <LicenseQrCard application={app} license={license} />
+              </div>
+              <Button onClick={onDownload} icon="download" className="w-full">
+                {t("applicant.downloadQrELicense")}
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+              {t("applicant.qrLicensePending")}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function EmptyDashboardSection({ message }) {
+  return (
+    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
+      {message}
     </div>
+  );
+}
+
+function EmptyLicenseSection({ t }) {
+  return (
+    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <h2 className="text-base font-semibold text-slate-950">
+          {t("applicant.paymentProofTitle")}
+        </h2>
+        <p className="mt-2 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+          {t("applicant.createApplicationHint")}
+        </p>
+      </div>
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <h2 className="text-base font-semibold text-slate-950">
+          {t("applicant.tabLicense")}
+        </h2>
+        <p className="mt-2 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+          {t("applicant.qrLicensePending")}
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -672,124 +750,8 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
   );
 }
 
-function ApplicantStepCard({ code, icon, title, status, tone = "slate", details = [], action }) {
-  const tones = {
-    emerald: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-    blue: "bg-blue-50 text-blue-700",
-    red: "bg-red-50 text-red-700",
-    slate: "bg-slate-100 text-slate-700",
-  };
-
-  return (
-    <div className="rounded-lg border border-slate-200 p-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <span className={`material-symbols-outlined rounded-md p-2 ${tones[tone]}`}>
-            {icon}
-          </span>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {code}
-            </p>
-            <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-            <p className="mt-1 text-sm text-slate-500">{status}</p>
-          </div>
-        </div>
-        {action}
-      </div>
-
-      {details.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-          {details.map(([label, value]) => (
-            <Info key={label} label={label} value={value} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function translatedStatus(t, status) {
   return t(`status.${normalizeStatus(status)}`, formatWorkflowStatus(status));
-}
-
-function getDecisionStatus(app, t) {
-  const status = normalizeStatus(app?.status);
-
-  if (status === "rejected") return t("decision.notApproved");
-  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
-    return t("decision.approved");
-  }
-  return t("decision.waiting");
-}
-
-function getDecisionTone(app) {
-  const status = normalizeStatus(app?.status);
-
-  if (status === "rejected") return "red";
-  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
-    return "emerald";
-  }
-  return "slate";
-}
-
-function getDecisionDetails(app, t) {
-  const approval = app?.form_data?.approval || {};
-  const status = normalizeStatus(app?.status);
-
-  if (status === "rejected") {
-    return [
-      [t("common.decision"), t("decision.rejected")],
-      [t("common.remark"), approval.notes || approval.comment || t("decision.referNotice")],
-      [t("common.date"), formatDate(approval.signed_at || app?.updated_at)],
-    ];
-  }
-
-  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
-    return [
-      [t("common.decision"), status === "approved_with_conditions" ? t("decision.approvedWithConditions") : t("decision.approved")],
-      [t("common.remark"), approval.notes || approval.comment || t("decision.notificationReceived")],
-      [t("common.date"), formatDate(approval.signed_at || app?.updated_at)],
-    ];
-  }
-
-  return [
-    [t("common.decision"), t("decision.pending")],
-    [t("common.currentPhase"), translatedStatus(t, app?.status)],
-    [t("common.updated"), formatDate(app?.updated_at)],
-  ];
-}
-
-function getLatestRemark(app) {
-  const summaryRemark = cleanRemark(app?.latest_remark);
-  if (summaryRemark) return summaryRemark;
-
-  const form = app?.form_data || {};
-  return cleanRemark(
-    form.correction_request?.remarks ||
-    form.auto_screening?.remarks ||
-    form.technical_review?.comment ||
-    form.technical_review?.remarks ||
-    form.approval?.notes ||
-    form.approval?.comment ||
-    form.payment?.verification_notes ||
-    ""
-  );
-}
-
-function cleanRemark(value) {
-  const remark = String(value || "").trim();
-  return ["", "-", "[]"].includes(remark) ? "" : remark;
-}
-
-function getCorrectionDetails(app, t) {
-  if (normalizeStatus(app?.status) !== "incomplete") return [];
-
-  return [
-    [t("common.remark"), getLatestRemark(app) || t("decision.referNotice")],
-    [t("common.updated"), formatDate(app?.updated_at)],
-  ];
 }
 
 function getPaymentHint(app, t) {

@@ -21,6 +21,7 @@ import AdminDashboardLayout from "./layout/AdminDashboardLayout";
 
 /* USER APPLICATION */
 import UserApplicationsPage from "./pages/applications/user/UserApplicationsPage";
+import UserProfilePage from "./pages/profile/UserProfilePage";
 
 /* ADMIN APPLICATION */
 import AdminApplicationsPage from "./pages/applications/admin/AdminApplicationsPage";
@@ -172,6 +173,15 @@ function App() {
           element={
             <UserRoute>
               <UserDashboard />
+            </UserRoute>
+          }
+        />
+
+        <Route
+          path="/user/profile"
+          element={
+            <UserRoute>
+              <UserProfilePage />
             </UserRoute>
           }
         />
