@@ -7,10 +7,7 @@ import { useNotifications } from "../../context/NotificationContext";
 import {
   Alert,
   Button,
-  EmptyState,
   PageHeader,
-  Panel,
-  StatCard,
   StatusPill,
 } from "../../components/ui/SystemUI";
 import { isAdminUser, getStoredUser } from "../../services/api";
@@ -81,13 +78,24 @@ function NotificationsPage() {
     });
   }, [filter, notifications]);
 
-  const totals = useMemo(() => {
-    return {
-      action: notifications.filter((item) => ["warning", "error"].includes(item.type)).length,
-      payment: notifications.filter((item) => item.category === "payment").length,
-      license: notifications.filter((item) => item.category === "license").length,
-    };
-  }, [notifications]);
+  const filterCounts = useMemo(() => {
+    return activeFilters.reduce((counts, item) => {
+      if (item.value === "all") {
+        counts[item.value] = notifications.length;
+      } else if (item.value === "unread") {
+        counts[item.value] = unreadCount;
+      } else {
+        counts[item.value] = notifications.filter(
+          (notification) => notification.category === item.value
+        ).length;
+      }
+
+      return counts;
+    }, {});
+  }, [activeFilters, notifications, unreadCount]);
+
+  const activeFilterLabel =
+    activeFilters.find((item) => item.value === filter) || activeFilters[0];
 
   return (
     <Layout>
@@ -112,112 +120,160 @@ function NotificationsPage() {
 
       <Alert message={error} />
 
-      <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t("workspace.stat.total", "Total")} value={notifications.length} icon="notifications" />
-        <StatCard label={t("notifications.unread", "Unread")} value={unreadCount} icon="mark_email_unread" tone="amber" />
-        <StatCard label={t("notifications.actionRequired", "Action Required")} value={totals.action} icon="priority_high" tone="red" />
-        <StatCard label={t("notifications.licensePayment", "Payment / License")} value={totals.payment + totals.license} icon="qr_code_2" tone="blue" />
-      </section>
+      <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-950">
+              {t("notifications.inbox", "Inbox")}
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {lastSyncedAt
+                ? `${t("notifications.lastSynced", "Last synced")}: ${formatDate(lastSyncedAt)}`
+                : t("notifications.waitingForSync", "Waiting for live sync.")}
+            </p>
+          </div>
 
-      <Panel
-        title={t("notifications.inbox", "Inbox")}
-        description={
-          lastSyncedAt
-            ? `${t("notifications.lastSynced", "Last synced")}: ${formatDate(lastSyncedAt)}`
-            : t("notifications.waitingForSync", "Waiting for live sync.")
-        }
-        className="mb-5"
-      >
-        <div className="flex flex-wrap gap-2">
-          {activeFilters.map((item) => (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => setFilter(item.value)}
-              className={`rounded-md border px-3 py-2 text-xs font-semibold ${
-                filter === item.value
-                  ? "border-emerald-700 bg-emerald-700 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800"
-              }`}
-            >
-              {t(item.labelKey, item.fallback)}
-            </button>
-          ))}
+          <div className="text-xs font-semibold text-slate-500">
+            {filtered.length} {t("notifications.records", "record(s)")}
+          </div>
         </div>
-      </Panel>
 
-      <Panel
-        title={t("notifications.liveInbox", "Live Inbox")}
-        description={`${filtered.length} ${t("notifications.records", "record(s)")}`}
-      >
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon="notifications_off"
-            title={loading ? t("common.loading", "Loading...") : t("common.noNotifications", "No notifications")}
-            description={t(
-              "notifications.emptyDescription",
-              "Notifications will appear here when an application needs action or changes status."
-            )}
-          />
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((item) => {
-              const style = typeStyles[item.type] || typeStyles.info;
-
-              return (
-                <article
-                  key={item.id}
-                  className={`rounded-md border p-3 transition ${
-                    item.read
-                      ? "border-slate-200 bg-white"
-                      : "border-emerald-200 bg-emerald-50/50"
+        <div className="grid min-h-[520px] lg:grid-cols-[230px_1fr]">
+          <aside className="border-b border-slate-200 bg-slate-50/80 p-3 lg:border-b-0 lg:border-r">
+            <nav className="space-y-1" aria-label={t("notifications.inbox", "Inbox")}>
+              {activeFilters.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setFilter(item.value)}
+                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-semibold transition ${
+                    filter === item.value
+                      ? "bg-emerald-700 text-white"
+                      : "text-slate-600 hover:bg-white hover:text-slate-950"
                   }`}
                 >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex min-w-0 gap-3">
-                      <span className={`material-symbols-outlined flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-[20px] ${style.className}`}>
-                        {style.icon}
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-sm font-semibold text-slate-950">
-                            {getLocalized(item, "title", language)}
-                          </h2>
-                          {!item.read && <StatusPill value={t("common.new", "New")} />}
-                          <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
-                        </div>
-                        <p className="mt-1 text-sm leading-5 text-slate-600">
-                          {getLocalized(item, "message", language)}
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                          <span>{item.reference}</span>
-                          <span>{item.project}</span>
-                          <span>{item.time}</span>
+                  <span>{t(item.labelKey, item.fallback)}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${
+                      filter === item.value
+                        ? "bg-white/20 text-white"
+                        : "bg-white text-slate-500"
+                    }`}
+                  >
+                    {filterCounts[item.value] || 0}
+                  </span>
+                </button>
+              ))}
+            </nav>
+          </aside>
+
+          <div className="min-w-0">
+            <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  {t(activeFilterLabel.labelKey, activeFilterLabel.fallback)}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {unreadCount} {t("notifications.unread", "Unread")}
+                </p>
+              </div>
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="flex min-h-[380px] items-center justify-center px-6 text-center">
+                <div className="max-w-md">
+                  <span className="material-symbols-outlined text-[44px] text-slate-300">
+                    mark_email_unread
+                  </span>
+                  <h3 className="mt-3 text-base font-semibold text-slate-950">
+                    {loading ? t("common.loading", "Loading...") : t("common.noNotifications", "No notifications")}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    {t(
+                      "notifications.emptyDescription",
+                      "Notifications will appear here when an application needs action or changes status."
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {filtered.map((item) => {
+                  const style = typeStyles[item.type] || typeStyles.info;
+
+                  return (
+                    <article
+                      key={item.id}
+                      className={`group grid gap-3 border-l-4 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[1fr_auto] ${
+                        item.read
+                          ? "border-l-transparent bg-white"
+                          : "border-l-emerald-600 bg-emerald-50/40"
+                      }`}
+                    >
+                      <div className="flex min-w-0 gap-3">
+                        <span className={`material-symbols-outlined mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[20px] ${style.className}`}>
+                          {style.icon}
+                        </span>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              {!item.read && (
+                                <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                              )}
+                              <h3
+                                className={`truncate text-sm ${
+                                  item.read
+                                    ? "font-semibold text-slate-800"
+                                    : "font-bold text-slate-950"
+                                }`}
+                              >
+                                {getLocalized(item, "title", language)}
+                              </h3>
+                              <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
+                            </div>
+                            <time className="shrink-0 text-xs text-slate-500">
+                              {item.time}
+                            </time>
+                          </div>
+
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+                            {getLocalized(item, "message", language)}
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <span className="font-semibold text-slate-600">{item.reference}</span>
+                            <span>{item.project}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      {!item.read && (
-                        <Button variant="secondary" onClick={() => markAsRead(item.id)}>
-                          {t("notifications.markRead", "Mark Read")}
-                        </Button>
-                      )}
-                      <Link
-                        to={item.actionUrl}
-                        onClick={() => markAsRead(item.id)}
-                        className="inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
-                      >
-                        {t("notifications.openRecord", "Open Record")}
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+                      <div className="flex items-center gap-2 xl:justify-end">
+                        {!item.read && (
+                          <button
+                            type="button"
+                            onClick={() => markAsRead(item.id)}
+                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            {t("notifications.markRead", "Mark Read")}
+                          </button>
+                        )}
+                        <Link
+                          to={item.actionUrl}
+                          onClick={() => markAsRead(item.id)}
+                          className="inline-flex min-h-8 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                        >
+                          {t("notifications.openRecord", "Open Record")}
+                        </Link>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </Panel>
+        </div>
+      </section>
     </Layout>
   );
 }
