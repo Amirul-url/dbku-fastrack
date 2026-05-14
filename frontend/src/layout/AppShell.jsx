@@ -409,7 +409,6 @@ function AppShell({ children, role = "admin" }) {
 
               {profileOpen && (
                 <ProfileDropdown
-                  profileTo={role === "applicant" ? "/user/profile" : role === "superadmin" ? "/superadmin/dashboard" : "/dashboard/admin"}
                   t={t}
                   onLogout={handleLogout}
                 />
@@ -427,16 +426,9 @@ function AppShell({ children, role = "admin" }) {
   );
 }
 
-function ProfileDropdown({ profileTo = "/user/profile", t, onLogout }) {
+function ProfileDropdown({ t, onLogout }) {
   return (
     <div className="absolute right-0 top-12 z-50 w-48 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl">
-      <Link
-        to={profileTo}
-        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-      >
-        <span className="material-symbols-outlined text-[19px]">person</span>
-        {t("profile.profile")}
-      </Link>
       <button
         type="button"
         onClick={onLogout}

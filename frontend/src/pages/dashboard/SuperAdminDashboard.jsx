@@ -96,6 +96,26 @@ const screenText = {
     csvMissingPassword: "CSV import requires a Password column for every account.",
     csvMissingColumns: "CSV import requires these columns: {columns}.",
     csvPasswordMismatch: "Password and Confirm Password do not match for {name}.",
+    dashboardTitle: "SuperAdmin Dashboard",
+    dashboardDescription: "Monitor account access, login activity, and administrator coverage.",
+    totalUsers: "Total User Accounts",
+    totalAdmins: "Total Admin Accounts",
+    superAdminAccounts: "Total SuperAdmin Accounts",
+    recentActivity: "Recent Activity",
+    latestFiveActivities: "Latest 5 account activities",
+    accessSummary: "Access Summary",
+    yourPermissions: "Your permissions",
+    noRecentActivity: "No recent account activity.",
+    loggedInActivity: "Logged in",
+    createdActivity: "Account created",
+    lastAccess: "Last access",
+    registered: "Registered",
+    accountAccessOverview: "Account access overview",
+    yourRole: "Your Role",
+    dashboardAccess: "Dashboard Access",
+    managementAccess: "Management Access",
+    dashboardAccessDescription: "SuperAdmin can view dashboard account information.",
+    managementAccessDescription: "Full access to manage user, admin, and SuperAdmin login accounts.",
   },
   ms: {
     userTitle: "Pengurusan Pengguna",
@@ -164,15 +184,176 @@ const screenText = {
     csvMissingPassword: "Import CSV memerlukan lajur Password untuk setiap akaun.",
     csvMissingColumns: "Import CSV memerlukan lajur berikut: {columns}.",
     csvPasswordMismatch: "Password dan Confirm Password tidak sepadan untuk {name}.",
+    dashboardTitle: "Papan Pemuka SuperAdmin",
+    dashboardDescription: "Pantau akses akaun, aktiviti log masuk, dan liputan pentadbir.",
+    totalUsers: "Jumlah Akaun Pengguna",
+    totalAdmins: "Jumlah Akaun Admin",
+    superAdminAccounts: "Jumlah Akaun SuperAdmin",
+    recentActivity: "Aktiviti Terkini",
+    latestFiveActivities: "5 aktiviti akaun terkini",
+    accessSummary: "Ringkasan Akses",
+    yourPermissions: "Kebenaran anda",
+    noRecentActivity: "Tiada aktiviti akaun terkini.",
+    loggedInActivity: "Log masuk",
+    createdActivity: "Akaun dicipta",
+    lastAccess: "Akses terakhir",
+    registered: "Didaftarkan",
+    accountAccessOverview: "Gambaran akses akaun",
+    yourRole: "Peranan Anda",
+    dashboardAccess: "Akses Papan Pemuka",
+    managementAccess: "Akses Pengurusan",
+    dashboardAccessDescription: "SuperAdmin boleh melihat maklumat akaun di papan pemuka.",
+    managementAccessDescription: "Akses penuh untuk mengurus akaun log masuk pengguna, admin, dan SuperAdmin.",
   },
 };
 
 function SuperAdminDashboard({ view = "dashboard" }) {
   if (view === "dashboard") {
-    return <AppShell role="superadmin" />;
+    return <SuperAdminHome />;
   }
 
   return <SuperAdminAccountManagement view={view} />;
+}
+
+function SuperAdminHome() {
+  const { language } = useLanguage();
+  const labels = screenText[language] || screenText.en;
+  const [accounts, setAccounts] = useState([]);
+  const [summary, setSummary] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadDashboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await apiRequest("/auth/accounts/");
+      setAccounts(data.accounts || []);
+      setSummary(data.summary || {});
+    } catch (err) {
+      setError(err.message || labels.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, [labels.loadFailed]);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(loadDashboard, 0);
+    return () => window.clearTimeout(timerId);
+  }, [loadDashboard]);
+
+  const dashboard = useMemo(() => {
+    const totalUsers = summary.users ?? accounts.filter((account) => account.role === "applicant").length;
+    const totalAdmins = accounts.filter((account) => account.role === "admin").length;
+    const superAdminAccounts = accounts.filter((account) => account.role === "superadmin").length;
+    const recentAccounts = [...accounts]
+      .sort((first, second) => getAccountActivityTime(second) - getAccountActivityTime(first))
+      .slice(0, 5);
+
+    return {
+      totalUsers,
+      totalAdmins,
+      superAdminAccounts,
+      recentAccounts,
+    };
+  }, [accounts, summary.users]);
+
+  return (
+    <AppShell role="superadmin">
+      <div className="mb-5">
+        <h1 className="text-2xl font-semibold text-slate-950">{labels.dashboardTitle}</h1>
+        <p className="mt-1 text-sm text-slate-600">{labels.dashboardDescription}</p>
+      </div>
+
+      <Alert message={error} />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DashboardStatCard
+          icon="group"
+          label={labels.totalUsers}
+          value={loading ? "-" : dashboard.totalUsers}
+          tone="blue"
+        />
+        <DashboardStatCard
+          icon="admin_panel_settings"
+          label={labels.totalAdmins}
+          value={loading ? "-" : dashboard.totalAdmins}
+          tone="emerald"
+        />
+        <DashboardStatCard
+          icon="shield_person"
+          label={labels.superAdminAccounts}
+          value={loading ? "-" : dashboard.superAdminAccounts}
+          tone="amber"
+        />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="rounded-md border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-base font-semibold text-slate-950">{labels.recentActivity}</h2>
+            <p className="mt-1 text-sm text-slate-500">{labels.latestFiveActivities}</p>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {loading ? (
+              <div className="px-4 py-10 text-center text-slate-500">{labels.loadingAccounts}</div>
+            ) : dashboard.recentAccounts.length === 0 ? (
+              <div className="px-4 py-10 text-center text-slate-500">{labels.noRecentActivity}</div>
+            ) : (
+              dashboard.recentAccounts.map((account) => {
+                const hasLogin = Boolean(account.last_login);
+                return (
+                  <div key={account.id} className="flex items-center justify-between gap-4 px-4 py-4">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-950">
+                        {account.full_name || account.username}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {hasLogin ? labels.loggedInActivity : labels.createdActivity}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <RolePill account={account} labels={labels} />
+                      <span className="w-28 text-right !text-xs leading-5 text-slate-500">
+                        {formatCompactDateTime(hasLogin ? account.last_login : account.date_joined, labels, language)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-md border border-slate-200 bg-white">
+          <div className="flex items-start gap-3 border-b border-slate-200 px-4 py-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-violet-100 text-violet-700">
+              <span className="material-symbols-outlined text-[20px]">shield_person</span>
+            </span>
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">{labels.accessSummary}</h2>
+              <p className="mt-1 text-sm text-slate-500">{labels.yourPermissions}</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-4">
+            <AccessSummaryBlock icon="person" title={labels.yourRole}>
+              <span className="inline-flex rounded-full bg-cyan-950 px-3 py-1 text-xs font-semibold text-white">
+                {labels.superAdminRole}
+              </span>
+            </AccessSummaryBlock>
+            <AccessSummaryBlock icon="dashboard" title={labels.dashboardAccess}>
+              <p className="text-sm leading-6 text-slate-600">{labels.dashboardAccessDescription}</p>
+            </AccessSummaryBlock>
+            <AccessSummaryBlock icon="key" title={labels.managementAccess}>
+              <p className="text-sm leading-6 text-slate-600">{labels.managementAccessDescription}</p>
+            </AccessSummaryBlock>
+          </div>
+        </section>
+      </div>
+    </AppShell>
+  );
 }
 
 function SuperAdminAccountManagement({ view }) {
@@ -783,6 +964,42 @@ function AccountModal({ form, isEditing, saving, labels, view, onChange, onClose
   );
 }
 
+function DashboardStatCard({ icon, label, value, tone }) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    teal: "bg-teal-50 text-teal-700",
+    rose: "bg-rose-50 text-rose-700",
+    amber: "bg-amber-50 text-amber-700",
+  };
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
+          <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
+        </div>
+        <span className={`flex h-11 w-11 items-center justify-center rounded-md ${tones[tone] || tones.emerald}`}>
+          <span className="material-symbols-outlined text-[24px]">{icon}</span>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function AccessSummaryBlock({ icon, title, children }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center gap-2 text-slate-950">
+        <span className="material-symbols-outlined text-[18px] text-slate-500">{icon}</span>
+        <p className="font-semibold">{title}</p>
+      </div>
+      <div className="mt-2">{children}</div>
+    </div>
+  );
+}
+
 function FormField({ label, children, className = "" }) {
   return (
     <label className={`block ${className}`}>
@@ -820,6 +1037,12 @@ function compareAccounts(first, second) {
   );
 }
 
+function getAccountActivityTime(account) {
+  const latestValue = account.last_login || account.date_joined;
+  const timestamp = new Date(latestValue || 0).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 function getRoleLabel(account, labels = screenText.en) {
   if (account.role === "applicant") return labels.userRole;
   if (account.role === "staff") return labels.staffRole;
@@ -843,6 +1066,23 @@ function formatDateTime(value, labels = screenText.en, language = "en") {
   const minute = String(date.getMinutes()).padStart(2, "0");
 
   return `${day} ${month} ${year}, ${hour}:${minute} ${period}`;
+}
+
+function formatCompactDateTime(value, labels = screenText.en, language = "en") {
+  if (!value) return labels.never;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return labels.never;
+  const months = language === "ms"
+    ? ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogos", "Sep", "Okt", "Nov", "Dis"]
+    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const hour24 = date.getHours();
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour = String(hour24 % 12 || 12).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${day} ${month}, ${hour}:${minute} ${period}`;
 }
 
 function escapeCsv(value) {
