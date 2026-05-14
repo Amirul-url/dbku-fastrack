@@ -38,6 +38,54 @@
         document.fonts.ready.then(loadIconFont);
       })();
     </script>
+    <script>
+      (function () {
+        function protectMaterialSymbols(scope) {
+          if (!scope || !scope.querySelectorAll) return;
+
+          var icons = scope.matches && scope.matches(".material-symbols-outlined")
+            ? [scope]
+            : [];
+
+          icons = icons.concat(
+            Array.prototype.slice.call(
+              scope.querySelectorAll(".material-symbols-outlined")
+            )
+          );
+
+          icons.forEach(function (icon) {
+            icon.classList.add("notranslate");
+            icon.setAttribute("translate", "no");
+            icon.setAttribute("aria-hidden", "true");
+          });
+        }
+
+        function startProtection() {
+          protectMaterialSymbols(document);
+
+          var observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+              mutation.addedNodes.forEach(function (node) {
+                if (node.nodeType === 1) {
+                  protectMaterialSymbols(node);
+                }
+              });
+            });
+          });
+
+          observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+          });
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", startProtection);
+        } else {
+          startProtection();
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ALiS</title>
   </head>

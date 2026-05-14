@@ -5,9 +5,10 @@ function LanguageSwitcher() {
 
   return (
     <div
-      className="inline-flex h-12 items-center gap-2 rounded-md border border-slate-200 bg-white px-3"
+      className="notranslate inline-flex h-12 items-center gap-2 rounded-md border border-slate-200 bg-white px-3"
       aria-label={t("common.language")}
       title={t("common.language")}
+      translate="no"
     >
       <svg
         aria-hidden="true"
@@ -26,6 +27,7 @@ function LanguageSwitcher() {
       <button
         type="button"
         onClick={() => setLanguage("ms")}
+        translate="no"
         className={`rounded-md px-3 py-1.5 text-sm font-bold ${
           language === "ms"
             ? "bg-[#006d32] text-white"
@@ -38,6 +40,7 @@ function LanguageSwitcher() {
       <button
         type="button"
         onClick={() => setLanguage("en")}
+        translate="no"
         className={`rounded-md px-3 py-1.5 text-sm font-bold ${
           language === "en"
             ? "bg-[#006d32] text-white"

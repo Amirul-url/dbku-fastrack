@@ -73,6 +73,10 @@ button {
     "opsz" 24;
 }
 
+.material-symbols-outlined.notranslate {
+  unicode-bidi: isolate;
+}
+
 html:not(.material-symbols-ready) .material-symbols-outlined {
   max-width: 1em;
   overflow: hidden;
