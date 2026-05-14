@@ -14,7 +14,6 @@ import {
   Info,
   PageHeader,
   StatusPill,
-  WorkflowStrip,
 } from "../../components/ui/SystemUI";
 import LicenseQrCard from "../../components/license/LicenseQrCard";
 import {
@@ -351,13 +350,8 @@ function UserDashboard() {
         <StatusSection
           applications={submittedApplications}
           loading={loading}
-          language={language}
           t={t}
           onOpen={openApplication}
-          onLicense={(app) => {
-            setSelectedId(String(app.id));
-            showSection("license");
-          }}
         />
       )}
 
@@ -584,7 +578,7 @@ function ApplicationsSection({
   );
 }
 
-function StatusSection({ applications, loading, language, t, onOpen, onLicense }) {
+function StatusSection({ applications, loading, t, onOpen }) {
   if (loading) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -598,49 +592,14 @@ function StatusSection({ applications, loading, language, t, onOpen, onLicense }
   }
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-slate-950">
-          {t("applicant.tabStatus")}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          {t("applicant.statusTrackingDescription")}
-        </p>
-      </div>
-
-      {applications.map((app) => (
-        <div key={app.id} className="rounded-md border border-slate-200 bg-white p-4">
-          <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold text-slate-950">
-                  {getApplicationReference(app)}
-                </h3>
-                <StatusPill value={translatedStatus(t, app.status)} />
-              </div>
-              <p className="mt-1 truncate text-sm text-slate-600">
-                {getProjectName(app)}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button variant="secondary" icon="visibility" onClick={() => onOpen(app)}>
-                {t("common.view")}
-              </Button>
-              <Button variant="secondary" icon="qr_code_2" onClick={() => onLicense(app)}>
-                {t("applicant.tabLicense")}
-              </Button>
-            </div>
-          </div>
-
-          <div className="mb-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-            <Info label={t("common.type")} value={getApplicationType(app)} />
-            <Info label={t("common.updated")} value={formatDate(app.updated_at)} />
-            <Info label={t("common.currentPhase")} value={translatedStatus(t, app.status)} />
-          </div>
-
-          <WorkflowStrip currentStatus={app.status} language={language} />
-        </div>
-      ))}
+    <section>
+      <ApplicationTable
+        applications={applications}
+        loading={loading}
+        t={t}
+        onSelect={onOpen}
+        onOpen={onOpen}
+      />
     </section>
   );
 }
