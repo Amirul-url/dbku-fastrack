@@ -9,6 +9,7 @@ import {
 /* AUTH */
 import LoginMalaysian from "./pages/auth/LoginMalaysian";
 import RegisterMalaysian from "./pages/auth/RegisterMalaysian";
+import ForgotPassword from "./pages/auth/ForgotPassword";
 import FaqPage from "./pages/public/FaqPage";
 
 /* HOME */
@@ -144,6 +145,7 @@ function App() {
 
         {/* AUTH */}
         <Route path="/" element={<LoginMalaysian />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/login/malaysian" element={<LoginMalaysian />} />
         <Route path="/register/malaysian" element={<RegisterMalaysian />} />
         <Route path="/faq" element={<FaqPage />} />

@@ -19,6 +19,7 @@ function LoginMalaysian() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const showRegistrationSuccess = Boolean(location.state?.registrationSuccess);
+  const showPasswordResetSuccess = Boolean(location.state?.passwordResetSuccess);
 
   const updateUsername = (value) => {
     setUsername(value);
@@ -112,6 +113,12 @@ function LoginMalaysian() {
         {showRegistrationSuccess && (
           <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-[#006d32]">
             {t("auth.registerSuccessLogin")}
+          </div>
+        )}
+
+        {showPasswordResetSuccess && (
+          <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-[#006d32]">
+            {t("auth.reset.successLogin")}
           </div>
         )}
 
@@ -248,13 +255,13 @@ function LoginMalaysian() {
               <span>{t("auth.rememberMe")}</span>
             </label>
 
-            <a
-              href="#"
+            <Link
+              to="/forgot-password"
               className="font-semibold text-[#006d32] hover:text-[#004f24]"
               style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}
             >
               {t("auth.forgotPassword")}
-            </a>
+            </Link>
           </div>
 
           <button

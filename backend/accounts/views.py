@@ -1,4 +1,6 @@
 import json
+import random
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -7,6 +9,8 @@ from django.contrib.auth import authenticate, get_user_model
 from django.conf import settings
 from datetime import date
 
+from django.core.cache import cache
+from django.core import signing
 from django.utils.dateparse import parse_date
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -15,6 +19,12 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
+
+PASSWORD_RESET_TTL_SECONDS = 10 * 60
+PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
+PASSWORD_RESET_MAX_ATTEMPTS = 5
+PASSWORD_RESET_PURPOSE = "password_reset"
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 def verify_recaptcha(token, remote_ip=""):
@@ -172,6 +182,80 @@ def build_auth_response(user):
     }
 
 
+def password_reset_cache_key(email):
+    return f"password-reset:{email.strip().lower()}"
+
+
+def generate_password_reset_otp():
+    return f"{random.SystemRandom().randint(0, 999999):06d}"
+
+
+def normalize_reset_channel(value):
+    channel = str(value or "").strip().lower()
+    return channel if channel in {"email", "whatsapp"} else ""
+
+
+def build_password_reset_message(user, otp):
+    name = f"{user.first_name} {user.last_name}".strip() or user.username
+    return (
+        f"Hello {name},\n\n"
+        f"Your ALiS password reset OTP is {otp}.\n"
+        "This OTP will expire in 10 minutes. If you did not request this, please ignore this message."
+    )
+
+
+def deliver_password_reset_otp(user, channel, otp):
+    message = build_password_reset_message(user, otp)
+
+    if channel == "email":
+        if not user.email:
+            return False, "This account does not have an email address saved."
+
+        if getattr(settings, "NOTIFICATION_EMAIL_ENABLED", False) and settings.BREVO_API_KEY:
+            from notifications.services import send_email
+
+            send_email(user.email, "ALiS Password Reset OTP", message)
+            return True, "OTP sent to your registered email address."
+
+        if settings.DEBUG:
+            return True, "OTP prepared for your registered email address."
+
+        return False, "Email OTP service is not available right now. Please try WhatsApp or contact support."
+
+    if channel == "whatsapp":
+        if not user.mobile_number:
+            return False, "This account does not have a WhatsApp/mobile number saved."
+
+        if getattr(settings, "WHATSAPP_ENABLED", False):
+            from notifications.services import send_whatsapp
+
+            send_whatsapp(user.mobile_number, message)
+            return True, "OTP sent to your registered WhatsApp number."
+
+        if settings.DEBUG:
+            return True, "OTP prepared for your registered WhatsApp number."
+
+        return False, "WhatsApp OTP service is not available right now. Please try email or contact support."
+
+    return False, "Please choose whether to receive the OTP by email or WhatsApp."
+
+
+def friendly_password_validation(password, password2):
+    if not password:
+        return "Please enter your new password."
+
+    if not password2:
+        return "Please confirm your new password."
+
+    if password != password2:
+        return "New Password and Confirm Password do not match."
+
+    if len(password) < 8:
+        return "Password must be at least 8 characters long."
+
+    return ""
+
+
 @api_view(["POST"])
 def register_view(request):
     data = request.data
@@ -287,6 +371,205 @@ def login_view(request):
         )
 
     return Response(build_auth_response(user), status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def password_reset_request_view(request):
+    email = str(request.data.get("email", "")).strip().lower()
+    channel = normalize_reset_channel(request.data.get("channel"))
+
+    if not email:
+        return Response(
+            {"error": "Please enter your registered email address."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not EMAIL_PATTERN.match(email):
+        return Response(
+            {"error": "Please enter a valid email address."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not channel:
+        return Response(
+            {"error": "Please choose email or WhatsApp to receive your OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = User.objects.filter(email__iexact=email).first()
+    if not user:
+        return Response(
+            {"error": "We could not find an ALiS account with that email address."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    otp = generate_password_reset_otp()
+    try:
+        delivered, delivery_message = deliver_password_reset_otp(user, channel, otp)
+    except Exception:
+        delivered = False
+        delivery_message = "We could not send the OTP right now. Please try again in a moment."
+
+    if not delivered:
+        return Response(
+            {"error": delivery_message},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    cache.set(
+        password_reset_cache_key(email),
+        {
+            "user_id": user.id,
+            "email": email,
+            "otp": otp,
+            "channel": channel,
+            "attempts": 0,
+            "verified": False,
+        },
+        PASSWORD_RESET_TTL_SECONDS,
+    )
+
+    response = {
+        "message": delivery_message,
+        "expires_in": PASSWORD_RESET_TTL_SECONDS,
+    }
+
+    if settings.DEBUG:
+        response["debug_otp"] = otp
+
+    return Response(response, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+def password_reset_verify_view(request):
+    email = str(request.data.get("email", "")).strip().lower()
+    otp = re.sub(r"\D", "", str(request.data.get("otp", "")))
+
+    if not email or not EMAIL_PATTERN.match(email):
+        return Response(
+            {"error": "Please enter the email address used to request the OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if len(otp) != 6:
+        return Response(
+            {"error": "Please enter the 6-digit OTP sent to you."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    cache_key = password_reset_cache_key(email)
+    payload = cache.get(cache_key)
+
+    if not payload:
+        return Response(
+            {"error": "Your OTP has expired. Please request a new OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    attempts = int(payload.get("attempts", 0))
+    if attempts >= PASSWORD_RESET_MAX_ATTEMPTS:
+        cache.delete(cache_key)
+        return Response(
+            {"error": "Too many incorrect OTP attempts. Please request a new OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if otp != payload.get("otp"):
+        payload["attempts"] = attempts + 1
+        cache.set(cache_key, payload, PASSWORD_RESET_TTL_SECONDS)
+        remaining = max(PASSWORD_RESET_MAX_ATTEMPTS - payload["attempts"], 0)
+        return Response(
+            {"error": f"The OTP is incorrect. You have {remaining} attempt(s) left."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    token = signing.dumps(
+        {
+            "user_id": payload.get("user_id"),
+            "email": email,
+            "purpose": PASSWORD_RESET_PURPOSE,
+        },
+        salt=PASSWORD_RESET_PURPOSE,
+    )
+    payload["verified"] = True
+    payload["reset_token"] = token
+    cache.set(cache_key, payload, PASSWORD_RESET_TOKEN_TTL_SECONDS)
+
+    return Response(
+        {
+            "message": "OTP verified. You can now create a new password.",
+            "reset_token": token,
+            "expires_in": PASSWORD_RESET_TOKEN_TTL_SECONDS,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["POST"])
+def password_reset_confirm_view(request):
+    token = str(request.data.get("reset_token", "")).strip()
+    password = request.data.get("password", "")
+    password2 = request.data.get("password2", "")
+    validation_error = friendly_password_validation(password, password2)
+
+    if validation_error:
+        return Response(
+            {"error": validation_error},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not token:
+        return Response(
+            {"error": "Password reset session is missing. Please verify your OTP again."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        payload = signing.loads(
+            token,
+            salt=PASSWORD_RESET_PURPOSE,
+            max_age=PASSWORD_RESET_TOKEN_TTL_SECONDS,
+        )
+    except signing.SignatureExpired:
+        return Response(
+            {"error": "Your password reset session has expired. Please request a new OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except signing.BadSignature:
+        return Response(
+            {"error": "This password reset link is no longer valid. Please request a new OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if payload.get("purpose") != PASSWORD_RESET_PURPOSE:
+        return Response(
+            {"error": "This password reset session is invalid. Please request a new OTP."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    email = str(payload.get("email", "")).strip().lower()
+    cache_payload = cache.get(password_reset_cache_key(email))
+    if not cache_payload or cache_payload.get("reset_token") != token:
+        return Response(
+            {"error": "Please verify your OTP before setting a new password."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = User.objects.filter(pk=payload.get("user_id"), email__iexact=email).first()
+    if not user:
+        return Response(
+            {"error": "We could not find the account for this reset request."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    user.set_password(password)
+    user.save(update_fields=["password"])
+    cache.delete(password_reset_cache_key(email))
+
+    return Response(
+        {"message": "Password reset successful. Please login with your new password."},
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["GET", "PATCH"])
