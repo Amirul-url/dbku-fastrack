@@ -714,6 +714,32 @@ function FileAction({
   const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
   const tx = (key) => stepText(language, key);
 
+  if (readOnly) {
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <span className="w-3 text-center text-sm font-bold text-red-500">
+          {required ? "*" : ""}
+        </span>
+
+        {attachment ? (
+          <a
+            href={attachmentUrl}
+            download={attachment.name}
+            className="inline-flex h-8 min-w-[92px] items-center justify-center gap-1.5 rounded border border-emerald-200 bg-white px-2.5 text-[10px] font-bold text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+            title={tx("download")}
+          >
+            <span className="material-symbols-outlined text-[17px] leading-none">
+              file_download
+            </span>
+            <span>{tx("download")}</span>
+          </a>
+        ) : (
+          <span className="h-8 min-w-[92px]" />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-center">
       <div className="grid grid-cols-[10px_32px_32px_32px] items-center gap-2">
@@ -721,55 +747,47 @@ function FileAction({
           {required ? "*" : ""}
         </span>
 
-        {!readOnly ? (
-          <label
-            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded bg-[#18b36b] text-white shadow-sm hover:bg-[#128a53]"
-            title={tx("upload")}
-          >
-            <span className="material-symbols-outlined text-[18px] leading-none">
-              upload
-            </span>
+        <label
+          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded bg-[#18b36b] text-white shadow-sm hover:bg-[#128a53]"
+          title={tx("upload")}
+        >
+          <span className="material-symbols-outlined text-[18px] leading-none">
+            upload
+          </span>
 
-            <input
-              type="file"
-              className="hidden"
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.dxf"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                onFileChange(index, file);
-                event.target.value = "";
-              }}
-            />
-          </label>
-        ) : (
-          <span className="h-8 w-8" />
-        )}
+          <input
+            type="file"
+            className="hidden"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.dxf"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              onFileChange(index, file);
+              event.target.value = "";
+            }}
+          />
+        </label>
 
         {attachment ? (
           <>
             <a
               href={attachmentUrl}
               download={attachment.name}
-              className="inline-flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-white shadow-sm hover:bg-slate-900"
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
               title={tx("download")}
             >
               <span className="material-symbols-outlined text-[18px] leading-none">
-                download
+                file_download
               </span>
             </a>
 
-            {!readOnly ? (
-              <button
-                type="button"
-                onClick={() => onRemoveFile(index)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-                title={tx("removeFile")}
-              >
-                X
-              </button>
-            ) : (
-              <span className="h-8 w-8" />
-            )}
+            <button
+              type="button"
+              onClick={() => onRemoveFile(index)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+              title={tx("removeFile")}
+            >
+              X
+            </button>
           </>
         ) : (
           <>

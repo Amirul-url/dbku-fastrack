@@ -28,7 +28,6 @@ import UserProfilePage from "./pages/profile/UserProfilePage";
 /* ADMIN APPLICATION */
 import AdminApplicationsPage from "./pages/applications/admin/AdminApplicationsPage";
 import AdminApplicationDetailPage from "./pages/applications/admin/AdminApplicationDetailPage";
-import AdminApplicationStepNav from "./pages/applications/admin/AdminApplicationStepNav";
 
 /* USER APPLICATION STEPS */
 import SittingApplicationPage from "./pages/applications/user/steps/SittingApplicationPage";
@@ -346,7 +345,6 @@ function App() {
             <AdminRoute>
               <SittingApplicationPage
                 LayoutComponent={AdminDashboardLayout}
-                StepNavComponent={AdminApplicationStepNav}
                 mode="admin"
               />
             </AdminRoute>
@@ -359,7 +357,6 @@ function App() {
             <AdminRoute>
               <SubmittingPersonPage
                 LayoutComponent={AdminDashboardLayout}
-                StepNavComponent={AdminApplicationStepNav}
                 mode="admin"
               />
             </AdminRoute>
@@ -372,7 +369,6 @@ function App() {
             <AdminRoute>
               <SupportingDocumentPage
                 LayoutComponent={AdminDashboardLayout}
-                StepNavComponent={AdminApplicationStepNav}
                 mode="admin"
               />
             </AdminRoute>
@@ -385,7 +381,6 @@ function App() {
             <AdminRoute>
               <DeclarationPage
                 LayoutComponent={AdminDashboardLayout}
-                StepNavComponent={AdminApplicationStepNav}
                 mode="admin"
               />
             </AdminRoute>
@@ -398,7 +393,6 @@ function App() {
             <AdminRoute>
               <PrintFormPage
                 LayoutComponent={AdminDashboardLayout}
-                StepNavComponent={AdminApplicationStepNav}
                 mode="admin"
               />
             </AdminRoute>

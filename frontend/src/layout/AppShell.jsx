@@ -30,17 +30,18 @@ function writeSessionBoolean(key, value) {
   }
 }
 
-function buildAdminNav(viewApplicationId, showApplicationSteps) {
+function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode) {
+  const stepModePath = isViewMode ? "/view" : "";
   const applicationStepGroup = showApplicationSteps
     ? {
         labelKey: "steps.applicationSteps",
         fallback: "Application Steps",
         children: [
-          { no: 1, labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: `/admin/applications/${viewApplicationId}/view/step-1?id=${viewApplicationId}` },
-          { no: 2, labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: `/admin/applications/${viewApplicationId}/view/step-2?id=${viewApplicationId}` },
-          { no: 3, labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: `/admin/applications/${viewApplicationId}/view/step-3?id=${viewApplicationId}` },
-          { no: 4, labelKey: "steps.declaration", fallback: "Declaration", path: `/admin/applications/${viewApplicationId}/view/step-4?id=${viewApplicationId}` },
-          { no: 5, labelKey: "steps.printForm", fallback: "Print Form", path: `/admin/applications/${viewApplicationId}/view/step-5?id=${viewApplicationId}` },
+          { no: 1, labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-1?id=${adminApplicationId}` },
+          { no: 2, labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-2?id=${adminApplicationId}` },
+          { no: 3, labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-3?id=${adminApplicationId}` },
+          { no: 4, labelKey: "steps.declaration", fallback: "Declaration", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-4?id=${adminApplicationId}` },
+          { no: 5, labelKey: "steps.printForm", fallback: "Print Form", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-5?id=${adminApplicationId}` },
         ],
       }
     : null;
@@ -142,7 +143,7 @@ function AppShell({ children, role = "admin" }) {
     readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false)
   );
   const [adminApplicationsOpen, setAdminApplicationsOpen] = useState(() =>
-    Boolean(getAdminViewApplicationIdFromPath(location.pathname)) ||
+    Boolean(getAdminApplicationStepIdFromPath(location.pathname)) ||
     readSessionBoolean(ADMIN_APPLICATIONS_MENU_KEY, false)
   );
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
@@ -150,7 +151,8 @@ function AppShell({ children, role = "admin" }) {
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
-  const currentAdminViewApplicationId = getAdminViewApplicationIdFromPath(location.pathname);
+  const currentAdminApplicationId = getAdminApplicationStepIdFromPath(location.pathname);
+  const isAdminViewMode = isAdminApplicationViewPath(location.pathname);
   const showApplicationSteps =
     location.pathname === "/applications/new" || Boolean(currentApplicationId);
   const stepApplicationId = currentApplicationId;
@@ -159,13 +161,14 @@ function AppShell({ children, role = "admin" }) {
       if (role === "superadmin") return superAdminNav;
       if (role === "admin") {
         return buildAdminNav(
-          currentAdminViewApplicationId,
-          Boolean(currentAdminViewApplicationId)
+          currentAdminApplicationId,
+          Boolean(currentAdminApplicationId),
+          isAdminViewMode
         );
       }
       return buildApplicantNav(stepApplicationId, showApplicationSteps);
     },
-    [role, currentAdminViewApplicationId, stepApplicationId, showApplicationSteps]
+    [role, currentAdminApplicationId, isAdminViewMode, stepApplicationId, showApplicationSteps]
   );
 
   useEffect(() => {
@@ -595,9 +598,13 @@ function getApplicationIdFromPath(pathname) {
   return match?.[1] || "";
 }
 
-function getAdminViewApplicationIdFromPath(pathname) {
-  const match = String(pathname || "").match(/^\/admin\/applications\/(\d+)\/view\//);
+function getAdminApplicationStepIdFromPath(pathname) {
+  const match = String(pathname || "").match(/^\/admin\/applications\/(\d+)\/(?:view\/)?step-\d+/);
   return match?.[1] || "";
+}
+
+function isAdminApplicationViewPath(pathname) {
+  return /^\/admin\/applications\/\d+\/view\/step-\d+/.test(String(pathname || ""));
 }
 
 function getPathname(path) {
