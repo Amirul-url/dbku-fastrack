@@ -55,7 +55,6 @@ function NotificationsPage() {
     notifications,
     markAsRead,
     markAllAsRead,
-    refreshNotifications,
     unreadCount,
     loading,
     error,
@@ -108,9 +107,6 @@ function NotificationsPage() {
         )}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={refreshNotifications} icon="sync" disabled={loading}>
-              {loading ? t("common.loading", "Loading...") : t("notifications.refresh", "Refresh")}
-            </Button>
             <Button onClick={markAllAsRead} icon="done_all" disabled={notifications.length === 0}>
               {t("common.markAllRead", "Mark all as read")}
             </Button>
