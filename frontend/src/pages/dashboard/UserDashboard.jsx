@@ -47,6 +47,8 @@ function UserDashboard() {
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterYear, setFilterYear] = useState("all");
   const licenseCardRef = useRef(null);
 
   const activeSection = VALID_SECTIONS.includes(searchParams.get("tab"))
@@ -102,10 +104,10 @@ function UserDashboard() {
 
   const filteredApplications = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return applications;
 
-    return applications.filter((app) =>
-      [
+    return applications.filter((app) => {
+      const appliedDate = getApplicationAppliedDate(app);
+      const matchesKeyword = !keyword || [
         getApplicationReference(app),
         getProjectName(app),
         getApplicationType(app),
@@ -113,9 +115,27 @@ function UserDashboard() {
       ]
         .join(" ")
         .toLowerCase()
-        .includes(keyword)
-    );
-  }, [applications, search]);
+        .includes(keyword);
+      const matchesMonth =
+        filterMonth === "all" ||
+        (appliedDate && String(appliedDate.getMonth() + 1) === filterMonth);
+      const matchesYear =
+        filterYear === "all" ||
+        (appliedDate && String(appliedDate.getFullYear()) === filterYear);
+
+      return matchesKeyword && matchesMonth && matchesYear;
+    });
+  }, [applications, filterMonth, filterYear, search]);
+
+  const applicationYearOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        applications
+          .map((app) => getApplicationAppliedDate(app)?.getFullYear())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => b - a);
+  }, [applications]);
 
   const latest = applications[0];
   const activeApplication = selectedApplication || latest;
@@ -311,8 +331,14 @@ function UserDashboard() {
           applications={filteredApplications}
           loading={loading}
           search={search}
+          month={filterMonth}
+          year={filterYear}
+          years={applicationYearOptions}
+          language={language}
           t={t}
           onSearch={setSearch}
+          onMonthChange={setFilterMonth}
+          onYearChange={setFilterYear}
           onSelect={(app) => {
             setSelectedId(String(app.id));
             showSection("status");
@@ -428,11 +454,19 @@ function ApplicationsSection({
   applications,
   loading,
   search,
+  month,
+  year,
+  years,
+  language,
   t,
   onSearch,
+  onMonthChange,
+  onYearChange,
   onSelect,
   onOpen,
 }) {
+  const hasActiveFilter = Boolean(search.trim()) || month !== "all" || year !== "all";
+
   return (
     <section className="space-y-4">
       <div className="rounded-md border border-slate-200 bg-white p-4">
@@ -457,23 +491,86 @@ function ApplicationsSection({
       </div>
 
       <div className="rounded-md border border-slate-200 bg-white p-4">
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t("common.search")}
-          </span>
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400">
-              search
-            </span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => onSearch(event.target.value)}
-              placeholder={t("applicant.searchPlaceholder")}
-              className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-            />
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("common.searchAndFilter")}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {t("applicant.searchFilterHint")}
+            </p>
           </div>
-        </label>
+
+          {hasActiveFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                onSearch("");
+                onMonthChange("all");
+                onYearChange("all");
+              }}
+              className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+            >
+              {t("common.clearFilters")}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+              {t("common.keyword")}
+            </span>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400">
+                search
+              </span>
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => onSearch(event.target.value)}
+                placeholder={t("applicant.searchPlaceholder")}
+                className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+              {t("common.month")}
+            </span>
+            <select
+              value={month}
+              onChange={(event) => onMonthChange(event.target.value)}
+              className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="all">{t("common.allMonths")}</option>
+              {getMonthOptions(language).map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+              {t("common.year")}
+            </span>
+            <select
+              value={year}
+              onChange={(event) => onYearChange(event.target.value)}
+              className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="all">{t("common.allYears")}</option>
+              {years.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       <ApplicationTable
@@ -755,6 +852,25 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
 
 function translatedStatus(t, status) {
   return t(`status.${normalizeStatus(status)}`, formatWorkflowStatus(status));
+}
+
+function getApplicationAppliedDate(app) {
+  const rawDate = app?.created_at || app?.submitted_at || app?.updated_at;
+  if (!rawDate) return null;
+
+  const date = new Date(rawDate);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getMonthOptions(language = "en") {
+  const locale = language === "ms" ? "ms-MY" : "en-US";
+
+  return Array.from({ length: 12 }, (_, index) => ({
+    value: String(index + 1),
+    label: new Intl.DateTimeFormat(locale, { month: "long" }).format(
+      new Date(2026, index, 1)
+    ),
+  }));
 }
 
 function buildOverviewStatusSummary(applications, latest, t) {
