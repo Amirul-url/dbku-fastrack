@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest, getStoredUser } from "../../services/api";
+import { apiRequest } from "../../services/api";
 import {
   Alert,
   DataTable,
-  PageHeader,
   Panel,
   StatusPill,
 } from "../../components/ui/SystemUI";
@@ -86,25 +85,6 @@ const units = [
   },
 ];
 
-const menuViews = [
-  {
-    key: "personal",
-    labelKey: "admin.dashboard.personalTask",
-  },
-  {
-    key: "claimable",
-    labelKey: "admin.dashboard.claimableTask",
-  },
-  {
-    key: "claimed",
-    labelKey: "admin.dashboard.allClaimedTask",
-  },
-  {
-    key: "approval",
-    labelKey: "admin.dashboard.awaitingApproval",
-  },
-];
-
 const workflowCards = [
   {
     titleKey: "admin.workflow.screening",
@@ -137,10 +117,8 @@ function AdminDashboard() {
   const { t } = useLanguage();
   const [applications, setApplications] = useState([]);
   const [selectedUnit, setSelectedUnit] = useState("Unit Iklan");
-  const [activeView, setActiveView] = useState("claimable");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const user = getStoredUser();
 
   const fetchApplications = useCallback(async () => {
     try {
@@ -178,60 +156,23 @@ function AdminDashboard() {
 
   return (
     <AdminDashboardLayout>
-      <PageHeader
-        eyebrow={t("admin.dashboard.eyebrow")}
-        title={t("admin.dashboard.title")}
-        description={t("admin.dashboard.description")}
-      />
-
       <Alert message={error} />
 
-      <section className="mb-5 grid grid-cols-1 gap-3 border border-slate-300 bg-white p-3 lg:grid-cols-[230px_minmax(0,1fr)]">
-        <aside className="overflow-hidden border border-slate-200 bg-slate-50">
-          <div className="bg-emerald-900 px-4 py-3 text-white">
-            <p className="text-xs font-semibold">
-              {t("admin.dashboard.welcome")} {user?.full_name || user?.username || "Admin"}
-            </p>
-            <p className="mt-1 text-[11px] font-semibold uppercase text-emerald-100">
-              {t("admin.dashboard.dataEntry")}
-            </p>
-          </div>
+      <section className="mb-5 border border-slate-300 bg-white p-3">
+        <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <SummaryBox label={t("admin.dashboard.submittedForms")} value={loading ? "..." : submitted} />
+          <SummaryBox label={t("admin.dashboard.taskToClaim")} value={loading ? "..." : totalClaimable} />
+          <SummaryBox label={t("admin.dashboard.units")} value={units.length} />
+        </div>
 
-          <nav className="text-sm">
-            <SidebarItem active label={t("admin.dashboard.application")} />
-            {menuViews.slice(0, 3).map((item) => (
-              <SidebarButton
-                key={item.key}
-                active={activeView === item.key}
-                label={t(item.labelKey)}
-                onClick={() => setActiveView(item.key)}
-              />
-            ))}
-            <SidebarItem label={t("admin.dashboard.licenseCode")} />
-            <SidebarButton
-              active={activeView === "approval"}
-              label={t("admin.dashboard.awaitingApproval")}
-              onClick={() => setActiveView("approval")}
-            />
-          </nav>
-        </aside>
-
-        <main className="min-w-0">
-          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <SummaryBox label={t("admin.dashboard.submittedForms")} value={loading ? "..." : submitted} />
-            <SummaryBox label={t("admin.dashboard.taskToClaim")} value={loading ? "..." : totalClaimable} />
-            <SummaryBox label={t("admin.dashboard.units")} value={units.length} />
-          </div>
-
-          <ClaimableTaskView
-            t={t}
-            loading={loading}
-            selected={selected}
-            selectedUnit={selectedUnit}
-            setSelectedUnit={setSelectedUnit}
-            unitTasks={unitTasks}
-          />
-        </main>
+        <ClaimableTaskView
+          t={t}
+          loading={loading}
+          selected={selected}
+          selectedUnit={selectedUnit}
+          setSelectedUnit={setSelectedUnit}
+          unitTasks={unitTasks}
+        />
       </section>
 
       <Panel title={t("admin.workflow.title")} description={t("admin.workflow.description")}>
@@ -376,34 +317,6 @@ function ClaimableTaskView({
         </div>
       </div>
     </>
-  );
-}
-
-function SidebarItem({ label, active = false }) {
-  return (
-    <div
-      className={`border-b border-white/70 px-4 py-2.5 font-semibold ${
-        active ? "bg-green-700 text-white" : "bg-lime-100 text-slate-700"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-function SidebarButton({ label, active = false, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`block w-full border-b border-white/70 px-4 py-2.5 text-left transition ${
-        active
-          ? "bg-lime-200 font-semibold text-slate-950"
-          : "bg-lime-100 text-slate-700 hover:bg-lime-200"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

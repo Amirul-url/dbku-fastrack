@@ -8,8 +8,6 @@ const logo = "/ALiS.png";
 
 const adminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/dashboard/admin", icon: "dashboard" },
-  { labelKey: "nav.applications", fallback: "Applications", path: "/admin/applications", icon: "description" },
-  { labelKey: "nav.notifications", fallback: "Notifications", path: "/notifications", icon: "notifications" },
 ];
 
 function getApplicationStepPath(applicationId, route) {
@@ -70,6 +68,7 @@ function AppShell({ children, role = "admin" }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
+  const [adminTaskMenuView, setAdminTaskMenuView] = useState("claimable");
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
@@ -313,6 +312,14 @@ function AppShell({ children, role = "admin" }) {
             );
           })}
 
+          {role === "admin" && (
+            <AdminTaskSidebar
+              activeView={adminTaskMenuView}
+              displayName={user?.full_name || user?.username || "System Administrator"}
+              onSelect={setAdminTaskMenuView}
+              t={t}
+            />
+          )}
         </nav>
       </aside>
 
@@ -321,14 +328,9 @@ function AppShell({ children, role = "admin" }) {
           <div className="flex h-16 items-center justify-between gap-4 px-7">
             <div className="min-w-0">
               {role === "admin" ? (
-                <>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    {t("role.officerPortal")}
-                  </p>
-                  <p className="truncate text-sm font-semibold text-slate-950">
-                    {userDisplayName}
-                  </p>
-                </>
+                <p className="truncate text-sm font-semibold text-slate-950">
+                  {t("profile.welcome")}, Admin
+                </p>
               ) : (
                 <p className="truncate text-sm font-semibold text-slate-950">
                   {t("profile.welcome")}, {userDisplayName}
@@ -421,6 +423,74 @@ function DashboardFooter({ t }) {
         </div>
       </div>
     </footer>
+  );
+}
+
+function AdminTaskSidebar({ activeView, displayName, onSelect, t }) {
+  return (
+    <div className="mt-3 overflow-hidden border border-slate-200 bg-slate-50">
+      <div className="bg-emerald-900 px-4 py-3 text-white">
+        <p className="text-xs font-semibold">
+          {t("admin.dashboard.welcome")} {displayName}
+        </p>
+        <p className="mt-1 text-[11px] font-semibold uppercase text-emerald-100">
+          {t("admin.dashboard.dataEntry")}
+        </p>
+      </div>
+
+      <div className="text-sm">
+        <AdminSidebarItem active label={t("admin.dashboard.application")} />
+        <AdminSidebarButton
+          active={activeView === "personal"}
+          label={t("admin.dashboard.personalTask")}
+          onClick={() => onSelect("personal")}
+        />
+        <AdminSidebarButton
+          active={activeView === "claimable"}
+          label={t("admin.dashboard.claimableTask")}
+          onClick={() => onSelect("claimable")}
+        />
+        <AdminSidebarButton
+          active={activeView === "claimed"}
+          label={t("admin.dashboard.allClaimedTask")}
+          onClick={() => onSelect("claimed")}
+        />
+        <AdminSidebarItem label={t("admin.dashboard.licenseCode")} />
+        <AdminSidebarButton
+          active={activeView === "approval"}
+          label={t("admin.dashboard.awaitingApproval")}
+          onClick={() => onSelect("approval")}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AdminSidebarItem({ label, active = false }) {
+  return (
+    <div
+      className={`border-b border-white/70 px-4 py-2.5 font-semibold ${
+        active ? "bg-green-700 text-white" : "bg-lime-100 text-slate-700"
+      }`}
+    >
+      {label}
+    </div>
+  );
+}
+
+function AdminSidebarButton({ label, active = false, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`block w-full border-b border-white/70 px-4 py-2.5 text-left transition ${
+        active
+          ? "bg-lime-200 font-semibold text-slate-950"
+          : "bg-lime-100 text-slate-700 hover:bg-lime-200"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
