@@ -168,7 +168,10 @@ export async function apiRequest(path, options = {}) {
       data?.non_field_errors?.[0] ||
       `Request failed (${response.status})`;
 
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   const method = String(options.method || "GET").toUpperCase();

@@ -97,7 +97,7 @@ function ForgotPassword() {
       setMessage(data.message || t("auth.reset.otpSent"));
       setTimeout(() => otpRefs.current[0]?.focus(), 0);
     } catch (err) {
-      setFriendlyError(mapResetError(err.message, t, channel));
+      setFriendlyError(mapResetError(err, t, channel));
     } finally {
       setLoading(false);
     }
@@ -127,7 +127,7 @@ function ForgotPassword() {
       setStep("password");
       setMessage(data.message || t("auth.reset.otpVerified"));
     } catch (err) {
-      setFriendlyError(mapResetError(err.message, t, channel));
+      setFriendlyError(mapResetError(err, t, channel));
     } finally {
       setLoading(false);
     }
@@ -167,7 +167,7 @@ function ForgotPassword() {
         state: { passwordResetSuccess: true },
       });
     } catch (err) {
-      setFriendlyError(mapResetError(err.message, t, channel));
+      setFriendlyError(mapResetError(err, t, channel));
     } finally {
       setLoading(false);
     }
@@ -468,10 +468,16 @@ function PasswordInput({ label, value, error, show, onToggle, onChange }) {
   );
 }
 
-function mapResetError(message, t, channel = "email") {
+function mapResetError(error, t, channel = "email") {
+  const message = typeof error === "string" ? error : error?.message;
   const normalized = String(message || "").toLowerCase();
 
-  if (normalized.includes("could not find")) {
+  if (
+    error?.status === 404 ||
+    normalized.includes("404") ||
+    normalized.includes("not found") ||
+    normalized.includes("could not find")
+  ) {
     return channel === "whatsapp"
       ? t("auth.reset.errorNotFoundWhatsapp")
       : t("auth.reset.errorNotFound");

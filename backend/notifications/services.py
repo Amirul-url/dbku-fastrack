@@ -14,6 +14,8 @@ from .models import NotificationDelivery
 
 logger = logging.getLogger(__name__)
 
+APP_BRAND_NAME = "ALiS"
+
 
 STATUS_MESSAGES = {
     "submitted": (
@@ -198,7 +200,7 @@ def build_status_messages(application):
     }
 
     title = subject_template.format(**context)
-    subject = f"DBKU fasTrack - {title} ({application.reference_no})"
+    subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     applicant_body = applicant_template.format(**context)
     admin_body = admin_template.format(**context)
     applicant_metadata = build_web_metadata(
@@ -259,7 +261,7 @@ def build_web_metadata(application, title, body, recipient_role):
 
 def format_notification_message(title, body, application, recipient_role):
     lines = [
-        "DBKU fasTrack",
+        APP_BRAND_NAME,
         "",
         title,
         f"Reference: {application.reference_no}",
@@ -274,16 +276,6 @@ def format_notification_message(title, body, application, recipient_role):
     remark = get_message_remark(application)
     if remark:
         lines.extend(["", f"Remark: {remark}"])
-
-    if not settings.FRONTEND_URL:
-        return "\n".join(lines)
-
-    if recipient_role == "admin":
-        url = f"{settings.FRONTEND_URL}/admin/applications/{application.id}"
-    else:
-        url = f"{settings.FRONTEND_URL}/applications/{application.id}/edit?id={application.id}"
-
-    lines.extend(["", f"Open: {url}"])
 
     return "\n".join(lines)
 
