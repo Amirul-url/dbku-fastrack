@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
+import {
+  canEditApplicationForm,
+  formatWorkflowStatus,
+} from "../../../../utils/workflow";
 
 function SubmittingPersonPage({
   LayoutComponent = UserDashboardLayout,
@@ -67,6 +71,7 @@ function SubmittingPersonPage({
   const [email, setEmail] = useState("");
   const [faxCountryCode, setFaxCountryCode] = useState("");
   const [faxNo, setFaxNo] = useState("");
+  const [applicationRecord, setApplicationRecord] = useState(null);
 
   useEffect(() => {
     if (applicationId) {
@@ -80,6 +85,7 @@ function SubmittingPersonPage({
       const data = await apiRequest(`/applications/${applicationId}/`);
       const step3 = data.form_data?.step_3 || {};
 
+      setApplicationRecord(data);
       setOrgType(step3.org_type || "");
       setRegistrationNo(step3.registration_no || "");
       setOrgName(step3.org_name || "");
@@ -111,6 +117,8 @@ function SubmittingPersonPage({
   }
 
   async function handleSaveStep3() {
+    if (isReadOnly) return;
+
     if (
       !orgType.trim() ||
       !orgName.trim() ||
@@ -186,6 +194,9 @@ function SubmittingPersonPage({
     }
   }
 
+  const isReadOnly =
+    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
+
   return (
     <Layout>
       <div className="flex gap-4">
@@ -214,20 +225,26 @@ function SubmittingPersonPage({
                 Back
               </Link>
 
-              <button
-                type="button"
-                onClick={handleSaveStep3}
-                className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
-              >
-                Save & Next
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleSaveStep3}
+                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                >
+                  Save & Next
+                </button>
+              )}
             </div>
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <ApplicationReference />
 
-            <div className="p-5 space-y-4">
+            {isReadOnly && (
+              <ReadOnlyNotice status={applicationRecord?.status} />
+            )}
+
+            <fieldset disabled={isReadOnly} className="p-5 space-y-4">
               <FormSection title="Organisation">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label="Organisation Type" required>
@@ -477,19 +494,30 @@ function SubmittingPersonPage({
                   Back
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={handleSaveStep3}
-                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
-                >
-                  Save & Next
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSaveStep3}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                  >
+                    Save & Next
+                  </button>
+                )}
               </div>
-            </div>
+            </fieldset>
           </section>
         </main>
       </div>
     </Layout>
+  );
+}
+
+function ReadOnlyNotice({ status }) {
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
+      If it is rejected with remarks, use Edit from the applications list to make corrections.
+    </div>
   );
 }
 

@@ -169,6 +169,54 @@ export function canViewLicense(app) {
   );
 }
 
+export function canEditApplicationForm(app) {
+  const status = normalizeStatus(app?.status);
+
+  return [
+    WORKFLOW_STATUS.DRAFT,
+    WORKFLOW_STATUS.INCOMPLETE,
+    WORKFLOW_STATUS.TECHNICAL_AMENDMENT,
+    WORKFLOW_STATUS.REJECTED,
+  ].includes(status);
+}
+
+export function needsApplicantCorrection(app) {
+  const status = normalizeStatus(app?.status);
+
+  return [
+    WORKFLOW_STATUS.INCOMPLETE,
+    WORKFLOW_STATUS.TECHNICAL_AMENDMENT,
+    WORKFLOW_STATUS.REJECTED,
+  ].includes(status);
+}
+
+export function getApplicantApplicationRoute(app) {
+  const routes = {
+    1: "edit",
+    2: "submitting-person",
+    3: "supporting-document",
+    4: "declaration",
+    5: "print-form",
+  };
+
+  if (needsApplicantCorrection(app)) {
+    return "edit";
+  }
+
+  if (canEditApplicationForm(app)) {
+    const step = Number(app?.current_step || 1);
+    return routes[step] || "edit";
+  }
+
+  return "print-form";
+}
+
+export function getApplicantActionKey(app) {
+  if (needsApplicantCorrection(app)) return "common.edit";
+  if (canEditApplicationForm(app)) return "common.continue";
+  return "common.view";
+}
+
 export function formatWorkflowStatus(status) {
   const normalized = normalizeStatus(status);
 

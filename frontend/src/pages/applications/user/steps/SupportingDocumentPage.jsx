@@ -5,6 +5,10 @@ import {
   apiRequest,
   uploadApplicationDocument,
 } from "../../../../services/api";
+import {
+  canEditApplicationForm,
+  formatWorkflowStatus,
+} from "../../../../utils/workflow";
 
 const defaultDocuments = [
   {
@@ -116,6 +120,7 @@ function SupportingDocumentPage({
   const [titleDocuments, setTitleDocuments] = useState([]);
   const [otherDocuments, setOtherDocuments] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [applicationRecord, setApplicationRecord] = useState(null);
 
   useEffect(() => {
     if (applicationId) {
@@ -159,6 +164,7 @@ function SupportingDocumentPage({
           ]
         : [];
 
+      setApplicationRecord(data);
       setStep1(step1Data);
       setDocuments(normalizeDocuments(savedDocuments, defaultDocuments));
       setTitleDocuments(
@@ -175,6 +181,8 @@ function SupportingDocumentPage({
   }
 
   async function saveStep10({ goNext = false } = {}) {
+    if (isReadOnly) return false;
+
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
       return false;
@@ -234,6 +242,7 @@ function SupportingDocumentPage({
   }
 
   async function handleDocumentFileChange(index, file) {
+    if (isReadOnly) return;
     if (!file) return;
 
     try {
@@ -255,6 +264,7 @@ function SupportingDocumentPage({
   }
 
   async function handleTitleFileChange(index, file) {
+    if (isReadOnly) return;
     if (!file) return;
 
     try {
@@ -276,6 +286,7 @@ function SupportingDocumentPage({
   }
 
   async function handleOtherFileChange(index, file) {
+    if (isReadOnly) return;
     if (!file) return;
 
     try {
@@ -297,6 +308,8 @@ function SupportingDocumentPage({
   }
 
   function removeDocumentFile(index) {
+    if (isReadOnly) return;
+
     setDocuments((prev) =>
       prev.map((item, itemIndex) =>
         itemIndex === index ? { ...item, attachment: null } : item
@@ -305,6 +318,8 @@ function SupportingDocumentPage({
   }
 
   function removeTitleFile(index) {
+    if (isReadOnly) return;
+
     setTitleDocuments((prev) =>
       prev.map((item, itemIndex) =>
         itemIndex === index ? { ...item, attachment: null } : item
@@ -313,6 +328,8 @@ function SupportingDocumentPage({
   }
 
   function removeOtherFile(index) {
+    if (isReadOnly) return;
+
     setOtherDocuments((prev) =>
       prev.map((item, itemIndex) =>
         itemIndex === index ? { ...item, attachment: null } : item
@@ -321,6 +338,8 @@ function SupportingDocumentPage({
   }
 
   function addOtherDocument() {
+    if (isReadOnly) return;
+
     setOtherDocuments((prev) => [
       ...prev,
       {
@@ -332,6 +351,8 @@ function SupportingDocumentPage({
   }
 
   function updateOtherDocument(index, field, value) {
+    if (isReadOnly) return;
+
     setOtherDocuments((prev) =>
       prev.map((item, itemIndex) =>
         itemIndex === index ? { ...item, [field]: value } : item
@@ -340,6 +361,8 @@ function SupportingDocumentPage({
   }
 
   function removeOtherDocument(index) {
+    if (isReadOnly) return;
+
     setOtherDocuments((prev) =>
       prev.filter((_, itemIndex) => itemIndex !== index)
     );
@@ -348,6 +371,9 @@ function SupportingDocumentPage({
   async function handleSaveAndNext() {
     await saveStep10({ goNext: true });
   }
+
+  const isReadOnly =
+    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
 
   return (
     <Layout>
@@ -377,35 +403,44 @@ function SupportingDocumentPage({
                 Back
               </Link>
 
-              <button
-                type="button"
-                onClick={handleSaveAndNext}
-                disabled={saving}
-                className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
-              >
-                {saving ? "Saving..." : "Save & Next"}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleSaveAndNext}
+                  disabled={saving}
+                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
+                >
+                  {saving ? "Saving..." : "Save & Next"}
+                </button>
+              )}
             </div>
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <ApplicationReference step1={step1} />
 
+            {isReadOnly && (
+              <ReadOnlyNotice status={applicationRecord?.status} />
+            )}
+
             <div className="space-y-7 p-4 lg:p-5">
               <SupportingTable
                 rows={documents}
+                readOnly={isReadOnly}
                 onFileChange={handleDocumentFileChange}
                 onRemoveFile={removeDocumentFile}
               />
 
               <TitleTable
                 rows={titleDocuments}
+                readOnly={isReadOnly}
                 onFileChange={handleTitleFileChange}
                 onRemoveFile={removeTitleFile}
               />
 
               <OtherSupportingTable
                 rows={otherDocuments}
+                readOnly={isReadOnly}
                 onAdd={addOtherDocument}
                 onUpdate={updateOtherDocument}
                 onRemove={removeOtherDocument}
@@ -425,14 +460,16 @@ function SupportingDocumentPage({
                   Back
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={handleSaveAndNext}
-                  disabled={saving}
-                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save & Next"}
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSaveAndNext}
+                    disabled={saving}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
+                  >
+                    {saving ? "Saving..." : "Save & Next"}
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -473,7 +510,16 @@ function ApplicationReference({ step1 }) {
   );
 }
 
-function SupportingTable({ rows, onFileChange, onRemoveFile }) {
+function ReadOnlyNotice({ status }) {
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
+      If it is rejected with remarks, use Edit from the applications list to make corrections.
+    </div>
+  );
+}
+
+function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
   return (
     <section className="overflow-hidden rounded-md border border-slate-200">
       <div className="border-l-4 border-[#18b36b] bg-white px-4 py-3">
@@ -539,13 +585,14 @@ function SupportingTable({ rows, onFileChange, onRemoveFile }) {
                 </TableCell>
 
                 <TableCell center>
-                  <FileAction
-                    index={index}
-                    attachment={row.attachment}
-                    required={row.required}
-                    onFileChange={onFileChange}
-                    onRemoveFile={onRemoveFile}
-                  />
+                    <FileAction
+                      index={index}
+                      attachment={row.attachment}
+                      required={row.required}
+                      readOnly={readOnly}
+                      onFileChange={onFileChange}
+                      onRemoveFile={onRemoveFile}
+                    />
                 </TableCell>
               </tr>
             ))}
@@ -556,7 +603,7 @@ function SupportingTable({ rows, onFileChange, onRemoveFile }) {
   );
 }
 
-function TitleTable({ rows, onFileChange, onRemoveFile }) {
+function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
   return (
     <section className="overflow-hidden rounded-md border border-slate-200">
       <div className="border-l-4 border-[#18b36b] bg-white px-4 py-3">
@@ -606,6 +653,7 @@ function TitleTable({ rows, onFileChange, onRemoveFile }) {
                       index={index}
                       attachment={row.attachment}
                       required={false}
+                      readOnly={readOnly}
                       onFileChange={onFileChange}
                       onRemoveFile={onRemoveFile}
                     />
@@ -622,6 +670,7 @@ function TitleTable({ rows, onFileChange, onRemoveFile }) {
 
 function OtherSupportingTable({
   rows,
+  readOnly = false,
   onAdd,
   onUpdate,
   onRemove,
@@ -635,13 +684,15 @@ function OtherSupportingTable({
           Other Relevant Supporting Documents (If Any)
         </h2>
 
-        <button
-          type="button"
-          onClick={onAdd}
-          className="rounded bg-[#18b36b] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#128a53]"
-        >
-          + Add Document
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="rounded bg-[#18b36b] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#128a53]"
+          >
+            + Add Document
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -678,6 +729,7 @@ function OtherSupportingTable({
                       onChange={(event) =>
                         onUpdate(index, "description", event.target.value)
                       }
+                      readOnly={readOnly}
                       placeholder="Enter document description"
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#18b36b] focus:ring-1 focus:ring-[#18b36b]"
                     />
@@ -690,6 +742,7 @@ function OtherSupportingTable({
                       onChange={(event) =>
                         onUpdate(index, "format", event.target.value)
                       }
+                      readOnly={readOnly}
                       placeholder="PDF/IMAGE"
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#18b36b] focus:ring-1 focus:ring-[#18b36b]"
                     />
@@ -705,18 +758,21 @@ function OtherSupportingTable({
                         index={index}
                         attachment={row.attachment}
                         required={false}
+                        readOnly={readOnly}
                         onFileChange={onFileChange}
                         onRemoveFile={onRemoveFile}
                       />
 
-                      <button
-                        type="button"
-                        onClick={() => onRemove(index)}
-                        className="inline-flex h-8 px-2 items-center justify-center gap-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-[10px] font-semibold"
-                        title="Remove row"
-                      >
-                        Delete Row
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => onRemove(index)}
+                          className="inline-flex h-8 px-2 items-center justify-center gap-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-[10px] font-semibold"
+                          title="Remove row"
+                        >
+                          Delete Row
+                        </button>
+                      )}
                     </div>
                   </TableCell>
                 </tr>
@@ -748,6 +804,7 @@ function FileAction({
   index,
   attachment,
   required,
+  readOnly = false,
   onFileChange,
   onRemoveFile,
 }) {
@@ -760,25 +817,29 @@ function FileAction({
           {required ? "*" : ""}
         </span>
 
-        <label
-          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded bg-[#18b36b] text-white shadow-sm hover:bg-[#128a53]"
-          title="Upload"
-        >
-          <span className="material-symbols-outlined text-[18px] leading-none">
-            upload
-          </span>
+        {!readOnly ? (
+          <label
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded bg-[#18b36b] text-white shadow-sm hover:bg-[#128a53]"
+            title="Upload"
+          >
+            <span className="material-symbols-outlined text-[18px] leading-none">
+              upload
+            </span>
 
-          <input
-            type="file"
-            className="hidden"
-            accept=".pdf,.png,.jpg,.jpeg,.webp,.dxf"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              onFileChange(index, file);
-              event.target.value = "";
-            }}
-          />
-        </label>
+            <input
+              type="file"
+              className="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.dxf"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                onFileChange(index, file);
+                event.target.value = "";
+              }}
+            />
+          </label>
+        ) : (
+          <span className="h-8 w-8" />
+        )}
 
         {attachment ? (
           <>
@@ -793,14 +854,18 @@ function FileAction({
               </span>
             </a>
 
-            <button
-              type="button"
-              onClick={() => onRemoveFile(index)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-              title="Remove file"
-            >
-              X
-            </button>
+            {!readOnly ? (
+              <button
+                type="button"
+                onClick={() => onRemoveFile(index)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                title="Remove file"
+              >
+                X
+              </button>
+            ) : (
+              <span className="h-8 w-8" />
+            )}
           </>
         ) : (
           <>

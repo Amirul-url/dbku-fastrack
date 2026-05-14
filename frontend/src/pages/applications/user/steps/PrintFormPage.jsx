@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
+import {
+  canEditApplicationForm,
+  formatWorkflowStatus,
+} from "../../../../utils/workflow";
 
 function PrintFormPage({
   LayoutComponent = UserDashboardLayout,
@@ -30,6 +34,7 @@ function PrintFormPage({
     submitted_at: "",
   });
   const [saving, setSaving] = useState(false);
+  const [applicationRecord, setApplicationRecord] = useState(null);
 
   useEffect(() => {
     document.title = "SITING APPLICATION FORM";
@@ -45,6 +50,7 @@ function PrintFormPage({
       const data = await apiRequest(`/applications/${applicationId}/`);
       const formData = data.form_data || {};
 
+      setApplicationRecord(data);
       setStep1(formData.step_1 || {});
       setStep3(formData.step_3 || {});
       setStep10(formData.step_10 || {});
@@ -63,6 +69,8 @@ function PrintFormPage({
   }
 
   async function saveStep9({ printed = false, submit = false } = {}) {
+    if (isReadOnly && submit) return false;
+
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
       return false;
@@ -111,8 +119,10 @@ function PrintFormPage({
   }
 
   async function handlePrint() {
-    const saved = await saveStep9({ printed: true });
-    if (!saved) return;
+    if (!isReadOnly) {
+      const saved = await saveStep9({ printed: true });
+      if (!saved) return;
+    }
 
     const previousTitle = document.title;
     document.title = "SITING APPLICATION FORM";
@@ -127,6 +137,8 @@ function PrintFormPage({
   }
 
   async function handleSubmitApplication() {
+    if (isReadOnly) return;
+
     const saved = await saveStep9({ submit: true });
     if (saved) {
       navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
@@ -140,6 +152,8 @@ function PrintFormPage({
   const otherDocuments = Array.isArray(step10.other_documents)
     ? step10.other_documents
     : [];
+  const isReadOnly =
+    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
 
   return (
     <Layout>
@@ -219,14 +233,16 @@ function PrintFormPage({
                 Back
               </Link>
 
-              <button
-                type="button"
-                onClick={handleSubmitApplication}
-                disabled={saving}
-                className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
-              >
-                {saving ? "Submitting..." : "Save & Submit Application"}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleSubmitApplication}
+                  disabled={saving}
+                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
+                >
+                  {saving ? "Submitting..." : "Save & Submit Application"}
+                </button>
+              )}
             </div>
           </div>
 
@@ -234,6 +250,12 @@ function PrintFormPage({
             <div className="print-hide">
               <ApplicationReference step1={step1} />
             </div>
+
+            {isReadOnly && (
+              <div className="print-hide">
+                <ReadOnlyNotice status={applicationRecord?.status} />
+              </div>
+            )}
 
             <div className="p-5 border-b border-slate-200 print-hide">
               <div className="bg-[#f7f7f7] border border-slate-200 p-4 text-sm text-slate-600">
@@ -353,14 +375,16 @@ function PrintFormPage({
                 Back
               </Link>
 
-              <button
-                type="button"
-                onClick={handleSubmitApplication}
-                disabled={saving}
-                className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
-              >
-                {saving ? "Submitting..." : "Save & Submit Application"}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleSubmitApplication}
+                  disabled={saving}
+                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
+                >
+                  {saving ? "Submitting..." : "Save & Submit Application"}
+                </button>
+              )}
             </div>
           </section>
         </main>
@@ -393,6 +417,15 @@ function ApplicationReference({ step1 }) {
           {step1.application_type_label || "Application for Site (New Site)"}
         </p>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyNotice({ status }) {
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
+      If it is rejected with remarks, use Edit from the applications list to make corrections.
     </div>
   );
 }

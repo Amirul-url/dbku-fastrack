@@ -15,6 +15,8 @@ import {
 import {
   formatDate,
   formatWorkflowStatus,
+  getApplicantActionKey,
+  getApplicantApplicationRoute,
   getApplicationReference,
   getApplicationType,
   getProjectName,
@@ -72,21 +74,7 @@ function UserApplicationsPage() {
   }, [applications]);
 
   function openApplication(app) {
-    const routes = {
-      1: "edit",
-      2: "submitting-person",
-      3: "supporting-document",
-      4: "declaration",
-      5: "print-form",
-    };
-    const step = Number(app.current_step || 1);
-
-    if (normalizeStatus(app.status) === "draft") {
-      navigate(`/applications/${app.id}/${routes[step] || "edit"}?id=${app.id}`);
-      return;
-    }
-
-    navigate(`/applications/${app.id}/declaration?id=${app.id}`);
+    navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?id=${app.id}`);
   }
 
   return (
@@ -169,7 +157,7 @@ function UserApplicationsPage() {
                   onClick={() => openApplication(app)}
                   className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
-                  {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
+                  {t(getApplicantActionKey(app))}
                 </button>
               ),
             },

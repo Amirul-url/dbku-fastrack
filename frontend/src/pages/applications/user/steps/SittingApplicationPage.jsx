@@ -8,6 +8,10 @@ import {
   uploadApplicationDocument,
 } from "../../../../services/api";
 import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
+import {
+  canEditApplicationForm,
+  formatWorkflowStatus,
+} from "../../../../utils/workflow";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -48,6 +52,7 @@ function SittingApplicationPage({
   const [applicationDate, setApplicationDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  const [applicationRecord, setApplicationRecord] = useState(null);
 
   const [siteImageName, setSiteImageName] = useState("");
   const [siteImagePreview, setSiteImagePreview] = useState("");
@@ -71,6 +76,7 @@ function SittingApplicationPage({
       const data = await apiRequest(`/applications/${applicationId}/`);
       const step1 = data.form_data?.step_1 || {};
 
+      setApplicationRecord(data);
       setProjectName(step1.project_name || "");
       setApplicant(step1.applicant || "");
       setContactPerson(step1.contact_person || "");
@@ -195,6 +201,8 @@ function SittingApplicationPage({
   }
 
   async function handleSave() {
+    if (isReadOnly) return;
+
     if (
       !projectName.trim() ||
       !applicant.trim() ||
@@ -232,6 +240,11 @@ function SittingApplicationPage({
   }
 
   async function handleSaveDraftAndBack() {
+    if (isReadOnly) {
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
+      return;
+    }
+
     const confirmSave = window.confirm(
       "You have unsaved changes. Save this application as draft before leaving?"
     );
@@ -254,6 +267,9 @@ function SittingApplicationPage({
       alert("Failed to save draft.");
     }
   }
+
+  const isReadOnly =
+    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
 
   return (
     <Layout>
@@ -280,20 +296,26 @@ function SittingApplicationPage({
                 Back
               </button>
 
-              <button
-                type="button"
-                onClick={handleSave}
-                className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
-              >
-                Save & Next
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                >
+                  Save & Next
+                </button>
+              )}
             </div>
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <ApplicationReference />
 
-            <div className="p-4 space-y-3">
+            {isReadOnly && (
+              <ReadOnlyNotice status={applicationRecord?.status} />
+            )}
+
+            <fieldset disabled={isReadOnly} className="p-4 space-y-3">
               <FormSection title="Type of Application">
                 <Checkbox label="Application for Site (New Site)" checked />
               </FormSection>
@@ -346,11 +368,12 @@ function SittingApplicationPage({
                 />
               </Field>
 
-              <LocationMap value={mapData} onChange={setMapData} />
+              <LocationMap value={mapData} onChange={setMapData} readOnly={isReadOnly} />
 
               <SiteImageUpload
                 imageName={siteImageName}
                 preview={siteImagePreview}
+                readOnly={isReadOnly}
                 onChange={(data) => {
                   setSiteImageName(data.name);
                   setSiteImagePreview(data.preview);
@@ -414,6 +437,7 @@ function SittingApplicationPage({
                 value={projectJustification}
                 onChange={setProjectJustification}
                 max={3000}
+                readOnly={isReadOnly}
               />
 
               <p className="-mt-2 text-[11px] italic text-slate-500">
@@ -428,6 +452,7 @@ function SittingApplicationPage({
                 value={siteSelectionReason}
                 onChange={setSiteSelectionReason}
                 max={1500}
+                readOnly={isReadOnly}
               />
 
               <p className="-mt-2 text-[11px] italic text-slate-500">
@@ -470,15 +495,17 @@ function SittingApplicationPage({
                   Back
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
-                >
-                  Save & Next
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                  >
+                    Save & Next
+                  </button>
+                )}
               </div>
-            </div>
+            </fieldset>
           </section>
         </main>
       </div>
@@ -486,7 +513,7 @@ function SittingApplicationPage({
   );
 }
 
-function LocationMap({ value, onChange }) {
+function LocationMap({ value, onChange, readOnly = false }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -550,18 +577,22 @@ function LocationMap({ value, onChange }) {
 
     markerRef.current = new mapboxgl.Marker({
       color: "#dc2626",
-      draggable: true,
+      draggable: !readOnly,
     })
       .setLngLat([lng, lat])
       .addTo(map);
 
     markerRef.current.on("dragend", () => {
+      if (readOnly) return;
+
       const position = markerRef.current.getLngLat();
       // eslint-disable-next-line react-hooks/immutability
       updateLocationFromCoordinates(position.lng, position.lat, true);
     });
 
     map.on("click", (event) => {
+      if (readOnly) return;
+
       updateLocationFromCoordinates(event.lngLat.lng, event.lngLat.lat, true);
     });
 
@@ -570,6 +601,10 @@ function LocationMap({ value, onChange }) {
       mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    markerRef.current?.setDraggable(!readOnly);
+  }, [readOnly]);
 
   function pushChange(nextAddress, nextLat, nextLng) {
     onChange?.({
@@ -773,6 +808,8 @@ function LocationMap({ value, onChange }) {
   }
 
   function handleAddressChange(event) {
+    if (readOnly) return;
+
     const nextAddress = event.target.value;
     setAddress(nextAddress);
     pushChange(nextAddress, lat, lng);
@@ -854,6 +891,7 @@ function LocationMap({ value, onChange }) {
                 className="spa-input"
                 value={address}
                 onChange={handleAddressChange}
+                readOnly={readOnly}
                 placeholder="Search building name, road, lot number or landmark in Malaysia..."
               />
 
@@ -1001,7 +1039,7 @@ function LocationMap({ value, onChange }) {
   );
 }
 
-function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
+function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = false }) {
   function handleFileChange(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -1016,7 +1054,7 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
   return (
     <FormSection title="Site Image">
       <div className="space-y-3">
-        {!preview && (
+        {!preview && !readOnly && (
           <div className="flex items-center justify-center border-2 border-dashed border-slate-300 rounded-md h-[160px] bg-slate-50">
             <label className="text-center cursor-pointer">
               <input
@@ -1048,13 +1086,15 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
                 className="w-full max-h-[420px] object-contain bg-slate-100"
               />
 
-              <button
-                type="button"
-                onClick={onRemove}
-                className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-600"
-              >
-                Remove
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-600"
+                >
+                  Remove
+                </button>
+              )}
             </div>
 
             <div className="flex justify-between items-center px-3 py-2 text-xs bg-[#f7f7f7] border-t">
@@ -1062,15 +1102,17 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
                 {imageName}
               </span>
 
-              <label className="text-[#006d32] font-semibold cursor-pointer hover:underline">
-                Replace
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
+              {!readOnly && (
+                <label className="text-[#006d32] font-semibold cursor-pointer hover:underline">
+                  Replace
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
           </div>
         )}
@@ -1081,6 +1123,15 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove }) {
         </p>
       </div>
     </FormSection>
+  );
+}
+
+function ReadOnlyNotice({ status }) {
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
+      If it is rejected with remarks, use Edit from the applications list to make corrections.
+    </div>
   );
 }
 

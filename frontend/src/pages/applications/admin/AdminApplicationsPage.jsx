@@ -92,7 +92,6 @@ function AdminApplicationsPage() {
   const summary = useMemo(() => {
     return {
       total: applications.length,
-      drafts: applications.filter((app) => normalizeStatus(app.status) === "draft").length,
       submitted: applications.filter((app) => normalizeStatus(app.status) === "submitted").length,
       active: applications.filter((app) => normalizeStatus(app.status) === "license_issued").length,
     };
@@ -118,7 +117,7 @@ function AdminApplicationsPage() {
       <PageHeader
         eyebrow="Application Records"
         title="Applications"
-        description="Search, inspect, continue, or remove centralized advertisement license applications."
+        description="Search and inspect completed applications handed over by applicants."
         actions={
           <LinkButton to="/admin/applications/new" icon="add">
             New Application
@@ -128,9 +127,8 @@ function AdminApplicationsPage() {
 
       <Alert message={error} />
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard label="Total" value={summary.total} icon="folder" />
-        <StatCard label="Draft" value={summary.drafts} icon="edit_document" tone="amber" />
         <StatCard label="Submitted" value={summary.submitted} icon="send" tone="blue" />
         <StatCard label="E-License" value={summary.active} icon="qr_code_2" />
       </section>
@@ -152,7 +150,6 @@ function AdminApplicationsPage() {
               className="form-input"
             >
               <option value="ALL">All statuses</option>
-              <option value="draft">Draft</option>
               <option value="submitted">Submitted</option>
               <option value="auto_screened">S2 Verification</option>
               <option value="technical_review_completed">Technical Completed</option>

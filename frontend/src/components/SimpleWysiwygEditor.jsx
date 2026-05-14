@@ -22,7 +22,7 @@ import {
 
 import "ckeditor5/ckeditor5.css";
 
-function SimpleWysiwygEditor({ label, value = "", onChange, max = 3000 }) {
+function SimpleWysiwygEditor({ label, value = "", onChange, max = 3000, readOnly = false }) {
   const [content, setContent] = useState(value || "");
 
   useEffect(() => {
@@ -175,7 +175,10 @@ function SimpleWysiwygEditor({ label, value = "", onChange, max = 3000 }) {
           editor={ClassicEditor}
           config={editorConfig}
           data={normalizeDefaultFontSize(content)}
+          disabled={readOnly}
           onChange={(_, editor) => {
+            if (readOnly) return;
+
             const data = editor.getData();
 
             setContent(data);

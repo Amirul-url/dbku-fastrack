@@ -1,7 +1,9 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
+from django.db.models import Q
 from .models import Application, SupportingDocument
 from .serializers import (
     ApplicationListSerializer,
@@ -25,7 +27,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if user.role in ["admin", "staff"]:
-            queryset = Application.objects.all()
+            queryset = Application.objects.filter(~Q(status="draft") | Q(applicant=user))
         else:
             queryset = Application.objects.filter(applicant=user)
 
@@ -40,10 +42,30 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         serializer.save(applicant=self.request.user)
 
     def perform_update(self, serializer):
+        self.ensure_applicant_can_update(serializer.instance)
         old_status = serializer.instance.status
         old_remark = serializer.instance.latest_remark
         application = serializer.save()
         notify_application_status_change(application, old_status, old_remark)
+
+    def ensure_applicant_can_update(self, application):
+        user = self.request.user
+
+        if user.role in ["admin", "staff"]:
+            return
+
+        editable_statuses = {"draft", "incomplete", "technical_amendment", "rejected"}
+        form_data = self.request.data.get("form_data") or {}
+        form_keys = set(form_data.keys()) if isinstance(form_data, dict) else set()
+        is_payment_only_update = form_keys and form_keys.issubset({"payment"})
+
+        if application.status in editable_statuses or is_payment_only_update:
+            return
+
+        if form_keys or "current_step" in self.request.data or "status" in self.request.data:
+            raise PermissionDenied(
+                "Submitted applications can only be viewed unless they are returned for correction."
+            )
 
     @action(detail=True, methods=["post"])
     def upload_document(self, request, pk=None):
@@ -56,6 +78,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "No file uploaded."},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (
+            request.user.role not in ["admin", "staff"]
+            and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
+            and title != "Payment Receipt"
+        ):
+            return Response(
+                {
+                    "error": "Submitted applications can only be viewed unless they are returned for correction."
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         document = SupportingDocument.objects.create(

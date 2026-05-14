@@ -22,6 +22,8 @@ import {
   canViewLicense,
   formatDate,
   formatWorkflowStatus,
+  getApplicantActionKey,
+  getApplicantApplicationRoute,
   getApplicantName,
   getApplicationReference,
   getApplicationType,
@@ -126,21 +128,7 @@ function UserDashboard() {
   }
 
   function openApplication(app) {
-    const step = Number(app.current_step || 1);
-    const routes = {
-      1: "edit",
-      2: "submitting-person",
-      3: "supporting-document",
-      4: "declaration",
-      5: "print-form",
-    };
-
-    if (normalizeStatus(app.status) === "draft") {
-      navigate(`/applications/${app.id}/${routes[step] || "edit"}?id=${app.id}`);
-      return;
-    }
-
-    navigate(`/applications/${app.id}/declaration?id=${app.id}`);
+    navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?id=${app.id}`);
   }
 
   async function submitPayment() {
@@ -771,22 +759,13 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
           key: "action",
           label: t("common.action"),
           render: (app) => (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => onSelect(app)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                {t("common.manage")}
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpen(app)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onOpen(app)}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              {t(getApplicantActionKey(app))}
+            </button>
           ),
         },
       ]}

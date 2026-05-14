@@ -3,6 +3,10 @@ import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
 import { useLanguage } from "../../../../context/LanguageContext";
+import {
+  canEditApplicationForm,
+  formatWorkflowStatus,
+} from "../../../../utils/workflow";
 
 function DeclarationPage({
   LayoutComponent = UserDashboardLayout,
@@ -35,6 +39,7 @@ function DeclarationPage({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [applicationRecord, setApplicationRecord] = useState(null);
 
   useEffect(() => {
     if (applicationId) {
@@ -48,6 +53,7 @@ function DeclarationPage({
       const data = await apiRequest(`/applications/${applicationId}/`);
       const formData = data.form_data || {};
 
+      setApplicationRecord(data);
       setStep1(formData.step_1 || {});
       setStep3(formData.step_3 || {});
       setStep11({
@@ -64,6 +70,8 @@ function DeclarationPage({
   }
 
   async function handleSaveAndNext() {
+    if (isReadOnly) return;
+
     if (!applicationId) {
       alert("Application ID is missing. Please continue from My Dashboard.");
       return;
@@ -114,6 +122,9 @@ function DeclarationPage({
       setSaving(false);
     }
   }
+
+  const isReadOnly =
+    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
 
   const applicantName =
     step3.full_name ||
@@ -188,19 +199,25 @@ function DeclarationPage({
                 Back
               </Link>
 
-              <button
-                type="button"
-                onClick={handleSaveAndNext}
-                disabled={saving}
-                className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
-              >
-                {saving ? "Saving..." : "Save & Next"}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={handleSaveAndNext}
+                  disabled={saving}
+                  className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
+                >
+                  {saving ? "Saving..." : "Save & Next"}
+                </button>
+              )}
             </div>
           </div>
 
           <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
             <ApplicationReference step1={step1} />
+
+            {isReadOnly && (
+              <ReadOnlyNotice status={applicationRecord?.status} />
+            )}
 
             <div className="space-y-5 p-4 text-[12px]">
               {error && (
@@ -213,6 +230,7 @@ function DeclarationPage({
                 <input
                   type="checkbox"
                   checked={step11.agreed}
+                  disabled={isReadOnly}
                   onChange={(event) =>
                     setStep11((prev) => ({
                       ...prev,
@@ -241,14 +259,16 @@ function DeclarationPage({
                   Back
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={handleSaveAndNext}
-                  disabled={saving}
-                  className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save & Next"}
-                </button>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSaveAndNext}
+                    disabled={saving}
+                    className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
+                  >
+                    {saving ? "Saving..." : "Save & Next"}
+                  </button>
+                )}
               </div>
             </div>
           </section>
@@ -320,6 +340,15 @@ function ApplicationReference({ step1 }) {
           {step1.application_type_label || "Application for Site (New Site)"}
         </p>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyNotice({ status }) {
+  return (
+    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
+      If it is rejected with remarks, use Edit from the applications list to make corrections.
     </div>
   );
 }
