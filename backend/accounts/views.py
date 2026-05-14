@@ -186,6 +186,20 @@ def normalize_phone_number(value):
     return re.sub(r"\D", "", str(value or ""))
 
 
+def phone_number_variants(value):
+    digits = normalize_phone_number(value)
+    variants = {digits} if digits else set()
+
+    if digits.startswith("60") and len(digits) > 2:
+        variants.add(f"0{digits[2:]}")
+        variants.add(digits[2:])
+    elif digits.startswith("0") and len(digits) > 1:
+        variants.add(f"60{digits[1:]}")
+        variants.add(digits[1:])
+
+    return {variant for variant in variants if variant}
+
+
 def password_reset_cache_key(identifier):
     return f"password-reset:{identifier.strip().lower()}"
 
@@ -203,12 +217,12 @@ def get_password_reset_user(channel, identifier):
     if channel == "email":
         return User.objects.filter(email__iexact=identifier).first()
 
-    phone_digits = normalize_phone_number(identifier)
-    if not phone_digits:
+    requested_numbers = phone_number_variants(identifier)
+    if not requested_numbers:
         return None
 
     for user in User.objects.exclude(mobile_number=""):
-        if normalize_phone_number(user.mobile_number) == phone_digits:
+        if phone_number_variants(user.mobile_number) & requested_numbers:
             return user
 
     return None
@@ -434,8 +448,13 @@ def password_reset_request_view(request):
 
     user = get_password_reset_user(channel, identifier)
     if not user:
+        if channel == "whatsapp":
+            error_message = "We could not find an ALiS account with that WhatsApp number."
+        else:
+            error_message = "We could not find an ALiS account with that email address."
+
         return Response(
-            {"error": "We could not find an ALiS account with those details."},
+            {"error": error_message},
             status=status.HTTP_404_NOT_FOUND,
         )
 
