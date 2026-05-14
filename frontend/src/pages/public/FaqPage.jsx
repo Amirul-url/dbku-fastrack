@@ -72,7 +72,7 @@ function FaqPage() {
           <section className="mt-7 rounded-lg border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-8 py-7">
               <p className="text-sm font-bold uppercase tracking-wide text-[#006d32]">
-                DBKU fasTrack
+                ALiS
               </p>
               <h1 className="mt-2 text-3xl font-bold leading-tight">
                 {t("faq.title")}
@@ -109,8 +109,8 @@ function FaqPage() {
       <footer className="border-t border-slate-200 bg-white px-12 py-5">
         <div className="flex items-center justify-between gap-8 text-sm text-slate-500">
           <div>
-            <p className="font-bold text-slate-700">DBKU fasTrack</p>
-            <p>© 2026 Advertisement License Application. All Rights Reserved.</p>
+            <p className="font-bold text-slate-700">ALiS</p>
+            <p>{t("common.copyright")}</p>
           </div>
 
           <div className="flex items-center gap-6">

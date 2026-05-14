@@ -156,7 +156,7 @@ function EnforcementScanPage() {
                   </p>
                   <p className="mt-1 text-xs">
                     {isActive
-                      ? "This advertisement license is registered and active under fasTrack."
+                      ? "This advertisement license is registered and active under ALiS."
                       : "This license is expired, revoked, missing, or not active."}
                   </p>
                 </div>

@@ -955,8 +955,8 @@ function RegisterMalaysian() {
       <footer className="bg-white border-t border-slate-200 px-12 py-5">
         <div className="flex items-center justify-between gap-8 text-sm text-slate-500">
           <div>
-            <p className="font-bold text-slate-700">DBKU fasTrack</p>
-            <p>© 2026 Advertisement License Application. All Rights Reserved.</p>
+            <p className="font-bold text-slate-700">ALiS</p>
+            <p>{t("common.copyright")}</p>
           </div>
 
           <div className="flex items-center gap-6">

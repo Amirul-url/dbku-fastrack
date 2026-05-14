@@ -31,7 +31,7 @@ function AdminHomePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <HomeCard
           title="Advertisement License"
-          subtitle="for DBKU Advertisement Application"
+          subtitle="for ALiS Advertisement Application"
           icon="apartment"
           actions={[
             { label: "SEARCH", sub: "APPLICATION" },
@@ -183,7 +183,7 @@ function GuidelinesModal({ onClose, onProceed }) {
           <div className="flex items-center gap-3">
             <div className="w-1 h-7 bg-[#18b36b]" />
             <h2 className="text-lg font-normal text-slate-800">
-              fasTrack Guidelines
+              ALiS Guidelines
             </h2>
           </div>
 
@@ -212,7 +212,7 @@ function GuidelinesModal({ onClose, onProceed }) {
               </ul>
               Once the above mentioned Preliminary Stage is completed, L&amp;S
               and BDA will advise the client to proceed with online submission
-              using fasTrack.
+              using ALiS.
             </li>
 
             <li>
@@ -233,7 +233,7 @@ function GuidelinesModal({ onClose, onProceed }) {
 
             <li>
               The applicant must submit the complete application form and all
-              supporting documents required by fasTrack.
+              supporting documents required by ALiS.
             </li>
 
             <li>
@@ -255,7 +255,7 @@ function GuidelinesModal({ onClose, onProceed }) {
 
             <li>
               All documents must be submitted <strong>electronically</strong> /
-              digitally via fasTrack online.
+              digitally via ALiS online.
             </li>
           </ol>
 

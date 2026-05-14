@@ -3,7 +3,6 @@ import AuthLayout from "../../layout/AuthLayout";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
-import SocialShare from "../../components/SocialShare";
 
 const ADMIN_LOGIN_IDS = ["admin"];
 
@@ -106,7 +105,7 @@ function LoginMalaysian() {
   return (
     <AuthLayout>
       <div className="w-full max-w-[410px]">
-        <h2 className="text-center text-[56px] font-bold leading-tight text-[#006d32]">
+        <h2 className="whitespace-nowrap text-center text-[52px] font-bold leading-tight text-[#006d32]">
           {t("auth.welcome")}
         </h2>
 
@@ -277,7 +276,6 @@ function LoginMalaysian() {
             {t("common.registerNow")}
           </Link>
         </p>
-        <SocialShare />
       </div>
     </AuthLayout>
   );

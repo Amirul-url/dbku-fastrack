@@ -4,7 +4,7 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useLanguage } from "../context/LanguageContext";
 import { useNotifications } from "../context/NotificationContext";
 import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
-import logo from "../assets/fasTrack.png";
+const logo = "/ALiS.png";
 
 const adminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/dashboard/admin", icon: "dashboard" },
@@ -12,19 +12,51 @@ const adminNav = [
   { labelKey: "nav.notifications", fallback: "Notifications", path: "/notifications", icon: "notifications" },
 ];
 
-const applicantNav = [
-  {
-    labelKey: "nav.dashboard",
-    fallback: "Dashboard",
-    path: "/user/dashboard",
-    icon: "dashboard",
-    children: [
-      { labelKey: "applicant.tabApplications", fallback: "Applications", path: "/user/dashboard?tab=applications", tab: "applications" },
-      { labelKey: "applicant.tabStatus", fallback: "Status", path: "/user/dashboard?tab=status", tab: "status" },
-      { labelKey: "applicant.tabLicense", fallback: "E-Licenses", path: "/user/dashboard?tab=license", tab: "license" },
-    ],
-  },
-];
+function getApplicationStepPath(applicationId, route) {
+  if (!applicationId) return "/applications/new";
+
+  if (route === "edit") {
+    return `/applications/${applicationId}/edit?id=${applicationId}`;
+  }
+
+  return `/applications/${applicationId}/${route}?id=${applicationId}`;
+}
+
+function buildApplicantNav(stepApplicationId) {
+  const getStepPath = (route) => getApplicationStepPath(stepApplicationId, route);
+
+  return [
+    {
+      labelKey: "nav.dashboard",
+      fallback: "Dashboard",
+      path: "/user/dashboard",
+      icon: "dashboard",
+      children: [
+        {
+          labelKey: "applicant.tabApplications",
+          fallback: "Applications",
+          path: "/user/dashboard?tab=applications",
+          tab: "applications",
+          children: [
+            {
+              labelKey: "steps.applicationSteps",
+              fallback: "Application Steps",
+              children: [
+                { no: 1, route: "edit", labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: getStepPath("edit") },
+                { no: 2, route: "submitting-person", labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: getStepPath("submitting-person") },
+                { no: 3, route: "supporting-document", labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: getStepPath("supporting-document") },
+                { no: 4, route: "declaration", labelKey: "steps.declaration", fallback: "Declaration", path: getStepPath("declaration") },
+                { no: 5, route: "print-form", labelKey: "steps.printForm", fallback: "Print Form", path: getStepPath("print-form") },
+              ],
+            },
+          ],
+        },
+        { labelKey: "applicant.tabStatus", fallback: "Status", path: "/user/dashboard?tab=status", tab: "status" },
+        { labelKey: "applicant.tabLicense", fallback: "E-Licenses", path: "/user/dashboard?tab=license", tab: "license" },
+      ],
+    },
+  ];
+}
 
 function AppShell({ children, role = "admin" }) {
   const location = useLocation();
@@ -34,9 +66,17 @@ function AppShell({ children, role = "admin" }) {
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
-  const nav = role === "admin" ? adminNav : applicantNav;
-  const userDisplayName = user?.full_name || user?.username || t("role.fasTrackUser");
-  const initials = useMemo(() => getInitials(userDisplayName), [userDisplayName]);
+  const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
+  const [sidebarApplications, setSidebarApplications] = useState([]);
+  const [creatingStepRoute, setCreatingStepRoute] = useState("");
+  const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
+  const currentApplicationId = getApplicationIdFromPath(location.pathname);
+  const draftApplication = sidebarApplications.find((app) => isDraftApplication(app));
+  const stepApplicationId = currentApplicationId || (draftApplication?.id ? String(draftApplication.id) : "");
+  const nav = useMemo(
+    () => (role === "admin" ? adminNav : buildApplicantNav(stepApplicationId)),
+    [role, stepApplicationId]
+  );
 
   useEffect(() => {
     let active = true;
@@ -54,6 +94,29 @@ function AppShell({ children, role = "admin" }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (role !== "applicant") return undefined;
+
+    let active = true;
+
+    function loadApplications() {
+      apiRequest("/applications/")
+        .then((data) => {
+          if (!active) return;
+          setSidebarApplications(Array.isArray(data) ? data : data?.results || []);
+        })
+        .catch(() => {});
+    }
+
+    loadApplications();
+    window.addEventListener("fastrack:applications-changed", loadApplications);
+
+    return () => {
+      active = false;
+      window.removeEventListener("fastrack:applications-changed", loadApplications);
+    };
+  }, [role]);
+
   function handleLogout() {
     clearAuthSession();
     navigate("/login/malaysian", { replace: true });
@@ -63,67 +126,100 @@ function AppShell({ children, role = "admin" }) {
     setProfileOpen(!profileOpen);
   }
 
+  async function openApplicationStep(event, step) {
+    if (role !== "applicant" || stepApplicationId) return;
+
+    event.preventDefault();
+    if (creatingStepRoute) return;
+
+    try {
+      setCreatingStepRoute(step.route);
+      const application = await apiRequest("/applications/", {
+        method: "POST",
+        body: JSON.stringify({
+          application_type: "sitting_application",
+          title: "Draft Sitting Application",
+          current_step: 1,
+          form_data: {
+            step_1: {
+              status: "Prepare Case",
+              application_type: "Application for Site (New Site)",
+              application_type_label: "Application for Site (New Site)",
+            },
+          },
+        }),
+      });
+      const applicationId = application?.id;
+      if (!applicationId) return;
+
+      setSidebarApplications((current) => [application, ...current]);
+      navigate(getApplicationStepPath(applicationId, step.route));
+    } catch (err) {
+      console.error("Failed to create draft application:", err);
+    } finally {
+      setCreatingStepRoute("");
+    }
+  }
+
   return (
-    <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-slate-200 bg-white">
-        <div className="flex h-14 items-center gap-3 border-b border-slate-200 px-4">
-          <img src={logo} alt="fasTrack Logo" className="h-8 w-auto object-contain" />
+    <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950 [&_.text-sm]:text-base [&_.text-xs]:text-sm">
+      <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
+        <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
+          <img src={logo} alt="ALiS Logo" className="h-9 w-auto object-contain" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-950">DBKU fasTrack</p>
+            <p className="text-base font-semibold text-slate-950">ALiS</p>
             <p className="text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto px-3.5 py-4">
           {nav.map((item) => {
             const active =
               location.pathname === item.path ||
+              (role === "applicant" &&
+                item.path === "/user/dashboard" &&
+                location.pathname.startsWith("/applications")) ||
               (item.path !== "/dashboard/admin" &&
                 location.pathname.startsWith(item.path));
-            const activeTab = new URLSearchParams(location.search).get("tab") || "applications";
+            const activeTab = new URLSearchParams(location.search).get("tab");
             const hasChildren = Boolean(item.children);
-            const submenuOpen = role === "applicant" && hasChildren && active && applicantDashboardOpen;
-
-            function handleParentClick() {
-              if (!hasChildren) return;
-
-              if (role === "applicant") {
-                if (!active) {
-                  navigate(item.path);
-                  setApplicantDashboardOpen(true);
-                  return;
-                }
-                setApplicantDashboardOpen((current) => !current);
-              }
-            }
+            const submenuOpen = role === "applicant" && hasChildren && applicantDashboardOpen;
 
             return (
               <div key={item.path}>
                 {hasChildren && role === "applicant" ? (
-                  <button
-                    type="button"
-                    onClick={handleParentClick}
-                    aria-expanded={submenuOpen}
-                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium ${
+                  <div
+                    className={`flex w-full items-center justify-between rounded-md px-3.5 py-2.5 text-left text-sm font-medium ${
                       active
                         ? "bg-emerald-50 text-emerald-800"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                     }`}
                   >
-                    <span className="flex min-w-0 items-center gap-3">
+                    <Link
+                      to={item.path}
+                      onClick={() => setApplicantDashboardOpen(true)}
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                    >
                       <span className="material-symbols-outlined text-[20px]">
                         {item.icon}
                       </span>
                       <span className="truncate">{t(item.labelKey, item.fallback)}</span>
-                    </span>
-                    <span className="material-symbols-outlined text-[18px]">
-                      {submenuOpen ? "expand_less" : "expand_more"}
-                    </span>
-                  </button>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setApplicantDashboardOpen((current) => !current)}
+                      aria-expanded={submenuOpen}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-emerald-100"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        {submenuOpen ? "expand_less" : "expand_more"}
+                      </span>
+                    </button>
+                  </div>
                 ) : (
                   <Link
                     to={item.path}
-                    className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium ${
+                    className={`flex items-center justify-between rounded-md px-3.5 py-2.5 text-sm font-medium ${
                       active
                         ? "bg-emerald-50 text-emerald-800"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
@@ -138,15 +234,91 @@ function AppShell({ children, role = "admin" }) {
                   </Link>
                 )}
                 {submenuOpen && (
-                  <div className="mt-1 space-y-1 pl-8">
+                  <div className="mt-1.5 space-y-1.5 pl-10">
                     {item.children.map((child) => {
+                      const hasNestedChildren = Boolean(child.children?.length);
                       const childActive = activeTab === child.tab;
+                      const nestedActive =
+                        hasNestedChildren && location.pathname.startsWith("/applications");
+
+                      if (hasNestedChildren) {
+                        return (
+                          <div key={child.path}>
+                            <div
+                              className={`flex items-center overflow-hidden rounded-md text-sm font-medium ${
+                                childActive || nestedActive
+                                  ? "bg-emerald-700 text-white"
+                                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                              }`}
+                            >
+                              <Link
+                                to={child.path}
+                                className="min-w-0 flex-1 px-3.5 py-2.5"
+                              >
+                                {t(child.labelKey, child.fallback)}
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => setApplicationStepsOpen((current) => !current)}
+                                aria-expanded={applicationStepsOpen}
+                                className={`flex h-9 w-9 items-center justify-center ${
+                                  childActive || nestedActive ? "text-white" : "text-slate-600"
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">
+                                  {applicationStepsOpen ? "expand_less" : "expand_more"}
+                                </span>
+                              </button>
+                            </div>
+
+                            {applicationStepsOpen && (
+                              <div className="ml-3 mt-1.5 space-y-1.5 border-l border-emerald-100 pl-3">
+                                <p className="px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+                                  {t(child.children[0].labelKey, child.children[0].fallback)}
+                                </p>
+                                {child.children[0].children.map((step) => {
+                                  const stepPath = getPathname(step.path);
+                                  const stepActive = location.pathname === stepPath;
+
+                                  return (
+                                    <Link
+                                      key={step.labelKey}
+                                      to={step.path}
+                                      onClick={(event) => openApplicationStep(event, step)}
+                                      className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold leading-5 ${
+                                        stepActive
+                                          ? "bg-emerald-50 text-emerald-800"
+                                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                          stepActive
+                                            ? "bg-emerald-700 text-white"
+                                            : "bg-white text-emerald-800"
+                                        }`}
+                                      >
+                                        {step.no}
+                                      </span>
+                                      <span className="min-w-0 leading-snug">
+                                        {creatingStepRoute === step.route
+                                          ? t("common.loading")
+                                          : t(step.labelKey, step.fallback)}
+                                      </span>
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
 
                       return (
                         <Link
                           key={child.path}
                           to={child.path}
-                          className={`block rounded-md px-3 py-2 text-sm font-medium ${
+                          className={`block rounded-md px-3.5 py-2.5 text-sm font-medium ${
                             childActive
                               ? "bg-emerald-700 text-white"
                               : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
@@ -161,12 +333,13 @@ function AppShell({ children, role = "admin" }) {
               </div>
             );
           })}
+
         </nav>
       </aside>
 
-      <div className="pl-60">
+      <div className="pl-72">
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="flex h-14 items-center justify-between gap-4 px-6">
+          <div className="flex h-16 items-center justify-between gap-4 px-7">
             <div className="min-w-0">
               {role === "admin" ? (
                 <>
@@ -206,7 +379,7 @@ function AppShell({ children, role = "admin" }) {
                 aria-label={t("profile.accountProfile")}
                 title={t("profile.accountProfile")}
               >
-                {initials}
+                <span className="material-symbols-outlined text-[22px]">person</span>
               </button>
 
               {profileOpen && (
@@ -219,7 +392,7 @@ function AppShell({ children, role = "admin" }) {
           </div>
         </header>
 
-        <main className="mx-auto min-h-[calc(100vh-137px)] max-w-[1680px] px-6 py-5">
+        <main className="mx-auto min-h-[calc(100vh-145px)] max-w-[1680px] px-7 py-6">
           {children}
         </main>
         {role === "applicant" && <DashboardFooter t={t} />}
@@ -252,11 +425,11 @@ function ProfileDropdown({ t, onLogout }) {
 
 function DashboardFooter({ t }) {
   return (
-    <footer className="border-t border-slate-200 bg-white px-6 py-5">
+    <footer className="border-t border-slate-200 bg-white px-7 py-6">
       <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-8 text-sm text-slate-500">
         <div>
-          <p className="font-bold text-slate-700">DBKU fasTrack</p>
-          <p>&copy; 2026 Advertisement License Application. All Rights Reserved.</p>
+          <p className="font-bold text-slate-700">ALiS</p>
+          <p>{t("common.copyright")}</p>
         </div>
 
         <div className="flex items-center gap-6">
@@ -272,13 +445,17 @@ function DashboardFooter({ t }) {
   );
 }
 
-function getInitials(name) {
-  return String(name || "U")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "U";
+function getApplicationIdFromPath(pathname) {
+  const match = String(pathname || "").match(/^\/applications\/(\d+)/);
+  return match?.[1] || "";
+}
+
+function getPathname(path) {
+  return String(path || "").split("?")[0];
+}
+
+function isDraftApplication(app) {
+  return String(app?.status || "").toLowerCase() === "draft";
 }
 
 export default AppShell;

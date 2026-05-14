@@ -7,7 +7,6 @@ import {
   apiRequest,
   uploadApplicationDocument,
 } from "../../../../services/api";
-import UserApplicationStepNav from "../UserApplicationStepNav";
 import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
@@ -15,7 +14,7 @@ mapboxgl.accessToken = MAPBOX_TOKEN;
 
 function SittingApplicationPage({
   LayoutComponent = UserDashboardLayout,
-  StepNavComponent = UserApplicationStepNav,
+  StepNavComponent = null,
   mode = "user",
 } = {}) {
   const Layout = LayoutComponent;
@@ -259,7 +258,7 @@ function SittingApplicationPage({
   return (
     <Layout>
       <div className="flex gap-4">
-        <StepNav active={1} />
+        {StepNav && <StepNav active={1} />}
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">

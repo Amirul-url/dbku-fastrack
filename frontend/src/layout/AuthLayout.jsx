@@ -1,7 +1,8 @@
 import TopBar from "./TopBar";
 import { useLanguage } from "../context/LanguageContext";
-import logo from "../assets/fasTrack.png";
 import { Link } from "react-router-dom";
+
+const logo = "/ALiS.png";
 
 function AuthLayout({ children }) {
   const { t } = useLanguage();
@@ -20,13 +21,13 @@ function AuthLayout({ children }) {
         >
           <div className="flex h-full items-end px-16 pb-12">
             <div className="max-w-[790px] rounded-md bg-[#053b2e]/90 p-8 text-white shadow-2xl shadow-black/30">
-              <div className="mb-7 flex items-center gap-5">
-                <img src={logo} alt="fasTrack Logo" className="h-[52px] w-auto" />
+              <div className="mb-7 flex items-center gap-6">
+                <img src={logo} alt="ALiS Logo" className="h-[72px] w-auto" />
                 <div>
-                  <p className="text-base font-semibold tracking-wide text-white">
-                    DBKU fasTrack
+                  <p className="text-[28px] font-bold leading-none text-white">
+                    ALiS
                   </p>
-                  <h1 className="mt-2 max-w-[620px] text-[30px] font-semibold leading-tight text-white">
+                  <h1 className="mt-3 max-w-[620px] text-[30px] font-semibold leading-tight text-white">
                     {t("app.digitalAdvertisementLicenseSystem")}
                   </h1>
                 </div>
@@ -65,8 +66,8 @@ function AuthLayout({ children }) {
       <footer className="bg-white border-t border-slate-200 px-12 py-5">
         <div className="flex items-center justify-between gap-8 text-sm text-slate-500">
           <div>
-            <p className="font-bold text-slate-700">DBKU fasTrack</p>
-            <p>© 2026 Advertisement License Application. All Rights Reserved.</p>
+            <p className="font-bold text-slate-700">ALiS</p>
+            <p>{t("common.copyright")}</p>
           </div>
 
           <div className="flex items-center gap-6">

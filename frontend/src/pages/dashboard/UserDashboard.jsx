@@ -13,16 +13,13 @@ import {
   Field,
   Info,
   PageHeader,
-  StatCard,
   StatusPill,
   WorkflowStrip,
 } from "../../components/ui/SystemUI";
 import LicenseQrCard from "../../components/license/LicenseQrCard";
-import InvoicePreview from "../../components/payment/InvoicePreview";
 import {
   canSubmitPayment,
   canViewLicense,
-  formatCurrency,
   formatDate,
   formatWorkflowStatus,
   getApplicantName,
@@ -52,7 +49,7 @@ function UserDashboard() {
 
   const activeSection = VALID_SECTIONS.includes(searchParams.get("tab"))
     ? searchParams.get("tab")
-    : "applications";
+    : "overview";
 
   const fetchApplications = useCallback(async () => {
     try {
@@ -96,18 +93,6 @@ function UserDashboard() {
     }
   }, [activeSection, fetchApplicationDetails, selectedId]);
 
-  const stats = useMemo(() => {
-    const total = applications.length;
-    const submitted = applications.filter(
-      (app) => normalizeStatus(app.status) !== "draft"
-    ).length;
-    const licenses = applications.filter(
-      (app) => normalizeStatus(app.status) === "license_issued"
-    ).length;
-
-    return { total, submitted, licenses };
-  }, [applications]);
-
   const submittedApplications = useMemo(
     () => applications.filter((app) => normalizeStatus(app.status) !== "draft"),
     [applications]
@@ -134,7 +119,7 @@ function UserDashboard() {
   const activeApplication = selectedApplication || latest;
   const payment = activeApplication?.form_data?.payment || {};
   const license = activeApplication?.form_data?.license || {};
-  const paymentAmount = payment.amount || 250;
+  const pageHeader = getDashboardHeader(activeSection, t);
 
   function showSection(tab) {
     setSearchParams({ tab });
@@ -236,6 +221,28 @@ function UserDashboard() {
     }
   }
 
+  function handlePaymentReceiptRemove() {
+    setPaymentReceipt(null);
+    setSelectedApplication((current) => {
+      if (!current) return current;
+
+      const currentPayment = current.form_data?.payment || {};
+
+      return {
+        ...current,
+        form_data: {
+          ...(current.form_data || {}),
+          payment: {
+            ...currentPayment,
+            receipt_file: null,
+            receipt_reference: "",
+          },
+        },
+      };
+    });
+    setMessage({ type: "", text: "" });
+  }
+
   function downloadELicense() {
     if (!activeApplication || !canViewLicense(activeApplication)) return;
 
@@ -263,7 +270,7 @@ function UserDashboard() {
 </head>
 <body>
   <section class="license">
-    <p class="eyebrow">DBKU fasTrack Digital Advertisement License</p>
+    <p class="eyebrow">ALiS Digital Advertisement License</p>
     <h1>${licenseId}</h1>
     <dl>
       <dt>Reference</dt><dd>${getApplicationReference(activeApplication)}</dd>
@@ -293,18 +300,23 @@ function UserDashboard() {
 
   return (
     <UserDashboardLayout>
-      <PageHeader
-        title={t("applicant.dashboardTitle")}
-        description={t("applicant.dashboardDescription")}
-      />
-
-      <section className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <StatCard label={t("applicant.tabApplications")} value={loading ? "..." : stats.total} icon="folder_open" tone="slate" />
-        <StatCard label={t("applicant.tabStatus")} value={loading ? "..." : stats.submitted} icon="task_alt" />
-        <StatCard label={t("common.eLicenses")} value={loading ? "..." : stats.licenses} icon="qr_code_2" />
-      </section>
+      {pageHeader && (
+        <PageHeader
+          title={pageHeader.title}
+          description={pageHeader.description}
+        />
+      )}
 
       <Alert type={message.type || "success"} message={message.text} />
+
+      {activeSection === "overview" && (
+        <OverviewSection
+          applications={applications}
+          latest={latest}
+          loading={loading}
+          t={t}
+        />
+      )}
 
       {activeSection === "applications" && (
         <ApplicationsSection
@@ -341,14 +353,12 @@ function UserDashboard() {
             app={activeApplication}
             license={license}
             payment={payment}
-            paymentAmount={paymentAmount}
             paymentReceipt={paymentReceipt}
             saving={saving}
             t={t}
             licenseCardRef={licenseCardRef}
-            onOpen={() => openApplication(activeApplication)}
-            onStatus={() => showSection("status")}
             onReceiptChange={handlePaymentReceiptChange}
+            onReceiptRemove={handlePaymentReceiptRemove}
             onSubmitPayment={submitPayment}
             onDownload={downloadELicense}
           />
@@ -357,6 +367,92 @@ function UserDashboard() {
         )
       )}
     </UserDashboardLayout>
+  );
+}
+
+function OverviewSection({ applications, latest, loading, t }) {
+  const hasApplication = Boolean(latest);
+  const latestIsDraft = normalizeStatus(latest?.status) === "draft";
+  const statusSummary = useMemo(
+    () => buildOverviewStatusSummary(applications, latest, t),
+    [applications, latest, t]
+  );
+
+  return (
+    <section className="space-y-4">
+      <div className="rounded-md border border-emerald-200 bg-white p-5">
+        <p className="text-sm font-bold uppercase tracking-wide text-emerald-700">
+          {t("common.nextStep")}
+        </p>
+        <h2 className="mt-2 text-xl font-semibold text-slate-950">
+          {hasApplication
+            ? latestIsDraft
+              ? t("applicant.nextActionDraftTitle")
+              : t("applicant.nextActionSubmittedTitle")
+            : t("applicant.nextActionStartTitle")}
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+          {hasApplication
+            ? latestIsDraft
+              ? t("applicant.nextActionDraftDescription")
+              : t("applicant.nextActionSubmittedDescription")
+            : t("applicant.nextActionStartDescription")}
+        </p>
+
+        <OverviewStatusCards items={statusSummary} loading={loading} />
+      </div>
+    </section>
+  );
+}
+
+function OverviewStatusCards({ items, loading }) {
+  return (
+    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {items.map((item) => (
+        <OverviewStatusCard
+          key={item.key}
+          label={item.label}
+          value={loading ? "..." : item.value}
+          icon={item.icon}
+          tone={item.tone}
+          compact={item.compact}
+        />
+      ))}
+    </div>
+  );
+}
+
+function OverviewStatusCard({ label, value, icon, tone, compact = false }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    blue: "bg-blue-50 text-blue-700",
+    amber: "bg-amber-50 text-amber-700",
+    red: "bg-red-50 text-red-700",
+    slate: "bg-slate-100 text-slate-700",
+  };
+
+  return (
+    <div className="min-h-[104px] rounded-md border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500">{label}</p>
+          <p
+            className={`mt-2 font-semibold text-slate-950 ${
+              compact ? "break-words text-base leading-5" : "text-2xl"
+            }`}
+          >
+            {value}
+          </p>
+        </div>
+        <span
+          className={`material-symbols-outlined shrink-0 rounded-md p-2 text-[20px] ${
+            tones[tone] || tones.slate
+          }`}
+        >
+          {icon}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -488,140 +584,124 @@ function LicenseSection({
   app,
   license,
   payment,
-  paymentAmount,
   paymentReceipt,
   saving,
   t,
   licenseCardRef,
-  onOpen,
-  onStatus,
   onReceiptChange,
+  onReceiptRemove,
   onSubmitPayment,
   onDownload,
 }) {
+  const canSubmitPaymentProof = canSubmitPayment(app);
+
   return (
-    <section className="space-y-4">
-      <SelectedApplicationSummary
-        app={app}
-        t={t}
-        manageLabel={t("applicant.tabStatus")}
-        manageIcon="timeline"
-        onManage={onStatus}
-        onOpen={onOpen}
-      />
+    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <h3 className="text-sm font-semibold text-slate-950">
+          {t("common.uploadReceipt")}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          {getPaymentHint(app, t)}
+        </p>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          <div className="rounded-md border border-slate-200 bg-white p-4">
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-950">
-                  {t("applicant.paymentProofTitle")}
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  {getPaymentHint(app, t)}
-                </p>
-              </div>
-              <StatusPill value={translatedStatus(t, app.status)} />
+        <div className="mt-4 space-y-3">
+          {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+              {t("applicant.paymentHintReceiptRejected")}
             </div>
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="grid grid-cols-1 gap-3 rounded-md bg-slate-50 p-4 text-sm sm:grid-cols-2">
-                <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(app)} />
-                <Info label={t("common.amount")} value={formatCurrency(paymentAmount)} />
-                <Info label={t("common.paymentStatus")} value={payment.status || t("applicant.waitingInvoice")} />
-                <Info label={t("applicant.paymentProofTitle")} value={payment.receipt_file?.name || payment.receipt_reference || t("applicant.notSubmitted")} />
-              </div>
-
-              {canSubmitPayment(app) ? (
-                <div className="space-y-3">
-                  {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
-                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                      {t("applicant.paymentHintReceiptRejected")}
-                    </div>
-                  )}
-                  <Field label={t("applicant.paymentProofTitle")}>
-                    <label className="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/40">
-                      <span className="material-symbols-outlined mb-1 text-2xl text-emerald-700">
-                        upload_file
-                      </span>
-                      <span className="font-semibold text-slate-800">
-                        {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
-                      </span>
-                      <span className="mt-1 text-xs text-slate-500">
-                        {t("applicant.receiptUploadHint")}
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        className="hidden"
-                        onChange={(event) => {
-                          onReceiptChange(event.target.files?.[0]);
-                          event.target.value = "";
-                        }}
-                      />
-                    </label>
-                  </Field>
-                  {(paymentReceipt?.url || paymentReceipt?.file_url || paymentReceipt?.dataUrl) && (
-                    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
-                      <span className="truncate font-medium text-slate-700">
-                        {paymentReceipt.name}
-                      </span>
-                      <a
-                        href={paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="shrink-0 font-semibold text-emerald-700 hover:underline"
-                      >
-                        {t("common.view")}
-                      </a>
-                    </div>
-                  )}
-                  <Button onClick={onSubmitPayment} disabled={saving} icon="upload_file">
-                    {saving ? t("common.submitting") : t("applicant.submitPayment")}
-                  </Button>
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                  {getPaymentHint(app, t)}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {payment.invoice_no && (
-            <InvoicePreview
-              application={app}
-              amount={paymentAmount}
-              invoiceDate={payment.generated_at || app.updated_at}
-              dueDate={payment.due_date || app.updated_at}
-            />
           )}
-        </div>
 
-        <div>
-          <div className="mb-3 rounded-md border border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-950">
-              {t("applicant.licenseDownloadTitle")}
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {canViewLicense(app) ? t("applicant.licenseDownloadDesc") : t("applicant.qrLicensePending")}
-            </p>
-          </div>
-          {canViewLicense(app) ? (
-            <div className="space-y-3">
-              <div ref={licenseCardRef}>
-                <LicenseQrCard application={app} license={license} />
+          <Field label={t("applicant.paymentProofTitle")}>
+            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5">
+              <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
+                <span className="material-symbols-outlined text-[18px] text-white">
+                  upload_file
+                </span>
+                <span>{t("common.uploadFile", "Upload File")}</span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(event) => {
+                    onReceiptChange(event.target.files?.[0]);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+              <p className="mt-3 text-sm font-semibold text-slate-800">
+                {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {t("applicant.receiptUploadHint")}
+              </p>
+            </div>
+          </Field>
+
+          {paymentReceipt && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
+              <span className="truncate font-medium text-slate-700">
+                {paymentReceipt.name}
+              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                {(paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl) && (
+                  <a
+                    href={paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-emerald-700 hover:underline"
+                  >
+                    {t("common.view")}
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={onReceiptRemove}
+                  className="rounded-md border border-red-200 px-2 py-1 font-semibold text-red-700 hover:bg-red-50"
+                >
+                  {t("common.remove", "Remove")}
+                </button>
               </div>
-              <Button onClick={onDownload} icon="download" className="w-full">
-                {t("applicant.downloadQrELicense")}
+            </div>
+          )}
+
+          {canSubmitPaymentProof ? (
+            <>
+              <Button onClick={onSubmitPayment} disabled={saving} icon="upload_file">
+                {saving ? t("common.submitting") : t("applicant.submitPayment")}
               </Button>
-            </div>
+            </>
           ) : (
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-              {t("applicant.qrLicensePending")}
+            <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-500">
+              {getPaymentHint(app, t)}
             </div>
           )}
         </div>
+      </div>
+
+      <div>
+        <div className="mb-3 rounded-md border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-semibold text-slate-950">
+            {t("applicant.licenseDownloadTitle")}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {canViewLicense(app) ? t("applicant.licenseDownloadDesc") : t("applicant.qrLicensePending")}
+          </p>
+        </div>
+        {canViewLicense(app) ? (
+          <div className="space-y-3">
+            <div ref={licenseCardRef}>
+              <LicenseQrCard application={app} license={license} />
+            </div>
+            <Button onClick={onDownload} icon="download" className="w-full">
+              {t("applicant.downloadQrELicense")}
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+            {t("applicant.qrLicensePending")}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -655,42 +735,6 @@ function EmptyLicenseSection({ t }) {
         </p>
       </div>
     </section>
-  );
-}
-
-function SelectedApplicationSummary({ app, t, manageLabel, manageIcon = "visibility", onManage, onOpen }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t("applicant.selectedApplication")}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-950">
-              {getApplicationReference(app)}
-            </h3>
-            <StatusPill value={translatedStatus(t, app.status)} />
-          </div>
-          <p className="mt-1 truncate text-sm text-slate-600">
-            {getProjectName(app)}
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3 lg:min-w-[420px]">
-          <Info label={t("common.type")} value={getApplicationType(app)} />
-          <Info label={t("common.applicant")} value={getApplicantName(app)} />
-          <Info label={t("common.updated")} value={formatDate(app.updated_at)} />
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="secondary" onClick={onManage} icon={manageIcon}>
-            {manageLabel}
-          </Button>
-          <Button variant="secondary" onClick={onOpen} icon="open_in_new">
-            {normalizeStatus(app.status) === "draft" ? t("common.continue") : t("common.view")}
-          </Button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -754,6 +798,69 @@ function translatedStatus(t, status) {
   return t(`status.${normalizeStatus(status)}`, formatWorkflowStatus(status));
 }
 
+function buildOverviewStatusSummary(applications, latest, t) {
+  const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
+  const pending = applications.filter((app) => isPendingApplication(app)).length;
+  const rejected = applications.filter((app) => normalizeStatus(app.status) === "rejected").length;
+  const approved = applications.filter((app) => isApprovedApplication(app)).length;
+
+  return [
+    {
+      key: "submitted",
+      label: t("common.submitted"),
+      value: submitted,
+      icon: "send",
+      tone: "blue",
+    },
+    {
+      key: "status",
+      label: t("common.status"),
+      value: latest ? translatedStatus(t, latest.status) : "-",
+      icon: "monitoring",
+      tone: "slate",
+      compact: true,
+    },
+    {
+      key: "pending",
+      label: t("common.pending"),
+      value: pending,
+      icon: "pending_actions",
+      tone: "amber",
+    },
+    {
+      key: "rejected",
+      label: t("status.rejected"),
+      value: rejected,
+      icon: "cancel",
+      tone: "red",
+    },
+    {
+      key: "approved",
+      label: t("status.approved"),
+      value: approved,
+      icon: "task_alt",
+      tone: "emerald",
+    },
+  ];
+}
+
+function isPendingApplication(app) {
+  const status = normalizeStatus(app.status);
+
+  return Boolean(status) && status !== "draft" && !isApprovedApplication(app) && status !== "rejected";
+}
+
+function isApprovedApplication(app) {
+  return [
+    "approved",
+    "approved_with_conditions",
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+  ].includes(normalizeStatus(app.status));
+}
+
 function getPaymentHint(app, t) {
   const status = normalizeStatus(app?.status);
   const payment = app?.form_data?.payment || {};
@@ -767,6 +874,34 @@ function getPaymentHint(app, t) {
   if (status === "payment_verified") return t("applicant.paymentHintVerified");
   if (status === "license_issued") return t("applicant.paymentHintIssued");
   return t("applicant.paymentHintDefault");
+}
+
+function getDashboardHeader(activeSection, t) {
+  if (activeSection === "applications") {
+    return {
+      title: t("applicant.applicationsSectionTitle"),
+      description: t("applicant.applicationsSectionDescription"),
+    };
+  }
+
+  if (activeSection === "status") {
+    return {
+      title: t("applicant.statusSectionTitle"),
+      description: t("applicant.statusTrackingDescription"),
+    };
+  }
+
+  if (activeSection === "license") {
+    return {
+      title: t("applicant.licenseSectionTitle"),
+      description: t("applicant.licenseSectionDescription"),
+    };
+  }
+
+  return {
+    title: t("applicant.dashboardHeaderTitle"),
+    description: t("applicant.dashboardHeaderDescription"),
+  };
 }
 
 export default UserDashboard;

@@ -5,7 +5,6 @@ import {
   apiRequest,
   uploadApplicationDocument,
 } from "../../../../services/api";
-import UserApplicationStepNav from "../UserApplicationStepNav";
 
 const defaultDocuments = [
   {
@@ -98,7 +97,7 @@ function buildTitleDocumentsFromStep1(step1, attachment = null) {
 
 function SupportingDocumentPage({
   LayoutComponent = UserDashboardLayout,
-  StepNavComponent = UserApplicationStepNav,
+  StepNavComponent = null,
   mode = "user",
 } = {}) {
   const location = useLocation();
@@ -353,7 +352,7 @@ function SupportingDocumentPage({
   return (
     <Layout>
       <div className="flex gap-4">
-        <StepNav active={3} />
+        {StepNav && <StepNav active={3} />}
 
         <main className="flex-1 min-w-0 pb-8">
           <div className="mb-3 flex items-center justify-between">

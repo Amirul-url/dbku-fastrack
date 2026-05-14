@@ -46,7 +46,7 @@ function LicenseVerificationPage() {
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 border-l-4 border-[#006d32] pl-4">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#006d32]">
-            fasTrack License Verification
+            ALiS License Verification
           </p>
           <h1 className="text-2xl font-bold">Digital License Details</h1>
           <p className="mt-1 text-sm text-slate-500">
@@ -73,7 +73,7 @@ function LicenseVerificationPage() {
               title={isActive ? "Valid License" : "License Requires Attention"}
               description={
                 isActive
-                  ? "This advertisement license is active and registered in fasTrack."
+                  ? "This advertisement license is active and registered in ALiS."
                   : "This license is expired, revoked, or not active."
               }
             />

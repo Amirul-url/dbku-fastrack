@@ -187,8 +187,8 @@ function buildApplicantNotifications(app) {
         "success",
         "Payment verified",
         "Bayaran disahkan",
-        `${reference} payment has been verified by DBKU.`,
-        `Bayaran ${reference} telah disahkan oleh DBKU.`
+        `${reference} payment has been verified by ALiS.`,
+        `Bayaran ${reference} telah disahkan oleh ALiS.`
       )
     );
   }
@@ -318,8 +318,8 @@ function buildAdminNotifications(app) {
         "warning",
         "Payment proof requires verification",
         "Bukti bayaran perlu pengesahan",
-        `${reference} payment proof was submitted and is waiting for DBKU verification.`,
-        `Bukti bayaran ${reference} telah dihantar dan menunggu pengesahan DBKU.`
+        `${reference} payment proof was submitted and is waiting for ALiS verification.`,
+        `Bukti bayaran ${reference} telah dihantar dan menunggu pengesahan ALiS.`
       )
     );
   }
@@ -375,7 +375,7 @@ function buildNotifications(applications, user) {
 
 function getTitleFromSubject(subject) {
   return String(subject || "")
-    .replace(/^DBKU fasTrack\s*[-:]\s*/i, "")
+    .replace(/^ALiS\s*[-:]\s*/i, "")
     .replace(/\s*\([^)]*\)\s*$/, "")
     .trim();
 }
@@ -385,7 +385,7 @@ function getMessageSummary(message) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const skipPrefixes = ["DBKU fasTrack", "Reference:", "Status:", "Project:", "Open:"];
+  const skipPrefixes = ["ALiS", "Reference:", "Status:", "Project:", "Open:"];
   return lines.find((line) => !skipPrefixes.some((prefix) => line.startsWith(prefix))) || "";
 }
 

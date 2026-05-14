@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
-import UserApplicationStepNav from "../UserApplicationStepNav";
 
 function PrintFormPage({
   LayoutComponent = UserDashboardLayout,
-  StepNavComponent = UserApplicationStepNav,
+  StepNavComponent = null,
   mode = "user",
 } = {}) {
   const location = useLocation();
@@ -195,7 +194,7 @@ function PrintFormPage({
       </style>
 
       <div className="flex gap-4">
-        <StepNav active={5} />
+        {StepNav && <StepNav active={5} />}
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between print-hide">

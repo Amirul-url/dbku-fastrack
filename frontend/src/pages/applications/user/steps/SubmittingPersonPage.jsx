@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
-import UserApplicationStepNav from "../UserApplicationStepNav";
 
 function SubmittingPersonPage({
   LayoutComponent = UserDashboardLayout,
-  StepNavComponent = UserApplicationStepNav,
+  StepNavComponent = null,
   mode = "user",
 } = {}) {
   const location = useLocation();
@@ -190,7 +189,7 @@ function SubmittingPersonPage({
   return (
     <Layout>
       <div className="flex gap-4">
-        <StepNav active={2} />
+        {StepNav && <StepNav active={2} />}
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">

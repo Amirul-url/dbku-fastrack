@@ -2,17 +2,18 @@ import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../../../../services/api";
-import UserApplicationStepNav from "../UserApplicationStepNav";
+import { useLanguage } from "../../../../context/LanguageContext";
 
 function DeclarationPage({
   LayoutComponent = UserDashboardLayout,
-  StepNavComponent = UserApplicationStepNav,
+  StepNavComponent = null,
   mode = "user",
 } = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
+  const { language } = useLanguage();
 
   const applicationId = routeApplicationId || queryParams.get("id");
 
@@ -115,8 +116,8 @@ function DeclarationPage({
   }
 
   const applicantName =
-    step1.applicant ||
     step3.full_name ||
+    step1.applicant ||
     user?.name ||
     user?.full_name ||
     "Applicant";
@@ -127,11 +128,42 @@ function DeclarationPage({
     step1.department_name ||
     step1.agency_name ||
     "-";
+  const applicantAddress = getFirstValue(
+    user?.address,
+    joinAddress([
+      user?.address_line1,
+      user?.address_line2,
+      user?.postcode,
+      user?.city,
+      user?.state,
+    ])
+  );
+  const identityCardNo = getFirstValue(
+    step3.identity_card_no,
+    user?.mykad_number,
+    user?.username
+  );
+  const companyAddress = joinAddress([
+    step3.postal_address,
+    step3.address_2,
+    step3.address_3,
+    step3.address_4,
+    step3.postcode,
+    step3.city,
+    step3.state,
+  ]);
+  const declarationParagraphs = buildDeclarationParagraphs(language, {
+    name: applicantName,
+    icNumber: identityCardNo,
+    address: applicantAddress,
+    companyName: organisationName,
+    companyAddress,
+  });
 
   return (
     <Layout>
       <div className="flex gap-4">
-        <StepNav active={4} />
+        {StepNav && <StepNav active={4} />}
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
@@ -190,12 +222,11 @@ function DeclarationPage({
                   className="mt-1 accent-[#18b36b]"
                 />
 
-                <p className="leading-relaxed text-slate-700">
-                  I, <b>{applicantName}</b>, on behalf of{" "}
-                  <b>{organisationName}</b>, declare that I shall bear full
-                  responsibility as to the accuracy of the information(s) as
-                  provided by me on this Siting Application.
-                </p>
+                <div className="space-y-3 leading-relaxed text-slate-700">
+                  {declarationParagraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
               </label>
 
               <div className="flex justify-end gap-2 pt-3">
@@ -225,6 +256,41 @@ function DeclarationPage({
       </div>
     </Layout>
   );
+}
+
+function buildDeclarationParagraphs(language, values) {
+  const name = values.name || "-";
+  const icNumber = values.icNumber || "-";
+  const address = values.address || "-";
+  const companyName = values.companyName || "-";
+  const companyAddress = values.companyAddress || "-";
+
+  if (language === "ms") {
+    return [
+      `Saya, ${name} (No. Kad Pengenalan: ${icNumber}) yang beralamat di ${address}, sebagai wakil yang diberi kuasa bagi ${companyName}, dengan alamat perniagaan di ${companyAddress}, dengan ini mengaku bahawa segala maklumat yang dikemukakan dalam Permohonan Penempatan (Siting Application) ini adalah benar, lengkap dan tepat.`,
+      "Saya memahami bahawa sekiranya sebarang maklumat palsu atau mengelirukan diberikan, tindakan boleh diambil terhadap saya dan/atau syarikat mengikut undang-undang serta peraturan yang berkuat kuasa di Malaysia.",
+      "Saya membuat pengakuan ini dengan penuh kepercayaan bahawa perkara yang dinyatakan adalah benar dan tepat.",
+    ];
+  }
+
+  return [
+    `I, ${name} (NRIC No.: ${icNumber}) of ${address}, being the authorised representative of ${companyName}, with business address at ${companyAddress}, hereby declare on behalf of the company that all information provided in this Siting Application is true, complete and accurate.`,
+    "I understand that if any false or misleading information is given, action may be taken against me and/or the company under the relevant laws and regulations in Malaysia.",
+    "I make this declaration conscientiously believing it to be true and correct.",
+  ];
+}
+
+function getFirstValue(...values) {
+  return values.find((value) => String(value || "").trim()) || "-";
+}
+
+function joinAddress(parts) {
+  const address = parts
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
+  return address || "-";
 }
 
 function ApplicationReference({ step1 }) {
