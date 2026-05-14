@@ -19,14 +19,16 @@ import {
   stepText,
 } from "./ApplicationStepText";
 
-const defaultDocuments = [
+const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
+const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
+
+const requiredDocumentTemplates = [
   {
     title: "Site Plan",
     description:
       "To be drawn on Cadastral Plan showing the subject land and the surrounding land (preferred scale 1:1000) involving:-\nSite; or\nbuilding plan.\nIf none of above, drawing on Google Map is accepted.",
     format: "DXF/ PDF/ IMAGE",
     required: true,
-    guideline: true,
     attachment: null,
   },
   {
@@ -35,7 +37,6 @@ const defaultDocuments = [
       "Cadastral plan (preferred scale 1:1000) showing the subject land and the surrounding land.\nDigital copy is available from eLASIS website.",
     format: "PDF/ IMAGE",
     required: true,
-    guideline: false,
     attachment: null,
   },
   {
@@ -43,7 +44,6 @@ const defaultDocuments = [
     description: "-",
     format: "PDF/ IMAGE",
     required: true,
-    guideline: false,
     attachment: null,
   },
   {
@@ -51,13 +51,22 @@ const defaultDocuments = [
     description: "-",
     format: "PDF",
     required: true,
-    guideline: false,
     attachment: null,
   },
 ];
 
-const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
-const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
+function getDefaultDocuments(step1 = {}, titleAttachment = null) {
+  return [
+    ...requiredDocumentTemplates,
+    {
+      title: TITLE_DOCUMENT_NAME,
+      description: getLandInformationFromStep1(step1),
+      format: "PDF",
+      required: false,
+      attachment: titleAttachment,
+    },
+  ];
+}
 
 function normalizeDocuments(savedDocuments, defaults) {
   if (!Array.isArray(savedDocuments) || savedDocuments.length === 0) {
@@ -72,7 +81,8 @@ function normalizeDocuments(savedDocuments, defaults) {
 
     return {
       ...defaultItem,
-      attachment: savedItem.attachment || null,
+      description: savedItem.description || defaultItem.description,
+      attachment: savedItem.attachment || defaultItem.attachment || null,
     };
   });
 }
@@ -94,20 +104,6 @@ function getLandInformationFromStep1(step1) {
   );
 }
 
-function buildTitleDocumentsFromStep1(step1, attachment = null) {
-  const landInfo = getLandInformationFromStep1(step1);
-
-  if (!landInfo) return [];
-
-  return [
-    {
-      land: landInfo,
-      format: "PDF",
-      attachment,
-    },
-  ];
-}
-
 function SupportingDocumentPage({
   LayoutComponent = UserDashboardLayout,
   StepNavComponent = null,
@@ -127,8 +123,7 @@ function SupportingDocumentPage({
   const isAdminReview = mode === "admin";
 
   const [step1, setStep1] = useState({});
-  const [documents, setDocuments] = useState(defaultDocuments);
-  const [titleDocuments, setTitleDocuments] = useState([]);
+  const [documents, setDocuments] = useState(() => getDefaultDocuments());
   const [otherDocuments, setOtherDocuments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [applicationRecord, setApplicationRecord] = useState(null);
@@ -161,10 +156,6 @@ function SupportingDocumentPage({
       const otherAttachment =
         savedOtherDocuments[0]?.attachment ||
         getSavedAttachmentByTitle(savedDocuments, OTHER_DOCUMENT_NAME);
-      const generatedTitleDocuments = buildTitleDocumentsFromStep1(
-        step1Data,
-        titleAttachment
-      );
       const generatedOtherDocuments = otherAttachment
         ? [
             {
@@ -174,15 +165,11 @@ function SupportingDocumentPage({
             },
           ]
         : [];
+      const defaultDocuments = getDefaultDocuments(step1Data, titleAttachment);
 
       setApplicationRecord(data);
       setStep1(step1Data);
       setDocuments(normalizeDocuments(savedDocuments, defaultDocuments));
-      setTitleDocuments(
-        savedTitleDocuments.length > 0
-          ? savedTitleDocuments
-          : generatedTitleDocuments
-      );
       setOtherDocuments(
         savedOtherDocuments.length > 0 ? savedOtherDocuments : generatedOtherDocuments
       );
@@ -219,7 +206,7 @@ function SupportingDocumentPage({
         title: "Supporting Document",
         status: "Saved",
         documents,
-        title_documents: titleDocuments,
+        title_documents: [],
         other_documents: otherDocuments,
         saved_at: new Date().toISOString(),
       };
@@ -274,28 +261,6 @@ function SupportingDocumentPage({
     }
   }
 
-  async function handleTitleFileChange(index, file) {
-    if (isReadOnly) return;
-    if (!file) return;
-
-    try {
-      const attachment = await uploadApplicationDocument(
-        applicationId,
-        titleDocuments[index]?.land || TITLE_DOCUMENT_NAME,
-        file
-      );
-
-      setTitleDocuments((prev) =>
-        prev.map((item, itemIndex) =>
-          itemIndex === index ? { ...item, attachment } : item
-        )
-      );
-    } catch (err) {
-      console.error("Title document upload failed:", err);
-      alert(tx("failedUpload"));
-    }
-  }
-
   async function handleOtherFileChange(index, file) {
     if (isReadOnly) return;
     if (!file) return;
@@ -322,16 +287,6 @@ function SupportingDocumentPage({
     if (isReadOnly) return;
 
     setDocuments((prev) =>
-      prev.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, attachment: null } : item
-      )
-    );
-  }
-
-  function removeTitleFile(index) {
-    if (isReadOnly) return;
-
-    setTitleDocuments((prev) =>
       prev.map((item, itemIndex) =>
         itemIndex === index ? { ...item, attachment: null } : item
       )
@@ -441,14 +396,6 @@ function SupportingDocumentPage({
                 language={language}
                 onFileChange={handleDocumentFileChange}
                 onRemoveFile={removeDocumentFile}
-              />
-
-              <TitleTable
-                rows={titleDocuments}
-                readOnly={isReadOnly}
-                language={language}
-                onFileChange={handleTitleFileChange}
-                onRemoveFile={removeTitleFile}
               />
 
               <OtherSupportingTable
@@ -577,17 +524,10 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
 
                 <TableCell>
                   <p className="whitespace-pre-line leading-relaxed text-slate-700">
-                    {documentDescription(language, row.title, row.description)}
+                    {row.title === TITLE_DOCUMENT_NAME
+                      ? row.description || tx("noLandInfo")
+                      : documentDescription(language, row.title, row.description)}
                   </p>
-
-                  {row.guideline && (
-                    <button
-                      type="button"
-                      className="mt-2 rounded bg-[#18b36b] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#128a53]"
-                    >
-                      {tx("guidelines")}
-                    </button>
-                  )}
                 </TableCell>
 
                 <TableCell>
@@ -613,74 +553,6 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                 </TableCell>
               </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function TitleTable({ rows, readOnly = false, language = "en", onFileChange, onRemoveFile }) {
-  const tx = (key) => stepText(language, key);
-
-  return (
-    <section className="overflow-hidden rounded-md border border-slate-200">
-      <div className="border-l-4 border-[#18b36b] bg-white px-4 py-3">
-        <h2 className="text-sm font-bold uppercase text-slate-700">
-          {tx("extractTitles")}
-        </h2>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-[11px]">
-          <thead className="bg-[#f1f5f4] text-slate-700">
-            <tr>
-              <TableHead className="w-[44px]">#</TableHead>
-              <TableHead>{tx("landInformation")}</TableHead>
-              <TableHead className="w-[100px]">{tx("format")}</TableHead>
-              <TableHead className="w-[280px]">{tx("attachment")}</TableHead>
-              <TableHead className="w-[120px] text-center">{tx("action")}</TableHead>
-            </tr>
-          </thead>
-
-          <tbody>
-            {rows.length === 0 ? (
-              <tr className="bg-[#e4f4df]">
-                <TableCell colSpan={5} center>
-                  {tx("noLandInfo")}
-                </TableCell>
-              </tr>
-            ) : (
-              rows.map((row, index) => (
-                <tr key={`${row.land}-${index}`} className="bg-[#e4f4df]">
-                  <TableCell>{index + 1}</TableCell>
-
-                  <TableCell>
-                    <span className="font-semibold text-slate-800">
-                      {row.land}
-                    </span>
-                  </TableCell>
-
-                  <TableCell>{row.format}</TableCell>
-
-                  <TableCell>
-                    <AttachmentView attachment={row.attachment} language={language} />
-                  </TableCell>
-
-                  <TableCell center>
-                    <FileAction
-                      index={index}
-                      attachment={row.attachment}
-                      required={false}
-                      readOnly={readOnly}
-                      language={language}
-                      onFileChange={onFileChange}
-                      onRemoveFile={onRemoveFile}
-                    />
-                  </TableCell>
-                </tr>
-              ))
-            )}
           </tbody>
         </table>
       </div>

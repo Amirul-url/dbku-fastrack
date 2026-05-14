@@ -16,6 +16,8 @@ import {
   stepText,
 } from "./ApplicationStepText";
 
+const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
+
 function PrintFormPage({
   LayoutComponent = UserDashboardLayout,
   StepNavComponent = null,
@@ -156,10 +158,14 @@ function PrintFormPage({
     }
   }
 
-  const requiredDocuments = Array.isArray(step10.documents) ? step10.documents : [];
-  const titleDocuments = Array.isArray(step10.title_documents)
+  const savedRequiredDocuments = Array.isArray(step10.documents) ? step10.documents : [];
+  const legacyTitleDocuments = Array.isArray(step10.title_documents)
     ? step10.title_documents
     : [];
+  const requiredDocuments = mergeRequiredDocuments(
+    savedRequiredDocuments,
+    legacyTitleDocuments
+  );
   const otherDocuments = Array.isArray(step10.other_documents)
     ? step10.other_documents
     : [];
@@ -367,7 +373,6 @@ function PrintFormPage({
 
                 <PrintSection title={tx("step3Print")}>
                   <DocumentSummary title={tx("requiredSupportingDocuments")} rows={requiredDocuments} language={language} noAttachmentText={tx("noAttachment")} />
-                  <DocumentSummary title={tx("extractTitles")} rows={titleDocuments} language={language} noAttachmentText={tx("noAttachment")} land />
                   <DocumentSummary title={tx("otherSupportingDocuments")} rows={otherDocuments} language={language} noAttachmentText={tx("noAttachment")} other />
                 </PrintSection>
               </div>
@@ -500,6 +505,37 @@ function PrintBlock({ no, label, value }) {
       </div>
     </div>
   );
+}
+
+function mergeRequiredDocuments(requiredDocuments, legacyTitleDocuments) {
+  const documents = Array.isArray(requiredDocuments) ? requiredDocuments : [];
+  const titleDocuments = Array.isArray(legacyTitleDocuments)
+    ? legacyTitleDocuments
+    : [];
+  const firstTitleAttachment = titleDocuments.find((row) => row?.attachment)
+    ?.attachment;
+  const hasTitleDocument = documents.some(
+    (row) => row?.title === TITLE_DOCUMENT_NAME
+  );
+
+  if (hasTitleDocument) {
+    return documents.map((row) =>
+      row?.title === TITLE_DOCUMENT_NAME && !row.attachment && firstTitleAttachment
+        ? { ...row, attachment: firstTitleAttachment }
+        : row
+    );
+  }
+
+  return [
+    ...documents,
+    ...titleDocuments.map((row) => ({
+      title: TITLE_DOCUMENT_NAME,
+      description: row?.land || row?.description || "",
+      format: row?.format || "PDF",
+      required: false,
+      attachment: row?.attachment || null,
+    })),
+  ];
 }
 
 function DocumentSummary({
