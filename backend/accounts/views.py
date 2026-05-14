@@ -11,6 +11,7 @@ from datetime import date
 
 from django.core.cache import cache
 from django.core import signing
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import status
@@ -737,18 +738,25 @@ def managed_accounts_view(request):
             queryset = queryset.filter(role__in=["superadmin", "admin", "staff"])
 
         if search:
-            queryset = queryset.filter(
-                username__icontains=search
-            ) | queryset.filter(
-                first_name__icontains=search
-            ) | queryset.filter(
-                last_name__icontains=search
-            ) | queryset.filter(
-                email__icontains=search
-            ) | queryset.filter(
-                department__icontains=search
+            search_query = (
+                Q(username__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(email__icontains=search)
+                | Q(department__icontains=search)
+                | Q(mobile_number__icontains=search)
             )
-            queryset = queryset.order_by("first_name", "username")
+            search_digits = normalize_phone_number(search)
+            if search_digits:
+                local_digits = search_digits[2:] if search_digits.startswith("60") else search_digits
+                local_with_zero = local_digits if local_digits.startswith("0") else f"0{local_digits}"
+                local_without_zero = local_digits[1:] if local_digits.startswith("0") else local_digits
+                country_digits = f"60{local_without_zero}"
+
+                for phone_variant in {search_digits, local_digits, local_with_zero, local_without_zero, country_digits}:
+                    search_query |= Q(mobile_number__icontains=phone_variant)
+
+            queryset = queryset.filter(search_query).order_by("first_name", "username")
 
         return Response(
             {

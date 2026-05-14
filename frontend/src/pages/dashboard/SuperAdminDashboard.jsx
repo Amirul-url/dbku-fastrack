@@ -39,8 +39,8 @@ const screenText = {
     addAccount: "Add Account",
     importCsv: "Import CSV",
     exportCsv: "Export CSV",
-    searchUser: "Search name, IC Number, or email",
-    searchAdmin: "Search name, NRIC, email, or department",
+    searchUser: "Search name, IC Number, email, or mobile number",
+    searchAdmin: "Search name, NRIC, email, mobile number, or department",
     allDepartments: "All departments",
     filter: "Filter",
     reset: "Reset",
@@ -144,8 +144,8 @@ const screenText = {
     addAccount: "Tambah Akaun",
     importCsv: "Import CSV",
     exportCsv: "Eksport CSV",
-    searchUser: "Cari nama, nombor IC, atau emel",
-    searchAdmin: "Cari nama, NRIC, emel, atau jabatan",
+    searchUser: "Cari nama, nombor IC, emel, atau nombor telefon",
+    searchAdmin: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
     allDepartments: "Semua jabatan",
     filter: "Tapis",
     reset: "Set Semula",
@@ -438,17 +438,24 @@ function SuperAdminAccountManagement({ view }) {
 
   const filteredAccounts = useMemo(() => {
     const nameNeedle = searchName.trim().toLowerCase();
+    const phoneNeedle = normalizePhoneSearchValue(searchName);
     const selectedDepartment = departmentFilter.trim().toUpperCase();
 
     return accounts
       .filter((account) => {
-        const nameMatch = !nameNeedle || [
+        const textMatch = [
           account.full_name,
           account.username,
           account.email,
           account.department,
           account.mykad_number,
+          account.mobile_number,
+          formatMobileNumber(account.mobile_number),
         ].some((value) => String(value || "").toLowerCase().includes(nameNeedle));
+        const mobileMatch =
+          Boolean(phoneNeedle) &&
+          getPhoneSearchVariants(account.mobile_number).some((value) => value.includes(phoneNeedle));
+        const nameMatch = !nameNeedle || textMatch || mobileMatch;
         const departmentMatch =
           !selectedDepartment ||
           String(account.department || "").toUpperCase() === selectedDepartment;
@@ -1270,6 +1277,22 @@ function formatMobileNumber(value) {
   if (raw.startsWith("60")) return `+${raw}`;
   if (raw.startsWith("0")) return raw;
   return `0${raw}`;
+}
+
+function normalizePhoneSearchValue(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function getPhoneSearchVariants(value) {
+  const digits = normalizePhoneSearchValue(value);
+  if (!digits) return [];
+
+  const localDigits = digits.startsWith("60") ? digits.slice(2) : digits;
+  const localWithZero = localDigits.startsWith("0") ? localDigits : `0${localDigits}`;
+  const localWithoutZero = localDigits.startsWith("0") ? localDigits.slice(1) : localDigits;
+  const countryDigits = `60${localWithoutZero}`;
+
+  return [digits, localDigits, localWithZero, localWithoutZero, countryDigits];
 }
 
 function formatCsvIdentifier(value) {
