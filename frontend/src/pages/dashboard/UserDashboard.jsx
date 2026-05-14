@@ -359,8 +359,6 @@ function UserDashboard() {
 }
 
 function OverviewSection({ applications, latest, loading, t }) {
-  const hasApplication = Boolean(latest);
-  const latestIsDraft = normalizeStatus(latest?.status) === "draft";
   const statusSummary = useMemo(
     () => buildOverviewStatusSummary(applications, latest, t),
     [applications, latest, t]
@@ -369,24 +367,6 @@ function OverviewSection({ applications, latest, loading, t }) {
   return (
     <section className="space-y-4">
       <div className="rounded-md border border-emerald-200 bg-white p-5">
-        <p className="text-sm font-bold uppercase tracking-wide text-emerald-700">
-          {t("common.nextStep")}
-        </p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-950">
-          {hasApplication
-            ? latestIsDraft
-              ? t("applicant.nextActionDraftTitle")
-              : t("applicant.nextActionSubmittedTitle")
-            : t("applicant.nextActionStartTitle")}
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          {hasApplication
-            ? latestIsDraft
-              ? t("applicant.nextActionDraftDescription")
-              : t("applicant.nextActionSubmittedDescription")
-            : t("applicant.nextActionStartDescription")}
-        </p>
-
         <OverviewStatusCards items={statusSummary} loading={loading} />
       </div>
     </section>
@@ -395,7 +375,7 @@ function OverviewSection({ applications, latest, loading, t }) {
 
 function OverviewStatusCards({ items, loading }) {
   return (
-    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {items.map((item) => (
         <OverviewStatusCard
           key={item.key}
