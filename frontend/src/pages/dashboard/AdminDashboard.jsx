@@ -21,7 +21,7 @@ import {
 const units = [
   {
     code: "Unit Iklan",
-    title: "Unit Iklan",
+    title: "IKL",
     descriptionKey: "admin.unit.ikl.desc",
     icon: "description",
     color: "bg-cyan-700",

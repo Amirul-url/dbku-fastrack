@@ -349,7 +349,7 @@ function AppShell({ children, role = "admin" }) {
                 <span className="material-symbols-outlined text-[21px]">
                   notifications
                 </span>
-                <span className="min-w-5 rounded-full bg-slate-100 px-1.5 text-center text-xs font-bold text-slate-700">
+                <span className="min-w-5 rounded-full bg-red-600 px-1.5 text-center text-xs font-bold text-white">
                   {unreadCount}
                 </span>
               </Link>
