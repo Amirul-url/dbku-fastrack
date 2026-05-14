@@ -12,8 +12,9 @@ function ForgotPassword() {
   const otpRefs = useRef([]);
 
   const [step, setStep] = useState("request");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [channel, setChannel] = useState("email");
+  const [resetId, setResetId] = useState("");
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LENGTH).fill(""));
   const [resetToken, setResetToken] = useState("");
   const [password, setPassword] = useState("");
@@ -35,13 +36,36 @@ function ForgotPassword() {
     setMessage("");
   };
 
-  const validateEmail = () => {
-    const nextErrors = {};
+  const isWhatsapp = channel === "whatsapp";
+  const identifierLabel = isWhatsapp
+    ? t("auth.reset.whatsappNumber")
+    : t("auth.emailAddress");
+  const identifierPlaceholder = isWhatsapp
+    ? t("auth.reset.whatsappPlaceholder")
+    : t("auth.reset.emailPlaceholder");
 
-    if (!email.trim()) {
-      nextErrors.email = t("auth.validation.email");
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      nextErrors.email = t("auth.validation.emailFormat");
+  const updateChannel = (nextChannel) => {
+    setChannel(nextChannel);
+    setIdentifier("");
+    setFieldErrors({});
+    clearFeedback();
+  };
+
+  const validateIdentifier = () => {
+    const nextErrors = {};
+    const value = identifier.trim();
+
+    if (!value) {
+      nextErrors.identifier = isWhatsapp
+        ? t("auth.reset.validationWhatsapp")
+        : t("auth.validation.email");
+    } else if (isWhatsapp) {
+      const phoneDigits = value.replace(/\D/g, "");
+      if (phoneDigits.length < 8) {
+        nextErrors.identifier = t("auth.reset.validationWhatsappFormat");
+      }
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      nextErrors.identifier = t("auth.validation.emailFormat");
     }
 
     setFieldErrors(nextErrors);
@@ -52,8 +76,8 @@ function ForgotPassword() {
     event.preventDefault();
     clearFeedback();
 
-    if (!validateEmail()) {
-      setFriendlyError(t("auth.reset.checkEmail"));
+    if (!validateIdentifier()) {
+      setFriendlyError(isWhatsapp ? t("auth.reset.checkWhatsapp") : t("auth.reset.checkEmail"));
       return;
     }
 
@@ -62,11 +86,12 @@ function ForgotPassword() {
       const data = await apiRequest("/auth/password-reset/request/", {
         method: "POST",
         body: JSON.stringify({
-          email: email.trim(),
+          identifier: identifier.trim(),
           channel,
         }),
       });
 
+      setResetId(data.reset_id || identifier.trim());
       setStep("otp");
       setOtpDigits(Array(OTP_LENGTH).fill(""));
       setMessage(data.debug_otp
@@ -95,7 +120,7 @@ function ForgotPassword() {
       const data = await apiRequest("/auth/password-reset/verify/", {
         method: "POST",
         body: JSON.stringify({
-          email: email.trim(),
+          identifier: resetId || identifier.trim(),
           otp,
         }),
       });
@@ -204,7 +229,7 @@ function ForgotPassword() {
           </p>
         </div>
 
-        <StepIndicator step={step} t={t} />
+        <StepIndicator step={step} t={t} channel={channel} />
 
         {message && (
           <div className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-[#006d32]">
@@ -222,27 +247,28 @@ function ForgotPassword() {
           <form className="mt-7 space-y-5" onSubmit={handleRequestOtp} noValidate>
             <label className="block">
               <span className="text-sm font-semibold text-slate-700">
-                {t("auth.emailAddress")}
+                {identifierLabel}
               </span>
               <input
-                type="email"
-                value={email}
+                type={isWhatsapp ? "tel" : "email"}
+                inputMode={isWhatsapp ? "tel" : "email"}
+                value={identifier}
                 onChange={(event) => {
-                  setEmail(event.target.value);
+                  setIdentifier(event.target.value);
                   clearFeedback();
-                  setFieldErrors((prev) => ({ ...prev, email: "" }));
+                  setFieldErrors((prev) => ({ ...prev, identifier: "" }));
                 }}
-                placeholder={t("auth.reset.emailPlaceholder")}
-                aria-invalid={Boolean(fieldErrors.email)}
+                placeholder={identifierPlaceholder}
+                aria-invalid={Boolean(fieldErrors.identifier)}
                 className={`mt-2 h-[52px] w-full rounded-md border bg-white px-4 text-base text-slate-800 outline-none transition focus:ring-2 ${
-                  fieldErrors.email
+                  fieldErrors.identifier
                     ? "border-red-400 focus:border-red-500 focus:ring-red-100"
                     : "border-slate-300 focus:border-[#006d32] focus:ring-[#006d32]/20"
                 }`}
               />
-              {fieldErrors.email && (
+              {fieldErrors.identifier && (
                 <p className="mt-2 text-xs font-semibold text-red-600">
-                  {fieldErrors.email}
+                  {fieldErrors.identifier}
                 </p>
               )}
             </label>
@@ -257,14 +283,14 @@ function ForgotPassword() {
                   icon="mail"
                   label={t("auth.reset.channelEmail")}
                   description={t("auth.reset.channelEmailDesc")}
-                  onClick={() => setChannel("email")}
+                  onClick={() => updateChannel("email")}
                 />
                 <ChannelButton
                   active={channel === "whatsapp"}
                   icon="chat"
                   label={t("auth.reset.channelWhatsapp")}
                   description={t("auth.reset.channelWhatsappDesc")}
-                  onClick={() => setChannel("whatsapp")}
+                  onClick={() => updateChannel("whatsapp")}
                 />
               </div>
             </div>
@@ -369,9 +395,9 @@ function ForgotPassword() {
   );
 }
 
-function StepIndicator({ step, t }) {
+function StepIndicator({ step, t, channel }) {
   const steps = [
-    ["request", t("auth.reset.stepEmail")],
+    ["request", channel === "whatsapp" ? t("auth.reset.stepWhatsapp") : t("auth.reset.stepEmail")],
     ["otp", t("auth.reset.stepOtp")],
     ["password", t("auth.reset.stepPassword")],
   ];

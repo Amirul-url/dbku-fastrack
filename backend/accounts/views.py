@@ -182,8 +182,12 @@ def build_auth_response(user):
     }
 
 
-def password_reset_cache_key(email):
-    return f"password-reset:{email.strip().lower()}"
+def normalize_phone_number(value):
+    return re.sub(r"\D", "", str(value or ""))
+
+
+def password_reset_cache_key(identifier):
+    return f"password-reset:{identifier.strip().lower()}"
 
 
 def generate_password_reset_otp():
@@ -193,6 +197,21 @@ def generate_password_reset_otp():
 def normalize_reset_channel(value):
     channel = str(value or "").strip().lower()
     return channel if channel in {"email", "whatsapp"} else ""
+
+
+def get_password_reset_user(channel, identifier):
+    if channel == "email":
+        return User.objects.filter(email__iexact=identifier).first()
+
+    phone_digits = normalize_phone_number(identifier)
+    if not phone_digits:
+        return None
+
+    for user in User.objects.exclude(mobile_number=""):
+        if normalize_phone_number(user.mobile_number) == phone_digits:
+            return user
+
+    return None
 
 
 def build_password_reset_message(user, otp):
@@ -214,7 +233,12 @@ def deliver_password_reset_otp(user, channel, otp):
         if getattr(settings, "NOTIFICATION_EMAIL_ENABLED", False) and settings.BREVO_API_KEY:
             from notifications.services import send_email
 
-            send_email(user.email, "ALiS Password Reset OTP", message)
+            try:
+                send_email(user.email, "ALiS Password Reset OTP", message)
+            except Exception:
+                if settings.DEBUG:
+                    return True, "OTP prepared for your registered email address."
+                raise
             return True, "OTP sent to your registered email address."
 
         if settings.DEBUG:
@@ -229,7 +253,12 @@ def deliver_password_reset_otp(user, channel, otp):
         if getattr(settings, "WHATSAPP_ENABLED", False):
             from notifications.services import send_whatsapp
 
-            send_whatsapp(user.mobile_number, message)
+            try:
+                send_whatsapp(user.mobile_number, message)
+            except Exception:
+                if settings.DEBUG:
+                    return True, "OTP prepared for your registered WhatsApp number."
+                raise
             return True, "OTP sent to your registered WhatsApp number."
 
         if settings.DEBUG:
@@ -375,20 +404,9 @@ def login_view(request):
 
 @api_view(["POST"])
 def password_reset_request_view(request):
-    email = str(request.data.get("email", "")).strip().lower()
     channel = normalize_reset_channel(request.data.get("channel"))
-
-    if not email:
-        return Response(
-            {"error": "Please enter your registered email address."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if not EMAIL_PATTERN.match(email):
-        return Response(
-            {"error": "Please enter a valid email address."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    raw_identifier = request.data.get("identifier", request.data.get("email", ""))
+    identifier = str(raw_identifier).strip().lower() if channel == "email" else normalize_phone_number(raw_identifier)
 
     if not channel:
         return Response(
@@ -396,10 +414,28 @@ def password_reset_request_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user = User.objects.filter(email__iexact=email).first()
+    if not identifier:
+        return Response(
+            {"error": "Please enter your registered email address." if channel == "email" else "Please enter your registered WhatsApp/mobile number."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if channel == "email" and not EMAIL_PATTERN.match(identifier):
+        return Response(
+            {"error": "Please enter a valid email address."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if channel == "whatsapp" and len(identifier) < 8:
+        return Response(
+            {"error": "Please enter a valid WhatsApp/mobile number."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    user = get_password_reset_user(channel, identifier)
     if not user:
         return Response(
-            {"error": "We could not find an ALiS account with that email address."},
+            {"error": "We could not find an ALiS account with those details."},
             status=status.HTTP_404_NOT_FOUND,
         )
 
@@ -417,10 +453,10 @@ def password_reset_request_view(request):
         )
 
     cache.set(
-        password_reset_cache_key(email),
+        password_reset_cache_key(identifier),
         {
             "user_id": user.id,
-            "email": email,
+            "identifier": identifier,
             "otp": otp,
             "channel": channel,
             "attempts": 0,
@@ -431,6 +467,7 @@ def password_reset_request_view(request):
 
     response = {
         "message": delivery_message,
+        "reset_id": identifier,
         "expires_in": PASSWORD_RESET_TTL_SECONDS,
     }
 
@@ -442,12 +479,12 @@ def password_reset_request_view(request):
 
 @api_view(["POST"])
 def password_reset_verify_view(request):
-    email = str(request.data.get("email", "")).strip().lower()
+    identifier = str(request.data.get("identifier", request.data.get("email", ""))).strip().lower()
     otp = re.sub(r"\D", "", str(request.data.get("otp", "")))
 
-    if not email or not EMAIL_PATTERN.match(email):
+    if not identifier:
         return Response(
-            {"error": "Please enter the email address used to request the OTP."},
+            {"error": "Please enter the email or WhatsApp number used to request the OTP."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -457,7 +494,7 @@ def password_reset_verify_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    cache_key = password_reset_cache_key(email)
+    cache_key = password_reset_cache_key(identifier)
     payload = cache.get(cache_key)
 
     if not payload:
@@ -486,7 +523,7 @@ def password_reset_verify_view(request):
     token = signing.dumps(
         {
             "user_id": payload.get("user_id"),
-            "email": email,
+            "identifier": identifier,
             "purpose": PASSWORD_RESET_PURPOSE,
         },
         salt=PASSWORD_RESET_PURPOSE,
@@ -547,15 +584,15 @@ def password_reset_confirm_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    email = str(payload.get("email", "")).strip().lower()
-    cache_payload = cache.get(password_reset_cache_key(email))
+    identifier = str(payload.get("identifier", payload.get("email", ""))).strip().lower()
+    cache_payload = cache.get(password_reset_cache_key(identifier))
     if not cache_payload or cache_payload.get("reset_token") != token:
         return Response(
             {"error": "Please verify your OTP before setting a new password."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    user = User.objects.filter(pk=payload.get("user_id"), email__iexact=email).first()
+    user = User.objects.filter(pk=payload.get("user_id")).first()
     if not user:
         return Response(
             {"error": "We could not find the account for this reset request."},
@@ -564,7 +601,7 @@ def password_reset_confirm_view(request):
 
     user.set_password(password)
     user.save(update_fields=["password"])
-    cache.delete(password_reset_cache_key(email))
+    cache.delete(password_reset_cache_key(identifier))
 
     return Response(
         {"message": "Password reset successful. Please login with your new password."},
