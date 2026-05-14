@@ -5,29 +5,76 @@ import { useLanguage } from "../context/LanguageContext";
 import { useNotifications } from "../context/NotificationContext";
 import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
+const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
+const ADMIN_APPLICATIONS_MENU_KEY = "fastrack_admin_applications_menu_open";
 
-const adminNav = [
-  {
-    labelKey: "nav.dashboard",
-    fallback: "Dashboard",
-    path: "/dashboard/admin",
-    icon: "dashboard",
-    children: [
-      {
-        labelKey: "admin.dashboard.personalTask",
-        fallback: "Personal Task",
-        path: "/dashboard/admin?view=personal",
-        view: "personal",
-      },
-      {
-        labelKey: "admin.dashboard.awaitingApproval",
-        fallback: "Awaiting Approval",
-        path: "/dashboard/admin?view=approval",
-        view: "approval",
-      },
-    ],
-  },
-];
+function readSessionBoolean(key, fallback = false) {
+  try {
+    const storedValue = window.sessionStorage.getItem(key);
+
+    if (storedValue === null) {
+      return fallback;
+    }
+
+    return storedValue === "true";
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSessionBoolean(key, value) {
+  try {
+    window.sessionStorage.setItem(key, value ? "true" : "false");
+  } catch {
+    // Session storage can be unavailable in some browser privacy modes.
+  }
+}
+
+function buildAdminNav(viewApplicationId, showApplicationSteps) {
+  const applicationStepGroup = showApplicationSteps
+    ? {
+        labelKey: "steps.applicationSteps",
+        fallback: "Application Steps",
+        children: [
+          { no: 1, labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: `/admin/applications/${viewApplicationId}/view/step-1?id=${viewApplicationId}` },
+          { no: 2, labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: `/admin/applications/${viewApplicationId}/view/step-2?id=${viewApplicationId}` },
+          { no: 3, labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: `/admin/applications/${viewApplicationId}/view/step-3?id=${viewApplicationId}` },
+          { no: 4, labelKey: "steps.declaration", fallback: "Declaration", path: `/admin/applications/${viewApplicationId}/view/step-4?id=${viewApplicationId}` },
+          { no: 5, labelKey: "steps.printForm", fallback: "Print Form", path: `/admin/applications/${viewApplicationId}/view/step-5?id=${viewApplicationId}` },
+        ],
+      }
+    : null;
+
+  return [
+    {
+      labelKey: "nav.dashboard",
+      fallback: "Dashboard",
+      path: "/dashboard/admin",
+      icon: "dashboard",
+      children: [
+        {
+          labelKey: "admin.dashboard.personalTask",
+          fallback: "Personal Task",
+          path: "/dashboard/admin?view=personal",
+          view: "personal",
+        },
+        {
+          labelKey: "admin.dashboard.awaitingApproval",
+          fallback: "Awaiting Approval",
+          path: "/dashboard/admin?view=approval",
+          view: "approval",
+        },
+      ],
+    },
+    {
+      labelKey: "nav.applications",
+      fallback: "Applications",
+      path: "/admin/applications",
+      icon: "folder_open",
+      stepGroup: applicationStepGroup,
+    },
+  ];
+}
 
 const superAdminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/superadmin/dashboard", icon: "dashboard" },
@@ -91,22 +138,34 @@ function AppShell({ children, role = "admin" }) {
   const { t } = useLanguage();
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [adminDashboardOpen, setAdminDashboardOpen] = useState(true);
+  const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
+    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false)
+  );
+  const [adminApplicationsOpen, setAdminApplicationsOpen] = useState(() =>
+    Boolean(getAdminViewApplicationIdFromPath(location.pathname)) ||
+    readSessionBoolean(ADMIN_APPLICATIONS_MENU_KEY, false)
+  );
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
+  const currentAdminViewApplicationId = getAdminViewApplicationIdFromPath(location.pathname);
   const showApplicationSteps =
     location.pathname === "/applications/new" || Boolean(currentApplicationId);
   const stepApplicationId = currentApplicationId;
   const nav = useMemo(
     () => {
       if (role === "superadmin") return superAdminNav;
-      if (role === "admin") return adminNav;
+      if (role === "admin") {
+        return buildAdminNav(
+          currentAdminViewApplicationId,
+          Boolean(currentAdminViewApplicationId)
+        );
+      }
       return buildApplicantNav(stepApplicationId, showApplicationSteps);
     },
-    [role, stepApplicationId, showApplicationSteps]
+    [role, currentAdminViewApplicationId, stepApplicationId, showApplicationSteps]
   );
 
   useEffect(() => {
@@ -190,16 +249,18 @@ function AppShell({ children, role = "admin" }) {
                 location.pathname.startsWith(item.path));
             const activeTab = new URLSearchParams(location.search).get("tab");
             const activeView = new URLSearchParams(location.search).get("view");
-            const hasChildren = Boolean(item.children);
+            const hasChildren = Boolean(item.children || item.stepGroup);
             const adminDashboardItem = role === "admin" && item.path === "/dashboard/admin";
+            const adminApplicationsItem = role === "admin" && item.path === "/admin/applications";
             const submenuOpen =
               hasChildren &&
               ((role === "applicant" && applicantDashboardOpen) ||
-                (adminDashboardItem && adminDashboardOpen));
+                (adminDashboardItem && adminDashboardOpen) ||
+                (adminApplicationsItem && adminApplicationsOpen));
 
             return (
               <div key={item.path}>
-                {hasChildren && (role === "applicant" || adminDashboardItem) ? (
+                {hasChildren && (role === "applicant" || adminDashboardItem || adminApplicationsItem) ? (
                   <div
                     className={`flex w-full items-center justify-between rounded-md px-3.5 py-2.5 text-left text-sm font-medium ${
                       active
@@ -212,8 +273,6 @@ function AppShell({ children, role = "admin" }) {
                       onClick={() => {
                         if (role === "applicant") {
                           setApplicantDashboardOpen(true);
-                        } else {
-                          setAdminDashboardOpen(true);
                         }
                       }}
                       className="flex min-w-0 flex-1 items-center gap-3"
@@ -228,8 +287,18 @@ function AppShell({ children, role = "admin" }) {
                       onClick={() => {
                         if (role === "applicant") {
                           setApplicantDashboardOpen((current) => !current);
+                        } else if (adminApplicationsItem) {
+                          setAdminApplicationsOpen((current) => {
+                            const next = !current;
+                            writeSessionBoolean(ADMIN_APPLICATIONS_MENU_KEY, next);
+                            return next;
+                          });
                         } else {
-                          setAdminDashboardOpen((current) => !current);
+                          setAdminDashboardOpen((current) => {
+                            const next = !current;
+                            writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, next);
+                            return next;
+                          });
                         }
                       }}
                       aria-expanded={submenuOpen}
@@ -258,7 +327,16 @@ function AppShell({ children, role = "admin" }) {
                   </Link>
                 )}
                 {submenuOpen && (
-                  <div className="mt-1.5 space-y-1.5 pl-10">
+                  item.stepGroup ? (
+                    <ApplicationStepLinks
+                      group={item.stepGroup}
+                      location={location}
+                      t={t}
+                      onStepClick={openApplicationStep}
+                      creatingStepRoute={creatingStepRoute}
+                    />
+                  ) : (
+                    <div className="mt-1.5 space-y-1.5 pl-10">
                     {item.children.map((child) => {
                       const hasNestedChildren = Boolean(child.children?.length);
                       const childActive =
@@ -355,7 +433,8 @@ function AppShell({ children, role = "admin" }) {
                         </Link>
                       );
                     })}
-                  </div>
+                    </div>
+                  )
                 )}
               </div>
             );
@@ -426,6 +505,54 @@ function AppShell({ children, role = "admin" }) {
   );
 }
 
+function ApplicationStepLinks({
+  group,
+  location,
+  t,
+  onStepClick,
+  creatingStepRoute,
+}) {
+  return (
+    <div className="ml-11 mt-1.5 space-y-1.5 border-l border-emerald-100 pl-3">
+      <p className="px-3 py-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+        {t(group.labelKey, group.fallback)}
+      </p>
+      {group.children.map((step) => {
+        const stepPath = getPathname(step.path);
+        const stepActive = location.pathname === stepPath;
+
+        return (
+          <Link
+            key={step.labelKey}
+            to={step.path}
+            onClick={(event) => onStepClick(event, step)}
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold leading-5 ${
+              stepActive
+                ? "bg-emerald-50 text-emerald-800"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+            }`}
+          >
+            <span
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                stepActive
+                  ? "bg-emerald-700 text-white"
+                  : "bg-white text-emerald-800"
+              }`}
+            >
+              {step.no}
+            </span>
+            <span className="min-w-0 leading-snug">
+              {creatingStepRoute === step.route
+                ? t("common.loading")
+                : t(step.labelKey, step.fallback)}
+            </span>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProfileDropdown({ t, onLogout }) {
   return (
     <div className="absolute right-0 top-12 z-50 w-48 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl">
@@ -465,6 +592,11 @@ function DashboardFooter({ t }) {
 
 function getApplicationIdFromPath(pathname) {
   const match = String(pathname || "").match(/^\/applications\/(\d+)/);
+  return match?.[1] || "";
+}
+
+function getAdminViewApplicationIdFromPath(pathname) {
+  const match = String(pathname || "").match(/^\/admin\/applications\/(\d+)\/view\//);
   return match?.[1] || "";
 }
 

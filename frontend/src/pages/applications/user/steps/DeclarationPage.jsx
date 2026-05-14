@@ -32,7 +32,10 @@ function DeclarationPage({
   const user = storedUser ? JSON.parse(storedUser) : null;
   const Layout = LayoutComponent;
   const StepNav = StepNavComponent;
-  const isAdminReview = mode === "admin";
+  const isAdminView = mode === "admin-view";
+  const isAdminReview = mode === "admin" || isAdminView;
+  const adminStepPath = (step) =>
+    `/admin/applications/${applicationId}${isAdminView ? "/view" : ""}/step-${step}?id=${applicationId}`;
 
   const [step1, setStep1] = useState({});
   const [step3, setStep3] = useState({});
@@ -119,7 +122,7 @@ function DeclarationPage({
       setStep11(updatedStep11);
       navigate(
         isAdminReview
-          ? `/admin/applications/${applicationId}/step-5?id=${applicationId}`
+          ? adminStepPath(5)
           : `/applications/${applicationId}/print-form?id=${applicationId}`
       );
     } catch (err) {
@@ -131,7 +134,8 @@ function DeclarationPage({
   }
 
   const isReadOnly =
-    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
+    isAdminView ||
+    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
 
   const applicantName =
     step3.full_name ||
@@ -198,7 +202,7 @@ function DeclarationPage({
               <Link
                 to={
                   isAdminReview
-                    ? `/admin/applications/${applicationId}/step-3?id=${applicationId}`
+                    ? adminStepPath(3)
                     : `/applications/${applicationId}/supporting-document?id=${applicationId}`
                 }
                 className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
@@ -258,7 +262,7 @@ function DeclarationPage({
                 <Link
                   to={
                     isAdminReview
-                      ? `/admin/applications/${applicationId}/step-3?id=${applicationId}`
+                      ? adminStepPath(3)
                       : `/applications/${applicationId}/supporting-document?id=${applicationId}`
                   }
                   className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"

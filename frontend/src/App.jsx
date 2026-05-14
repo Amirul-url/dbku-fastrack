@@ -30,9 +30,6 @@ import AdminApplicationsPage from "./pages/applications/admin/AdminApplicationsP
 import AdminApplicationDetailPage from "./pages/applications/admin/AdminApplicationDetailPage";
 import AdminApplicationStepNav from "./pages/applications/admin/AdminApplicationStepNav";
 
-/* ADMIN APPLICATION STEPS */
-import AdminStep1Page from "./pages/applications/admin/steps/AdminStep1Page";
-
 /* USER APPLICATION STEPS */
 import SittingApplicationPage from "./pages/applications/user/steps/SittingApplicationPage";
 import SubmittingPersonPage from "./pages/applications/user/steps/SubmittingPersonPage";
@@ -271,22 +268,73 @@ function App() {
           }
         />
 
-        {/* ADMIN NEW APPLICATION */}
-        <Route
-          path="/admin/applications/new"
-          element={
-            <AdminRoute>
-              <AdminStep1Page />
-            </AdminRoute>
-          }
-        />
-
         {/* ADMIN APPLICATION DETAIL */}
         <Route
           path="/admin/applications/:id"
           element={
             <AdminRoute>
               <AdminApplicationDetailPage />
+            </AdminRoute>
+          }
+        />
+
+        {/* ADMIN READ-ONLY APPLICATION VIEW */}
+        <Route
+          path="/admin/applications/:applicationId/view/step-1"
+          element={
+            <AdminRoute>
+              <SittingApplicationPage
+                LayoutComponent={AdminDashboardLayout}
+                mode="admin-view"
+              />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/view/step-2"
+          element={
+            <AdminRoute>
+              <SubmittingPersonPage
+                LayoutComponent={AdminDashboardLayout}
+                mode="admin-view"
+              />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/view/step-3"
+          element={
+            <AdminRoute>
+              <SupportingDocumentPage
+                LayoutComponent={AdminDashboardLayout}
+                mode="admin-view"
+              />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/view/step-4"
+          element={
+            <AdminRoute>
+              <DeclarationPage
+                LayoutComponent={AdminDashboardLayout}
+                mode="admin-view"
+              />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/applications/:applicationId/view/step-5"
+          element={
+            <AdminRoute>
+              <PrintFormPage
+                LayoutComponent={AdminDashboardLayout}
+                mode="admin-view"
+              />
             </AdminRoute>
           }
         />

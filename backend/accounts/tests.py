@@ -1,3 +1,64 @@
 from django.test import TestCase
+from rest_framework.test import APIClient
 
-# Create your tests here.
+from .models import User
+from .views import apply_managed_account_data, get_password_reset_user
+
+
+class ManagedAccountImportTests(TestCase):
+    def test_imported_account_normalizes_identifiers_for_login_and_reset(self):
+        user = User()
+        error = apply_managed_account_data(
+            user,
+            {
+                "username": "020215-13-0135",
+                "full_name": "CSV Imported User",
+                "email": " ImportedUser@Example.COM ",
+                "mobile_number": "017-515 1829",
+                "department": "imt",
+                "role": "admin",
+                "password": "Password123",
+                "password2": "Password123",
+                "is_active": True,
+            },
+            require_password=True,
+        )
+
+        self.assertEqual(error, "")
+        user.save()
+
+        self.assertEqual(user.username, "020215130135")
+        self.assertEqual(user.mykad_number, "020215130135")
+        self.assertEqual(user.email, "importeduser@example.com")
+        self.assertTrue(user.check_password("Password123"))
+        self.assertEqual(get_password_reset_user("email", "importeduser@example.com"), user)
+        self.assertEqual(get_password_reset_user("whatsapp", "0175151829"), user)
+
+        response = APIClient().post(
+            "/api/auth/login/",
+            {"username": "020215-13-0135", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_legacy_formatted_imported_account_can_login_and_reset(self):
+        user = User.objects.create_user(
+            username="020215-13-0135",
+            email="legacy@example.com",
+            password="Password123",
+            mobile_number="+60 17-515 1829",
+        )
+        user.email = " Legacy@Example.COM "
+        user.save(update_fields=["email"])
+
+        self.assertEqual(get_password_reset_user("email", "legacy@example.com"), user)
+        self.assertEqual(get_password_reset_user("whatsapp", "0175151829"), user)
+
+        response = APIClient().post(
+            "/api/auth/login/",
+            {"username": "020215130135", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)

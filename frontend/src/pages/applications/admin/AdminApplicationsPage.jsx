@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../../layout/AdminDashboardLayout";
 import { apiRequest } from "../../../services/api";
@@ -7,7 +7,6 @@ import {
   Button,
   DataTable,
   Field,
-  LinkButton,
   PageHeader,
   Panel,
   StatCard,
@@ -33,7 +32,7 @@ function AdminApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [error, setError] = useState("");
 
-  async function fetchApplications({ silent = false } = {}) {
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) {
         setLoading(true);
@@ -46,10 +45,10 @@ function AdminApplicationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    fetchApplications();
+    const initialTimer = window.setTimeout(fetchApplications, 0);
 
     const refreshTimer = window.setInterval(() => {
       fetchApplications({ silent: true });
@@ -65,11 +64,12 @@ function AdminApplicationsPage() {
     window.addEventListener("focus", refreshWhenVisible);
 
     return () => {
+      window.clearTimeout(initialTimer);
       window.clearInterval(refreshTimer);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       window.removeEventListener("focus", refreshWhenVisible);
     };
-  }, []);
+  }, [fetchApplications]);
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -118,11 +118,6 @@ function AdminApplicationsPage() {
         eyebrow="Application Records"
         title="Applications"
         description="Search and inspect completed applications handed over by applicants."
-        actions={
-          <LinkButton to="/admin/applications/new" icon="add">
-            New Application
-          </LinkButton>
-        }
       />
 
       <Alert message={error} />
@@ -172,7 +167,7 @@ function AdminApplicationsPage() {
               render: (app) => (
                 <button
                   type="button"
-                  onClick={() => navigate(`/admin/applications/${app.id}`)}
+                  onClick={() => navigate(`/admin/applications/${app.id}/view/step-1`)}
                   className="font-semibold text-emerald-700 hover:underline"
                 >
                   {getApplicationReference(app)}
@@ -196,13 +191,23 @@ function AdminApplicationsPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     variant="secondary"
+                    icon="visibility"
                     className="min-h-8 px-3 py-1 text-xs"
-                    onClick={() => navigate(`/admin/applications/${app.id}`)}
+                    onClick={() => navigate(`/admin/applications/${app.id}/view/step-1`)}
                   >
                     View
                   </Button>
                   <Button
+                    variant="secondary"
+                    icon="edit"
+                    className="min-h-8 px-3 py-1 text-xs"
+                    onClick={() => navigate(`/admin/applications/${app.id}/step-1`)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
                     variant="danger"
+                    icon="delete"
                     className="min-h-8 px-3 py-1 text-xs"
                     disabled={deletingId === app.id}
                     onClick={() => deleteApplication(app)}

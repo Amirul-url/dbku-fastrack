@@ -202,6 +202,62 @@ def normalize_phone_number(value):
     return re.sub(r"\D", "", str(value or ""))
 
 
+def normalize_email_address(value):
+    return str(value or "").strip().lower()
+
+
+def normalize_mykad_identifier(value):
+    text = str(value or "").strip()
+    digits = re.sub(r"\D", "", text)
+    return digits if len(digits) == 12 else text
+
+
+def find_user_by_normalized_email(identifier):
+    email = normalize_email_address(identifier)
+    if not email:
+        return None
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user:
+        return user
+
+    for user in User.objects.exclude(email=""):
+        if normalize_email_address(user.email) == email:
+            return user
+
+    return None
+
+
+def find_user_for_login(identifier):
+    raw_identifier = str(identifier or "").strip()
+    if not raw_identifier:
+        return None
+
+    if EMAIL_PATTERN.match(raw_identifier):
+        user = find_user_by_normalized_email(raw_identifier)
+        if user:
+            return user
+
+    normalized_identifier = normalize_mykad_identifier(raw_identifier)
+    user = (
+        User.objects.filter(username=raw_identifier).first()
+        or User.objects.filter(username=normalized_identifier).first()
+        or User.objects.filter(mykad_number=raw_identifier).first()
+        or User.objects.filter(mykad_number=normalized_identifier).first()
+    )
+    if user:
+        return user
+
+    for user in User.objects.all():
+        if (
+            normalize_mykad_identifier(user.username) == normalized_identifier
+            or normalize_mykad_identifier(user.mykad_number) == normalized_identifier
+        ):
+            return user
+
+    return None
+
+
 def format_whatsapp_recipient(value):
     digits = normalize_phone_number(value)
 
@@ -246,7 +302,7 @@ def normalize_reset_channel(value):
 
 def get_password_reset_user(channel, identifier):
     if channel == "email":
-        return User.objects.filter(email__iexact=identifier).first()
+        return find_user_by_normalized_email(identifier)
 
     requested_numbers = phone_number_variants(identifier)
     if not requested_numbers:
@@ -324,8 +380,8 @@ def friendly_password_validation(password, password2):
 def register_view(request):
     data = request.data
 
-    username = str(data.get("username", "")).strip()
-    email = str(data.get("email", "")).strip()
+    username = normalize_mykad_identifier(data.get("username", ""))
+    email = normalize_email_address(data.get("email", ""))
     password = data.get("password", "")
     password2 = data.get("password2", "")
 
@@ -396,7 +452,7 @@ def register_view(request):
     )
 
     user.role = "applicant"
-    user.mykad_number = str(data.get("mykad_number", username)).strip()
+    user.mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
     user.mobile_number = str(data.get("mobile_number", "")).strip()
     user.address_line1 = str(data.get("address_line1", "")).strip()
     user.address_line2 = str(data.get("address_line2", "")).strip()
@@ -426,7 +482,9 @@ def login_view(request):
     username = str(request.data.get("username", "")).strip()
     password = request.data.get("password", "")
 
-    user = authenticate(username=username, password=password)
+    login_user = find_user_for_login(username)
+    auth_username = login_user.username if login_user else username
+    user = authenticate(username=auth_username, password=password)
 
     if user is None:
         return Response(
@@ -665,8 +723,8 @@ def normalize_managed_role(value):
 
 
 def apply_managed_account_data(user, data, require_password=False):
-    username = str(data.get("username", user.username or "")).strip()
-    email = str(data.get("email", user.email or "")).strip()
+    username = normalize_mykad_identifier(data.get("username", user.username or ""))
+    email = normalize_email_address(data.get("email", user.email or ""))
     full_name = str(data.get("full_name", "")).strip()
     role = normalize_managed_role(data.get("role", user.role))
     password = data.get("password", "")
@@ -704,7 +762,7 @@ def apply_managed_account_data(user, data, require_password=False):
     user.last_name = last_name
     user.role = role
     user.department = str(data.get("department", user.department or "")).strip().upper()
-    user.mykad_number = str(data.get("mykad_number", username)).strip()
+    user.mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
     user.mobile_number = str(data.get("mobile_number", user.mobile_number or "")).strip()
     user.is_active = bool(data.get("is_active", True))
 

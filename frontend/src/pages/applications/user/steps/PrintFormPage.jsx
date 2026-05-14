@@ -32,7 +32,10 @@ function PrintFormPage({
   const applicationId = routeApplicationId || queryParams.get("id");
   const Layout = LayoutComponent;
   const StepNav = StepNavComponent;
-  const isAdminReview = mode === "admin";
+  const isAdminView = mode === "admin-view";
+  const isAdminReview = mode === "admin" || isAdminView;
+  const adminStepPath = (step) =>
+    `/admin/applications/${applicationId}${isAdminView ? "/view" : ""}/step-${step}?id=${applicationId}`;
 
   const [step1, setStep1] = useState({});
   const [step3, setStep3] = useState({});
@@ -170,7 +173,8 @@ function PrintFormPage({
     ? step10.other_documents
     : [];
   const isReadOnly =
-    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
+    isAdminView ||
+    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
 
   return (
     <Layout>
@@ -242,7 +246,7 @@ function PrintFormPage({
               <Link
                 to={
                   isAdminReview
-                    ? `/admin/applications/${applicationId}/step-4?id=${applicationId}`
+                    ? adminStepPath(4)
                     : `/applications/${applicationId}/declaration?id=${applicationId}`
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
@@ -382,7 +386,7 @@ function PrintFormPage({
               <Link
                 to={
                   isAdminReview
-                    ? `/admin/applications/${applicationId}/step-4?id=${applicationId}`
+                    ? adminStepPath(4)
                     : `/applications/${applicationId}/declaration?id=${applicationId}`
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"

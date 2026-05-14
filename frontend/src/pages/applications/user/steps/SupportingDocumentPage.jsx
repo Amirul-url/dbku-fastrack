@@ -120,7 +120,10 @@ function SupportingDocumentPage({
 
   const Layout = LayoutComponent;
   const StepNav = StepNavComponent;
-  const isAdminReview = mode === "admin";
+  const isAdminView = mode === "admin-view";
+  const isAdminReview = mode === "admin" || isAdminView;
+  const adminStepPath = (step) =>
+    `/admin/applications/${applicationId}${isAdminView ? "/view" : ""}/step-${step}?id=${applicationId}`;
 
   const [step1, setStep1] = useState({});
   const [documents, setDocuments] = useState(() => getDefaultDocuments());
@@ -224,7 +227,7 @@ function SupportingDocumentPage({
       if (goNext) {
         navigate(
           isAdminReview
-            ? `/admin/applications/${applicationId}/step-4?id=${applicationId}`
+            ? adminStepPath(4)
             : `/applications/${applicationId}/declaration?id=${applicationId}`
         );
       }
@@ -339,7 +342,8 @@ function SupportingDocumentPage({
   }
 
   const isReadOnly =
-    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
+    isAdminView ||
+    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
 
   return (
     <Layout>
@@ -361,7 +365,7 @@ function SupportingDocumentPage({
               <Link
                 to={
                   isAdminReview
-                    ? `/admin/applications/${applicationId}/step-2?id=${applicationId}`
+                    ? adminStepPath(2)
                     : `/applications/${applicationId}/submitting-person?id=${applicationId}`
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
@@ -413,7 +417,7 @@ function SupportingDocumentPage({
                 <Link
                   to={
                     isAdminReview
-                      ? `/admin/applications/${applicationId}/step-2?id=${applicationId}`
+                      ? adminStepPath(2)
                       : `/applications/${applicationId}/submitting-person?id=${applicationId}`
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"

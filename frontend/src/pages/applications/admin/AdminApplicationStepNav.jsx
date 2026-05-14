@@ -42,7 +42,11 @@ function AdminApplicationStepNav({ active = 1 }) {
   const { id, applicationId } = useParams();
 
   const currentApplicationId = applicationId || id;
-  const steps = getSteps(currentApplicationId, t);
+  const viewOnly = location.pathname.includes("/view/");
+  const steps = getSteps(
+    viewOnly ? `${currentApplicationId}/view` : currentApplicationId,
+    t
+  );
   const stepOf = t("steps.stepOf")
     .replace("{active}", active)
     .replace("{total}", steps.length);

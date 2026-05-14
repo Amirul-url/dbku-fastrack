@@ -33,7 +33,10 @@ function SubmittingPersonPage({
 
   const Layout = LayoutComponent;
   const StepNav = StepNavComponent;
-  const isAdminReview = mode === "admin";
+  const isAdminView = mode === "admin-view";
+  const isAdminReview = mode === "admin" || isAdminView;
+  const adminStepPath = (step) =>
+    `/admin/applications/${applicationId}${isAdminView ? "/view" : ""}/step-${step}?id=${applicationId}`;
 
   const [orgType, setOrgType] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");
@@ -194,7 +197,7 @@ function SubmittingPersonPage({
 
       navigate(
         isAdminReview
-          ? `/admin/applications/${applicationId}/step-3?id=${applicationId}`
+          ? adminStepPath(3)
           : `/applications/${applicationId}/supporting-document?id=${applicationId}`
       );
     } catch (err) {
@@ -204,7 +207,8 @@ function SubmittingPersonPage({
   }
 
   const isReadOnly =
-    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
+    isAdminView ||
+    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
 
   return (
     <Layout>
@@ -226,7 +230,7 @@ function SubmittingPersonPage({
               <Link
                 to={
                   isAdminReview
-                    ? `/admin/applications/${applicationId}/step-1?id=${applicationId}`
+                    ? adminStepPath(1)
                     : `/applications/${applicationId}/edit?id=${applicationId}`
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
@@ -495,7 +499,7 @@ function SubmittingPersonPage({
                 <Link
                   to={
                     isAdminReview
-                      ? `/admin/applications/${applicationId}/step-1?id=${applicationId}`
+                      ? adminStepPath(1)
                       : `/applications/${applicationId}/edit?id=${applicationId}`
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"

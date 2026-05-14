@@ -30,7 +30,8 @@ function SittingApplicationPage({
 } = {}) {
   const Layout = LayoutComponent;
   const StepNav = StepNavComponent;
-  const isAdminReview = mode === "admin";
+  const isAdminView = mode === "admin-view";
+  const isAdminReview = mode === "admin" || isAdminView;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -278,7 +279,8 @@ function SittingApplicationPage({
   }
 
   const isReadOnly =
-    !isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord);
+    isAdminView ||
+    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
 
   return (
     <Layout>

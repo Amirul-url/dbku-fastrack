@@ -39,6 +39,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return queryset.prefetch_related("supporting_documents")
 
     def perform_create(self, serializer):
+        if self.request.user.role not in ["applicant", "user"]:
+            raise PermissionDenied("Only applicants can create applications.")
+
         serializer.save(applicant=self.request.user)
 
     def perform_update(self, serializer):

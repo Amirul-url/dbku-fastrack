@@ -27,6 +27,24 @@ const adminCsvHeaders = [
   "password",
   "confirm_password",
 ];
+const csvHeaderAliases = {
+  name: "full_name",
+  ic: "nric",
+  ic_number: "nric",
+  mykad: "nric",
+  mykad_number: "nric",
+  login_id: "nric",
+  email_address: "email",
+  phone: "mobile_number",
+  phone_number: "mobile_number",
+  mobile: "mobile_number",
+  whatsapp: "mobile_number",
+  whatsapp_number: "mobile_number",
+  temporary_password: "password",
+  password2: "confirm_password",
+  retype_password: "confirm_password",
+  confirm: "confirm_password",
+};
 
 const screenText = {
   en: {
@@ -650,8 +668,9 @@ function SuperAdminAccountManagement({ view }) {
           method: "POST",
           body: JSON.stringify({
             username: importedUsername,
+            mykad_number: importedUsername,
             full_name: row.name || row.full_name,
-            email: row.email,
+            email: normalizeImportedEmail(row.email),
             department: String(row.department || "").trim().toUpperCase(),
             mobile_number: importedMobile,
             role: normalizeImportedRole(row.role || roleFilter || "applicant"),
@@ -1311,7 +1330,13 @@ function normalizeCsvCell(value) {
 }
 
 function cleanImportedIdentifier(value) {
-  return normalizeCsvCell(value).replace(/\s+/g, "");
+  const text = normalizeCsvCell(value).replace(/\s+/g, "");
+  const digits = text.replace(/\D/g, "");
+  return digits.length === 12 ? digits : text;
+}
+
+function normalizeImportedEmail(value) {
+  return normalizeCsvCell(value).trim().toLowerCase();
 }
 
 function cleanImportedPhone(value) {
@@ -1367,11 +1392,13 @@ function parseCsv(csv) {
 }
 
 function normalizeHeader(value) {
-  return String(value || "")
+  const header = String(value || "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+
+  return csvHeaderAliases[header] || header;
 }
 
 function getMissingCsvHeaders(headers, view) {

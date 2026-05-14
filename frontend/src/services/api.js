@@ -1,5 +1,19 @@
 const API_URL =
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+const SIDEBAR_SESSION_KEYS = [
+  "fastrack_admin_dashboard_menu_open",
+  "fastrack_admin_applications_menu_open",
+];
+
+function clearSidebarSessionState() {
+  try {
+    SIDEBAR_SESSION_KEYS.forEach((key) => {
+      window.sessionStorage.removeItem(key);
+    });
+  } catch {
+    // Session storage can be unavailable in some browser privacy modes.
+  }
+}
 
 export function getStoredUser() {
   try {
@@ -56,6 +70,8 @@ export function getUserRedirectPath(user) {
 }
 
 export function saveAuthSession(data, rememberMe = false) {
+  clearSidebarSessionState();
+
   if (data?.access) {
     localStorage.setItem("fastrack_access_token", data.access);
   }
@@ -83,6 +99,7 @@ export function clearAuthSession() {
   localStorage.removeItem("fastrack_refresh_token");
   localStorage.removeItem("fastrack_user");
   localStorage.removeItem("fastrack_remember_me");
+  clearSidebarSessionState();
   window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
 
