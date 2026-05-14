@@ -94,9 +94,7 @@ function ForgotPassword() {
       setResetId(data.reset_id || identifier.trim());
       setStep("otp");
       setOtpDigits(Array(OTP_LENGTH).fill(""));
-      setMessage(data.debug_otp
-        ? `${data.message} ${t("auth.reset.devOtp")}: ${data.debug_otp}`
-        : data.message || t("auth.reset.otpSent"));
+      setMessage(data.message || t("auth.reset.otpSent"));
       setTimeout(() => otpRefs.current[0]?.focus(), 0);
     } catch (err) {
       setFriendlyError(mapResetError(err.message, t, channel));

@@ -186,6 +186,21 @@ def normalize_phone_number(value):
     return re.sub(r"\D", "", str(value or ""))
 
 
+def format_whatsapp_recipient(value):
+    digits = normalize_phone_number(value)
+
+    if digits.startswith("60"):
+        return digits
+
+    if digits.startswith("0") and len(digits) > 1:
+        return f"60{digits[1:]}"
+
+    if digits.startswith("1"):
+        return f"60{digits}"
+
+    return digits
+
+
 def phone_number_variants(value):
     digits = normalize_phone_number(value)
     variants = {digits} if digits else set()
@@ -249,16 +264,11 @@ def deliver_password_reset_otp(user, channel, otp):
 
             try:
                 send_email(user.email, "ALiS Password Reset OTP", message)
-            except Exception:
-                if settings.DEBUG:
-                    return True, "OTP prepared for your registered email address."
-                raise
+            except Exception as exc:
+                return False, f"Email OTP could not be sent right now. Please try again. ({exc})"
             return True, "OTP sent to your registered email address."
 
-        if settings.DEBUG:
-            return True, "OTP prepared for your registered email address."
-
-        return False, "Email OTP service is not available right now. Please try WhatsApp or contact support."
+        return False, "Email OTP service is not configured right now. Please try WhatsApp or contact support."
 
     if channel == "whatsapp":
         if not user.mobile_number:
@@ -268,17 +278,12 @@ def deliver_password_reset_otp(user, channel, otp):
             from notifications.services import send_whatsapp
 
             try:
-                send_whatsapp(user.mobile_number, message)
-            except Exception:
-                if settings.DEBUG:
-                    return True, "OTP prepared for your registered WhatsApp number."
-                raise
+                send_whatsapp(format_whatsapp_recipient(user.mobile_number), message)
+            except Exception as exc:
+                return False, f"WhatsApp OTP could not be sent right now. Please try again. ({exc})"
             return True, "OTP sent to your registered WhatsApp number."
 
-        if settings.DEBUG:
-            return True, "OTP prepared for your registered WhatsApp number."
-
-        return False, "WhatsApp OTP service is not available right now. Please try email or contact support."
+        return False, "WhatsApp OTP service is not configured right now. Please try email or contact support."
 
     return False, "Please choose whether to receive the OTP by email or WhatsApp."
 
@@ -489,9 +494,6 @@ def password_reset_request_view(request):
         "reset_id": identifier,
         "expires_in": PASSWORD_RESET_TTL_SECONDS,
     }
-
-    if settings.DEBUG:
-        response["debug_otp"] = otp
 
     return Response(response, status=status.HTTP_200_OK)
 
