@@ -39,14 +39,14 @@ const screenText = {
     addAccount: "Add Account",
     importCsv: "Import CSV",
     exportCsv: "Export CSV",
-    searchUser: "Search name, login ID, or email",
+    searchUser: "Search name, IC Number, or email",
     searchAdmin: "Search name, NRIC, email, or department",
     allDepartments: "All departments",
     filter: "Filter",
     reset: "Reset",
     accountFound: "account(s) found.",
     name: "Name",
-    loginId: "Login ID",
+    loginId: "IC Number",
     nric: "NRIC",
     email: "Email",
     mobileNumber: "Mobile Number",
@@ -55,6 +55,7 @@ const screenText = {
     status: "Status",
     lastLogin: "Last Login",
     actions: "Actions",
+    view: "View",
     loadingAccounts: "Loading accounts...",
     noAccounts: "No accounts found.",
     edit: "Edit",
@@ -79,10 +80,8 @@ const screenText = {
     confirmPassword: "Confirm Password",
     enterPassword: "Enter password",
     confirmPasswordPlaceholder: "Confirm password",
-    activeAccount: "Active account",
     cancel: "Cancel",
     save: "Save",
-    saveAccount: "Save Account",
     saving: "Saving...",
     accountCreated: "Account created.",
     accountUpdated: "Account updated.",
@@ -116,6 +115,24 @@ const screenText = {
     managementAccess: "Management Access",
     dashboardAccessDescription: "SuperAdmin can view dashboard account information.",
     managementAccessDescription: "Full access to manage user, admin, and SuperAdmin login accounts.",
+    registrationInfo: "Registration Info",
+    personalInformation: "Personal Information",
+    fullNameMyKad: "Full Name (as per MyKad)",
+    contactInformation: "Contact Details",
+    addressInformation: "Address Information",
+    emailAddress: "Email Address",
+    mykadNumber: "MyKad Number",
+    enterWithoutDashes: "Enter without dashes",
+    gender: "Gender",
+    dateOfBirth: "Date of Birth",
+    nationality: "Nationality",
+    address: "Address",
+    addressLine1: "Unit / Floor / Block",
+    addressLine2: "Street & Residential Area",
+    postcode: "Postcode",
+    city: "City",
+    state: "State",
+    close: "Close",
   },
   ms: {
     userTitle: "Pengurusan Pengguna",
@@ -127,14 +144,14 @@ const screenText = {
     addAccount: "Tambah Akaun",
     importCsv: "Import CSV",
     exportCsv: "Eksport CSV",
-    searchUser: "Cari nama, ID log masuk, atau emel",
+    searchUser: "Cari nama, nombor IC, atau emel",
     searchAdmin: "Cari nama, NRIC, emel, atau jabatan",
     allDepartments: "Semua jabatan",
     filter: "Tapis",
     reset: "Set Semula",
     accountFound: "akaun dijumpai.",
     name: "Nama",
-    loginId: "ID Log Masuk",
+    loginId: "Nombor IC",
     nric: "NRIC",
     email: "Emel",
     mobileNumber: "Nombor Telefon",
@@ -143,6 +160,7 @@ const screenText = {
     status: "Status",
     lastLogin: "Log Masuk Terakhir",
     actions: "Tindakan",
+    view: "Lihat",
     loadingAccounts: "Memuatkan akaun...",
     noAccounts: "Tiada akaun dijumpai.",
     edit: "Sunting",
@@ -167,10 +185,8 @@ const screenText = {
     confirmPassword: "Sahkan Kata Laluan",
     enterPassword: "Masukkan kata laluan",
     confirmPasswordPlaceholder: "Sahkan kata laluan",
-    activeAccount: "Akaun aktif",
     cancel: "Batal",
     save: "Simpan",
-    saveAccount: "Simpan Akaun",
     saving: "Menyimpan...",
     accountCreated: "Akaun berjaya dicipta.",
     accountUpdated: "Akaun berjaya dikemas kini.",
@@ -204,6 +220,24 @@ const screenText = {
     managementAccess: "Akses Pengurusan",
     dashboardAccessDescription: "SuperAdmin boleh melihat maklumat akaun di papan pemuka.",
     managementAccessDescription: "Akses penuh untuk mengurus akaun log masuk pengguna, admin, dan SuperAdmin.",
+    registrationInfo: "Maklumat Pendaftaran",
+    personalInformation: "Maklumat Peribadi",
+    fullNameMyKad: "Nama Penuh (seperti MyKad)",
+    contactInformation: "Maklumat Perhubungan",
+    addressInformation: "Maklumat Alamat",
+    emailAddress: "Alamat E-mel",
+    mykadNumber: "Nombor MyKad",
+    enterWithoutDashes: "Masukkan tanpa sengkang",
+    gender: "Jantina",
+    dateOfBirth: "Tarikh Lahir",
+    nationality: "Warganegara",
+    address: "Alamat",
+    addressLine1: "Unit / Tingkat / Blok",
+    addressLine2: "Jalan & Kawasan Perumahan",
+    postcode: "Poskod",
+    city: "Bandar",
+    state: "Negeri",
+    close: "Tutup",
   },
 };
 
@@ -367,6 +401,8 @@ function SuperAdminAccountManagement({ view }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [editingAccount, setEditingAccount] = useState(null);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [viewingAccount, setViewingAccount] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const importInputRef = useRef(null);
 
@@ -428,6 +464,7 @@ function SuperAdminAccountManagement({ view }) {
       role: view === "admins" ? "admin" : "applicant",
       department: "",
     });
+    setAccountModalOpen(true);
     setError("");
     setSuccess("");
   }
@@ -445,13 +482,25 @@ function SuperAdminAccountManagement({ view }) {
       password2: "",
       is_active: account.is_active !== false,
     });
+    setAccountModalOpen(true);
     setError("");
     setSuccess("");
   }
 
   function closeForm() {
+    setAccountModalOpen(false);
     setEditingAccount(null);
     setForm(emptyForm);
+  }
+
+  function openView(account) {
+    setViewingAccount(account);
+    setError("");
+    setSuccess("");
+  }
+
+  function closeView() {
+    setViewingAccount(null);
   }
 
   async function saveAccount(event) {
@@ -504,18 +553,18 @@ function SuperAdminAccountManagement({ view }) {
   function exportCsv() {
     const header = view === "admins"
       ? ["Full Name", "NRIC", "Email", "Mobile Number", "Department", "Role", "Password", "Confirm Password"]
-      : ["Name", "Login ID", "Email", "Role", "Status", "Last Login"];
+      : ["Name", "IC Number", "Email", "Mobile Number", "Last Login"];
     const rows = [
       header,
       ...filteredAccounts.map((account) => {
         const base = [
           account.full_name || "",
-          account.username || "",
+          formatCsvIdentifier(account.username),
           account.email || "",
         ];
 
         if (view === "admins") {
-          base.push(account.mobile_number || "");
+          base.push(formatCsvIdentifier(formatMobileNumber(account.mobile_number)));
           base.push(account.department || "");
         }
 
@@ -530,9 +579,8 @@ function SuperAdminAccountManagement({ view }) {
 
         return [
           ...base,
-          getRoleLabel(account, labels),
-          account.is_active === false ? labels.inactive : labels.active,
-          formatDateTime(account.last_login, labels, language),
+          formatCsvIdentifier(formatMobileNumber(account.mobile_number)),
+          account.last_login ? formatDateTime(account.last_login, labels, language) : "",
         ];
       }),
     ];
@@ -569,10 +617,14 @@ function SuperAdminAccountManagement({ view }) {
       for (const record of records) {
         if (!record.some(Boolean)) continue;
         const row = Object.fromEntries(
-          normalizedHeaders.map((header, index) => [header, record[index] || ""])
+          normalizedHeaders.map((header, index) => [header, normalizeCsvCell(record[index])])
         );
         const password = row.password || row.temporary_password;
         const password2 = row.confirm_password || row.password2 || password;
+        const importedUsername = cleanImportedIdentifier(
+          row.nric || row.login_id || row.username || row.mykad_number
+        );
+        const importedMobile = cleanImportedPhone(row.mobile_number || row.phone || row.mobile);
 
         if (!password) {
           throw new Error(labels.csvMissingPassword);
@@ -590,11 +642,11 @@ function SuperAdminAccountManagement({ view }) {
         await apiRequest("/auth/accounts/", {
           method: "POST",
           body: JSON.stringify({
-            username: row.nric || row.login_id || row.username || row.mykad_number,
+            username: importedUsername,
             full_name: row.name || row.full_name,
             email: row.email,
             department: String(row.department || "").trim().toUpperCase(),
-            mobile_number: row.mobile_number || row.phone || row.mobile,
+            mobile_number: importedMobile,
             role: normalizeImportedRole(row.role || roleFilter || "applicant"),
             password,
             password2,
@@ -622,20 +674,26 @@ function SuperAdminAccountManagement({ view }) {
           <p className="mt-1 text-sm text-slate-600">{pageDescription}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button icon="person_add" onClick={openCreate}>{labels.addAccount}</Button>
-          <Button icon="upload" variant="secondary" disabled={saving} onClick={() => importInputRef.current?.click()}>
-            {labels.importCsv}
-          </Button>
+          {view === "admins" && (
+            <>
+              <Button icon="person_add" onClick={openCreate}>{labels.addAccount}</Button>
+              <Button icon="upload" variant="secondary" disabled={saving} onClick={() => importInputRef.current?.click()}>
+                {labels.importCsv}
+              </Button>
+            </>
+          )}
           <Button icon="download" className="bg-teal-700 hover:bg-teal-800" onClick={exportCsv}>
             {labels.exportCsv}
           </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={importCsv}
-          />
+          {view === "admins" && (
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={importCsv}
+            />
+          )}
         </div>
       </div>
 
@@ -643,23 +701,29 @@ function SuperAdminAccountManagement({ view }) {
       <Alert type="success" message={success} />
 
       <section className="mb-5 rounded-md border border-slate-200 bg-white p-4">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)_auto_auto]">
+        <div className={`grid grid-cols-1 gap-3 ${
+          view === "admins"
+            ? "lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)_auto_auto]"
+            : "lg:grid-cols-[minmax(0,1fr)_auto_auto]"
+        }`}>
           <input
             value={searchName}
             onChange={(event) => setSearchName(event.target.value)}
             placeholder={view === "admins" ? labels.searchAdmin : labels.searchUser}
             className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
           />
-          <select
-            value={departmentFilter}
-            onChange={(event) => setDepartmentFilter(event.target.value)}
-            className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
-          >
-            <option value="">{labels.allDepartments}</option>
-            {departments.map((department) => (
-              <option key={department} value={department}>{department}</option>
-            ))}
-          </select>
+          {view === "admins" && (
+            <select
+              value={departmentFilter}
+              onChange={(event) => setDepartmentFilter(event.target.value)}
+              className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="">{labels.allDepartments}</option>
+              {departments.map((department) => (
+                <option key={department} value={department}>{department}</option>
+              ))}
+            </select>
+          )}
           <Button icon="search" className="h-11 bg-cyan-950 hover:bg-cyan-900">{labels.filter}</Button>
           <Button
             variant="secondary"
@@ -683,33 +747,48 @@ function SuperAdminAccountManagement({ view }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className={`w-full text-left text-sm ${view === "admins" ? "min-w-[1350px] table-fixed" : "min-w-[980px]"}`}>
-            {view === "admins" && (
-              <colgroup>
-                <col className="w-[170px]" />
-                <col className="w-[115px]" />
-                <col className="w-[245px]" />
-                <col className="w-[135px]" />
-                <col className="w-[105px]" />
-                <col className="w-[120px]" />
-                <col className="w-[95px]" />
-                <col className="w-[155px]" />
-                <col className="w-[210px]" />
-              </colgroup>
-            )}
+          <table className={`w-full table-fixed text-left text-sm ${view === "admins" ? "min-w-[1350px]" : "min-w-[1080px]"}`}>
+            <colgroup>
+              {view === "admins" ? (
+                <>
+                  <col className="w-[170px]" />
+                  <col className="w-[115px]" />
+                  <col className="w-[245px]" />
+                  <col className="w-[135px]" />
+                  <col className="w-[105px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[95px]" />
+                  <col className="w-[125px]" />
+                  <col className="w-[210px]" />
+                </>
+              ) : (
+                <>
+                  <col className="w-[250px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[260px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[125px]" />
+                  <col className="w-[270px]" />
+                </>
+              )}
+            </colgroup>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.name}</th>
                 <th className="border-b border-slate-200 px-4 py-3">{view === "admins" ? labels.nric : labels.loginId}</th>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.email}</th>
-                {view === "admins" && (
+                {view === "admins" ? (
                   <>
                     <th className="border-b border-slate-200 px-4 py-3">{labels.mobileNumber}</th>
                     <th className="border-b border-slate-200 px-4 py-3">{labels.department}</th>
+                    <th className="border-b border-slate-200 px-4 py-3">{labels.role}</th>
                   </>
+                ) : (
+                  <th className="border-b border-slate-200 px-4 py-3">{labels.mobileNumber}</th>
                 )}
-                <th className="border-b border-slate-200 px-4 py-3">{labels.role}</th>
-                <th className="border-b border-slate-200 px-4 py-3">{labels.status}</th>
+                {view === "admins" && (
+                  <th className="border-b border-slate-200 px-4 py-3">{labels.status}</th>
+                )}
                 <th className="border-b border-slate-200 px-4 py-3">{labels.lastLogin}</th>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.actions}</th>
               </tr>
@@ -717,13 +796,13 @@ function SuperAdminAccountManagement({ view }) {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={view === "admins" ? 9 : 7} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={view === "admins" ? 9 : 6} className="px-4 py-10 text-center text-slate-500">
                     {labels.loadingAccounts}
                   </td>
                 </tr>
               ) : filteredAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan={view === "admins" ? 9 : 7} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={view === "admins" ? 9 : 6} className="px-4 py-10 text-center text-slate-500">
                     {labels.noAccounts}
                   </td>
                 </tr>
@@ -742,31 +821,48 @@ function SuperAdminAccountManagement({ view }) {
                     {view === "admins" && (
                       <>
                         <td className="px-4 py-3 text-slate-700">
-                          <span className="block truncate">{account.mobile_number || "-"}</span>
+                          <span className="block truncate">{formatMobileNumber(account.mobile_number)}</span>
                         </td>
                         <td className="px-4 py-3 text-slate-700">{account.department || "-"}</td>
                       </>
                     )}
-                    <td className="px-4 py-3">
-                      <RolePill account={account} labels={labels} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        account.is_active === false
-                          ? "bg-red-50 text-red-700"
-                          : "bg-emerald-50 text-emerald-700"
-                      }`}>
-                        {account.is_active === false ? labels.inactive : labels.active}
-                      </span>
-                    </td>
+                    {view === "admins" ? (
+                      <td className="px-4 py-3">
+                        <RolePill account={account} labels={labels} />
+                      </td>
+                    ) : (
+                      <td className="px-4 py-3 text-slate-700">
+                        <span className="block truncate">{formatMobileNumber(account.mobile_number)}</span>
+                      </td>
+                    )}
+                    {view === "admins" && (
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          account.is_active === false
+                            ? "bg-red-50 text-red-700"
+                            : "bg-emerald-50 text-emerald-700"
+                        }`}>
+                          {account.is_active === false ? labels.inactive : labels.active}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-slate-700">
-                      {formatDateTime(account.last_login, labels, language)}
+                      <span className="!text-xs leading-5 text-slate-600">
+                        {account.last_login ? formatCompactDateTime(account.last_login, labels, language) : "-"}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-nowrap gap-2">
-                        <Button icon="edit" className="bg-blue-700 hover:bg-blue-800" onClick={() => openEdit(account)}>
-                          {labels.edit}
-                        </Button>
+                        {view === "users" && (
+                          <Button icon="visibility" variant="secondary" onClick={() => openView(account)}>
+                            {labels.view}
+                          </Button>
+                        )}
+                        {view === "admins" && (
+                          <Button icon="edit" className="bg-blue-700 hover:bg-blue-800" onClick={() => openEdit(account)}>
+                            {labels.edit}
+                          </Button>
+                        )}
                         <button
                           type="button"
                           onClick={() => deleteAccount(account)}
@@ -785,36 +881,36 @@ function SuperAdminAccountManagement({ view }) {
         </div>
       </section>
 
-      {(editingAccount || form !== emptyForm) && (
+      {view === "admins" && accountModalOpen && (
         <AccountModal
           form={form}
           isEditing={Boolean(editingAccount)}
           saving={saving}
           labels={labels}
-          view={view}
           onChange={(next) => setForm((current) => ({ ...current, ...next }))}
           onClose={closeForm}
           onSubmit={saveAccount}
+        />
+      )}
+
+      {viewingAccount && (
+        <RegistrationInfoModal
+          account={viewingAccount}
+          labels={labels}
+          language={language}
+          onClose={closeView}
         />
       )}
     </AppShell>
   );
 }
 
-function AccountModal({ form, isEditing, saving, labels, view, onChange, onClose, onSubmit }) {
+function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSubmit }) {
   const inputClassName = "h-11 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100";
-  const roleOptions = view === "users"
-    ? [{ value: "applicant", label: labels.userRole }]
-    : view === "admins"
-      ? [
-          { value: "admin", label: labels.adminRole },
-          { value: "superadmin", label: labels.superAdminRole },
-        ]
-      : [
-          { value: "applicant", label: labels.userRole },
-          { value: "admin", label: labels.adminRole },
-          { value: "staff", label: labels.staffRole },
-        ];
+  const roleOptions = [
+    { value: "admin", label: labels.adminRole },
+    { value: "superadmin", label: labels.superAdminRole },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
@@ -833,133 +929,193 @@ function AccountModal({ form, isEditing, saving, labels, view, onChange, onClose
           </button>
         </div>
 
-        {view === "admins" ? (
-          <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-            <FormField label={labels.fullName} className="md:col-span-2">
-              <input
-                value={form.full_name}
-                onChange={(event) => onChange({ full_name: event.target.value })}
-                placeholder={labels.enterFullName}
-                className={inputClassName}
-                required
-              />
-            </FormField>
-            <FormField label={labels.nric}>
-              <input
-                value={form.username}
-                onChange={(event) => onChange({ username: event.target.value })}
-                placeholder={labels.enterNric}
-                className={inputClassName}
-                required
-              />
-            </FormField>
-            <FormField label={labels.email}>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(event) => onChange({ email: event.target.value })}
-                placeholder={labels.enterEmail}
-                className={inputClassName}
-                required
-              />
-            </FormField>
-            <FormField label={labels.mobileNumber}>
-              <input
-                value={form.mobile_number}
-                onChange={(event) => onChange({ mobile_number: event.target.value })}
-                placeholder={labels.enterMobile}
-                className={inputClassName}
-                required
-              />
-            </FormField>
-            <FormField label={labels.department}>
-              <select
-                value={form.department}
-                onChange={(event) => onChange({ department: event.target.value })}
-                className={inputClassName}
-                required
-              >
-                <option value="">{labels.selectDepartment}</option>
-                {departments.map((department) => (
-                  <option key={department} value={department}>{department}</option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label={labels.role}>
-              <select value={form.role} onChange={(event) => onChange({ role: event.target.value })} className={inputClassName}>
-                {roleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </FormField>
-            <div className="hidden md:block" />
-            <FormField label={isEditing ? labels.newPassword : labels.password}>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(event) => onChange({ password: event.target.value })}
-                placeholder={labels.enterPassword}
-                className={inputClassName}
-                required={!isEditing}
-              />
-            </FormField>
-            <FormField label={labels.confirmPassword}>
-              <input
-                type="password"
-                value={form.password2}
-                onChange={(event) => onChange({ password2: event.target.value })}
-                placeholder={labels.confirmPasswordPlaceholder}
-                className={inputClassName}
-                required={!isEditing || Boolean(form.password)}
-              />
-            </FormField>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-            <FormField label={labels.fullName}>
-              <input value={form.full_name} onChange={(event) => onChange({ full_name: event.target.value })} className={inputClassName} required />
-            </FormField>
-            <FormField label={labels.loginId}>
-              <input value={form.username} onChange={(event) => onChange({ username: event.target.value })} className={inputClassName} required />
-            </FormField>
-            <FormField label={labels.email}>
-              <input type="email" value={form.email} onChange={(event) => onChange({ email: event.target.value })} className={inputClassName} />
-            </FormField>
-            <FormField label={labels.mobileNumber}>
-              <input value={form.mobile_number} onChange={(event) => onChange({ mobile_number: event.target.value })} className={inputClassName} />
-            </FormField>
-            <FormField label={labels.role}>
-              <select value={form.role} onChange={(event) => onChange({ role: event.target.value })} className={inputClassName}>
-                {roleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label={labels.status}>
-              <label className="flex h-11 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(event) => onChange({ is_active: event.target.checked })}
-                  className="h-4 w-4"
-                />
-                {labels.activeAccount}
-              </label>
-            </FormField>
-            <FormField label={isEditing ? labels.newPassword : labels.password}>
-              <input type="password" value={form.password} onChange={(event) => onChange({ password: event.target.value })} className={inputClassName} required={!isEditing} />
-            </FormField>
-            <FormField label={labels.confirmPassword}>
-              <input type="password" value={form.password2} onChange={(event) => onChange({ password2: event.target.value })} className={inputClassName} required={!isEditing || Boolean(form.password)} />
-            </FormField>
-          </div>
-        )}
+        <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+          <FormField label={labels.fullName} className="md:col-span-2">
+            <input
+              value={form.full_name}
+              onChange={(event) => onChange({ full_name: event.target.value })}
+              placeholder={labels.enterFullName}
+              className={inputClassName}
+              required
+            />
+          </FormField>
+          <FormField label={labels.nric}>
+            <input
+              value={form.username}
+              onChange={(event) => onChange({ username: event.target.value })}
+              placeholder={labels.enterNric}
+              className={inputClassName}
+              required
+            />
+          </FormField>
+          <FormField label={labels.email}>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) => onChange({ email: event.target.value })}
+              placeholder={labels.enterEmail}
+              className={inputClassName}
+              required
+            />
+          </FormField>
+          <FormField label={labels.mobileNumber}>
+            <input
+              value={form.mobile_number}
+              onChange={(event) => onChange({ mobile_number: event.target.value })}
+              placeholder={labels.enterMobile}
+              className={inputClassName}
+              required
+            />
+          </FormField>
+          <FormField label={labels.department}>
+            <select
+              value={form.department}
+              onChange={(event) => onChange({ department: event.target.value })}
+              className={inputClassName}
+              required
+            >
+              <option value="">{labels.selectDepartment}</option>
+              {departments.map((department) => (
+                <option key={department} value={department}>{department}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label={labels.role}>
+            <select value={form.role} onChange={(event) => onChange({ role: event.target.value })} className={inputClassName}>
+              {roleOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </FormField>
+          <div className="hidden md:block" />
+          <FormField label={isEditing ? labels.newPassword : labels.password}>
+            <input
+              type="password"
+              value={form.password}
+              onChange={(event) => onChange({ password: event.target.value })}
+              placeholder={labels.enterPassword}
+              className={inputClassName}
+              required={!isEditing}
+            />
+          </FormField>
+          <FormField label={labels.confirmPassword}>
+            <input
+              type="password"
+              value={form.password2}
+              onChange={(event) => onChange({ password2: event.target.value })}
+              placeholder={labels.confirmPasswordPlaceholder}
+              className={inputClassName}
+              required={!isEditing || Boolean(form.password)}
+            />
+          </FormField>
+        </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
           <Button type="button" variant="secondary" onClick={onClose}>{labels.cancel}</Button>
-          <Button type="submit" disabled={saving}>{saving ? labels.saving : view === "admins" ? labels.save : labels.saveAccount}</Button>
+          <Button type="submit" disabled={saving}>{saving ? labels.saving : labels.save}</Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function RegistrationInfoModal({ account, labels, language, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+      <div className="w-full max-w-5xl rounded-md bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">{labels.registrationInfo}</h2>
+            <p className="mt-1 text-sm text-slate-500">{account.full_name || account.username}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+            aria-label={labels.close}
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        <div className="max-h-[72vh] space-y-7 overflow-y-auto p-5">
+          <RegistrationSection icon="person" title={labels.personalInformation}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <ReadonlyField label={labels.fullNameMyKad} required value={account.full_name || account.username} />
+              <ReadonlyField label={labels.gender} required value={formatGender(account.gender, language)} />
+              <ReadonlyField label={labels.dateOfBirth} required value={formatDateOnly(account.date_of_birth, labels, language)} />
+              <ReadonlyField label={labels.nationality} required value={account.nationality} />
+              <ReadonlyField
+                className="md:col-span-1"
+                label={labels.mykadNumber}
+                required
+                hint={labels.enterWithoutDashes}
+                value={account.mykad_number || account.username}
+              />
+            </div>
+          </RegistrationSection>
+
+          <RegistrationSection icon="contact_mail" title={labels.contactInformation}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <ReadonlyField label={labels.mobileNumber} required prefix="+60" value={stripMalaysiaDialCode(account.mobile_number)} />
+              <ReadonlyField label={labels.emailAddress} required value={account.email} />
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-3">
+              <h3 className="text-sm font-bold text-slate-700">{labels.address}</h3>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <ReadonlyField label={labels.addressLine1} required value={account.address_line1} />
+              <ReadonlyField label={labels.addressLine2} required value={account.address_line2} />
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <ReadonlyField label={labels.postcode} required value={account.postcode} />
+              <ReadonlyField label={labels.state} required value={account.state} />
+              <ReadonlyField label={labels.city} required value={account.city} />
+            </div>
+          </RegistrationSection>
+        </div>
+
+        <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+          <Button type="button" variant="secondary" onClick={onClose}>{labels.close}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RegistrationSection({ icon, title, children }) {
+  return (
+    <section>
+      <div className="mb-5 flex items-center gap-3">
+        <span className="material-symbols-outlined text-[24px] text-emerald-700">{icon}</span>
+        <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ReadonlyField({ label, value, prefix = "", hint = "", required = false, className = "" }) {
+  return (
+    <div className={className}>
+      <p className="mb-1.5 text-sm font-semibold text-slate-950">
+        {label}
+        {required && <span className="text-red-600"> *</span>}
+      </p>
+      <div className="flex min-h-11 overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-sm text-slate-700">
+        {prefix && (
+          <span className="inline-flex items-center border-r border-slate-200 bg-slate-100 px-3 text-slate-500">
+            {prefix}
+          </span>
+        )}
+        <div className="flex min-w-0 flex-1 items-center break-words px-3 py-2">
+          {value || "-"}
+        </div>
+      </div>
+      {hint && <p className="mt-1 text-xs font-semibold uppercase text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -1083,6 +1239,65 @@ function formatCompactDateTime(value, labels = screenText.en, language = "en") {
   const minute = String(date.getMinutes()).padStart(2, "0");
 
   return `${day} ${month}, ${hour}:${minute} ${period}`;
+}
+
+function formatDateOnly(value, labels = screenText.en, language = "en") {
+  if (!value) return labels.never;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return labels.never;
+  const months = language === "ms"
+    ? ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogos", "Sep", "Okt", "Nov", "Dis"]
+    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function formatGender(value, language = "en") {
+  const gender = String(value || "").toLowerCase();
+  if (gender === "male") return language === "ms" ? "Lelaki" : "Male";
+  if (gender === "female") return language === "ms" ? "Perempuan" : "Female";
+  return value || "";
+}
+
+function stripMalaysiaDialCode(value) {
+  return String(value || "").replace(/^\+?60/, "");
+}
+
+function formatMobileNumber(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  if (raw.startsWith("+")) return raw;
+  if (raw.startsWith("60")) return `+${raw}`;
+  if (raw.startsWith("0")) return raw;
+  return `0${raw}`;
+}
+
+function formatCsvIdentifier(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "-") return "";
+  return `="${text}"`;
+}
+
+function normalizeCsvCell(value) {
+  const text = String(value || "").trim();
+  const formulaMatch = text.match(/^="?([^"]*)"?$/);
+  if (formulaMatch && text.startsWith("=")) {
+    return formulaMatch[1].trim();
+  }
+  return text;
+}
+
+function cleanImportedIdentifier(value) {
+  return normalizeCsvCell(value).replace(/\s+/g, "");
+}
+
+function cleanImportedPhone(value) {
+  const phone = cleanImportedIdentifier(value);
+  if (!phone || phone === "-") return "";
+  if (phone.startsWith("+60")) return phone.slice(3);
+  if (phone.startsWith("60")) return phone.slice(2);
+  if (phone.startsWith("0")) return phone.slice(1);
+  return phone;
 }
 
 function escapeCsv(value) {
