@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLanguage } from "../../../../context/LanguageContext";
 import { apiRequest } from "../../../../services/api";
 import {
   canEditApplicationForm,
   formatWorkflowStatus,
 } from "../../../../utils/workflow";
+import {
+  applicationStatusLabel,
+  applicationTypeLabel,
+  documentTitle,
+  organisationTypeLabel,
+  readOnlyMessage,
+  stepText,
+} from "./ApplicationStepText";
 
 function PrintFormPage({
   LayoutComponent = UserDashboardLayout,
@@ -14,6 +23,8 @@ function PrintFormPage({
 } = {}) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const tx = (key) => stepText(language, key);
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
   const applicationId = routeApplicationId || queryParams.get("id");
@@ -37,13 +48,13 @@ function PrintFormPage({
   const [applicationRecord, setApplicationRecord] = useState(null);
 
   useEffect(() => {
-    document.title = "SITING APPLICATION FORM";
+    document.title = tx("generatedFormTitle");
 
     if (applicationId) {
       // eslint-disable-next-line react-hooks/immutability
       loadApplication();
     }
-  }, [applicationId]);
+  }, [applicationId, language]);
 
   async function loadApplication() {
     try {
@@ -72,7 +83,7 @@ function PrintFormPage({
     if (isReadOnly && submit) return false;
 
     if (!applicationId) {
-      alert("Application ID is missing. Please continue from My Dashboard.");
+      alert(tx("missingApplication"));
       return false;
     }
 
@@ -111,7 +122,7 @@ function PrintFormPage({
       return true;
     } catch (err) {
       console.error("Print form save failed:", err);
-      alert("Failed to save Print Form.");
+      alert(tx("failedSavePrint"));
       return false;
     } finally {
       setSaving(false);
@@ -125,13 +136,13 @@ function PrintFormPage({
     }
 
     const previousTitle = document.title;
-    document.title = "SITING APPLICATION FORM";
+    document.title = tx("generatedFormTitle");
 
     setTimeout(() => {
       window.print();
 
       setTimeout(() => {
-        document.title = previousTitle || "SITING APPLICATION FORM";
+        document.title = previousTitle || tx("generatedFormTitle");
       }, 500);
     }, 100);
   }
@@ -217,7 +228,7 @@ function PrintFormPage({
                 5
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
-                Print Form
+                {tx("printForm")}
               </h1>
             </div>
 
@@ -230,7 +241,7 @@ function PrintFormPage({
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                Back
+                {tx("back")}
               </Link>
 
               {!isReadOnly && (
@@ -240,7 +251,7 @@ function PrintFormPage({
                   disabled={saving}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Submitting..." : "Save & Submit Application"}
+                  {saving ? tx("submitting") : tx("saveSubmit")}
                 </button>
               )}
             </div>
@@ -248,19 +259,18 @@ function PrintFormPage({
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <div className="print-hide">
-              <ApplicationReference step1={step1} />
+              <ApplicationReference step1={step1} language={language} />
             </div>
 
             {isReadOnly && (
               <div className="print-hide">
-                <ReadOnlyNotice status={applicationRecord?.status} />
+                <ReadOnlyNotice language={language} status={applicationRecord?.status} />
               </div>
             )}
 
             <div className="p-5 border-b border-slate-200 print-hide">
               <div className="bg-[#f7f7f7] border border-slate-200 p-4 text-sm text-slate-600">
-                Review the generated application form below. Click Print / Save
-                PDF to open the browser print dialog.
+                {tx("reviewGeneratedForm")}
               </div>
 
               <div className="flex flex-wrap gap-3 mt-4">
@@ -270,7 +280,7 @@ function PrintFormPage({
                   disabled={saving}
                   className="px-4 py-2 bg-[#006d32] text-white rounded text-sm font-semibold hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "Print / Save PDF"}
+                  {saving ? tx("saving") : tx("printSavePdf")}
                 </button>
               </div>
             </div>
@@ -296,69 +306,69 @@ function PrintFormPage({
                       margin: 0,
                     }}
                   >
-                    SITING APPLICATION FORM
+                    {tx("generatedFormTitle")}
                   </h1>
                 </div>
 
-                <PrintSection title="Step 1: Sitting Application">
-                  <PrintLine no="1." label="Name of Project" value={step1.project_name} />
-                  <PrintLine no="2." label="Applicant" value={step1.applicant} />
+                <PrintSection title={tx("step1Print")}>
+                  <PrintLine no="1." label={tx("nameOfProject")} value={step1.project_name} />
+                  <PrintLine no="2." label={tx("applicant")} value={step1.applicant} />
                   <PrintLine
                     no="3."
-                    label="Contact Person / Tel No."
+                    label={`${tx("contactPerson")} / ${tx("telNo")}`}
                     value={`${step1.contact_person || "-"} / ${step1.tel_no || "-"}`}
                   />
-                  <PrintLine no="4." label="Locality / Address" value={step1.locality_address} />
-                  <PrintLine no="5." label="Area Required" value={step1.area_required} />
+                  <PrintLine no="4." label={tx("localityAddress")} value={step1.locality_address} />
+                  <PrintLine no="5." label={tx("areaRequired")} value={step1.area_required} />
                   <PrintLine
                     no="6."
-                    label="Total Scheme Value, RM"
+                    label={tx("totalSchemeValue")}
                     value={formatRM(step1.total_scheme_value)}
                   />
                   <PrintLine
                     no="7."
-                    label="Amount of fund approved in the Malaysia Plan, RM"
+                    label={`${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`}
                     value={`${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`}
                   />
                   <PrintLine
                     no="8."
-                    label="Amount of fund available now, RM"
+                    label={tx("fundAvailableNow")}
                     value={formatRM(step1.amount_fund_available)}
                   />
                   <PrintBlock
                     no="9."
-                    label="Project Justification and Description on Project Components"
+                    label={tx("projectJustification")}
                     value={stripHtml(step1.project_justification)}
                   />
                   <PrintBlock
                     no="10."
-                    label="Reason for Selecting the Site"
+                    label={tx("siteSelectionReason")}
                     value={stripHtml(step1.site_selection_reason)}
                   />
-                  <PrintLine no="11." label="Designation" value={step1.designation} />
-                  <PrintLine no="12." label="Name of Officer" value={step1.officer_name} />
-                  <PrintLine no="13." label="Date" value={formatDate(step1.application_date)} />
+                  <PrintLine no="11." label={tx("designation")} value={step1.designation} />
+                  <PrintLine no="12." label={tx("officerName")} value={step1.officer_name} />
+                  <PrintLine no="13." label={tx("date")} value={formatDate(step1.application_date)} />
                 </PrintSection>
 
-                <PrintSection title="Step 2: Details of Submitting Person">
-                  <PrintLine label="Organisation Type" value={step3.org_type} />
-                  <PrintLine label="Registration Number" value={step3.registration_no} />
-                  <PrintLine label="Organisation Name" value={step3.org_name} />
-                  <PrintLine label="Postal Address" value={step3.postal_address} />
-                  <PrintLine label="City / State" value={`${step3.city || "-"} / ${step3.state || "-"}`} />
-                  <PrintLine label="Telephone No." value={step3.telephone_no} />
-                  <PrintLine label="Submitting Person" value={step3.full_name} />
-                  <PrintLine label="Designation" value={step3.designation} />
-                  <PrintLine label="Identity Card No." value={step3.identity_card_no} />
-                  <PrintLine label="Mobile No." value={step3.mobile_no} />
-                  <PrintLine label="Office No." value={step3.office_no} />
-                  <PrintLine label="Email" value={step3.email} />
+                <PrintSection title={tx("step2Print")}>
+                  <PrintLine label={tx("organisationType")} value={organisationTypeLabel(language, step3.org_type)} />
+                  <PrintLine label={tx("registrationNumber")} value={step3.registration_no} />
+                  <PrintLine label={tx("organisationName")} value={step3.org_name} />
+                  <PrintLine label={tx("postalAddress")} value={step3.postal_address} />
+                  <PrintLine label={tx("cityState")} value={`${step3.city || "-"} / ${step3.state || "-"}`} />
+                  <PrintLine label={tx("telephoneNo")} value={step3.telephone_no} />
+                  <PrintLine label={tx("submittingPerson")} value={step3.full_name} />
+                  <PrintLine label={tx("designation")} value={step3.designation} />
+                  <PrintLine label={tx("identityCardNo")} value={step3.identity_card_no} />
+                  <PrintLine label={tx("mobileNo")} value={step3.mobile_no} />
+                  <PrintLine label={tx("officeNo")} value={step3.office_no} />
+                  <PrintLine label={tx("email")} value={step3.email} />
                 </PrintSection>
 
-                <PrintSection title="Step 3: Supporting Documents">
-                  <DocumentSummary title="Required Supporting Documents" rows={requiredDocuments} />
-                  <DocumentSummary title="Extract of Document of Titles of the Land" rows={titleDocuments} land />
-                  <DocumentSummary title="Other Relevant Supporting Documents" rows={otherDocuments} other />
+                <PrintSection title={tx("step3Print")}>
+                  <DocumentSummary title={tx("requiredSupportingDocuments")} rows={requiredDocuments} language={language} noAttachmentText={tx("noAttachment")} />
+                  <DocumentSummary title={tx("extractTitles")} rows={titleDocuments} language={language} noAttachmentText={tx("noAttachment")} land />
+                  <DocumentSummary title={tx("otherSupportingDocuments")} rows={otherDocuments} language={language} noAttachmentText={tx("noAttachment")} other />
                 </PrintSection>
               </div>
             </div>
@@ -372,7 +382,7 @@ function PrintFormPage({
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                Back
+                {tx("back")}
               </Link>
 
               {!isReadOnly && (
@@ -382,7 +392,7 @@ function PrintFormPage({
                   disabled={saving}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Submitting..." : "Save & Submit Application"}
+                  {saving ? tx("submitting") : tx("saveSubmit")}
                 </button>
               )}
             </div>
@@ -393,39 +403,39 @@ function PrintFormPage({
   );
 }
 
-function ApplicationReference({ step1 }) {
+function ApplicationReference({ step1, language }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
+  const tx = (key) => stepText(language, key);
 
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
         {user?.role !== "applicant" && (
           <>
-            <p>Digital Reference</p>
+            <p>{tx("digitalReference")}</p>
             <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
           </>
         )}
 
-        <p>Status</p>
+        <p>{tx("status")}</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.status || "Prepare Case"}
+          {applicationStatusLabel(language, step1.status)}
         </p>
 
-        <p>Application Type</p>
+        <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.application_type_label || "Application for Site (New Site)"}
+          {applicationTypeLabel(language, step1.application_type_label || "Application for Site (New Site)")}
         </p>
       </div>
     </div>
   );
 }
 
-function ReadOnlyNotice({ status }) {
+function ReadOnlyNotice({ language, status }) {
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
-      If it is rejected with remarks, use Edit from the applications list to make corrections.
+      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(status)))}
     </div>
   );
 }
@@ -492,7 +502,14 @@ function PrintBlock({ no, label, value }) {
   );
 }
 
-function DocumentSummary({ title, rows, land = false, other = false }) {
+function DocumentSummary({
+  title,
+  rows,
+  language = "en",
+  noAttachmentText = "No attachment",
+  land = false,
+  other = false,
+}) {
   return (
     <div style={{ marginTop: "3mm", fontSize: "10px" }}>
       <div style={{ fontWeight: 700, marginBottom: "1mm" }}>{title}</div>
@@ -504,8 +521,8 @@ function DocumentSummary({ title, rows, land = false, other = false }) {
             ? row.land
             : other
               ? row.description
-              : row.title;
-          const attachment = row.attachment?.name || "No attachment";
+              : documentTitle(language, row.title);
+          const attachment = row.attachment?.name || noAttachmentText;
 
           return (
             <div key={`${title}-${index}`} style={{ display: "flex", gap: "2mm" }}>

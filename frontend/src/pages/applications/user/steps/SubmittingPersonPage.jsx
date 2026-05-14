@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLanguage } from "../../../../context/LanguageContext";
 import { apiRequest } from "../../../../services/api";
 import {
   canEditApplicationForm,
   formatWorkflowStatus,
 } from "../../../../utils/workflow";
+import {
+  applicationStatusLabel,
+  applicationTypeLabel,
+  readOnlyMessage,
+  stepText,
+} from "./ApplicationStepText";
 
 function SubmittingPersonPage({
   LayoutComponent = UserDashboardLayout,
@@ -14,6 +21,8 @@ function SubmittingPersonPage({
 } = {}) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const tx = (key) => stepText(language, key);
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
 
@@ -137,12 +146,12 @@ function SubmittingPersonPage({
       !officeNo.trim() ||
       !email.trim()
     ) {
-      alert("Please fill in all required fields before proceeding to the next step.");
+      alert(tx("requiredAlert"));
       return;
     }
 
     if (!applicationId || isNaN(applicationId)) {
-      alert("Application ID is missing. Please continue from My Dashboard.");
+      alert(tx("missingApplication"));
       return;
     }
 
@@ -190,7 +199,7 @@ function SubmittingPersonPage({
       );
     } catch (err) {
       console.error("Step 3 save failed:", err);
-      alert("Failed to save Step 3.");
+      alert(tx("failedSaveStep2"));
     }
   }
 
@@ -209,7 +218,7 @@ function SubmittingPersonPage({
                 2
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
-                Details of Submitting Person
+                {tx("detailsSubmittingPerson")}
               </h1>
             </div>
 
@@ -222,7 +231,7 @@ function SubmittingPersonPage({
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                Back
+                {tx("back")}
               </Link>
 
               {!isReadOnly && (
@@ -231,37 +240,37 @@ function SubmittingPersonPage({
                   onClick={handleSaveStep3}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
                 >
-                  Save & Next
+                  {tx("saveNext")}
                 </button>
               )}
             </div>
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference />
+            <ApplicationReference language={language} />
 
             {isReadOnly && (
-              <ReadOnlyNotice status={applicationRecord?.status} />
+              <ReadOnlyNotice language={language} status={applicationRecord?.status} />
             )}
 
             <fieldset disabled={isReadOnly} className="p-5 space-y-4">
-              <FormSection title="Organisation">
+              <FormSection title={tx("organisation")}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Organisation Type" required>
+                  <Field label={tx("organisationType")} required>
                     <select
                       className="spa-input"
                       value={orgType}
                       onChange={(e) => setOrgType(e.target.value)}
                     >
-                      <option value="">-- Please Select --</option>
-                      <option value="Local Authority">Local Authority</option>
-                      <option value="Company">Company</option>
-                      <option value="Government Agency">Government Agency</option>
-                      <option value="Individual">Individual</option>
+                      <option value="">{tx("pleaseSelect")}</option>
+                      <option value="Local Authority">{tx("localAuthority")}</option>
+                      <option value="Company">{tx("company")}</option>
+                      <option value="Government Agency">{tx("governmentAgency")}</option>
+                      <option value="Individual">{tx("individual")}</option>
                     </select>
                   </Field>
 
-                  <Field label="Registration Number (if applicable)">
+                  <Field label={tx("registrationNumber")}>
                     <input
                       className="spa-input"
                       value={registrationNo}
@@ -269,7 +278,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label="Name" required>
+                  <Field label={tx("name")} required>
                     <input
                       className="spa-input"
                       value={orgName}
@@ -277,7 +286,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label="Branch Name">
+                  <Field label={tx("branchName")}>
                     <input
                       className="spa-input"
                       value={branchName}
@@ -285,7 +294,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label="Postal Address" required>
+                  <Field label={tx("postalAddress")} required>
                     <input
                       className="spa-input"
                       value={postalAddress}
@@ -293,7 +302,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label="Postcode" required>
+                  <Field label={tx("postcode")} required>
                     <input
                       className="spa-input"
                       value={postcode}
@@ -301,7 +310,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label="Address 2">
+                  <Field label={tx("address2")}>
                     <input
                       className="spa-input"
                       value={address2}
@@ -310,7 +319,7 @@ function SubmittingPersonPage({
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="State" required>
+                    <Field label={tx("state")} required>
                       <input
                         className="spa-input"
                         value={stateValue}
@@ -318,7 +327,7 @@ function SubmittingPersonPage({
                       />
                     </Field>
 
-                    <Field label="City" required>
+                    <Field label={tx("city")} required>
                       <input
                         className="spa-input"
                         value={city}
@@ -327,7 +336,7 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
 
-                  <Field label="Address 3">
+                  <Field label={tx("address3")}>
                     <input
                       className="spa-input"
                       value={address3}
@@ -336,18 +345,18 @@ function SubmittingPersonPage({
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="Country Code" required>
+                    <Field label={tx("countryCode")} required>
                       <select
                         className="spa-input"
                         value={orgCountryCode}
                         onChange={(e) => setOrgCountryCode(e.target.value)}
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">{tx("select")}</option>
                         <option value="+60 Malaysia">+60 Malaysia</option>
                       </select>
                     </Field>
 
-                    <Field label="Telephone No" required>
+                    <Field label={tx("telephoneNo")} required>
                       <input
                         className="spa-input"
                         value={telephoneNo}
@@ -356,7 +365,7 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
 
-                  <Field label="Address 4">
+                  <Field label={tx("address4")}>
                     <input
                       className="spa-input"
                       value={address4}
@@ -366,15 +375,15 @@ function SubmittingPersonPage({
                 </div>
               </FormSection>
 
-              <FormSection title="Submitting Person">
+              <FormSection title={tx("submittingPerson")}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Honorary Title">
+                  <Field label={tx("honoraryTitle")}>
                     <select
                       className="spa-input"
                       value={honoraryTitle}
                       onChange={(e) => setHonoraryTitle(e.target.value)}
                     >
-                      <option value="">-- Select Title --</option>
+                      <option value="">{tx("selectTitle")}</option>
                       {TITLE_OPTIONS.map((title) => (
                         <option key={title} value={title}>
                           {title}
@@ -383,7 +392,7 @@ function SubmittingPersonPage({
                     </select>
                   </Field>
 
-                  <Field label="Designation" required>
+                  <Field label={tx("designation")} required>
                     <input
                       className="spa-input"
                       value={designation}
@@ -391,7 +400,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label="Full Name" required>
+                  <Field label={tx("fullName")} required>
                     <input
                       className="spa-input"
                       value={fullName}
@@ -400,18 +409,18 @@ function SubmittingPersonPage({
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="Country Code" required>
+                    <Field label={tx("countryCode")} required>
                       <select
                         className="spa-input"
                         value={mobileCountryCode}
                         onChange={(e) => setMobileCountryCode(e.target.value)}
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">{tx("select")}</option>
                         <option value="+60 Malaysia">+60 Malaysia</option>
                       </select>
                     </Field>
 
-                    <Field label="Telephone No (Mobile)" required>
+                    <Field label={tx("mobileNo")} required>
                       <input
                         className="spa-input"
                         value={mobileNo}
@@ -420,7 +429,7 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
 
-                  <Field label="Identity Card No" required>
+                  <Field label={tx("identityCardNo")} required>
                     <input
                       className="spa-input"
                       value={identityCardNo}
@@ -429,18 +438,18 @@ function SubmittingPersonPage({
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="Country Code" required>
+                    <Field label={tx("countryCode")} required>
                       <select
                         className="spa-input"
                         value={officeCountryCode}
                         onChange={(e) => setOfficeCountryCode(e.target.value)}
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">{tx("select")}</option>
                         <option value="+60 Malaysia">+60 Malaysia</option>
                       </select>
                     </Field>
 
-                    <Field label="Telephone No (Office)" required>
+                    <Field label={tx("officeNo")} required>
                       <input
                         className="spa-input"
                         value={officeNo}
@@ -449,7 +458,7 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
 
-                  <Field label="Email" required>
+                  <Field label={tx("email")} required>
                     <input
                       type="email"
                       className="spa-input"
@@ -459,21 +468,21 @@ function SubmittingPersonPage({
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="Country Code">
+                    <Field label={tx("countryCode")}>
                       <select
                         className="spa-input"
                         value={faxCountryCode}
                         onChange={(e) => setFaxCountryCode(e.target.value)}
                       >
-                        <option value="">-- Select --</option>
+                        <option value="">{tx("select")}</option>
                         <option value="+60 Malaysia">+60 Malaysia</option>
                       </select>
                     </Field>
 
-                    <Field label="Telephone No (Fax)">
+                    <Field label={tx("faxNo")}>
                       <input
                         className="spa-input"
-                        placeholder="Fax Number"
+                        placeholder={tx("faxPlaceholder")}
                         value={faxNo}
                         onChange={(e) => setFaxNo(e.target.value)}
                       />
@@ -491,7 +500,7 @@ function SubmittingPersonPage({
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  Back
+                  {tx("back")}
                 </Link>
 
                 {!isReadOnly && (
@@ -500,7 +509,7 @@ function SubmittingPersonPage({
                     onClick={handleSaveStep3}
                     className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
                   >
-                    Save & Next
+                    {tx("saveNext")}
                   </button>
                 )}
               </div>
@@ -512,43 +521,43 @@ function SubmittingPersonPage({
   );
 }
 
-function ReadOnlyNotice({ status }) {
+function ReadOnlyNotice({ language, status }) {
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
-      If it is rejected with remarks, use Edit from the applications list to make corrections.
+      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(status)))}
     </div>
   );
 }
 
-function ApplicationReference() {
+function ApplicationReference({ language }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
+  const tx = (key) => stepText(language, key);
 
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
         {user?.role !== "applicant" && (
           <>
-            <p>Digital Reference</p>
+            <p>{tx("digitalReference")}</p>
             <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
 
-            <p>Agency Reference</p>
+            <p>{tx("agencyReference")}</p>
             <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
           </>
         )}
 
-        <p>Status</p>
-        <p className="font-semibold text-[#006d32]">Prepare Case</p>
+        <p>{tx("status")}</p>
+        <p className="font-semibold text-[#006d32]">{tx("prepareCase")}</p>
 
-        <p>Application Type</p>
+        <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          Application of Siting Project
+          {applicationTypeLabel(language, "Application of Siting Project")}
         </p>
 
         {user?.role !== "applicant" && (
           <>
-            <p>Division</p>
+            <p>{tx("division")}</p>
             <p className="font-semibold text-[#006d32]">KUCHING</p>
           </>
         )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
   uploadApplicationDocument,
@@ -9,6 +10,14 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
 } from "../../../../utils/workflow";
+import {
+  applicationStatusLabel,
+  applicationTypeLabel,
+  documentDescription,
+  documentTitle,
+  readOnlyMessage,
+  stepText,
+} from "./ApplicationStepText";
 
 const defaultDocuments = [
   {
@@ -106,6 +115,8 @@ function SupportingDocumentPage({
 } = {}) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const tx = (key) => stepText(language, key);
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
 
@@ -184,7 +195,7 @@ function SupportingDocumentPage({
     if (isReadOnly) return false;
 
     if (!applicationId) {
-      alert("Application ID is missing. Please continue from My Dashboard.");
+      alert(tx("missingApplication"));
       return false;
     }
 
@@ -194,8 +205,8 @@ function SupportingDocumentPage({
 
     if (missingDocuments.length > 0) {
       alert(
-        `Please upload all required supporting documents before continuing:\n\n${missingDocuments
-          .map((document) => `- ${document.title}`)
+        `${tx("missingDocumentsPrefix")}\n\n${missingDocuments
+          .map((document) => `- ${documentTitle(language, document.title)}`)
           .join("\n")}`
       );
       return false;
@@ -234,7 +245,7 @@ function SupportingDocumentPage({
       return true;
     } catch (err) {
       console.error("Supporting Document save failed:", err);
-      alert("Failed to save Supporting Document.");
+      alert(tx("failedSaveSupporting"));
       return false;
     } finally {
       setSaving(false);
@@ -259,7 +270,7 @@ function SupportingDocumentPage({
       );
     } catch (err) {
       console.error("Document upload failed:", err);
-      alert("Failed to upload file.");
+      alert(tx("failedUpload"));
     }
   }
 
@@ -281,7 +292,7 @@ function SupportingDocumentPage({
       );
     } catch (err) {
       console.error("Title document upload failed:", err);
-      alert("Failed to upload file.");
+      alert(tx("failedUpload"));
     }
   }
 
@@ -303,7 +314,7 @@ function SupportingDocumentPage({
       );
     } catch (err) {
       console.error("Other document upload failed:", err);
-      alert("Failed to upload file.");
+      alert(tx("failedUpload"));
     }
   }
 
@@ -387,7 +398,7 @@ function SupportingDocumentPage({
                 3
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
-                Supporting Document
+                {tx("supportingDocument")}
               </h1>
             </div>
 
@@ -400,7 +411,7 @@ function SupportingDocumentPage({
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                Back
+                {tx("back")}
               </Link>
 
               {!isReadOnly && (
@@ -410,23 +421,24 @@ function SupportingDocumentPage({
                   disabled={saving}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "Save & Next"}
+                  {saving ? tx("saving") : tx("saveNext")}
                 </button>
               )}
             </div>
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference step1={step1} />
+            <ApplicationReference step1={step1} language={language} />
 
             {isReadOnly && (
-              <ReadOnlyNotice status={applicationRecord?.status} />
+              <ReadOnlyNotice language={language} status={applicationRecord?.status} />
             )}
 
             <div className="space-y-7 p-4 lg:p-5">
               <SupportingTable
                 rows={documents}
                 readOnly={isReadOnly}
+                language={language}
                 onFileChange={handleDocumentFileChange}
                 onRemoveFile={removeDocumentFile}
               />
@@ -434,6 +446,7 @@ function SupportingDocumentPage({
               <TitleTable
                 rows={titleDocuments}
                 readOnly={isReadOnly}
+                language={language}
                 onFileChange={handleTitleFileChange}
                 onRemoveFile={removeTitleFile}
               />
@@ -441,6 +454,7 @@ function SupportingDocumentPage({
               <OtherSupportingTable
                 rows={otherDocuments}
                 readOnly={isReadOnly}
+                language={language}
                 onAdd={addOtherDocument}
                 onUpdate={updateOtherDocument}
                 onRemove={removeOtherDocument}
@@ -457,7 +471,7 @@ function SupportingDocumentPage({
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  Back
+                  {tx("back")}
                 </Link>
 
                 {!isReadOnly && (
@@ -467,7 +481,7 @@ function SupportingDocumentPage({
                     disabled={saving}
                     className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                   >
-                    {saving ? "Saving..." : "Save & Next"}
+                    {saving ? tx("saving") : tx("saveNext")}
                   </button>
                 )}
               </div>
@@ -479,52 +493,54 @@ function SupportingDocumentPage({
   );
 }
 
-function ApplicationReference({ step1 }) {
+function ApplicationReference({ step1, language }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
+  const tx = (key) => stepText(language, key);
 
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
         {user?.role !== "applicant" && (
           <>
-            <p>Digital Reference</p>
+            <p>{tx("digitalReference")}</p>
             <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
 
-            <p>Agency Reference</p>
+            <p>{tx("agencyReference")}</p>
             <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
           </>
         )}
 
-        <p>Status</p>
+        <p>{tx("status")}</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.status || "Prepare Case"}
+          {applicationStatusLabel(language, step1.status)}
         </p>
 
-        <p>Application Type</p>
+        <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.application_type_label || "Application of Siting Project"}
+          {applicationTypeLabel(language, step1.application_type_label || "Application of Siting Project")}
         </p>
       </div>
     </div>
   );
 }
 
-function ReadOnlyNotice({ status }) {
+function ReadOnlyNotice({ language, status }) {
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
-      If it is rejected with remarks, use Edit from the applications list to make corrections.
+      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(status)))}
     </div>
   );
 }
 
-function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
+function SupportingTable({ rows, readOnly = false, language = "en", onFileChange, onRemoveFile }) {
+  const tx = (key) => stepText(language, key);
+
   return (
     <section className="overflow-hidden rounded-md border border-slate-200">
       <div className="border-l-4 border-[#18b36b] bg-white px-4 py-3">
         <h2 className="text-sm font-bold uppercase text-slate-700">
-          Required Supporting Documents
+          {tx("requiredSupportingDocuments")}
         </h2>
       </div>
 
@@ -533,11 +549,11 @@ function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile })
           <thead className="bg-[#f1f5f4] text-slate-700">
             <tr>
               <TableHead className="w-[44px] text-center">#</TableHead>
-              <TableHead className="w-[210px]">Title</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[120px]">Format</TableHead>
-              <TableHead className="w-[280px]">Attachment</TableHead>
-              <TableHead className="w-[120px] text-center">Action</TableHead>
+              <TableHead className="w-[210px]">{tx("title")}</TableHead>
+              <TableHead>{tx("description")}</TableHead>
+              <TableHead className="w-[120px]">{tx("format")}</TableHead>
+              <TableHead className="w-[280px]">{tx("attachment")}</TableHead>
+              <TableHead className="w-[120px] text-center">{tx("action")}</TableHead>
             </tr>
           </thead>
 
@@ -555,13 +571,13 @@ function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile })
 
                 <TableCell>
                   <span className="font-semibold text-slate-800">
-                    {row.title}
+                    {documentTitle(language, row.title)}
                   </span>
                 </TableCell>
 
                 <TableCell>
                   <p className="whitespace-pre-line leading-relaxed text-slate-700">
-                    {row.description}
+                    {documentDescription(language, row.title, row.description)}
                   </p>
 
                   {row.guideline && (
@@ -569,7 +585,7 @@ function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile })
                       type="button"
                       className="mt-2 rounded bg-[#18b36b] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#128a53]"
                     >
-                      Guidelines
+                      {tx("guidelines")}
                     </button>
                   )}
                 </TableCell>
@@ -581,7 +597,7 @@ function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile })
                 </TableCell>
 
                 <TableCell>
-                  <AttachmentView attachment={row.attachment} />
+                  <AttachmentView attachment={row.attachment} language={language} />
                 </TableCell>
 
                 <TableCell center>
@@ -590,6 +606,7 @@ function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile })
                       attachment={row.attachment}
                       required={row.required}
                       readOnly={readOnly}
+                      language={language}
                       onFileChange={onFileChange}
                       onRemoveFile={onRemoveFile}
                     />
@@ -603,12 +620,14 @@ function SupportingTable({ rows, readOnly = false, onFileChange, onRemoveFile })
   );
 }
 
-function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
+function TitleTable({ rows, readOnly = false, language = "en", onFileChange, onRemoveFile }) {
+  const tx = (key) => stepText(language, key);
+
   return (
     <section className="overflow-hidden rounded-md border border-slate-200">
       <div className="border-l-4 border-[#18b36b] bg-white px-4 py-3">
         <h2 className="text-sm font-bold uppercase text-slate-700">
-          Extract of Document of Titles of the Land
+          {tx("extractTitles")}
         </h2>
       </div>
 
@@ -617,10 +636,10 @@ function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
           <thead className="bg-[#f1f5f4] text-slate-700">
             <tr>
               <TableHead className="w-[44px]">#</TableHead>
-              <TableHead>Land Information</TableHead>
-              <TableHead className="w-[100px]">Format</TableHead>
-              <TableHead className="w-[280px]">Attachment</TableHead>
-              <TableHead className="w-[120px] text-center">Action</TableHead>
+              <TableHead>{tx("landInformation")}</TableHead>
+              <TableHead className="w-[100px]">{tx("format")}</TableHead>
+              <TableHead className="w-[280px]">{tx("attachment")}</TableHead>
+              <TableHead className="w-[120px] text-center">{tx("action")}</TableHead>
             </tr>
           </thead>
 
@@ -628,7 +647,7 @@ function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
             {rows.length === 0 ? (
               <tr className="bg-[#e4f4df]">
                 <TableCell colSpan={5} center>
-                  No land information found from Step 1.
+                  {tx("noLandInfo")}
                 </TableCell>
               </tr>
             ) : (
@@ -645,7 +664,7 @@ function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
                   <TableCell>{row.format}</TableCell>
 
                   <TableCell>
-                    <AttachmentView attachment={row.attachment} />
+                    <AttachmentView attachment={row.attachment} language={language} />
                   </TableCell>
 
                   <TableCell center>
@@ -654,6 +673,7 @@ function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
                       attachment={row.attachment}
                       required={false}
                       readOnly={readOnly}
+                      language={language}
                       onFileChange={onFileChange}
                       onRemoveFile={onRemoveFile}
                     />
@@ -671,17 +691,20 @@ function TitleTable({ rows, readOnly = false, onFileChange, onRemoveFile }) {
 function OtherSupportingTable({
   rows,
   readOnly = false,
+  language = "en",
   onAdd,
   onUpdate,
   onRemove,
   onFileChange,
   onRemoveFile,
 }) {
+  const tx = (key) => stepText(language, key);
+
   return (
     <section className="overflow-hidden rounded-md border border-slate-200">
       <div className="flex items-center justify-between border-l-4 border-[#18b36b] bg-white px-4 py-3">
         <h2 className="text-sm font-bold uppercase text-slate-700">
-          Other Relevant Supporting Documents (If Any)
+          {tx("otherSupportingDocuments")}
         </h2>
 
         {!readOnly && (
@@ -690,7 +713,7 @@ function OtherSupportingTable({
             onClick={onAdd}
             className="rounded bg-[#18b36b] px-3 py-1.5 text-[10px] font-bold text-white hover:bg-[#128a53]"
           >
-            + Add Document
+            {tx("addDocument")}
           </button>
         )}
       </div>
@@ -700,10 +723,10 @@ function OtherSupportingTable({
           <thead className="bg-[#f1f5f4] text-slate-700">
             <tr>
               <TableHead className="w-[44px]">#</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="w-[110px]">Format</TableHead>
-              <TableHead className="w-[280px]">Attachment</TableHead>
-              <TableHead className="w-[150px] text-center">Action</TableHead>
+              <TableHead>{tx("description")}</TableHead>
+              <TableHead className="w-[110px]">{tx("format")}</TableHead>
+              <TableHead className="w-[280px]">{tx("attachment")}</TableHead>
+              <TableHead className="w-[150px] text-center">{tx("action")}</TableHead>
             </tr>
           </thead>
 
@@ -711,7 +734,7 @@ function OtherSupportingTable({
             {rows.length === 0 ? (
               <tr className="bg-[#e4f4df]">
                 <TableCell colSpan={5} center>
-                  --No record--
+                  {tx("noRecord")}
                 </TableCell>
               </tr>
             ) : (
@@ -730,7 +753,7 @@ function OtherSupportingTable({
                         onUpdate(index, "description", event.target.value)
                       }
                       readOnly={readOnly}
-                      placeholder="Enter document description"
+                      placeholder={tx("documentDescriptionPlaceholder")}
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#18b36b] focus:ring-1 focus:ring-[#18b36b]"
                     />
                   </TableCell>
@@ -749,7 +772,7 @@ function OtherSupportingTable({
                   </TableCell>
 
                   <TableCell>
-                    <AttachmentView attachment={row.attachment} />
+                    <AttachmentView attachment={row.attachment} language={language} />
                   </TableCell>
 
                   <TableCell center>
@@ -759,6 +782,7 @@ function OtherSupportingTable({
                         attachment={row.attachment}
                         required={false}
                         readOnly={readOnly}
+                        language={language}
                         onFileChange={onFileChange}
                         onRemoveFile={onRemoveFile}
                       />
@@ -770,7 +794,7 @@ function OtherSupportingTable({
                           className="inline-flex h-8 px-2 items-center justify-center gap-1 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-[10px] font-semibold"
                           title="Remove row"
                         >
-                          Delete Row
+                          {tx("deleteRow")}
                         </button>
                       )}
                     </div>
@@ -785,9 +809,11 @@ function OtherSupportingTable({
   );
 }
 
-function AttachmentView({ attachment }) {
+function AttachmentView({ attachment, language = "en" }) {
+  const tx = (key) => stepText(language, key);
+
   if (!attachment) {
-    return <span className="text-slate-500">No attachment found.</span>;
+    return <span className="text-slate-500">{tx("noAttachment")}</span>;
   }
 
   return (
@@ -805,10 +831,12 @@ function FileAction({
   attachment,
   required,
   readOnly = false,
+  language = "en",
   onFileChange,
   onRemoveFile,
 }) {
   const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
+  const tx = (key) => stepText(language, key);
 
   return (
     <div className="flex items-center justify-center">
@@ -820,7 +848,7 @@ function FileAction({
         {!readOnly ? (
           <label
             className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded bg-[#18b36b] text-white shadow-sm hover:bg-[#128a53]"
-            title="Upload"
+            title={tx("upload")}
           >
             <span className="material-symbols-outlined text-[18px] leading-none">
               upload
@@ -847,7 +875,7 @@ function FileAction({
               href={attachmentUrl}
               download={attachment.name}
               className="inline-flex h-8 w-8 items-center justify-center rounded bg-slate-700 text-white shadow-sm hover:bg-slate-900"
-              title="Download"
+              title={tx("download")}
             >
               <span className="material-symbols-outlined text-[18px] leading-none">
                 download
@@ -859,7 +887,7 @@ function FileAction({
                 type="button"
                 onClick={() => onRemoveFile(index)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-                title="Remove file"
+                title={tx("removeFile")}
               >
                 X
               </button>

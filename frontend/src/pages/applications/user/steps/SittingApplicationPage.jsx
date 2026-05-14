@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
   uploadApplicationDocument,
@@ -12,6 +13,12 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
 } from "../../../../utils/workflow";
+import {
+  applicationStatusLabel,
+  applicationTypeLabel,
+  readOnlyMessage,
+  stepText,
+} from "./ApplicationStepText";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -27,6 +34,8 @@ function SittingApplicationPage({
 
   const navigate = useNavigate();
   const location = useLocation();
+  const { language } = useLanguage();
+  const tx = (key) => stepText(language, key);
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
 
@@ -219,7 +228,7 @@ function SittingApplicationPage({
       !officerName.trim() ||
       !applicationDate
     ) {
-      alert("Please fill in all required fields before proceeding to the next step.");
+      alert(tx("requiredAlert"));
       return;
     }
 
@@ -235,7 +244,7 @@ function SittingApplicationPage({
       );
     } catch (err) {
       console.error("Save failed:", err);
-      alert("Failed to save Step 1. Please try again.");
+      alert(tx("failedSaveStep1"));
     }
   }
 
@@ -246,7 +255,7 @@ function SittingApplicationPage({
     }
 
     const confirmSave = window.confirm(
-      "You have unsaved changes. Save this application as draft before leaving?"
+      tx("draftConfirm")
     );
 
     if (!confirmSave) {
@@ -256,7 +265,7 @@ function SittingApplicationPage({
 
     try {
       const payload = await buildStepOnePayload(
-        projectName || "Draft Sitting Application"
+        projectName || tx("draftSittingApplication")
       );
       const data = await saveApplication(payload);
       await uploadPendingSiteImage(data, payload);
@@ -264,7 +273,7 @@ function SittingApplicationPage({
       navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
     } catch (err) {
       console.error("Draft save failed:", err);
-      alert("Failed to save draft.");
+      alert(tx("failedSaveDraft"));
     }
   }
 
@@ -283,7 +292,7 @@ function SittingApplicationPage({
                 1
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
-                Sitting Application
+                {tx("sittingApplication")}
               </h1>
             </div>
 
@@ -293,7 +302,7 @@ function SittingApplicationPage({
                 onClick={handleSaveDraftAndBack}
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                Back
+                {tx("back")}
               </button>
 
               {!isReadOnly && (
@@ -302,25 +311,25 @@ function SittingApplicationPage({
                   onClick={handleSave}
                   className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
                 >
-                  Save & Next
+                  {tx("saveNext")}
                 </button>
               )}
             </div>
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference />
+            <ApplicationReference language={language} />
 
             {isReadOnly && (
-              <ReadOnlyNotice status={applicationRecord?.status} />
+              <ReadOnlyNotice language={language} status={applicationRecord?.status} />
             )}
 
             <fieldset disabled={isReadOnly} className="p-4 space-y-3">
-              <FormSection title="Type of Application">
-                <Checkbox label="Application for Site (New Site)" checked />
+              <FormSection title={tx("typeOfApplication")}>
+                <Checkbox label={tx("applicationForSite")} checked />
               </FormSection>
 
-              <Field label="Name of Project" required>
+              <Field label={tx("nameOfProject")} required>
                 <input
                   className="spa-input"
                   value={projectName}
@@ -328,7 +337,7 @@ function SittingApplicationPage({
                 />
               </Field>
 
-              <Field label="Applicant" required>
+              <Field label={tx("applicant")} required>
                 <input
                   className="spa-input"
                   value={applicant}
@@ -337,7 +346,7 @@ function SittingApplicationPage({
               </Field>
 
               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
-                <Field label="Contact Person" required>
+                <Field label={tx("contactPerson")} required>
                   <input
                     className="spa-input"
                     value={contactPerson}
@@ -345,7 +354,7 @@ function SittingApplicationPage({
                   />
                 </Field>
 
-                <Field label="Tel No." required>
+                <Field label={tx("telNo")} required>
                   <input
                     className="spa-input"
                     value={telNo}
@@ -354,7 +363,7 @@ function SittingApplicationPage({
                 </Field>
               </div>
 
-              <Field label="Locality / Address" required>
+              <Field label={tx("localityAddress")} required>
                 <input
                   className="spa-input"
                   value={localityAddress}
@@ -368,12 +377,18 @@ function SittingApplicationPage({
                 />
               </Field>
 
-              <LocationMap value={mapData} onChange={setMapData} readOnly={isReadOnly} />
+              <LocationMap
+                value={mapData}
+                onChange={setMapData}
+                readOnly={isReadOnly}
+                language={language}
+              />
 
               <SiteImageUpload
                 imageName={siteImageName}
                 preview={siteImagePreview}
                 readOnly={isReadOnly}
+                language={language}
                 onChange={(data) => {
                   setSiteImageName(data.name);
                   setSiteImagePreview(data.preview);
@@ -388,7 +403,7 @@ function SittingApplicationPage({
                 }}
               />
 
-              <Field label="Area Required" required>
+              <Field label={tx("areaRequired")} required>
                 <input
                   className="spa-input"
                   value={areaRequired}
@@ -396,7 +411,7 @@ function SittingApplicationPage({
                 />
               </Field>
 
-              <Field label="Total Scheme Value, RM" required>
+              <Field label={tx("totalSchemeValue")} required>
                 <input
                   className="spa-input"
                   value={totalSchemeValue}
@@ -405,16 +420,16 @@ function SittingApplicationPage({
               </Field>
 
               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
-                <Field label="Amount of fund approved in the" required>
+                <Field label={tx("fundApprovedIn")} required>
                   <input
                     className="spa-input"
                     value={malaysiaPlan}
                     onChange={(e) => setMalaysiaPlan(e.target.value)}
-                    placeholder="Malaysia Plan"
+                    placeholder={tx("malaysiaPlan")}
                   />
                 </Field>
 
-                <Field label="Malaysia Plan, RM" required>
+                <Field label={tx("malaysiaPlanRm")} required>
                   <input
                     className="spa-input"
                     value={amountFundApproved}
@@ -423,7 +438,7 @@ function SittingApplicationPage({
                 </Field>
               </div>
 
-              <Field label="Amount of fund available now, RM" required>
+              <Field label={tx("fundAvailableNow")} required>
                 <input
                   className="spa-input"
                   value={amountFundAvailable}
@@ -433,7 +448,7 @@ function SittingApplicationPage({
 
               <SimpleWysiwygEditor
                 key={`project-justification-${applicationId || "new"}`}
-                label="Project Justification and Description on Project Components"
+                label={tx("projectJustification")}
                 value={projectJustification}
                 onChange={setProjectJustification}
                 max={3000}
@@ -441,14 +456,12 @@ function SittingApplicationPage({
               />
 
               <p className="-mt-2 text-[11px] italic text-slate-500">
-                Project brief to be submitted, together with conceptual site
-                layout plan if available; additional sheet to be attached if
-                insufficient space.
+                {tx("projectBriefHelp")}
               </p>
 
               <SimpleWysiwygEditor
                 key={`site-selection-reason-${applicationId || "new"}`}
-                label="Reason for Selecting the Site"
+                label={tx("siteSelectionReason")}
                 value={siteSelectionReason}
                 onChange={setSiteSelectionReason}
                 max={1500}
@@ -456,11 +469,11 @@ function SittingApplicationPage({
               />
 
               <p className="-mt-2 text-[11px] italic text-slate-500">
-                Additional sheet to be attached if insufficient space.
+                {tx("additionalSheetHelp")}
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Designation" required>
+                <Field label={tx("designation")} required>
                   <input
                     className="spa-input"
                     value={designation}
@@ -468,7 +481,7 @@ function SittingApplicationPage({
                   />
                 </Field>
 
-                <Field label="Name of Officer" required>
+                <Field label={tx("officerName")} required>
                   <input
                     className="spa-input"
                     value={officerName}
@@ -476,7 +489,7 @@ function SittingApplicationPage({
                   />
                 </Field>
 
-                <Field label="Date" required>
+                <Field label={tx("date")} required>
                   <input
                     type="date"
                     className="spa-input"
@@ -492,7 +505,7 @@ function SittingApplicationPage({
                   onClick={handleSaveDraftAndBack}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  Back
+                  {tx("back")}
                 </button>
 
                 {!isReadOnly && (
@@ -501,7 +514,7 @@ function SittingApplicationPage({
                     onClick={handleSave}
                     className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
                   >
-                    Save & Next
+                    {tx("saveNext")}
                   </button>
                 )}
               </div>
@@ -513,7 +526,8 @@ function SittingApplicationPage({
   );
 }
 
-function LocationMap({ value, onChange, readOnly = false }) {
+function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
+  const tx = (key) => stepText(language, key);
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -882,24 +896,24 @@ function LocationMap({ value, onChange, readOnly = false }) {
   }
 
   return (
-    <FormSection title="Location Map">
+    <FormSection title={tx("locationMap")}>
       <div className="space-y-3">
         <div>
-          <Field label="Project Address / Location Search (Selected Address)">
+          <Field label={tx("projectAddressSearch")}>
             <div className="relative">
               <input
                 className="spa-input"
                 value={address}
                 onChange={handleAddressChange}
                 readOnly={readOnly}
-                placeholder="Search building name, road, lot number or landmark in Malaysia..."
+                placeholder={tx("addressSearchPlaceholder")}
               />
 
               {(suggestions.length > 0 || searching) && (
                 <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
                   {searching && (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      Searching address...
+                      {tx("searchingAddress")}
                     </div>
                   )}
 
@@ -925,21 +939,17 @@ function LocationMap({ value, onChange, readOnly = false }) {
           </Field>
 
           <p className="mt-1 text-[11px] text-slate-500">
-            Search by building name, road, lot number or landmark across
-            Malaysia. The selected result will be used as the project address.
-            You may also drag the pin or click the map to update the address
-            automatically.
+            {tx("addressSearchHelp")}
           </p>
         </div>
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-700">
-              Pinpoint Project Location
+              {tx("pinpointLocation")}
             </p>
             <p className="text-[11px] text-slate-500">
-              Drag the red pin or click the map to update address, latitude, and
-              longitude.
+              {tx("pinpointHelp")}
             </p>
           </div>
 
@@ -947,10 +957,10 @@ function LocationMap({ value, onChange, readOnly = false }) {
             <button
               type="button"
               onClick={focusLocation}
-              title="Fly back to pinned location"
+              title={tx("flyBackTitle")}
               className="px-3 py-1.5 rounded text-[11px] font-bold border bg-white text-slate-700 border-slate-300 hover:bg-slate-50 flex items-center gap-1"
             >
-              Focus
+              {tx("focus")}
             </button>
 
             <span className="border-l border-slate-200 self-stretch" />
@@ -987,7 +997,7 @@ function LocationMap({ value, onChange, readOnly = false }) {
                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
               }`}
             >
-              Street
+              {tx("street")}
             </button>
 
             <button
@@ -999,7 +1009,7 @@ function LocationMap({ value, onChange, readOnly = false }) {
                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
               }`}
             >
-              Satellite
+              {tx("satellite")}
             </button>
 
             <button
@@ -1011,7 +1021,7 @@ function LocationMap({ value, onChange, readOnly = false }) {
                   : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
               }`}
             >
-              Outdoor
+              {tx("outdoor")}
             </button>
           </div>
         </div>
@@ -1022,24 +1032,25 @@ function LocationMap({ value, onChange, readOnly = false }) {
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label="Latitude">
+          <Field label={tx("latitude")}>
             <input className="spa-input bg-slate-50" value={lat} readOnly />
           </Field>
 
-          <Field label="Longitude">
+          <Field label={tx("longitude")}>
             <input className="spa-input bg-slate-50" value={lng} readOnly />
           </Field>
         </div>
 
         {loadingAddress && (
-          <p className="text-[11px] text-slate-500">Updating address...</p>
+          <p className="text-[11px] text-slate-500">{tx("updatingAddress")}</p>
         )}
       </div>
     </FormSection>
   );
 }
 
-function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = false }) {
+function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = false, language = "en" }) {
+  const tx = (key) => stepText(language, key);
   function handleFileChange(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -1052,7 +1063,7 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = fa
   }
 
   return (
-    <FormSection title="Site Image">
+    <FormSection title={tx("siteImage")}>
       <div className="space-y-3">
         {!preview && !readOnly && (
           <div className="flex items-center justify-center border-2 border-dashed border-slate-300 rounded-md h-[160px] bg-slate-50">
@@ -1069,9 +1080,9 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = fa
                   upload
                 </span>
                 <p className="text-xs font-semibold text-slate-600">
-                  Click to upload site image
+                  {tx("clickUploadSiteImage")}
                 </p>
-                <p className="text-[11px] text-slate-400">JPG / PNG only</p>
+                <p className="text-[11px] text-slate-400">{tx("imageOnly")}</p>
               </div>
             </label>
           </div>
@@ -1092,7 +1103,7 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = fa
                   onClick={onRemove}
                   className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-600"
                 >
-                  Remove
+                  {tx("remove")}
                 </button>
               )}
             </div>
@@ -1104,7 +1115,7 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = fa
 
               {!readOnly && (
                 <label className="text-[#006d32] font-semibold cursor-pointer hover:underline">
-                  Replace
+                  {tx("replace")}
                   <input
                     type="file"
                     accept="image/*"
@@ -1118,49 +1129,48 @@ function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = fa
         )}
 
         <p className="text-[11px] text-slate-500">
-          Upload actual site photo for verification. This helps officer validate
-          location and condition of the site.
+          {tx("siteImageHelp")}
         </p>
       </div>
     </FormSection>
   );
 }
 
-function ReadOnlyNotice({ status }) {
+function ReadOnlyNotice({ language, status }) {
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
-      If it is rejected with remarks, use Edit from the applications list to make corrections.
+      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(status)))}
     </div>
   );
 }
 
-function ApplicationReference() {
+function ApplicationReference({ language }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
+  const tx = (key) => stepText(language, key);
 
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
         {user?.role !== "applicant" && (
           <>
-            <p>Digital Reference</p>
+            <p>{tx("digitalReference")}</p>
             <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
 
-            <p>Agency Reference</p>
+            <p>{tx("agencyReference")}</p>
             <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
 
-            <p>Division</p>
+            <p>{tx("division")}</p>
             <p className="font-semibold text-[#006d32]">KUCHING</p>
           </>
         )}
 
-        <p>Status</p>
-        <p className="font-semibold text-[#006d32]">Prepare Case</p>
+        <p>{tx("status")}</p>
+        <p className="font-semibold text-[#006d32]">{tx("prepareCase")}</p>
 
-        <p>Application Type</p>
+        <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          Application for Site (New Site)
+          {applicationTypeLabel(language, "Application for Site (New Site)")}
         </p>
       </div>
     </div>

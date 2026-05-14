@@ -7,6 +7,12 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
 } from "../../../../utils/workflow";
+import {
+  applicationStatusLabel,
+  applicationTypeLabel,
+  readOnlyMessage,
+  stepText,
+} from "./ApplicationStepText";
 
 function DeclarationPage({
   LayoutComponent = UserDashboardLayout,
@@ -18,6 +24,7 @@ function DeclarationPage({
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
   const { language } = useLanguage();
+  const tx = (key) => stepText(language, key);
 
   const applicationId = routeApplicationId || queryParams.get("id");
 
@@ -73,12 +80,12 @@ function DeclarationPage({
     if (isReadOnly) return;
 
     if (!applicationId) {
-      alert("Application ID is missing. Please continue from My Dashboard.");
+      alert(tx("missingApplication"));
       return;
     }
 
     if (!step11.agreed) {
-      setError("Please confirm the declaration before proceeding.");
+      setError(tx("confirmDeclaration"));
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -117,7 +124,7 @@ function DeclarationPage({
       );
     } catch (err) {
       console.error("Step 4 save failed:", err);
-      alert("Failed to save declaration.");
+      alert(tx("failedSaveDeclaration"));
     } finally {
       setSaving(false);
     }
@@ -183,7 +190,7 @@ function DeclarationPage({
                 4
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
-                Declaration
+                {tx("declaration")}
               </h1>
             </div>
 
@@ -196,7 +203,7 @@ function DeclarationPage({
                 }
                 className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
               >
-                Back
+                {tx("back")}
               </Link>
 
               {!isReadOnly && (
@@ -206,17 +213,17 @@ function DeclarationPage({
                   disabled={saving}
                   className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "Save & Next"}
+                  {saving ? tx("saving") : tx("saveNext")}
                 </button>
               )}
             </div>
           </div>
 
           <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
-            <ApplicationReference step1={step1} />
+            <ApplicationReference step1={step1} language={language} />
 
             {isReadOnly && (
-              <ReadOnlyNotice status={applicationRecord?.status} />
+              <ReadOnlyNotice language={language} status={applicationRecord?.status} />
             )}
 
             <div className="space-y-5 p-4 text-[12px]">
@@ -256,7 +263,7 @@ function DeclarationPage({
                   }
                   className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                 >
-                  Back
+                  {tx("back")}
                 </Link>
 
                 {!isReadOnly && (
@@ -266,7 +273,7 @@ function DeclarationPage({
                     disabled={saving}
                     className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
                   >
-                    {saving ? "Saving..." : "Save & Next"}
+                    {saving ? tx("saving") : tx("saveNext")}
                   </button>
                 )}
               </div>
@@ -313,42 +320,42 @@ function joinAddress(parts) {
   return address || "-";
 }
 
-function ApplicationReference({ step1 }) {
+function ApplicationReference({ step1, language }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
+  const tx = (key) => stepText(language, key);
 
   return (
     <div className="border-b border-slate-200 bg-[#f5f5f5] px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
         {user?.role !== "applicant" && (
           <>
-            <p>Digital Reference</p>
+            <p>{tx("digitalReference")}</p>
             <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
 
-            <p>Agency Reference</p>
+            <p>{tx("agencyReference")}</p>
             <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
           </>
         )}
 
-        <p>Status</p>
+        <p>{tx("status")}</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.status || "Prepare Case"}
+          {applicationStatusLabel(language, step1.status)}
         </p>
 
-        <p>Application Type</p>
+        <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {step1.application_type_label || "Application for Site (New Site)"}
+          {applicationTypeLabel(language, step1.application_type_label || "Application for Site (New Site)")}
         </p>
       </div>
     </div>
   );
 }
 
-function ReadOnlyNotice({ status }) {
+function ReadOnlyNotice({ language, status }) {
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      This application is {formatWorkflowStatus(status).toLowerCase()} and can only be viewed.
-      If it is rejected with remarks, use Edit from the applications list to make corrections.
+      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(status)))}
     </div>
   );
 }
