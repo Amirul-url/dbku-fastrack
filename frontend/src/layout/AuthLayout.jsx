@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import TopBar from "./TopBar";
 import { useLanguage } from "../context/LanguageContext";
 import { Link } from "react-router-dom";
@@ -10,6 +11,10 @@ function AuthLayout({ children }) {
     t("app.authFeatureSubmit"),
     t("app.authFeatureTrack"),
   ];
+
+  useEffect(() => {
+    document.title = "ALiS";
+  }, []);
 
   return (
     <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">

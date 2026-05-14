@@ -59,6 +59,10 @@ function PrintFormPage({
       // eslint-disable-next-line react-hooks/immutability
       loadApplication();
     }
+
+    return () => {
+      document.title = "ALiS";
+    };
   }, [applicationId, language]);
 
   async function loadApplication() {
