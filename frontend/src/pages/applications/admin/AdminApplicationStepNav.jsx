@@ -1,33 +1,34 @@
 import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
+import { useLanguage } from "../../../context/LanguageContext";
 
-function getSteps(applicationId) {
+function getSteps(applicationId, t) {
   const base = `/admin/applications/${applicationId}`;
 
   return [
     {
       no: 1,
-      label: "Sitting Application",
+      label: t("steps.sittingApplication"),
       path: `${base}/step-1`,
     },
     {
       no: 2,
-      label: "Details of Submitting Person",
+      label: t("steps.submittingPerson"),
       path: `${base}/step-2`,
     },
     {
       no: 3,
-      label: "Supporting Document",
+      label: t("steps.supportingDocument"),
       path: `${base}/step-3`,
     },
     {
       no: 4,
-      label: "Declaration",
+      label: t("steps.declaration"),
       path: `${base}/step-4`,
     },
     {
       no: 5,
-      label: "Print Form",
+      label: t("steps.printForm"),
       path: `${base}/step-5`,
     },
   ];
@@ -35,12 +36,17 @@ function getSteps(applicationId) {
 
 function AdminApplicationStepNav({ active = 1 }) {
   const [open, setOpen] = useState(true);
+  const { language, t } = useLanguage();
 
   const location = useLocation();
   const { id, applicationId } = useParams();
 
   const currentApplicationId = applicationId || id;
-  const steps = getSteps(currentApplicationId);
+  const steps = getSteps(currentApplicationId, t);
+  const stepOf = t("steps.stepOf")
+    .replace("{active}", active)
+    .replace("{total}", steps.length);
+  const reviewing = language === "ms" ? "Semakan" : "Reviewing";
 
   return (
     <aside
@@ -58,7 +64,7 @@ function AdminApplicationStepNav({ active = 1 }) {
             {open ? "menu_open" : "menu"}
           </span>
 
-          {open && <span>Application Steps</span>}
+          {open && <span>{t("steps.applicationSteps")}</span>}
 
           {open && (
             <span className="material-symbols-outlined text-[18px]">
@@ -71,16 +77,16 @@ function AdminApplicationStepNav({ active = 1 }) {
           <>
             <div className="border-b bg-[#f7f7f7] px-3 py-2.5">
               <p className="text-xs font-bold text-slate-800">
-                APPLICATION STEPS
+                {t("steps.applicationSteps").toUpperCase()}
               </p>
 
               <p className="mt-0.5 text-[10px] text-slate-500">
-                Step {active} of {steps.length}
+                {stepOf}
               </p>
 
               {currentApplicationId && (
                 <p className="mt-1 truncate text-[10px] font-semibold text-[#006d32]">
-                  Reviewing: {currentApplicationId}
+                  {reviewing}: {currentApplicationId}
                 </p>
               )}
             </div>
