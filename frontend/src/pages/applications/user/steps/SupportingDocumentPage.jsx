@@ -725,16 +725,16 @@ function FileAction({
           <a
             href={attachmentUrl}
             download={attachment.name}
-            className="inline-flex h-8 min-w-[92px] items-center justify-center gap-1.5 rounded border border-emerald-200 bg-white px-2.5 text-[10px] font-bold text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+            className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
             title={tx("download")}
+            aria-label={tx("download")}
           >
             <span className="material-symbols-outlined text-[17px] leading-none">
               file_download
             </span>
-            <span>{tx("download")}</span>
           </a>
         ) : (
-          <span className="h-8 min-w-[92px]" />
+          <span className="h-8 w-8" />
         )}
       </div>
     );
