@@ -22,8 +22,23 @@ function getApplicationStepPath(applicationId, route) {
   return `/applications/${applicationId}/${route}?id=${applicationId}`;
 }
 
-function buildApplicantNav(stepApplicationId) {
+function buildApplicantNav(stepApplicationId, showApplicationSteps) {
   const getStepPath = (route) => getApplicationStepPath(stepApplicationId, route);
+  const applicationChildren = [];
+
+  if (showApplicationSteps) {
+    applicationChildren.push({
+      labelKey: "steps.applicationSteps",
+      fallback: "Application Steps",
+      children: [
+        { no: 1, route: "edit", labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: getStepPath("edit") },
+        { no: 2, route: "submitting-person", labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: getStepPath("submitting-person") },
+        { no: 3, route: "supporting-document", labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: getStepPath("supporting-document") },
+        { no: 4, route: "declaration", labelKey: "steps.declaration", fallback: "Declaration", path: getStepPath("declaration") },
+        { no: 5, route: "print-form", labelKey: "steps.printForm", fallback: "Print Form", path: getStepPath("print-form") },
+      ],
+    });
+  }
 
   return [
     {
@@ -37,19 +52,7 @@ function buildApplicantNav(stepApplicationId) {
           fallback: "Applications",
           path: "/user/dashboard?tab=applications",
           tab: "applications",
-          children: [
-            {
-              labelKey: "steps.applicationSteps",
-              fallback: "Application Steps",
-              children: [
-                { no: 1, route: "edit", labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: getStepPath("edit") },
-                { no: 2, route: "submitting-person", labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: getStepPath("submitting-person") },
-                { no: 3, route: "supporting-document", labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: getStepPath("supporting-document") },
-                { no: 4, route: "declaration", labelKey: "steps.declaration", fallback: "Declaration", path: getStepPath("declaration") },
-                { no: 5, route: "print-form", labelKey: "steps.printForm", fallback: "Print Form", path: getStepPath("print-form") },
-              ],
-            },
-          ],
+          children: applicationChildren,
         },
         { labelKey: "applicant.tabStatus", fallback: "Status", path: "/user/dashboard?tab=status", tab: "status" },
         { labelKey: "applicant.tabLicense", fallback: "E-Licenses", path: "/user/dashboard?tab=license", tab: "license" },
@@ -67,15 +70,15 @@ function AppShell({ children, role = "admin" }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
-  const [sidebarApplications, setSidebarApplications] = useState([]);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
-  const draftApplication = sidebarApplications.find((app) => isDraftApplication(app));
-  const stepApplicationId = currentApplicationId || (draftApplication?.id ? String(draftApplication.id) : "");
+  const showApplicationSteps =
+    location.pathname === "/applications/new" || Boolean(currentApplicationId);
+  const stepApplicationId = currentApplicationId;
   const nav = useMemo(
-    () => (role === "admin" ? adminNav : buildApplicantNav(stepApplicationId)),
-    [role, stepApplicationId]
+    () => (role === "admin" ? adminNav : buildApplicantNav(stepApplicationId, showApplicationSteps)),
+    [role, stepApplicationId, showApplicationSteps]
   );
 
   useEffect(() => {
@@ -93,29 +96,6 @@ function AppShell({ children, role = "admin" }) {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (role !== "applicant") return undefined;
-
-    let active = true;
-
-    function loadApplications() {
-      apiRequest("/applications/")
-        .then((data) => {
-          if (!active) return;
-          setSidebarApplications(Array.isArray(data) ? data : data?.results || []);
-        })
-        .catch(() => {});
-    }
-
-    loadApplications();
-    window.addEventListener("fastrack:applications-changed", loadApplications);
-
-    return () => {
-      active = false;
-      window.removeEventListener("fastrack:applications-changed", loadApplications);
-    };
-  }, [role]);
 
   function handleLogout() {
     clearAuthSession();
@@ -152,7 +132,6 @@ function AppShell({ children, role = "admin" }) {
       const applicationId = application?.id;
       if (!applicationId) return;
 
-      setSidebarApplications((current) => [application, ...current]);
       navigate(getApplicationStepPath(applicationId, step.route));
     } catch (err) {
       console.error("Failed to create draft application:", err);
@@ -452,10 +431,6 @@ function getApplicationIdFromPath(pathname) {
 
 function getPathname(path) {
   return String(path || "").split("?")[0];
-}
-
-function isDraftApplication(app) {
-  return String(app?.status || "").toLowerCase() === "draft";
 }
 
 export default AppShell;

@@ -6,7 +6,6 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useNotifications } from "../../context/NotificationContext";
 import {
   Alert,
-  Button,
   PageHeader,
   StatusPill,
 } from "../../components/ui/SystemUI";
@@ -54,7 +53,6 @@ function NotificationsPage() {
   const {
     notifications,
     markAsRead,
-    markAllAsRead,
     unreadCount,
     loading,
     error,
@@ -105,13 +103,6 @@ function NotificationsPage() {
           "notifications.description",
           "Live alerts generated from application status, workflow decisions, payment, and QR e-license records."
         )}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={markAllAsRead} icon="done_all" disabled={notifications.length === 0}>
-              {t("common.markAllRead", "Mark all as read")}
-            </Button>
-          </div>
-        }
       />
 
       <Alert message={error} />
@@ -259,7 +250,7 @@ function NotificationsPage() {
                           onClick={() => markAsRead(item.id)}
                           className="inline-flex min-h-8 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
                         >
-                          {t("notifications.openRecord", "Open Record")}
+                          {t("notifications.openRecord", "View")}
                         </Link>
                       </div>
                     </article>
