@@ -12,6 +12,10 @@ export function getStoredUser() {
 export function getNormalizedRole(user) {
   const role = String(user?.role || "").toLowerCase();
 
+  if (role === "superadmin") {
+    return "superadmin";
+  }
+
   if (role === "admin" || role === "staff" || user?.is_staff || user?.is_superuser) {
     return "admin";
   }
@@ -23,6 +27,10 @@ export function getNormalizedRole(user) {
   return "";
 }
 
+export function isSuperAdminUser(user) {
+  return getNormalizedRole(user) === "superadmin";
+}
+
 export function isAdminUser(user) {
   return getNormalizedRole(user) === "admin";
 }
@@ -32,6 +40,10 @@ export function isApplicantUser(user) {
 }
 
 export function getUserRedirectPath(user) {
+  if (isSuperAdminUser(user)) {
+    return "/superadmin/dashboard";
+  }
+
   if (isAdminUser(user)) {
     return "/dashboard/admin";
   }

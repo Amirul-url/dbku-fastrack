@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
 
-const ADMIN_LOGIN_IDS = ["admin"];
+const ADMIN_LOGIN_IDS = ["admin", "superadmin"];
 
 function LoginMalaysian() {
   const navigate = useNavigate();

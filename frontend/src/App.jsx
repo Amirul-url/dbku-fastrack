@@ -18,6 +18,7 @@ import AdminHomePage from "./pages/home/admin/AdminHomePage";
 /* DASHBOARD */
 import UserDashboard from "./pages/dashboard/UserDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import SuperAdminDashboard from "./pages/dashboard/SuperAdminDashboard";
 import AdminDashboardLayout from "./layout/AdminDashboardLayout";
 
 /* USER APPLICATION */
@@ -58,6 +59,7 @@ import {
   getStoredUser,
   isAdminUser,
   isApplicantUser,
+  isSuperAdminUser,
 } from "./services/api";
 
 function getUser() {
@@ -70,6 +72,10 @@ function isAuthenticated() {
 
 function isAdmin(user) {
   return isAdminUser(user);
+}
+
+function isSuperAdmin(user) {
+  return isSuperAdminUser(user);
 }
 
 function isUser(user) {
@@ -92,6 +98,10 @@ function AdminRoute({ children }) {
   }
 
   if (!isAdmin(user)) {
+    if (isSuperAdmin(user)) {
+      return <Navigate to="/superadmin/dashboard" replace />;
+    }
+
     if (!isUser(user)) {
       clearAuthSession();
       return <Navigate to="/login/malaysian" replace />;
@@ -111,12 +121,39 @@ function UserRoute({ children }) {
   }
 
   if (!isUser(user)) {
+    if (isSuperAdmin(user)) {
+      return <Navigate to="/superadmin/dashboard" replace />;
+    }
+
     if (!isAdmin(user)) {
       clearAuthSession();
       return <Navigate to="/login/malaysian" replace />;
     }
 
     return <Navigate to="/dashboard/admin" replace />;
+  }
+
+  return children;
+}
+
+function SuperAdminRoute({ children }) {
+  const user = getUser();
+
+  if (!isAuthenticated()) {
+    return <Navigate to="/login/malaysian" replace />;
+  }
+
+  if (!isSuperAdmin(user)) {
+    if (isAdmin(user)) {
+      return <Navigate to="/dashboard/admin" replace />;
+    }
+
+    if (isUser(user)) {
+      return <Navigate to="/user/dashboard" replace />;
+    }
+
+    clearAuthSession();
+    return <Navigate to="/login/malaysian" replace />;
   }
 
   return children;
@@ -161,6 +198,33 @@ function App() {
         />
 
         {/* DASHBOARDS */}
+        <Route
+          path="/superadmin/dashboard"
+          element={
+            <SuperAdminRoute>
+              <SuperAdminDashboard />
+            </SuperAdminRoute>
+          }
+        />
+
+        <Route
+          path="/superadmin/users"
+          element={
+            <SuperAdminRoute>
+              <SuperAdminDashboard view="users" />
+            </SuperAdminRoute>
+          }
+        />
+
+        <Route
+          path="/superadmin/admins"
+          element={
+            <SuperAdminRoute>
+              <SuperAdminDashboard view="admins" />
+            </SuperAdminRoute>
+          }
+        />
+
         <Route
           path="/dashboard/admin"
           element={

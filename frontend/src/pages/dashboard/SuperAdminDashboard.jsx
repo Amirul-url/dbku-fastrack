@@ -1,0 +1,933 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AppShell from "../../layout/AppShell";
+import { useLanguage } from "../../context/LanguageContext";
+import { apiRequest } from "../../services/api";
+import { Alert, Button } from "../../components/ui/SystemUI";
+
+const emptyForm = {
+  username: "",
+  full_name: "",
+  email: "",
+  department: "",
+  mobile_number: "",
+  role: "applicant",
+  password: "",
+  password2: "",
+  is_active: true,
+};
+
+const departments = ["IKL", "BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const adminCsvHeaders = [
+  "full_name",
+  "nric",
+  "email",
+  "mobile_number",
+  "department",
+  "role",
+  "password",
+  "confirm_password",
+];
+
+const screenText = {
+  en: {
+    userTitle: "User Management",
+    adminTitle: "Admin Management",
+    userDescription: "Manage applicant login accounts and account access.",
+    adminDescription: "Manage administrator login accounts and access roles.",
+    userList: "User List",
+    adminList: "Admin List",
+    addAccount: "Add Account",
+    importCsv: "Import CSV",
+    exportCsv: "Export CSV",
+    searchUser: "Search name, login ID, or email",
+    searchAdmin: "Search name, NRIC, email, or department",
+    allDepartments: "All departments",
+    filter: "Filter",
+    reset: "Reset",
+    accountFound: "account(s) found.",
+    name: "Name",
+    loginId: "Login ID",
+    nric: "NRIC",
+    email: "Email",
+    mobileNumber: "Mobile Number",
+    department: "Department",
+    role: "Role",
+    status: "Status",
+    lastLogin: "Last Login",
+    actions: "Actions",
+    loadingAccounts: "Loading accounts...",
+    noAccounts: "No accounts found.",
+    edit: "Edit",
+    delete: "Delete",
+    active: "Active",
+    inactive: "Inactive",
+    never: "Never",
+    userRole: "User",
+    staffRole: "Staff",
+    adminRole: "Admin",
+    superAdminRole: "SuperAdmin",
+    addTitle: "Add Account",
+    editTitle: "Edit Account",
+    fullName: "Full Name",
+    enterFullName: "Enter full name",
+    enterNric: "Enter NRIC",
+    enterEmail: "Enter email",
+    enterMobile: "Enter mobile number",
+    selectDepartment: "-- Select department --",
+    password: "Password",
+    newPassword: "New Password",
+    confirmPassword: "Confirm Password",
+    enterPassword: "Enter password",
+    confirmPasswordPlaceholder: "Confirm password",
+    activeAccount: "Active account",
+    cancel: "Cancel",
+    save: "Save",
+    saveAccount: "Save Account",
+    saving: "Saving...",
+    accountCreated: "Account created.",
+    accountUpdated: "Account updated.",
+    accountDeleted: "Account deleted.",
+    saveFailed: "Failed to save account.",
+    deleteFailed: "Failed to delete account.",
+    loadFailed: "Failed to load accounts.",
+    deleteConfirm: "Delete {name}?",
+    importSuccess: "{count} account(s) imported.",
+    importFailed: "CSV import failed.",
+    csvMissingPassword: "CSV import requires a Password column for every account.",
+    csvMissingColumns: "CSV import requires these columns: {columns}.",
+    csvPasswordMismatch: "Password and Confirm Password do not match for {name}.",
+  },
+  ms: {
+    userTitle: "Pengurusan Pengguna",
+    adminTitle: "Pengurusan Admin",
+    userDescription: "Urus akaun log masuk pemohon dan akses akaun.",
+    adminDescription: "Urus akaun log masuk pentadbir dan peranan akses.",
+    userList: "Senarai Pengguna",
+    adminList: "Senarai Admin",
+    addAccount: "Tambah Akaun",
+    importCsv: "Import CSV",
+    exportCsv: "Eksport CSV",
+    searchUser: "Cari nama, ID log masuk, atau emel",
+    searchAdmin: "Cari nama, NRIC, emel, atau jabatan",
+    allDepartments: "Semua jabatan",
+    filter: "Tapis",
+    reset: "Set Semula",
+    accountFound: "akaun dijumpai.",
+    name: "Nama",
+    loginId: "ID Log Masuk",
+    nric: "NRIC",
+    email: "Emel",
+    mobileNumber: "Nombor Telefon",
+    department: "Jabatan",
+    role: "Peranan",
+    status: "Status",
+    lastLogin: "Log Masuk Terakhir",
+    actions: "Tindakan",
+    loadingAccounts: "Memuatkan akaun...",
+    noAccounts: "Tiada akaun dijumpai.",
+    edit: "Sunting",
+    delete: "Padam",
+    active: "Aktif",
+    inactive: "Tidak Aktif",
+    never: "Belum pernah",
+    userRole: "Pengguna",
+    staffRole: "Staf",
+    adminRole: "Admin",
+    superAdminRole: "SuperAdmin",
+    addTitle: "Tambah Akaun",
+    editTitle: "Sunting Akaun",
+    fullName: "Nama Penuh",
+    enterFullName: "Masukkan nama penuh",
+    enterNric: "Masukkan NRIC",
+    enterEmail: "Masukkan emel",
+    enterMobile: "Masukkan nombor telefon",
+    selectDepartment: "-- Pilih jabatan --",
+    password: "Kata Laluan",
+    newPassword: "Kata Laluan Baharu",
+    confirmPassword: "Sahkan Kata Laluan",
+    enterPassword: "Masukkan kata laluan",
+    confirmPasswordPlaceholder: "Sahkan kata laluan",
+    activeAccount: "Akaun aktif",
+    cancel: "Batal",
+    save: "Simpan",
+    saveAccount: "Simpan Akaun",
+    saving: "Menyimpan...",
+    accountCreated: "Akaun berjaya dicipta.",
+    accountUpdated: "Akaun berjaya dikemas kini.",
+    accountDeleted: "Akaun dipadam.",
+    saveFailed: "Gagal menyimpan akaun.",
+    deleteFailed: "Gagal memadam akaun.",
+    loadFailed: "Gagal memuatkan akaun.",
+    deleteConfirm: "Padam {name}?",
+    importSuccess: "{count} akaun diimport.",
+    importFailed: "Import CSV gagal.",
+    csvMissingPassword: "Import CSV memerlukan lajur Password untuk setiap akaun.",
+    csvMissingColumns: "Import CSV memerlukan lajur berikut: {columns}.",
+    csvPasswordMismatch: "Password dan Confirm Password tidak sepadan untuk {name}.",
+  },
+};
+
+function SuperAdminDashboard({ view = "dashboard" }) {
+  if (view === "dashboard") {
+    return <AppShell role="superadmin" />;
+  }
+
+  return <SuperAdminAccountManagement view={view} />;
+}
+
+function SuperAdminAccountManagement({ view }) {
+  const { language } = useLanguage();
+  const labels = screenText[language] || screenText.en;
+  const [accounts, setAccounts] = useState([]);
+  const [searchName, setSearchName] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const importInputRef = useRef(null);
+
+  const roleFilter = view === "users" ? "applicant" : view === "admins" ? "admin" : "";
+  const pageTitle =
+    view === "users"
+      ? labels.userTitle
+      : labels.adminTitle;
+  const pageDescription =
+    view === "users"
+      ? labels.userDescription
+      : labels.adminDescription;
+  const listTitle = view === "users" ? labels.userList : labels.adminList;
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const query = roleFilter ? `?role=${roleFilter}` : "";
+      const data = await apiRequest(`/auth/accounts/${query}`);
+      setAccounts(data.accounts || []);
+    } catch (err) {
+      setError(err.message || labels.loadFailed);
+    } finally {
+      setLoading(false);
+    }
+  }, [roleFilter, labels.loadFailed]);
+
+  useEffect(() => {
+    const timerId = window.setTimeout(loadAccounts, 0);
+    return () => window.clearTimeout(timerId);
+  }, [loadAccounts]);
+
+  const filteredAccounts = useMemo(() => {
+    const nameNeedle = searchName.trim().toLowerCase();
+    const selectedDepartment = departmentFilter.trim().toUpperCase();
+
+    return accounts
+      .filter((account) => {
+        const nameMatch = !nameNeedle || [
+          account.full_name,
+          account.username,
+          account.email,
+          account.department,
+          account.mykad_number,
+        ].some((value) => String(value || "").toLowerCase().includes(nameNeedle));
+        const departmentMatch =
+          !selectedDepartment ||
+          String(account.department || "").toUpperCase() === selectedDepartment;
+        return nameMatch && departmentMatch;
+      })
+      .sort(compareAccounts);
+  }, [accounts, searchName, departmentFilter]);
+
+  function openCreate() {
+    setEditingAccount(null);
+    setForm({
+      ...emptyForm,
+      role: view === "admins" ? "admin" : "applicant",
+      department: "",
+    });
+    setError("");
+    setSuccess("");
+  }
+
+  function openEdit(account) {
+    setEditingAccount(account);
+    setForm({
+      username: account.username || "",
+      full_name: account.full_name || "",
+      email: account.email || "",
+      department: account.department || "",
+      mobile_number: account.mobile_number || "",
+      role: account.role || "applicant",
+      password: "",
+      password2: "",
+      is_active: account.is_active !== false,
+    });
+    setError("");
+    setSuccess("");
+  }
+
+  function closeForm() {
+    setEditingAccount(null);
+    setForm(emptyForm);
+  }
+
+  async function saveAccount(event) {
+    event.preventDefault();
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+      const payload = {
+        ...form,
+        mykad_number: form.username,
+      };
+      const path = editingAccount
+        ? `/auth/accounts/${editingAccount.id}/`
+        : "/auth/accounts/";
+      const method = editingAccount ? "PATCH" : "POST";
+
+      await apiRequest(path, {
+        method,
+        body: JSON.stringify(payload),
+      });
+      setSuccess(editingAccount ? labels.accountUpdated : labels.accountCreated);
+      closeForm();
+      loadAccounts();
+    } catch (err) {
+      setError(err.message || labels.saveFailed);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteAccount(account) {
+    const confirmed = window.confirm(
+      labels.deleteConfirm.replace("{name}", account.full_name || account.username)
+    );
+    if (!confirmed) return;
+
+    try {
+      setError("");
+      setSuccess("");
+      await apiRequest(`/auth/accounts/${account.id}/`, { method: "DELETE" });
+      setSuccess(labels.accountDeleted);
+      loadAccounts();
+    } catch (err) {
+      setError(err.message || labels.deleteFailed);
+    }
+  }
+
+  function exportCsv() {
+    const header = view === "admins"
+      ? ["Full Name", "NRIC", "Email", "Mobile Number", "Department", "Role", "Password", "Confirm Password"]
+      : ["Name", "Login ID", "Email", "Role", "Status", "Last Login"];
+    const rows = [
+      header,
+      ...filteredAccounts.map((account) => {
+        const base = [
+          account.full_name || "",
+          account.username || "",
+          account.email || "",
+        ];
+
+        if (view === "admins") {
+          base.push(account.mobile_number || "");
+          base.push(account.department || "");
+        }
+
+        if (view === "admins") {
+          return [
+            ...base,
+            getRoleLabel(account, labels),
+            "",
+            "",
+          ];
+        }
+
+        return [
+          ...base,
+          getRoleLabel(account, labels),
+          account.is_active === false ? labels.inactive : labels.active,
+          formatDateTime(account.last_login, labels, language),
+        ];
+      }),
+    ];
+    const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${view}-accounts.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importCsv(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+      const csv = await file.text();
+      const rows = parseCsv(csv);
+      const [headers, ...records] = rows;
+      const normalizedHeaders = headers.map((header) => normalizeHeader(header));
+      const missingHeaders = getMissingCsvHeaders(normalizedHeaders, view);
+
+      if (missingHeaders.length > 0) {
+        throw new Error(labels.csvMissingColumns.replace("{columns}", missingHeaders.join(", ")));
+      }
+
+      let imported = 0;
+
+      for (const record of records) {
+        if (!record.some(Boolean)) continue;
+        const row = Object.fromEntries(
+          normalizedHeaders.map((header, index) => [header, record[index] || ""])
+        );
+        const password = row.password || row.temporary_password;
+        const password2 = row.confirm_password || row.password2 || password;
+
+        if (!password) {
+          throw new Error(labels.csvMissingPassword);
+        }
+
+        if (password !== password2) {
+          throw new Error(
+            labels.csvPasswordMismatch.replace(
+              "{name}",
+              row.full_name || row.name || row.nric || row.username
+            )
+          );
+        }
+
+        await apiRequest("/auth/accounts/", {
+          method: "POST",
+          body: JSON.stringify({
+            username: row.nric || row.login_id || row.username || row.mykad_number,
+            full_name: row.name || row.full_name,
+            email: row.email,
+            department: String(row.department || "").trim().toUpperCase(),
+            mobile_number: row.mobile_number || row.phone || row.mobile,
+            role: normalizeImportedRole(row.role || roleFilter || "applicant"),
+            password,
+            password2,
+            is_active: String(row.status || "active").toLowerCase() !== "inactive",
+          }),
+        });
+        imported += 1;
+      }
+
+      setSuccess(labels.importSuccess.replace("{count}", imported));
+      loadAccounts();
+    } catch (err) {
+      setError(err.message || labels.importFailed);
+    } finally {
+      setSaving(false);
+      event.target.value = "";
+    }
+  }
+
+  return (
+    <AppShell role="superadmin">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">{pageTitle}</h1>
+          <p className="mt-1 text-sm text-slate-600">{pageDescription}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button icon="person_add" onClick={openCreate}>{labels.addAccount}</Button>
+          <Button icon="upload" variant="secondary" disabled={saving} onClick={() => importInputRef.current?.click()}>
+            {labels.importCsv}
+          </Button>
+          <Button icon="download" className="bg-teal-700 hover:bg-teal-800" onClick={exportCsv}>
+            {labels.exportCsv}
+          </Button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={importCsv}
+          />
+        </div>
+      </div>
+
+      <Alert message={error} />
+      <Alert type="success" message={success} />
+
+      <section className="mb-5 rounded-md border border-slate-200 bg-white p-4">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)_auto_auto]">
+          <input
+            value={searchName}
+            onChange={(event) => setSearchName(event.target.value)}
+            placeholder={view === "admins" ? labels.searchAdmin : labels.searchUser}
+            className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+          />
+          <select
+            value={departmentFilter}
+            onChange={(event) => setDepartmentFilter(event.target.value)}
+            className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+          >
+            <option value="">{labels.allDepartments}</option>
+            {departments.map((department) => (
+              <option key={department} value={department}>{department}</option>
+            ))}
+          </select>
+          <Button icon="search" className="h-11 bg-cyan-950 hover:bg-cyan-900">{labels.filter}</Button>
+          <Button
+            variant="secondary"
+            className="h-11"
+            onClick={() => {
+              setSearchName("");
+              setDepartmentFilter("");
+            }}
+          >
+            {labels.reset}
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-base font-semibold text-slate-950">{listTitle}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {filteredAccounts.length} {labels.accountFound}
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className={`w-full text-left text-sm ${view === "admins" ? "min-w-[1350px] table-fixed" : "min-w-[980px]"}`}>
+            {view === "admins" && (
+              <colgroup>
+                <col className="w-[170px]" />
+                <col className="w-[115px]" />
+                <col className="w-[245px]" />
+                <col className="w-[135px]" />
+                <col className="w-[105px]" />
+                <col className="w-[120px]" />
+                <col className="w-[95px]" />
+                <col className="w-[155px]" />
+                <col className="w-[210px]" />
+              </colgroup>
+            )}
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="border-b border-slate-200 px-4 py-3">{labels.name}</th>
+                <th className="border-b border-slate-200 px-4 py-3">{view === "admins" ? labels.nric : labels.loginId}</th>
+                <th className="border-b border-slate-200 px-4 py-3">{labels.email}</th>
+                {view === "admins" && (
+                  <>
+                    <th className="border-b border-slate-200 px-4 py-3">{labels.mobileNumber}</th>
+                    <th className="border-b border-slate-200 px-4 py-3">{labels.department}</th>
+                  </>
+                )}
+                <th className="border-b border-slate-200 px-4 py-3">{labels.role}</th>
+                <th className="border-b border-slate-200 px-4 py-3">{labels.status}</th>
+                <th className="border-b border-slate-200 px-4 py-3">{labels.lastLogin}</th>
+                <th className="border-b border-slate-200 px-4 py-3">{labels.actions}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={view === "admins" ? 9 : 7} className="px-4 py-10 text-center text-slate-500">
+                    {labels.loadingAccounts}
+                  </td>
+                </tr>
+              ) : filteredAccounts.length === 0 ? (
+                <tr>
+                  <td colSpan={view === "admins" ? 9 : 7} className="px-4 py-10 text-center text-slate-500">
+                    {labels.noAccounts}
+                  </td>
+                </tr>
+              ) : (
+                filteredAccounts.map((account) => (
+                  <tr key={account.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-semibold text-slate-950">
+                      {account.full_name || account.username}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      <span className="block truncate">{account.username}</span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      <span className="block truncate">{account.email || "-"}</span>
+                    </td>
+                    {view === "admins" && (
+                      <>
+                        <td className="px-4 py-3 text-slate-700">
+                          <span className="block truncate">{account.mobile_number || "-"}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{account.department || "-"}</td>
+                      </>
+                    )}
+                    <td className="px-4 py-3">
+                      <RolePill account={account} labels={labels} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        account.is_active === false
+                          ? "bg-red-50 text-red-700"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}>
+                        {account.is_active === false ? labels.inactive : labels.active}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {formatDateTime(account.last_login, labels, language)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-nowrap gap-2">
+                        <Button icon="edit" className="bg-blue-700 hover:bg-blue-800" onClick={() => openEdit(account)}>
+                          {labels.edit}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => deleteAccount(account)}
+                          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-red-600 bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-700"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                          {labels.delete}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {(editingAccount || form !== emptyForm) && (
+        <AccountModal
+          form={form}
+          isEditing={Boolean(editingAccount)}
+          saving={saving}
+          labels={labels}
+          view={view}
+          onChange={(next) => setForm((current) => ({ ...current, ...next }))}
+          onClose={closeForm}
+          onSubmit={saveAccount}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+function AccountModal({ form, isEditing, saving, labels, view, onChange, onClose, onSubmit }) {
+  const inputClassName = "h-11 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100";
+  const roleOptions = view === "users"
+    ? [{ value: "applicant", label: labels.userRole }]
+    : view === "admins"
+      ? [
+          { value: "admin", label: labels.adminRole },
+          { value: "superadmin", label: labels.superAdminRole },
+        ]
+      : [
+          { value: "applicant", label: labels.userRole },
+          { value: "admin", label: labels.adminRole },
+          { value: "staff", label: labels.staffRole },
+        ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+      <form onSubmit={onSubmit} className="w-full max-w-2xl rounded-md bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h2 className="text-lg font-semibold text-slate-950">
+            {isEditing ? labels.editTitle : labels.addTitle}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+            aria-label="Close"
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        {view === "admins" ? (
+          <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+            <FormField label={labels.fullName} className="md:col-span-2">
+              <input
+                value={form.full_name}
+                onChange={(event) => onChange({ full_name: event.target.value })}
+                placeholder={labels.enterFullName}
+                className={inputClassName}
+                required
+              />
+            </FormField>
+            <FormField label={labels.nric}>
+              <input
+                value={form.username}
+                onChange={(event) => onChange({ username: event.target.value })}
+                placeholder={labels.enterNric}
+                className={inputClassName}
+                required
+              />
+            </FormField>
+            <FormField label={labels.email}>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(event) => onChange({ email: event.target.value })}
+                placeholder={labels.enterEmail}
+                className={inputClassName}
+                required
+              />
+            </FormField>
+            <FormField label={labels.mobileNumber}>
+              <input
+                value={form.mobile_number}
+                onChange={(event) => onChange({ mobile_number: event.target.value })}
+                placeholder={labels.enterMobile}
+                className={inputClassName}
+                required
+              />
+            </FormField>
+            <FormField label={labels.department}>
+              <select
+                value={form.department}
+                onChange={(event) => onChange({ department: event.target.value })}
+                className={inputClassName}
+                required
+              >
+                <option value="">{labels.selectDepartment}</option>
+                {departments.map((department) => (
+                  <option key={department} value={department}>{department}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label={labels.role}>
+              <select value={form.role} onChange={(event) => onChange({ role: event.target.value })} className={inputClassName}>
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </FormField>
+            <div className="hidden md:block" />
+            <FormField label={isEditing ? labels.newPassword : labels.password}>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(event) => onChange({ password: event.target.value })}
+                placeholder={labels.enterPassword}
+                className={inputClassName}
+                required={!isEditing}
+              />
+            </FormField>
+            <FormField label={labels.confirmPassword}>
+              <input
+                type="password"
+                value={form.password2}
+                onChange={(event) => onChange({ password2: event.target.value })}
+                placeholder={labels.confirmPasswordPlaceholder}
+                className={inputClassName}
+                required={!isEditing || Boolean(form.password)}
+              />
+            </FormField>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
+            <FormField label={labels.fullName}>
+              <input value={form.full_name} onChange={(event) => onChange({ full_name: event.target.value })} className={inputClassName} required />
+            </FormField>
+            <FormField label={labels.loginId}>
+              <input value={form.username} onChange={(event) => onChange({ username: event.target.value })} className={inputClassName} required />
+            </FormField>
+            <FormField label={labels.email}>
+              <input type="email" value={form.email} onChange={(event) => onChange({ email: event.target.value })} className={inputClassName} />
+            </FormField>
+            <FormField label={labels.mobileNumber}>
+              <input value={form.mobile_number} onChange={(event) => onChange({ mobile_number: event.target.value })} className={inputClassName} />
+            </FormField>
+            <FormField label={labels.role}>
+              <select value={form.role} onChange={(event) => onChange({ role: event.target.value })} className={inputClassName}>
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label={labels.status}>
+              <label className="flex h-11 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(event) => onChange({ is_active: event.target.checked })}
+                  className="h-4 w-4"
+                />
+                {labels.activeAccount}
+              </label>
+            </FormField>
+            <FormField label={isEditing ? labels.newPassword : labels.password}>
+              <input type="password" value={form.password} onChange={(event) => onChange({ password: event.target.value })} className={inputClassName} required={!isEditing} />
+            </FormField>
+            <FormField label={labels.confirmPassword}>
+              <input type="password" value={form.password2} onChange={(event) => onChange({ password2: event.target.value })} className={inputClassName} required={!isEditing || Boolean(form.password)} />
+            </FormField>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <Button type="button" variant="secondary" onClick={onClose}>{labels.cancel}</Button>
+          <Button type="submit" disabled={saving}>{saving ? labels.saving : view === "admins" ? labels.save : labels.saveAccount}</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function FormField({ label, children, className = "" }) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function RolePill({ account, labels }) {
+  const role = getRoleLabel(account, labels);
+  const className = account.role === "applicant"
+    ? "bg-blue-50 text-blue-700"
+    : account.role === "staff"
+      ? "bg-amber-50 text-amber-700"
+      : "bg-rose-50 text-rose-700";
+
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>
+      {role}
+    </span>
+  );
+}
+
+function compareAccounts(first, second) {
+  const firstSuperAdmin = first.role === "superadmin" ? 0 : 1;
+  const secondSuperAdmin = second.role === "superadmin" ? 0 : 1;
+
+  if (firstSuperAdmin !== secondSuperAdmin) {
+    return firstSuperAdmin - secondSuperAdmin;
+  }
+
+  return String(first.full_name || first.username || "").localeCompare(
+    String(second.full_name || second.username || "")
+  );
+}
+
+function getRoleLabel(account, labels = screenText.en) {
+  if (account.role === "applicant") return labels.userRole;
+  if (account.role === "staff") return labels.staffRole;
+  if (account.role === "superadmin") return labels.superAdminRole;
+  return labels.adminRole;
+}
+
+function formatDateTime(value, labels = screenText.en, language = "en") {
+  if (!value) return labels.never;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return labels.never;
+  const months = language === "ms"
+    ? ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogos", "Sep", "Okt", "Nov", "Dis"]
+    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hour24 = date.getHours();
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour = String(hour24 % 12 || 12).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${day} ${month} ${year}, ${hour}:${minute} ${period}`;
+}
+
+function escapeCsv(value) {
+  const text = String(value ?? "");
+  if (!/[",\n]/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function parseCsv(csv) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const char = csv[index];
+    const next = csv[index + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      field += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(field.trim());
+      field = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(field.trim());
+      rows.push(row);
+      row = [];
+      field = "";
+    } else {
+      field += char;
+    }
+  }
+
+  if (field || row.length) {
+    row.push(field.trim());
+    rows.push(row);
+  }
+
+  return rows.filter((item) => item.some(Boolean));
+}
+
+function normalizeHeader(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getMissingCsvHeaders(headers, view) {
+  if (view !== "admins") {
+    return [];
+  }
+
+  return adminCsvHeaders
+    .filter((header) => !headers.includes(header))
+    .map((header) => toCsvHeaderLabel(header));
+}
+
+function toCsvHeaderLabel(header) {
+  const labels = {
+    full_name: "Full Name",
+    nric: "NRIC",
+    email: "Email",
+    mobile_number: "Mobile Number",
+    department: "Department",
+    role: "Role",
+    password: "Password",
+    confirm_password: "Confirm Password",
+  };
+
+  return labels[header] || header;
+}
+
+function normalizeImportedRole(value) {
+  const role = String(value || "").trim().toLowerCase();
+  if (role === "user") return "applicant";
+  if (role === "staff") return "staff";
+  if (role === "admin") return "admin";
+  if (role === "superadmin") return "superadmin";
+  return "applicant";
+}
+
+export default SuperAdminDashboard;

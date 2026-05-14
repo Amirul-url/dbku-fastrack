@@ -7,7 +7,32 @@ import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 
 const adminNav = [
-  { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/dashboard/admin", icon: "dashboard" },
+  {
+    labelKey: "nav.dashboard",
+    fallback: "Dashboard",
+    path: "/dashboard/admin",
+    icon: "dashboard",
+    children: [
+      {
+        labelKey: "admin.dashboard.personalTask",
+        fallback: "Personal Task",
+        path: "/dashboard/admin?view=personal",
+        view: "personal",
+      },
+      {
+        labelKey: "admin.dashboard.awaitingApproval",
+        fallback: "Awaiting Approval",
+        path: "/dashboard/admin?view=approval",
+        view: "approval",
+      },
+    ],
+  },
+];
+
+const superAdminNav = [
+  { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/superadmin/dashboard", icon: "dashboard" },
+  { labelKey: "superadmin.nav.users", fallback: "User", path: "/superadmin/users", icon: "group" },
+  { labelKey: "superadmin.nav.admins", fallback: "Admin", path: "/superadmin/admins", icon: "admin_panel_settings" },
 ];
 
 function getApplicationStepPath(applicationId, route) {
@@ -66,9 +91,9 @@ function AppShell({ children, role = "admin" }) {
   const { t } = useLanguage();
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [adminDashboardOpen, setAdminDashboardOpen] = useState(true);
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
-  const [adminTaskMenuView, setAdminTaskMenuView] = useState("claimable");
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
@@ -76,7 +101,11 @@ function AppShell({ children, role = "admin" }) {
     location.pathname === "/applications/new" || Boolean(currentApplicationId);
   const stepApplicationId = currentApplicationId;
   const nav = useMemo(
-    () => (role === "admin" ? adminNav : buildApplicantNav(stepApplicationId, showApplicationSteps)),
+    () => {
+      if (role === "superadmin") return superAdminNav;
+      if (role === "admin") return adminNav;
+      return buildApplicantNav(stepApplicationId, showApplicationSteps);
+    },
     [role, stepApplicationId, showApplicationSteps]
   );
 
@@ -160,12 +189,17 @@ function AppShell({ children, role = "admin" }) {
               (item.path !== "/dashboard/admin" &&
                 location.pathname.startsWith(item.path));
             const activeTab = new URLSearchParams(location.search).get("tab");
+            const activeView = new URLSearchParams(location.search).get("view");
             const hasChildren = Boolean(item.children);
-            const submenuOpen = role === "applicant" && hasChildren && applicantDashboardOpen;
+            const adminDashboardItem = role === "admin" && item.path === "/dashboard/admin";
+            const submenuOpen =
+              hasChildren &&
+              ((role === "applicant" && applicantDashboardOpen) ||
+                (adminDashboardItem && adminDashboardOpen));
 
             return (
               <div key={item.path}>
-                {hasChildren && role === "applicant" ? (
+                {hasChildren && (role === "applicant" || adminDashboardItem) ? (
                   <div
                     className={`flex w-full items-center justify-between rounded-md px-3.5 py-2.5 text-left text-sm font-medium ${
                       active
@@ -175,7 +209,13 @@ function AppShell({ children, role = "admin" }) {
                   >
                     <Link
                       to={item.path}
-                      onClick={() => setApplicantDashboardOpen(true)}
+                      onClick={() => {
+                        if (role === "applicant") {
+                          setApplicantDashboardOpen(true);
+                        } else {
+                          setAdminDashboardOpen(true);
+                        }
+                      }}
                       className="flex min-w-0 flex-1 items-center gap-3"
                     >
                       <span className="material-symbols-outlined text-[20px]">
@@ -185,7 +225,13 @@ function AppShell({ children, role = "admin" }) {
                     </Link>
                     <button
                       type="button"
-                      onClick={() => setApplicantDashboardOpen((current) => !current)}
+                      onClick={() => {
+                        if (role === "applicant") {
+                          setApplicantDashboardOpen((current) => !current);
+                        } else {
+                          setAdminDashboardOpen((current) => !current);
+                        }
+                      }}
                       aria-expanded={submenuOpen}
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-emerald-100"
                     >
@@ -215,7 +261,10 @@ function AppShell({ children, role = "admin" }) {
                   <div className="mt-1.5 space-y-1.5 pl-10">
                     {item.children.map((child) => {
                       const hasNestedChildren = Boolean(child.children?.length);
-                      const childActive = activeTab === child.tab;
+                      const childActive =
+                        role === "admin"
+                          ? activeView === child.view
+                          : activeTab === child.tab;
                       const nestedActive =
                         hasNestedChildren && location.pathname.startsWith("/applications");
 
@@ -311,15 +360,6 @@ function AppShell({ children, role = "admin" }) {
               </div>
             );
           })}
-
-          {role === "admin" && (
-            <AdminTaskSidebar
-              activeView={adminTaskMenuView}
-              displayName={user?.full_name || user?.username || "System Administrator"}
-              onSelect={setAdminTaskMenuView}
-              t={t}
-            />
-          )}
         </nav>
       </aside>
 
@@ -327,7 +367,11 @@ function AppShell({ children, role = "admin" }) {
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-4 px-7">
             <div className="min-w-0">
-              {role === "admin" ? (
+              {role === "superadmin" ? (
+                <p className="truncate text-sm font-semibold text-slate-950">
+                  {t("profile.welcome")}, Super Admin
+                </p>
+              ) : role === "admin" ? (
                 <p className="truncate text-sm font-semibold text-slate-950">
                   {t("profile.welcome")}, Admin
                 </p>
@@ -365,6 +409,7 @@ function AppShell({ children, role = "admin" }) {
 
               {profileOpen && (
                 <ProfileDropdown
+                  profileTo={role === "applicant" ? "/user/profile" : role === "superadmin" ? "/superadmin/dashboard" : "/dashboard/admin"}
                   t={t}
                   onLogout={handleLogout}
                 />
@@ -382,11 +427,11 @@ function AppShell({ children, role = "admin" }) {
   );
 }
 
-function ProfileDropdown({ t, onLogout }) {
+function ProfileDropdown({ profileTo = "/user/profile", t, onLogout }) {
   return (
     <div className="absolute right-0 top-12 z-50 w-48 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl">
       <Link
-        to="/user/profile"
+        to={profileTo}
         className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
       >
         <span className="material-symbols-outlined text-[19px]">person</span>
@@ -423,74 +468,6 @@ function DashboardFooter({ t }) {
         </div>
       </div>
     </footer>
-  );
-}
-
-function AdminTaskSidebar({ activeView, displayName, onSelect, t }) {
-  return (
-    <div className="mt-3 overflow-hidden border border-slate-200 bg-slate-50">
-      <div className="bg-emerald-900 px-4 py-3 text-white">
-        <p className="text-xs font-semibold">
-          {t("admin.dashboard.welcome")} {displayName}
-        </p>
-        <p className="mt-1 text-[11px] font-semibold uppercase text-emerald-100">
-          {t("admin.dashboard.dataEntry")}
-        </p>
-      </div>
-
-      <div className="text-sm">
-        <AdminSidebarItem active label={t("admin.dashboard.application")} />
-        <AdminSidebarButton
-          active={activeView === "personal"}
-          label={t("admin.dashboard.personalTask")}
-          onClick={() => onSelect("personal")}
-        />
-        <AdminSidebarButton
-          active={activeView === "claimable"}
-          label={t("admin.dashboard.claimableTask")}
-          onClick={() => onSelect("claimable")}
-        />
-        <AdminSidebarButton
-          active={activeView === "claimed"}
-          label={t("admin.dashboard.allClaimedTask")}
-          onClick={() => onSelect("claimed")}
-        />
-        <AdminSidebarItem label={t("admin.dashboard.licenseCode")} />
-        <AdminSidebarButton
-          active={activeView === "approval"}
-          label={t("admin.dashboard.awaitingApproval")}
-          onClick={() => onSelect("approval")}
-        />
-      </div>
-    </div>
-  );
-}
-
-function AdminSidebarItem({ label, active = false }) {
-  return (
-    <div
-      className={`border-b border-white/70 px-4 py-2.5 font-semibold ${
-        active ? "bg-green-700 text-white" : "bg-lime-100 text-slate-700"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-function AdminSidebarButton({ label, active = false, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`block w-full border-b border-white/70 px-4 py-2.5 text-left transition ${
-        active
-          ? "bg-lime-200 font-semibold text-slate-950"
-          : "bg-lime-100 text-slate-700 hover:bg-lime-200"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

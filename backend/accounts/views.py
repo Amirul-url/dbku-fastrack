@@ -11,10 +11,11 @@ from datetime import date
 
 from django.core.cache import cache
 from django.core import signing
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -25,6 +26,16 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
 PASSWORD_RESET_MAX_ATTEMPTS = 5
 PASSWORD_RESET_PURPOSE = "password_reset"
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+MANAGED_ACCOUNT_ROLES = {"superadmin", "admin", "staff", "applicant"}
+
+
+class IsSuperAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role == "superadmin"
+        )
 
 
 def verify_recaptcha(token, remote_ip=""):
@@ -160,6 +171,7 @@ def build_user_payload(user):
         "full_name": full_name,
         "email": user.email,
         "role": user.role,
+        "department": user.department,
         "mykad_number": mykad_number,
         "mobile_number": user.mobile_number,
         "address": user.address,
@@ -169,6 +181,9 @@ def build_user_payload(user):
         "nationality": nationality,
         "is_staff": user.is_staff,
         "is_superuser": user.is_superuser,
+        "is_active": user.is_active,
+        "date_joined": user.date_joined.isoformat() if user.date_joined else "",
+        "last_login": user.last_login.isoformat() if user.last_login else "",
     }
 
 
@@ -418,6 +433,9 @@ def login_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
+    user.last_login = timezone.now()
+    user.save(update_fields=["last_login"])
+
     return Response(build_auth_response(user), status=status.HTTP_200_OK)
 
 
@@ -628,6 +646,156 @@ def password_reset_confirm_view(request):
         {"message": "Password reset successful. Please login with your new password."},
         status=status.HTTP_200_OK,
     )
+
+
+def split_full_name(full_name):
+    name_parts = str(full_name or "").strip().split(" ", 1)
+    return (
+        name_parts[0] if name_parts else "",
+        name_parts[1] if len(name_parts) > 1 else "",
+    )
+
+
+def normalize_managed_role(value):
+    role = str(value or "").strip().lower()
+    if role == "user":
+        return "applicant"
+    return role
+
+
+def apply_managed_account_data(user, data, require_password=False):
+    username = str(data.get("username", user.username or "")).strip()
+    email = str(data.get("email", user.email or "")).strip()
+    full_name = str(data.get("full_name", "")).strip()
+    role = normalize_managed_role(data.get("role", user.role))
+    password = data.get("password", "")
+    password2 = data.get("password2", password)
+
+    if not username:
+        return "Username is required."
+
+    if not full_name:
+        return "Full name is required."
+
+    if role not in MANAGED_ACCOUNT_ROLES:
+        return "SuperAdmin can only manage user and admin accounts."
+
+    if require_password and not password:
+        return "Password is required."
+
+    if password or password2:
+        if password != password2:
+            return "Password and Confirm Password do not match."
+        if len(password) < 8:
+            return "Password must be at least 8 characters long."
+
+    duplicate_username = User.objects.exclude(pk=user.pk).filter(username=username).exists()
+    if duplicate_username:
+        return "Username already exists."
+
+    if email and User.objects.exclude(pk=user.pk).filter(email__iexact=email).exists():
+        return "Email already exists."
+
+    first_name, last_name = split_full_name(full_name)
+    user.username = username
+    user.email = email
+    user.first_name = first_name
+    user.last_name = last_name
+    user.role = role
+    user.department = str(data.get("department", user.department or "")).strip().upper()
+    user.mykad_number = str(data.get("mykad_number", username)).strip()
+    user.mobile_number = str(data.get("mobile_number", user.mobile_number or "")).strip()
+    user.is_active = bool(data.get("is_active", True))
+
+    if role == "superadmin":
+        user.is_staff = True
+        user.is_superuser = True
+    elif role in {"admin", "staff"}:
+        user.is_staff = True
+        user.is_superuser = False
+    else:
+        user.is_staff = False
+        user.is_superuser = False
+
+    if password:
+        user.set_password(password)
+
+    return ""
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def managed_accounts_view(request):
+    if request.method == "GET":
+        role_filter = str(request.query_params.get("role", "")).strip().lower()
+        search = str(request.query_params.get("search", "")).strip()
+        queryset = User.objects.all().order_by("first_name", "username")
+
+        if role_filter in {"applicant", "user"}:
+            queryset = queryset.filter(role="applicant")
+        elif role_filter == "admin":
+            queryset = queryset.filter(role__in=["superadmin", "admin", "staff"])
+
+        if search:
+            queryset = queryset.filter(
+                username__icontains=search
+            ) | queryset.filter(
+                first_name__icontains=search
+            ) | queryset.filter(
+                last_name__icontains=search
+            ) | queryset.filter(
+                email__icontains=search
+            ) | queryset.filter(
+                department__icontains=search
+            )
+            queryset = queryset.order_by("first_name", "username")
+
+        return Response(
+            {
+                "accounts": [build_user_payload(user) for user in queryset],
+                "summary": {
+                    "users": User.objects.filter(role="applicant").count(),
+                    "admins": User.objects.filter(role__in=["superadmin", "admin", "staff"]).count(),
+                    "active": User.objects.filter(is_active=True).count(),
+                },
+            }
+        )
+
+    user = User()
+    error = apply_managed_account_data(user, request.data, require_password=True)
+    if error:
+        return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.save()
+    return Response({"account": build_user_payload(user)}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["PATCH", "DELETE"])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def managed_account_detail_view(request, user_id):
+    account = User.objects.filter(pk=user_id).first()
+
+    if not account:
+        return Response(
+            {"error": "Account not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if request.method == "DELETE":
+        if account.pk == request.user.pk:
+            return Response(
+                {"error": "You cannot delete your own superadmin account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        account.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    error = apply_managed_account_data(account, request.data)
+    if error:
+        return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+    account.save()
+    return Response({"account": build_user_payload(account)})
 
 
 @api_view(["GET", "PATCH"])

@@ -3,12 +3,14 @@ from django.db import models
 
 class User(AbstractUser):
     ROLE_CHOICES = (
+        ('superadmin', 'Super Admin'),
         ('admin', 'Admin'),
         ('staff', 'Staff'),
         ('applicant', 'Applicant'),
     )
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='applicant')
+    department = models.CharField(max_length=20, blank=True)
     mykad_number = models.CharField(max_length=12, blank=True)
     mobile_number = models.CharField(max_length=30, blank=True)
     address = models.TextField(blank=True)
