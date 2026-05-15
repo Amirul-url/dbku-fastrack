@@ -109,6 +109,10 @@ const screenText = {
     deleteFailed: "Failed to delete account.",
     loadFailed: "Failed to load accounts.",
     deleteConfirm: "Delete {name}?",
+    deleteTitle: "Delete account",
+    deleteMessage: "Are you sure you want to delete this account?",
+    deleteWarning: "This action cannot be undone.",
+    deleting: "Deleting...",
     importSuccess: "{count} account(s) imported.",
     importFailed: "CSV import failed.",
     csvMissingPassword: "CSV import requires a Password column for every account.",
@@ -217,6 +221,10 @@ const screenText = {
     deleteFailed: "Gagal memadam akaun.",
     loadFailed: "Gagal memuatkan akaun.",
     deleteConfirm: "Padam {name}?",
+    deleteTitle: "Padam akaun",
+    deleteMessage: "Adakah anda pasti mahu memadam akaun ini?",
+    deleteWarning: "Tindakan ini tidak boleh dibuat asal.",
+    deleting: "Memadam...",
     importSuccess: "{count} akaun diimport.",
     importFailed: "Import CSV gagal.",
     csvMissingPassword: "Import CSV memerlukan lajur Password untuk setiap akaun.",
@@ -474,6 +482,7 @@ function SuperAdminAccountManagement({ view }) {
   const [success, setSuccess] = useState("");
   const [editingAccount, setEditingAccount] = useState(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [pendingDeleteAccount, setPendingDeleteAccount] = useState(null);
   const [viewingAccount, setViewingAccount] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const importInputRef = useRef(null);
@@ -613,20 +622,32 @@ function SuperAdminAccountManagement({ view }) {
     }
   }
 
-  async function deleteAccount(account) {
-    const confirmed = window.confirm(
-      labels.deleteConfirm.replace("{name}", account.full_name || account.username)
-    );
-    if (!confirmed) return;
+  function requestDeleteAccount(account) {
+    setPendingDeleteAccount(account);
+    setError("");
+    setSuccess("");
+  }
+
+  function closeDeleteConfirm() {
+    if (saving) return;
+    setPendingDeleteAccount(null);
+  }
+
+  async function deleteAccount() {
+    if (!pendingDeleteAccount) return;
 
     try {
+      setSaving(true);
       setError("");
       setSuccess("");
-      await apiRequest(`/auth/accounts/${account.id}/`, { method: "DELETE" });
+      await apiRequest(`/auth/accounts/${pendingDeleteAccount.id}/`, { method: "DELETE" });
       setSuccess(labels.accountDeleted);
+      setPendingDeleteAccount(null);
       loadAccounts();
     } catch (err) {
       setError(err.message || labels.deleteFailed);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -946,7 +967,7 @@ function SuperAdminAccountManagement({ view }) {
                         )}
                         <button
                           type="button"
-                          onClick={() => deleteAccount(account)}
+                          onClick={() => requestDeleteAccount(account)}
                           className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-red-600 bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-700"
                         >
                           <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -974,6 +995,16 @@ function SuperAdminAccountManagement({ view }) {
         />
       )}
 
+      {pendingDeleteAccount && (
+        <DeleteConfirmModal
+          account={pendingDeleteAccount}
+          labels={labels}
+          saving={saving}
+          onCancel={closeDeleteConfirm}
+          onConfirm={deleteAccount}
+        />
+      )}
+
       {viewingAccount && (
         <RegistrationInfoModal
           account={viewingAccount}
@@ -983,6 +1014,52 @@ function SuperAdminAccountManagement({ view }) {
         />
       )}
     </AppShell>
+  );
+}
+
+function DeleteConfirmModal({ account, labels, saving, onCancel, onConfirm }) {
+  const accountName = account.full_name || account.username;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
+      <div className="w-full max-w-md rounded-md bg-white shadow-2xl">
+        <div className="flex items-start gap-3 border-b border-slate-200 px-5 py-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-700">
+            <span className="material-symbols-outlined text-[24px]">delete</span>
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-950">{labels.deleteTitle}</h2>
+            <p className="mt-1 text-sm leading-5 text-slate-500">{labels.deleteMessage}</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 px-5 py-4">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {labels.name}
+            </p>
+            <p className="mt-1 break-words font-semibold text-slate-950">{accountName}</p>
+            <p className="mt-1 break-words text-sm text-slate-500">{account.email || account.username}</p>
+          </div>
+          <p className="text-sm font-semibold text-red-700">{labels.deleteWarning}</p>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
+            {labels.cancel}
+          </Button>
+          <Button
+            type="button"
+            icon="delete"
+            onClick={onConfirm}
+            disabled={saving}
+            className="border-red-600 bg-red-600 text-white hover:bg-red-700"
+          >
+            {saving ? labels.deleting : labels.delete}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

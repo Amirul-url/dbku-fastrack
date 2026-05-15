@@ -796,7 +796,7 @@ def managed_accounts_view(request):
         queryset = User.objects.all().order_by("first_name", "username")
 
         if role_filter in {"applicant", "user"}:
-            queryset = queryset.filter(role="applicant")
+            queryset = queryset.filter(role__in=["applicant", "user"])
         elif role_filter == "admin":
             queryset = queryset.filter(role__in=["superadmin", "admin", "staff"])
 
@@ -825,7 +825,7 @@ def managed_accounts_view(request):
             {
                 "accounts": [build_user_payload(user) for user in queryset],
                 "summary": {
-                    "users": User.objects.filter(role="applicant").count(),
+                    "users": User.objects.filter(role__in=["applicant", "user"]).count(),
                     "admins": User.objects.filter(role__in=["superadmin", "admin", "staff"]).count(),
                     "active": User.objects.filter(is_active=True).count(),
                 },

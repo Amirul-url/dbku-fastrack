@@ -83,3 +83,40 @@ class ManagedAccountImportTests(TestCase):
 
         self.assertEqual(error, "")
         self.assertEqual(user.mobile_number, "")
+
+    def test_managed_user_list_includes_legacy_user_role(self):
+        superadmin = User.objects.get(username="superadmin")
+        superadmin.role = "superadmin"
+        superadmin.is_staff = True
+        superadmin.is_superuser = True
+        superadmin.save(update_fields=["role", "is_staff", "is_superuser"])
+        legacy_user = User.objects.create_user(
+            username="legacyuser",
+            email="legacy@example.com",
+            password="Password123",
+            role="user",
+        )
+        applicant = User.objects.create_user(
+            username="applicant",
+            email="applicant@example.com",
+            password="Password123",
+            role="applicant",
+        )
+        admin = User.objects.create_user(
+            username="admin2",
+            email="admin2@example.com",
+            password="Password123",
+            role="admin",
+            is_staff=True,
+        )
+        client = APIClient()
+        client.force_authenticate(user=superadmin)
+
+        response = client.get("/api/auth/accounts/?role=applicant")
+
+        self.assertEqual(response.status_code, 200)
+        usernames = {account["username"] for account in response.data["accounts"]}
+        self.assertIn(legacy_user.username, usernames)
+        self.assertIn(applicant.username, usernames)
+        self.assertNotIn(admin.username, usernames)
+        self.assertEqual(response.data["summary"]["users"], 2)
