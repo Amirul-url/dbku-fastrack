@@ -19,6 +19,14 @@ import {
 const NotificationContext = createContext();
 const READ_STORAGE_KEY = "fastrack_notification_read_ids";
 const POLL_INTERVAL_MS = 5000;
+const applicantNotificationStatuses = new Set([
+  "submitted",
+  "incomplete",
+  "rejected",
+  "invoice_generated",
+  "license_issued",
+]);
+const adminNotificationStatuses = new Set(["submitted"]);
 
 function readStoredIds() {
   try {
@@ -99,9 +107,23 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
 function buildApplicantNotifications(app) {
   const status = normalizeStatus(app.status);
   const reference = getApplicationReference(app);
-  const project = getProjectName(app);
   const remark = getLatestRemark(app);
   const notifications = [];
+
+  if (status === "submitted") {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "applicant",
+        "submission",
+        "success",
+        "Application submitted",
+        "Permohonan dihantar",
+        `${reference} has been submitted successfully.`,
+        `${reference} telah berjaya dihantar.`
+      )
+    );
+  }
 
   if (status === "incomplete") {
     notifications.push(
@@ -110,40 +132,10 @@ function buildApplicantNotifications(app) {
         "applicant",
         "correction",
         "error",
-        "Correction required",
-        "Pembetulan diperlukan",
-        `${reference} was returned for correction${remark ? `: ${remark}` : "."}`,
-        `${reference} dikembalikan untuk pembetulan${remark ? `: ${remark}` : "."}`
-      )
-    );
-  }
-
-  if (["submitted", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed", "management_review", "mphlg_processing", "mphlg_decision_received"].includes(status)) {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "applicant",
-        "progress",
-        "info",
-        "Application is being processed",
-        "Permohonan sedang diproses",
-        `${reference} is now at ${formatWorkflowStatus(status)} for ${project}.`,
-        `${reference} kini berada pada fasa ${formatWorkflowStatus(status)} untuk ${project}.`
-      )
-    );
-  }
-
-  if (["approved", "approved_with_conditions"].includes(status)) {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "applicant",
-        "decision",
-        "success",
-        "Application approved",
-        "Permohonan diluluskan",
-        `${reference} has been ${formatWorkflowStatus(status).toLowerCase()}${remark ? `: ${remark}` : "."}`,
-        `${reference} telah ${status === "approved" ? "diluluskan" : "diluluskan dengan syarat"}${remark ? `: ${remark}` : "."}`
+        "Application returned",
+        "Permohonan dikembalikan",
+        `${reference} was returned by ALiS${remark ? `: ${remark}` : "."}`,
+        `${reference} telah dikembalikan oleh ALiS${remark ? `: ${remark}` : "."}`
       )
     );
   }
@@ -170,25 +162,10 @@ function buildApplicantNotifications(app) {
         "applicant",
         "payment",
         "warning",
-        "Payment is required",
-        "Bayaran diperlukan",
-        `${reference} has an invoice ready. Please complete payment and upload proof.`,
-        `${reference} mempunyai bil yang sedia. Sila buat bayaran dan muat naik bukti.`
-      )
-    );
-  }
-
-  if (status === "payment_verified") {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "applicant",
-        "payment",
-        "success",
-        "Payment verified",
-        "Bayaran disahkan",
-        `${reference} payment has been verified by ALiS.`,
-        `Bayaran ${reference} telah disahkan oleh ALiS.`
+        "Payment proof required",
+        "Bukti bayaran diperlukan",
+        `${reference} has an invoice ready. Please upload your proof of payment.`,
+        `${reference} mempunyai bil yang sedia. Sila muat naik bukti bayaran anda.`
       )
     );
   }
@@ -200,10 +177,10 @@ function buildApplicantNotifications(app) {
         "applicant",
         "license",
         "success",
-        "QR e-license is ready",
-        "E-lesen QR sedia",
-        `${reference} e-license is ready to download and display at the premise.`,
-        `E-lesen ${reference} sedia dimuat turun dan dipamerkan di premis.`
+        "QR e-license generated",
+        "E-lesen QR dijana",
+        `${reference} QR e-license has been generated successfully.`,
+        `E-lesen QR ${reference} telah berjaya dijana.`
       )
     );
   }
@@ -230,127 +207,6 @@ function buildAdminNotifications(app) {
         "Permohonan IKL baharu telah dihantar",
         `${reference} (${type}) was submitted for ${project} at ${location}.`,
         `${reference} (${type}) telah dihantar untuk ${project} di ${location}.`
-      )
-    );
-  }
-
-  if (status === "ku_ikl_review") {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "screening",
-        "warning",
-        "IKL verification update",
-        "Kemas kini verifikasi IKL",
-        `${reference} is waiting for the next IKL verification step.`,
-        `${reference} sedang menunggu langkah verifikasi IKL seterusnya.`
-      )
-    );
-  }
-
-  if (["technical_review", "technical_site_visit"].includes(status)) {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "technical",
-        "info",
-        "Technical site review required",
-        "Semakan teknikal tapak diperlukan",
-        `${reference} is ready for site visit, site photo, fee/deposit calculation, and technical remarks.`,
-        `${reference} sedia untuk lawatan tapak, gambar tapak, kiraan caj/deposit dan catatan teknikal.`
-      )
-    );
-  }
-
-  if (status === "technical_review_completed") {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "approval",
-        "success",
-        "Technical review completed",
-        "Semakan teknikal selesai",
-        `${reference} is ready for KU(IKL), KB(LES), TP/PGH, and MPHLG approval flow.`,
-        `${reference} sedia untuk aliran kelulusan KU(IKL), KB(LES), TP/PGH dan MPHLG.`
-      )
-    );
-  }
-
-  if (["management_review", "mphlg_processing", "mphlg_decision_received"].includes(status)) {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "approval",
-        "info",
-        "Management or MPHLG action required",
-        "Tindakan pengurusan atau MPHLG diperlukan",
-        `${reference} is at ${formatWorkflowStatus(status)}.`,
-        `${reference} berada pada fasa ${formatWorkflowStatus(status)}.`
-      )
-    );
-  }
-
-  if (["approved", "approved_with_conditions"].includes(status)) {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "payment",
-        "success",
-        "Generate approval letter and bill",
-        "Jana surat kelulusan dan bil",
-        `${reference} was approved. PT(IKL) can generate the approval letter and invoice.`,
-        `${reference} telah diluluskan. PT(IKL) boleh jana surat kelulusan dan bil.`
-      )
-    );
-  }
-
-  if (status === "payment_submitted") {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "payment",
-        "warning",
-        "Payment proof requires verification",
-        "Bukti bayaran perlu pengesahan",
-        `${reference} payment proof was submitted and is waiting for ALiS verification.`,
-        `Bukti bayaran ${reference} telah dihantar dan menunggu pengesahan ALiS.`
-      )
-    );
-  }
-
-  if (status === "payment_verified") {
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "license",
-        "success",
-        "Generate QR e-license",
-        "Jana e-lesen QR",
-        `${reference} payment is verified. PT(IKL) can generate the QR e-license.`,
-        `Bayaran ${reference} telah disahkan. PT(IKL) boleh jana e-lesen QR.`
-      )
-    );
-  }
-
-  if (status === "license_issued") {
-    const expiryDate = app.form_data?.license?.expiry_date;
-    notifications.push(
-      buildBaseNotification(
-        app,
-        "admin",
-        "license",
-        "success",
-        "License issued",
-        "Lesen dijana",
-        `${reference} QR e-license has been issued${expiryDate ? ` and expires on ${formatDate(expiryDate)}` : "."}`,
-        `E-lesen QR ${reference} telah dijana${expiryDate ? ` dan tamat pada ${formatDate(expiryDate)}` : "."}`
       )
     );
   }
@@ -391,15 +247,22 @@ function getMessageSummary(message) {
 
 function buildNotificationsFromDeliveries(deliveries, user) {
   const role = getNormalizedRole(user);
+  const allowedStatuses =
+    role === "admin" ? adminNotificationStatuses : applicantNotificationStatuses;
 
   return deliveries
+    .filter((delivery) => {
+      const metadata = delivery.metadata || {};
+      const eventStatus = normalizeStatus(metadata.event_status || delivery.status);
+      return allowedStatuses.has(eventStatus);
+    })
     .map((delivery) => {
       const metadata = delivery.metadata || {};
       const category = metadata.category || "progress";
       const type = metadata.type || "info";
       const title = metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject);
       const message = metadata.message_en || metadata.message || getMessageSummary(delivery.message);
-      const status = normalizeStatus(delivery.status);
+      const status = normalizeStatus(metadata.event_status || delivery.status);
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
 
       return {
@@ -450,8 +313,9 @@ export function NotificationProvider({ children }) {
       setError("");
       const data = await apiRequest("/notifications/");
       const list = Array.isArray(data) ? data : data?.results || [];
-      if (list.length > 0) {
-        setNotifications(buildNotificationsFromDeliveries(list, user));
+      const deliveryNotifications = buildNotificationsFromDeliveries(list, user);
+      if (deliveryNotifications.length > 0) {
+        setNotifications(deliveryNotifications);
       } else {
         const fallbackData = await apiRequest("/applications/");
         const fallbackList = Array.isArray(fallbackData)

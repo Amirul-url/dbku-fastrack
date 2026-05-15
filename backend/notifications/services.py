@@ -24,119 +24,50 @@ STATUS_MESSAGES = {
         "New application {reference} has been submitted and is waiting for review.",
     ),
     "incomplete": (
-        "Application requires amendment",
-        "Your application {reference} requires amendment. Please review the remark below and update your application.",
-        "Application {reference} has been returned to the applicant for amendment.",
-    ),
-    "ku_ikl_review": (
-        "Application moved to KU(IKL) review",
-        "Your application {reference} is now in KU(IKL) review.",
-        "Application {reference} is now in KU(IKL) review.",
-    ),
-    "technical_review": (
-        "Application moved to technical review",
-        "Your application {reference} is now in technical review.",
-        "Application {reference} is ready for technical review.",
-    ),
-    "technical_site_visit": (
-        "Technical site visit required",
-        "Your application {reference} requires a technical site visit.",
-        "Application {reference} requires a technical site visit.",
-    ),
-    "technical_amendment": (
-        "Technical amendment required",
-        "Your application {reference} requires technical amendment. Please review the remark below.",
-        "Application {reference} requires technical amendment.",
-    ),
-    "technical_review_completed": (
-        "Technical review completed",
-        "Technical review for application {reference} has been completed.",
-        "Technical review for application {reference} has been completed.",
-    ),
-    "management_review": (
-        "Application moved to management review",
-        "Your application {reference} is now in management review.",
-        "Application {reference} is now in management review.",
-    ),
-    "mphlg_processing": (
-        "Application moved to MPHLG processing",
-        "Your application {reference} is now in MPHLG processing.",
-        "Application {reference} is now in MPHLG processing.",
-    ),
-    "mphlg_decision_received": (
-        "MPHLG decision received",
-        "MPHLG decision for application {reference} has been received.",
-        "MPHLG decision for application {reference} has been received.",
-    ),
-    "approved": (
-        "Application approved",
-        "Your application {reference} has been approved.",
-        "Application {reference} has been approved.",
-    ),
-    "approved_with_conditions": (
-        "Application approved with conditions",
-        "Your application {reference} has been approved with conditions. Please review the condition below.",
-        "Application {reference} has been approved with conditions. Please review the condition below.",
+        "Application returned",
+        "Your application {reference} was returned by ALiS. Please review the remark below and update your application.",
+        "",
     ),
     "rejected": (
         "Application rejected",
         "Your application {reference} has been rejected. Please review the remark below.",
-        "Application {reference} has been rejected.",
+        "",
     ),
     "invoice_generated": (
-        "Invoice generated",
-        "Invoice for application {reference} has been generated. Please proceed with payment.",
-        "Invoice for application {reference} has been generated.",
-    ),
-    "payment_submitted": (
-        "Payment proof submitted",
-        "Payment proof for application {reference} has been submitted.",
-        "Payment proof for application {reference} has been submitted and needs verification.",
-    ),
-    "payment_verified": (
-        "Payment verified",
-        "Payment for application {reference} has been verified. Please review any verification note below.",
-        "Payment for application {reference} has been verified. Please review any verification note below.",
+        "Payment proof required",
+        "Invoice for application {reference} has been generated. Please upload your proof of payment.",
+        "",
     ),
     "license_issued": (
-        "E-license issued",
-        "Your e-license for application {reference} has been issued.",
-        "E-license for application {reference} has been issued.",
-    ),
-    "license_revoked": (
-        "License revoked",
-        "License for application {reference} has been revoked.",
-        "License for application {reference} has been revoked.",
+        "QR e-license generated",
+        "Your QR e-license for application {reference} has been generated successfully.",
+        "",
     ),
 }
 
 STATUS_UI = {
-    "submitted": ("progress", "info"),
+    "submitted": ("submission", "success"),
     "incomplete": ("correction", "error"),
-    "ku_ikl_review": ("progress", "info"),
-    "technical_review": ("technical", "info"),
-    "technical_site_visit": ("technical", "warning"),
-    "technical_amendment": ("correction", "error"),
-    "technical_review_completed": ("technical", "success"),
-    "management_review": ("approval", "info"),
-    "mphlg_processing": ("approval", "info"),
-    "mphlg_decision_received": ("approval", "info"),
-    "approved": ("decision", "success"),
-    "approved_with_conditions": ("decision", "warning"),
     "rejected": ("decision", "error"),
     "invoice_generated": ("payment", "warning"),
-    "payment_submitted": ("payment", "warning"),
-    "payment_verified": ("payment", "success"),
     "license_issued": ("license", "success"),
-    "license_revoked": ("license", "error"),
 }
+
+APPLICANT_NOTIFICATION_STATUSES = {
+    "submitted",
+    "incomplete",
+    "rejected",
+    "invoice_generated",
+    "license_issued",
+}
+
+ADMIN_NOTIFICATION_STATUSES = {"submitted"}
+
+NOTIFIABLE_STATUSES = APPLICANT_NOTIFICATION_STATUSES | ADMIN_NOTIFICATION_STATUSES
 
 REMARK_REPEAT_STATUSES = {
     "incomplete",
-    "technical_amendment",
-    "approved_with_conditions",
     "rejected",
-    "payment_verified",
 }
 
 
@@ -148,7 +79,7 @@ def notify_application_status_change(application, old_status=None, old_remark=No
     status_changed = previous_status != new_status
     remark_changed = current_remark != previous_remark
 
-    if not new_status or new_status == "draft":
+    if new_status not in NOTIFIABLE_STATUSES:
         return
 
     if not status_changed and not (
@@ -238,10 +169,8 @@ def build_status_messages(application):
 
 
 def build_web_metadata(application, title, body, recipient_role):
-    category, notification_type = STATUS_UI.get(
-        str(application.status or "").strip().lower(),
-        ("progress", "info"),
-    )
+    status_key = str(application.status or "").strip().lower()
+    category, notification_type = STATUS_UI.get(status_key, ("progress", "info"))
     remark = get_message_remark(application)
     display_message = body
 
@@ -256,6 +185,7 @@ def build_web_metadata(application, title, body, recipient_role):
         "message": display_message,
         "message_en": display_message,
         "recipient_role": recipient_role,
+        "event_status": status_key,
     }
 
 
@@ -326,13 +256,14 @@ def clean_remark(value):
 
 def build_recipients(application, messages):
     recipients = []
+    status_key = str(application.status or "").strip().lower()
     subject = messages["subject"]
     applicant_message = messages["applicant_message"]
     admin_message = messages["admin_message"]
     applicant_metadata = messages["applicant_metadata"]
     admin_metadata = messages["admin_metadata"]
 
-    if application.applicant_id:
+    if status_key in APPLICANT_NOTIFICATION_STATUSES and application.applicant_id:
         recipients.append({
             "user": application.applicant,
             "recipient_role": "applicant",
@@ -343,27 +274,30 @@ def build_recipients(application, messages):
             "metadata": applicant_metadata,
         })
 
-    for email in get_applicant_emails(application):
-        recipients.append({
-            "user": application.applicant,
-            "recipient_role": "applicant",
-            "channel": "email",
-            "recipient": email,
-            "subject": subject,
-            "message": applicant_message,
-            "metadata": applicant_metadata,
-        })
+        for email in get_applicant_emails(application):
+            recipients.append({
+                "user": application.applicant,
+                "recipient_role": "applicant",
+                "channel": "email",
+                "recipient": email,
+                "subject": subject,
+                "message": applicant_message,
+                "metadata": applicant_metadata,
+            })
 
-    for phone in get_applicant_whatsapp_numbers(application):
-        recipients.append({
-            "user": application.applicant,
-            "recipient_role": "applicant",
-            "channel": "whatsapp",
-            "recipient": phone,
-            "subject": subject,
-            "message": applicant_message,
-            "metadata": applicant_metadata,
-        })
+        for phone in get_applicant_whatsapp_numbers(application):
+            recipients.append({
+                "user": application.applicant,
+                "recipient_role": "applicant",
+                "channel": "whatsapp",
+                "recipient": phone,
+                "subject": subject,
+                "message": applicant_message,
+                "metadata": applicant_metadata,
+            })
+
+    if status_key not in ADMIN_NOTIFICATION_STATUSES:
+        return dedupe_recipients(recipients)
 
     for user in get_admin_web_recipients():
         recipients.append({

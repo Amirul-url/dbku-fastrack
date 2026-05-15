@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from .models import NotificationDelivery
 from .serializers import NotificationDeliverySerializer
+from .services import ADMIN_NOTIFICATION_STATUSES, APPLICANT_NOTIFICATION_STATUSES
 
 
 class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -12,10 +13,17 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        allowed_event_statuses = (
+            ADMIN_NOTIFICATION_STATUSES
+            if self.request.user.role in ["admin", "staff"]
+            else APPLICANT_NOTIFICATION_STATUSES
+        )
+
         return (
             NotificationDelivery.objects.filter(
                 channel="web",
                 user=self.request.user,
+                metadata__event_status__in=allowed_event_statuses,
             )
             .select_related("application")
             .order_by("-created_at")
