@@ -860,7 +860,7 @@ function SuperAdminAccountManagement({ view }) {
                   <col className="w-[105px]" />
                   <col className="w-[120px]" />
                   <col className="w-[95px]" />
-                  <col className="w-[125px]" />
+                  <col className="w-[170px]" />
                   <col className="w-[210px]" />
                 </>
               ) : (
@@ -869,7 +869,7 @@ function SuperAdminAccountManagement({ view }) {
                   <col className="w-[150px]" />
                   <col className="w-[260px]" />
                   <col className="w-[150px]" />
-                  <col className="w-[125px]" />
+                  <col className="w-[170px]" />
                   <col className="w-[270px]" />
                 </>
               )}
@@ -912,7 +912,7 @@ function SuperAdminAccountManagement({ view }) {
                 filteredAccounts.map((account) => (
                   <tr key={account.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-semibold text-slate-950">
-                      {account.full_name || account.username}
+                      <span className="block truncate">{account.full_name || account.username}</span>
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       <span className="block truncate">{account.username}</span>
@@ -949,7 +949,7 @@ function SuperAdminAccountManagement({ view }) {
                       </td>
                     )}
                     <td className="px-4 py-3 text-slate-700">
-                      <span className="!text-xs leading-5 text-slate-600">
+                      <span className="block whitespace-nowrap !text-xs leading-5 text-slate-600">
                         {account.last_login ? formatCompactDateTime(account.last_login, labels, language) : "-"}
                       </span>
                     </td>
@@ -1450,12 +1450,13 @@ function formatCompactDateTime(value, labels = screenText.en, language = "en") {
     : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const day = date.getDate();
   const month = months[date.getMonth()];
+  const year = date.getFullYear();
   const hour24 = date.getHours();
   const period = hour24 >= 12 ? "PM" : "AM";
   const hour = String(hour24 % 12 || 12).padStart(2, "0");
   const minute = String(date.getMinutes()).padStart(2, "0");
 
-  return `${day} ${month}, ${hour}:${minute} ${period}`;
+  return `${day} ${month} ${year}, ${hour}:${minute} ${period}`;
 }
 
 function formatDateOnly(value, labels = screenText.en, language = "en") {
