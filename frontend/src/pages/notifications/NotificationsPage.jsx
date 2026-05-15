@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import AppShell from "../../layout/AppShell";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
@@ -9,7 +10,7 @@ import {
   PageHeader,
   StatusPill,
 } from "../../components/ui/SystemUI";
-import { isAdminUser, getStoredUser } from "../../services/api";
+import { isAdminUser, isSuperAdminUser, getStoredUser } from "../../services/api";
 import { formatDate } from "../../utils/workflow";
 
 const filters = [
@@ -61,7 +62,12 @@ function NotificationsPage() {
   } = useNotifications();
   const { language, t } = useLanguage();
   const [filter, setFilter] = useState("all");
-  const Layout = isAdminUser(getStoredUser()) ? AdminDashboardLayout : UserDashboardLayout;
+  const storedUser = getStoredUser();
+  const Layout = isSuperAdminUser(storedUser)
+    ? SuperAdminNotificationsLayout
+    : isAdminUser(storedUser)
+      ? AdminDashboardLayout
+      : UserDashboardLayout;
 
   const activeFilters = useMemo(() => {
     const categories = new Set(notifications.map((item) => item.category));
@@ -269,6 +275,10 @@ function NotificationsPage() {
       </section>
     </Layout>
   );
+}
+
+function SuperAdminNotificationsLayout({ children }) {
+  return <AppShell role="superadmin">{children}</AppShell>;
 }
 
 export default NotificationsPage;
