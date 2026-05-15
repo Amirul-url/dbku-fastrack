@@ -482,6 +482,7 @@ function AppShell({ children, role = "admin" }) {
 
               {profileOpen && (
                 <ProfileDropdown
+                  role={role}
                   t={t}
                   onLogout={handleLogout}
                 />
@@ -570,9 +571,18 @@ function ApplicationStepLinks({
   );
 }
 
-function ProfileDropdown({ t, onLogout }) {
+function ProfileDropdown({ role, t, onLogout }) {
   return (
     <div className="absolute right-0 top-12 z-50 w-48 rounded-md border border-slate-200 bg-white p-1.5 shadow-xl">
+      {role === "applicant" && (
+        <Link
+          to="/user/profile"
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
+        >
+          <span className="material-symbols-outlined text-[19px]">account_circle</span>
+          {t("profile.profile")}
+        </Link>
+      )}
       <button
         type="button"
         onClick={onLogout}
