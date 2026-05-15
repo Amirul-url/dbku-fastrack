@@ -156,14 +156,17 @@ export async function refreshAccessToken() {
 }
 
 export async function apiRequest(path, options = {}) {
-  let token = localStorage.getItem("fastrack_access_token");
+  const isPublicAuthRequest =
+    path.startsWith("/auth/login/") ||
+    path.startsWith("/auth/register/") ||
+    path.startsWith("/auth/password-reset/") ||
+    path.startsWith("/token/");
+  let token = isPublicAuthRequest
+    ? null
+    : localStorage.getItem("fastrack_access_token");
 
   const isFormData = options.body instanceof FormData;
-  const canRefreshAuth =
-    Boolean(token) &&
-    !path.startsWith("/auth/login/") &&
-    !path.startsWith("/auth/register/") &&
-    !path.startsWith("/token/");
+  const canRefreshAuth = Boolean(token) && !isPublicAuthRequest;
 
   const makeRequest = async (accessToken) => {
     return fetch(`${API_URL}${path}`, {

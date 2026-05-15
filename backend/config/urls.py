@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.http import JsonResponse
 from django.views.static import serve
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from django.conf import settings
 from django.conf.urls.static import static
@@ -17,6 +18,7 @@ urlpatterns = [
     path("", home),
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/applications/", include("applications.urls")),
     path("api/notifications/", include("notifications.urls")),
 ]

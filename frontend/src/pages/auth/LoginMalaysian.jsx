@@ -2,7 +2,7 @@ import { useState } from "react";
 import AuthLayout from "../../layout/AuthLayout";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest, getUserRedirectPath, saveAuthSession } from "../../services/api";
+import { apiRequest, clearAuthSession, getUserRedirectPath, saveAuthSession } from "../../services/api";
 
 const ADMIN_LOGIN_IDS = ["admin", "superadmin"];
 
@@ -85,6 +85,7 @@ function LoginMalaysian() {
 
     try {
       setLoading(true);
+      clearAuthSession();
 
       const data = await apiRequest("/auth/login/", {
         method: "POST",

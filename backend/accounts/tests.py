@@ -63,6 +63,24 @@ class ManagedAccountImportTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
+    def test_login_ignores_invalid_existing_bearer_token(self):
+        User.objects.create_user(
+            username="validuser",
+            password="Password123",
+            role="applicant",
+        )
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION="Bearer invalid-token")
+
+        response = client.post(
+            "/api/auth/login/",
+            {"username": "validuser", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+
     def test_managed_account_dash_mobile_is_saved_as_empty(self):
         user = User()
         error = apply_managed_account_data(
