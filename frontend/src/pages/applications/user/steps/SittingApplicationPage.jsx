@@ -6,6 +6,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
+  normalizeFileUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
 import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
@@ -104,8 +105,16 @@ function SittingApplicationPage({
       setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
 
       const savedSiteImage = step1.site_image || null;
+      const savedSiteImageUrl = normalizeFileUrl(
+        savedSiteImage?.url ||
+          savedSiteImage?.file_url ||
+          savedSiteImage?.file ||
+          step1.site_image_url ||
+          step1.site_image_preview ||
+          ""
+      );
       setSiteImageName(savedSiteImage?.name || step1.site_image_name || "");
-      setSiteImagePreview(savedSiteImage?.url || step1.site_image_preview || "");
+      setSiteImagePreview(savedSiteImageUrl);
       setSiteImageFile(null);
       setSiteImageAttachment(savedSiteImage);
 

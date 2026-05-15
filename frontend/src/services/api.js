@@ -1,5 +1,6 @@
 const API_URL =
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+const LOCAL_FILE_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 const SIDEBAR_SESSION_KEYS = [
   "fastrack_admin_dashboard_menu_open",
   "fastrack_admin_applications_menu_open",
@@ -12,6 +13,53 @@ function clearSidebarSessionState() {
     });
   } catch {
     // Session storage can be unavailable in some browser privacy modes.
+  }
+}
+
+function getApiOrigin() {
+  try {
+    return new URL(API_URL, window.location.origin).origin;
+  } catch {
+    return "";
+  }
+}
+
+function isInternalFileHost(hostname = "") {
+  const normalized = hostname.toLowerCase();
+
+  return (
+    LOCAL_FILE_HOSTS.has(normalized) ||
+    normalized === "backend" ||
+    normalized.endsWith(".internal")
+  );
+}
+
+export function normalizeFileUrl(url) {
+  if (!url || typeof url !== "string") return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+
+  const apiOrigin = getApiOrigin();
+
+  if (!apiOrigin) return url;
+
+  try {
+    const parsed = new URL(url, apiOrigin);
+
+    if (parsed.pathname.startsWith("/media/")) {
+      const apiUrl = new URL(apiOrigin);
+      const shouldUseApiOrigin =
+        url.startsWith("/") ||
+        isInternalFileHost(parsed.hostname) ||
+        parsed.hostname !== apiUrl.hostname;
+
+      if (shouldUseApiOrigin) {
+        return `${apiOrigin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+      }
+    }
+
+    return parsed.href;
+  } catch {
+    return url;
   }
 }
 
@@ -250,7 +298,7 @@ export async function uploadApplicationDocument(applicationId, title, file) {
     size: file.size,
     type: file.type,
     lastModified: file.lastModified,
-    url: document.file_url || document.file,
+    url: normalizeFileUrl(document.file_url || document.file),
     file: document.file,
     uploaded_at: document.uploaded_at,
   };

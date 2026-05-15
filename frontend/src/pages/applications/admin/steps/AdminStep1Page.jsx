@@ -5,6 +5,7 @@ import AdminDashboardLayout from "../../../../layout/AdminDashboardLayout";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   apiRequest,
+  normalizeFileUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
 import AdminApplicationStepNav from "../AdminApplicationStepNav";
@@ -79,8 +80,16 @@ function AdminStep1Page() {
       setAmountFundApproved(step1.amount_fund_approved || "");
 
       const savedSiteImage = step1.site_image || null;
+      const savedSiteImageUrl = normalizeFileUrl(
+        savedSiteImage?.url ||
+          savedSiteImage?.file_url ||
+          savedSiteImage?.file ||
+          step1.site_image_url ||
+          step1.site_image_preview ||
+          ""
+      );
       setSiteImageName(savedSiteImage?.name || step1.site_image_name || "");
-      setSiteImagePreview(savedSiteImage?.url || step1.site_image_preview || "");
+      setSiteImagePreview(savedSiteImageUrl);
       setSiteImageFile(null);
       setSiteImageAttachment(savedSiteImage);
 
