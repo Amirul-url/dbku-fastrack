@@ -19,6 +19,8 @@ class NotificationDelivery(models.Model):
     application = models.ForeignKey(
         "applications.Application",
         on_delete=models.CASCADE,
+        blank=True,
+        null=True,
         related_name="notification_deliveries",
     )
     user = models.ForeignKey(

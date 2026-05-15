@@ -4,21 +4,30 @@ from .models import NotificationDelivery
 
 
 class NotificationDeliverySerializer(serializers.ModelSerializer):
-    application_id = serializers.IntegerField(source="application.id", read_only=True)
-    reference_no = serializers.CharField(
-        source="application.reference_no",
-        read_only=True,
-    )
-    project = serializers.CharField(source="application.title", read_only=True)
-    status = serializers.CharField(source="application.status", read_only=True)
-    latest_remark = serializers.CharField(
-        source="application.latest_remark",
-        read_only=True,
-    )
-    application_updated_at = serializers.DateTimeField(
-        source="application.updated_at",
-        read_only=True,
-    )
+    application_id = serializers.SerializerMethodField()
+    reference_no = serializers.SerializerMethodField()
+    project = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    latest_remark = serializers.SerializerMethodField()
+    application_updated_at = serializers.SerializerMethodField()
+
+    def get_application_id(self, obj):
+        return obj.application_id
+
+    def get_reference_no(self, obj):
+        return getattr(obj.application, "reference_no", None)
+
+    def get_project(self, obj):
+        return getattr(obj.application, "title", None)
+
+    def get_status(self, obj):
+        return getattr(obj.application, "status", None)
+
+    def get_latest_remark(self, obj):
+        return getattr(obj.application, "latest_remark", None)
+
+    def get_application_updated_at(self, obj):
+        return getattr(obj.application, "updated_at", None)
 
     class Meta:
         model = NotificationDelivery

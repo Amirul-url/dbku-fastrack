@@ -1,12 +1,13 @@
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
 
 from accounts.models import User
 from applications.models import Application
 
 from .models import NotificationDelivery
-from .services import notify_application_status_change
+from .services import notify_account_created, notify_application_status_change
 from .services import send_brevo_email, send_webhook_whatsapp
 
 
@@ -114,3 +115,67 @@ class NotificationRoutingTests(TestCase):
         self.notify_status("payment_verified", old_status="payment_submitted")
 
         self.assertFalse(NotificationDelivery.objects.exists())
+
+
+class SuperAdminAccountNotificationTests(TestCase):
+    def setUp(self):
+        User.objects.filter(role="superadmin").delete()
+        self.superadmin = User.objects.create_user(
+            username="superadmin",
+            email="superadmin@example.com",
+            password="Password123",
+            role="superadmin",
+            is_active=True,
+        )
+        self.admin = User.objects.create_user(
+            username="admin2",
+            email="admin@example.com",
+            password="Password123",
+            role="admin",
+            is_active=True,
+        )
+
+    def test_account_created_notification_is_web_only_for_superadmin(self):
+        account = User.objects.create_user(
+            username="newuser",
+            email="newuser@example.com",
+            password="Password123",
+            role="applicant",
+            first_name="NEW",
+            last_name="USER",
+        )
+
+        notify_account_created(account, created_by=self.admin)
+
+        deliveries = NotificationDelivery.objects.filter(metadata__event_status="account_created")
+        self.assertEqual(deliveries.count(), 1)
+        delivery = deliveries.get()
+        self.assertIsNone(delivery.application_id)
+        self.assertEqual(delivery.user, self.superadmin)
+        self.assertEqual(delivery.recipient_role, "superadmin")
+        self.assertEqual(delivery.channel, "web")
+        self.assertEqual(delivery.status, "sent")
+        self.assertEqual(delivery.metadata["account_name"], "NEW USER")
+        self.assertFalse(NotificationDelivery.objects.filter(channel__in=["email", "whatsapp"]).exists())
+
+    def test_superadmin_notification_endpoint_includes_account_created(self):
+        account = User.objects.create_user(
+            username="newadmin",
+            email="newadmin@example.com",
+            password="Password123",
+            role="admin",
+            first_name="NEW",
+            last_name="ADMIN",
+        )
+        notify_account_created(account)
+
+        client = APIClient()
+        client.force_authenticate(user=self.superadmin)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["application_id"], None)
+        self.assertEqual(data[0]["metadata"]["event_status"], "account_created")
+        self.assertEqual(data[0]["metadata"]["action_url"], "/superadmin/admins")

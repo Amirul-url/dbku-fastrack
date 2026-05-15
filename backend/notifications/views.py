@@ -5,7 +5,11 @@ from rest_framework.response import Response
 
 from .models import NotificationDelivery
 from .serializers import NotificationDeliverySerializer
-from .services import ADMIN_NOTIFICATION_STATUSES, APPLICANT_NOTIFICATION_STATUSES
+from .services import (
+    ADMIN_NOTIFICATION_STATUSES,
+    APPLICANT_NOTIFICATION_STATUSES,
+    SUPERADMIN_NOTIFICATION_STATUSES,
+)
 
 
 class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -13,11 +17,12 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        allowed_event_statuses = (
-            ADMIN_NOTIFICATION_STATUSES
-            if self.request.user.role in ["admin", "staff"]
-            else APPLICANT_NOTIFICATION_STATUSES
-        )
+        if self.request.user.role == "superadmin":
+            allowed_event_statuses = SUPERADMIN_NOTIFICATION_STATUSES
+        elif self.request.user.role in ["admin", "staff"]:
+            allowed_event_statuses = ADMIN_NOTIFICATION_STATUSES
+        else:
+            allowed_event_statuses = APPLICANT_NOTIFICATION_STATUSES
 
         return (
             NotificationDelivery.objects.filter(

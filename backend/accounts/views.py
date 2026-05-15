@@ -20,6 +20,8 @@ from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from notifications.services import notify_account_created
+
 User = get_user_model()
 
 PASSWORD_RESET_TTL_SECONDS = 10 * 60
@@ -482,6 +484,7 @@ def register_view(request):
         user.first_name, user.last_name = split_full_name(full_name)
 
     user.save()
+    notify_account_created(user)
 
     return Response(build_auth_response(user), status=status.HTTP_201_CREATED)
 
@@ -850,6 +853,7 @@ def managed_accounts_view(request):
         return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
 
     user.save()
+    notify_account_created(user, created_by=request.user)
     return Response({"account": build_user_payload(user)}, status=status.HTTP_201_CREATED)
 
 

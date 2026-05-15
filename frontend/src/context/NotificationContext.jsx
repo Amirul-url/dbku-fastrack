@@ -5,6 +5,7 @@ import {
   getStoredUser,
   isAdminUser,
   isApplicantUser,
+  isSuperAdminUser,
 } from "../services/api";
 import {
   formatDate,
@@ -27,6 +28,7 @@ const applicantNotificationStatuses = new Set([
   "license_issued",
 ]);
 const adminNotificationStatuses = new Set(["submitted"]);
+const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
   try {
@@ -248,7 +250,11 @@ function getMessageSummary(message) {
 function buildNotificationsFromDeliveries(deliveries, user) {
   const role = getNormalizedRole(user);
   const allowedStatuses =
-    role === "admin" ? adminNotificationStatuses : applicantNotificationStatuses;
+    role === "superadmin"
+      ? superadminNotificationStatuses
+      : role === "admin"
+        ? adminNotificationStatuses
+        : applicantNotificationStatuses;
 
   return deliveries
     .filter((delivery) => {
@@ -269,8 +275,8 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         id: `web:${delivery.id}`,
         serverId: delivery.id,
         appId: delivery.application_id,
-        reference: delivery.reference_no || "-",
-        project: delivery.project || "-",
+        reference: delivery.reference_no || metadata.account_username || "-",
+        project: delivery.project || metadata.account_name || "-",
         status,
         statusLabel: formatWorkflowStatus(status),
         category,
@@ -283,7 +289,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         messageMs: metadata.message_ms || message,
         time: formatDate(timestamp),
         timestamp,
-        actionUrl: getNotificationUrl(role, { id: delivery.application_id }, category),
+        actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category),
         read: Boolean(delivery.read_at),
       };
     })
@@ -301,7 +307,7 @@ export function NotificationProvider({ children }) {
     const token = localStorage.getItem("fastrack_access_token");
     const user = getStoredUser();
 
-    if (!token || (!isAdminUser(user) && !isApplicantUser(user))) {
+    if (!token || (!isSuperAdminUser(user) && !isAdminUser(user) && !isApplicantUser(user))) {
       setNotifications([]);
       setError("");
       setLastSyncedAt("");
@@ -314,7 +320,7 @@ export function NotificationProvider({ children }) {
       const data = await apiRequest("/notifications/");
       const list = Array.isArray(data) ? data : data?.results || [];
       const deliveryNotifications = buildNotificationsFromDeliveries(list, user);
-      if (deliveryNotifications.length > 0) {
+      if (deliveryNotifications.length > 0 || isSuperAdminUser(user)) {
         setNotifications(deliveryNotifications);
       } else {
         const fallbackData = await apiRequest("/applications/");
@@ -392,7 +398,7 @@ export function NotificationProvider({ children }) {
     const readSet = new Set(readIds);
     return notifications.map((item) => ({
       ...item,
-      read: readSet.has(item.id),
+      read: Boolean(item.read || readSet.has(item.id)),
     }));
   }, [notifications, readIds]);
 

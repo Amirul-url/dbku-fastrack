@@ -63,6 +63,8 @@ APPLICANT_NOTIFICATION_STATUSES = {
 
 ADMIN_NOTIFICATION_STATUSES = {"submitted"}
 
+SUPERADMIN_NOTIFICATION_STATUSES = {"account_created"}
+
 NOTIFIABLE_STATUSES = APPLICANT_NOTIFICATION_STATUSES | ADMIN_NOTIFICATION_STATUSES
 
 REMARK_REPEAT_STATUSES = {
@@ -96,6 +98,75 @@ def notify_application_status_change(application, old_status=None, old_remark=No
             event_key=event_key,
             **recipient,
         )
+
+
+def notify_account_created(account, created_by=None):
+    if not getattr(account, "pk", None):
+        return
+
+    subject, message, metadata = build_account_created_message(account, created_by)
+    event_key = f"account:{account.pk}:created"
+
+    for user in get_superadmin_web_recipients():
+        create_and_send_delivery(
+            application=None,
+            event_key=event_key,
+            user=user,
+            recipient_role="superadmin",
+            channel="web",
+            recipient=get_web_recipient(user),
+            subject=subject,
+            message=message,
+            metadata=metadata,
+        )
+
+
+def build_account_created_message(account, created_by=None):
+    role = normalize_account_role(getattr(account, "role", ""))
+    account_name = normalize_account_name(account)
+    username = str(getattr(account, "username", "") or "").strip()
+    creator_name = normalize_account_name(created_by) if created_by else ""
+    role_label = get_account_role_label(role)
+    title = f"New {role_label} account created"
+    body = f"{role_label} account {account_name} was created successfully."
+
+    if creator_name:
+        body = f"{body} Created by {creator_name}."
+
+    subject = f"{APP_BRAND_NAME} - {title}"
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        title,
+        f"Name: {account_name}",
+        f"Role: {role_label}",
+    ]
+
+    if username:
+        lines.append(f"Login ID: {username}")
+
+    if creator_name:
+        lines.append(f"Created by: {creator_name}")
+
+    lines.extend(["", body])
+
+    metadata = {
+        "category": "account",
+        "type": "success",
+        "title": title,
+        "title_en": title,
+        "message": body,
+        "message_en": body,
+        "recipient_role": "superadmin",
+        "event_status": "account_created",
+        "account_id": account.pk,
+        "account_role": role,
+        "account_name": account_name,
+        "account_username": username,
+        "action_url": "/superadmin/users" if role in {"applicant", "user"} else "/superadmin/admins",
+    }
+
+    return subject, "\n".join(lines), metadata
 
 
 def build_event_key(application, status_key, remark_changed=False):
@@ -408,8 +479,43 @@ def get_admin_web_recipients():
     return list(User.objects.filter(role__in=["admin", "staff"]))
 
 
+def get_superadmin_web_recipients():
+    User = get_user_model()
+    return list(User.objects.filter(role="superadmin", is_active=True))
+
+
 def get_web_recipient(user):
     return f"user:{user.id}"
+
+
+def normalize_account_role(value):
+    role = str(value or "").strip().lower()
+    if role == "user":
+        return "applicant"
+    if role in {"superadmin", "admin", "staff", "applicant"}:
+        return role
+    return "account"
+
+
+def get_account_role_label(role):
+    if role in {"applicant", "user"}:
+        return "USER"
+    if role == "superadmin":
+        return "SUPERADMIN"
+    if role == "admin":
+        return "ADMIN"
+    if role == "staff":
+        return "STAFF"
+    return "ACCOUNT"
+
+
+def normalize_account_name(user):
+    if not user:
+        return ""
+
+    name = f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}"
+    normalized = " ".join(str(name or "").strip().upper().split())
+    return normalized or str(getattr(user, "username", "") or "").strip().upper()
 
 
 def get_admin_whatsapp_numbers():

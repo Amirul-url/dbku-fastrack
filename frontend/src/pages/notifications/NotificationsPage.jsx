@@ -16,6 +16,7 @@ import { formatDate } from "../../utils/workflow";
 const filters = [
   { value: "all", labelKey: "notifications.filter.all", fallback: "All" },
   { value: "unread", labelKey: "notifications.filter.unread", fallback: "Unread" },
+  { value: "account", labelKey: "notifications.filter.account", fallback: "Account" },
   { value: "submission", labelKey: "notifications.filter.submission", fallback: "Submission" },
   { value: "screening", labelKey: "notifications.filter.screening", fallback: "Screening" },
   { value: "technical", labelKey: "notifications.filter.technical", fallback: "Technical" },
