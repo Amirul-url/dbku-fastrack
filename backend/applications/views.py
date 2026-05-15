@@ -3,7 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404
 from django.db.models import Q
+import mimetypes
 from .models import Application, SupportingDocument
 from .serializers import (
     ApplicationListSerializer,
@@ -107,6 +110,33 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"documents/(?P<document_id>[^/.]+)/download",
+    )
+    def download_document(self, request, pk=None, document_id=None):
+        application = self.get_object()
+        document = get_object_or_404(
+            SupportingDocument,
+            id=document_id,
+            application=application,
+        )
+
+        try:
+            content_type = (
+                mimetypes.guess_type(document.file.name)[0]
+                or "application/octet-stream"
+            )
+            return FileResponse(
+                document.file.open("rb"),
+                as_attachment=False,
+                filename=document.file.name.rsplit("/", 1)[-1],
+                content_type=content_type,
+            )
+        except FileNotFoundError as exc:
+            raise Http404("File not found.") from exc
 
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):

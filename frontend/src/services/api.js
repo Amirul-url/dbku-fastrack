@@ -24,6 +24,42 @@ function getApiOrigin() {
   }
 }
 
+export function getApiUrl(path) {
+  if (!path || typeof path !== "string") return "";
+  if (/^https?:\/\//i.test(path)) return path;
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return `${API_URL}${normalizedPath}`;
+}
+
+export function getApplicationDocumentUrl(applicationId, documentId) {
+  if (!applicationId || !documentId) return "";
+
+  return getApiUrl(
+    `/applications/${applicationId}/documents/${documentId}/download/`
+  );
+}
+
+export function getSiteImageUrl(applicationId, savedSiteImage, stepData = {}) {
+  const documentId =
+    savedSiteImage?.document_id ||
+    savedSiteImage?.id ||
+    stepData.site_image_document_id;
+  const documentUrl = getApplicationDocumentUrl(applicationId, documentId);
+
+  if (documentUrl) return documentUrl;
+
+  return normalizeFileUrl(
+    savedSiteImage?.url ||
+      savedSiteImage?.file_url ||
+      savedSiteImage?.file ||
+      stepData.site_image_url ||
+      stepData.site_image_preview ||
+      ""
+  );
+}
+
 function isInternalFileHost(hostname = "") {
   const normalized = hostname.toLowerCase();
 
@@ -61,6 +97,40 @@ export function normalizeFileUrl(url) {
   } catch {
     return url;
   }
+}
+
+export async function fetchAuthenticatedBlob(url) {
+  let token = localStorage.getItem("fastrack_access_token");
+
+  const makeRequest = async (accessToken) =>
+    fetch(url, {
+      headers: {
+        ...(accessToken
+          ? {
+              Authorization: `Bearer ${accessToken}`,
+            }
+          : {}),
+      },
+    });
+
+  let response = await makeRequest(token);
+
+  if (response.status === 401 && token) {
+    const newAccessToken = await refreshAccessToken();
+
+    if (!newAccessToken) {
+      window.location.href = "/login/malaysian";
+      throw new Error("Session expired");
+    }
+
+    response = await makeRequest(newAccessToken);
+  }
+
+  if (!response.ok) {
+    throw new Error(`File request failed (${response.status})`);
+  }
+
+  return response.blob();
 }
 
 export function getStoredUser() {
@@ -294,11 +364,15 @@ export async function uploadApplicationDocument(applicationId, title, file) {
 
   return {
     document_id: document.id,
+    title: document.title,
     name: file.name,
     size: file.size,
     type: file.type,
     lastModified: file.lastModified,
-    url: normalizeFileUrl(document.file_url || document.file),
+    url:
+      getApplicationDocumentUrl(applicationId, document.id) ||
+      normalizeFileUrl(document.file_url || document.file),
+    file_url: normalizeFileUrl(document.file_url),
     file: document.file,
     uploaded_at: document.uploaded_at,
   };

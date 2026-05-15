@@ -5,7 +5,8 @@ import AdminDashboardLayout from "../../../../layout/AdminDashboardLayout";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   apiRequest,
-  normalizeFileUrl,
+  fetchAuthenticatedBlob,
+  getSiteImageUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
 import AdminApplicationStepNav from "../AdminApplicationStepNav";
@@ -79,16 +80,23 @@ function AdminStep1Page() {
       setAmountFundAvailable(step1.amount_fund_available || "");
       setAmountFundApproved(step1.amount_fund_approved || "");
 
-      const savedSiteImage = step1.site_image || null;
-      const savedSiteImageUrl = normalizeFileUrl(
-        savedSiteImage?.url ||
-          savedSiteImage?.file_url ||
-          savedSiteImage?.file ||
-          step1.site_image_url ||
-          step1.site_image_preview ||
+      const siteImageDocument =
+        data.supporting_documents
+          ?.slice()
+          .reverse()
+          .find((document) => document.title === "Site Image") || null;
+      const savedSiteImage = step1.site_image || siteImageDocument;
+      const savedSiteImageUrl = getSiteImageUrl(
+        applicationId,
+        savedSiteImage,
+        step1
+      );
+      setSiteImageName(
+        savedSiteImage?.name ||
+          savedSiteImage?.file?.split("/")?.pop() ||
+          step1.site_image_name ||
           ""
       );
-      setSiteImageName(savedSiteImage?.name || step1.site_image_name || "");
       setSiteImagePreview(savedSiteImageUrl);
       setSiteImageFile(null);
       setSiteImageAttachment(savedSiteImage);
@@ -135,6 +143,7 @@ function AdminStep1Page() {
 
           site_image_name: siteImageName,
           site_image: siteImageAttachment,
+          site_image_document_id: siteImageAttachment?.document_id || "",
           site_image_url: siteImageAttachment?.url || "",
           site_image_preview: siteImagePreview?.startsWith("blob:")
             ? ""
@@ -177,6 +186,7 @@ function AdminStep1Page() {
             ...step1,
             site_image_name: attachment.name,
             site_image: attachment,
+            site_image_document_id: attachment.document_id,
             site_image_url: attachment.url,
             site_image_preview: "",
           },
@@ -923,6 +933,54 @@ function SiteImageUpload({
   onRemove,
 }) {
   const tx = (key) => stepText(language, key);
+  const [remotePreview, setRemotePreview] = useState({
+    source: "",
+    url: "",
+    error: false,
+  });
+  const isInlinePreview =
+    typeof preview === "string" &&
+    (preview.startsWith("blob:") || preview.startsWith("data:"));
+  const displayPreview = isInlinePreview
+    ? preview
+    : remotePreview.source === preview
+      ? remotePreview.url
+      : "";
+  const imageError =
+    Boolean(preview) &&
+    !isInlinePreview &&
+    remotePreview.source === preview &&
+    remotePreview.error;
+
+  useEffect(() => {
+    let isActive = true;
+    let objectUrl = "";
+
+    if (!preview || isInlinePreview) {
+      return undefined;
+    }
+
+    fetchAuthenticatedBlob(preview)
+      .then((blob) => {
+        if (!isActive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setRemotePreview({ source: preview, url: objectUrl, error: false });
+      })
+      .catch((error) => {
+        console.error("Failed to load site image preview:", error);
+        if (isActive) {
+          setRemotePreview({ source: preview, url: "", error: true });
+        }
+      });
+
+    return () => {
+      isActive = false;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [isInlinePreview, preview]);
 
   function handleFileChange(e) {
     const file = e.target.files[0];
@@ -964,11 +1022,17 @@ function SiteImageUpload({
         {preview && (
           <div className="border border-slate-200 rounded-md overflow-hidden">
             <div className="relative">
-              <img
-                src={preview}
-                alt="Site Preview"
-                className="w-full max-h-[420px] object-contain bg-slate-100"
-              />
+              {displayPreview ? (
+                <img
+                  src={displayPreview}
+                  alt="Site Preview"
+                  className="w-full max-h-[420px] object-contain bg-slate-100"
+                />
+              ) : (
+                <div className="flex h-[160px] items-center justify-center bg-slate-100 px-4 text-center text-xs font-semibold text-slate-500">
+                  {imageError ? "Site image could not be loaded." : "Loading site image..."}
+                </div>
+              )}
 
               <button
                 type="button"
