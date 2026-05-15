@@ -534,6 +534,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const debounceRef = useRef(null);
+  const readOnlyRef = useRef(readOnly);
 
   const defaultLng = 110.334028;
   const defaultLat = 1.586684;
@@ -583,6 +584,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
     });
 
     mapRef.current = map;
+    setMapInteractivity(map, !readOnlyRef.current);
 
     map.addControl(
       new mapboxgl.NavigationControl({
@@ -599,7 +601,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
       .addTo(map);
 
     markerRef.current.on("dragend", () => {
-      if (readOnly) return;
+      if (readOnlyRef.current) return;
 
       const position = markerRef.current.getLngLat();
       // eslint-disable-next-line react-hooks/immutability
@@ -607,7 +609,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
     });
 
     map.on("click", (event) => {
-      if (readOnly) return;
+      if (readOnlyRef.current) return;
 
       updateLocationFromCoordinates(event.lngLat.lng, event.lngLat.lat, true);
     });
@@ -619,7 +621,11 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   }, []);
 
   useEffect(() => {
+    readOnlyRef.current = readOnly;
     markerRef.current?.setDraggable(!readOnly);
+    if (mapRef.current) {
+      setMapInteractivity(mapRef.current, !readOnly);
+    }
   }, [readOnly]);
 
   function pushChange(nextAddress, nextLat, nextLng) {
@@ -683,6 +689,8 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   }
 
   function updateLocationFromCoordinates(nextLng, nextLat, shouldReverse = false) {
+    if (readOnlyRef.current) return;
+
     const fixedLng = Number(nextLng.toFixed(6));
     const fixedLat = Number(nextLat.toFixed(6));
 
@@ -837,6 +845,8 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   }
 
   function selectSuggestion(place) {
+    if (readOnlyRef.current) return;
+
     const [selectedLng, selectedLat] = place.center;
 
     setAddress(place.place_name);
@@ -894,6 +904,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
 
     if (mapRef.current) {
       mapRef.current.setStyle(styles[nextScene]);
+      setMapInteractivity(mapRef.current, !readOnlyRef.current);
     }
   }
 
@@ -1049,6 +1060,18 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
       </div>
     </FormSection>
   );
+}
+
+function setMapInteractivity(map, enabled) {
+  const action = enabled ? "enable" : "disable";
+
+  map.dragPan[action]();
+  map.scrollZoom[action]();
+  map.boxZoom[action]();
+  map.dragRotate[action]();
+  map.keyboard[action]();
+  map.doubleClickZoom[action]();
+  map.touchZoomRotate[action]();
 }
 
 function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = false, language = "en" }) {
