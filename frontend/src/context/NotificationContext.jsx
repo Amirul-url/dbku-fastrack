@@ -53,6 +53,11 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function getAdminApplicationViewUrl(app) {
+  if (!app?.id) return "/admin/applications";
+  return `/admin/applications/${app.id}/view/step-1?id=${app.id}`;
+}
+
 function getNotificationUrl(role, app, category) {
   if (role === "applicant") {
     if (category === "payment") return "/user/dashboard";
@@ -60,12 +65,7 @@ function getNotificationUrl(role, app, category) {
     return `/applications/${app.id}/edit`;
   }
 
-  if (category === "screening") return "/admin/auto-screening";
-  if (category === "technical") return "/admin/technical-review";
-  if (category === "approval") return "/admin/approval";
-  if (category === "payment") return "/admin/payment";
-  if (category === "license") return "/admin/license-qr";
-  return `/admin/applications/${app.id}`;
+  return getAdminApplicationViewUrl(app);
 }
 
 function buildBaseNotification(app, role, category, type, titleEn, titleMs, messageEn, messageMs) {
@@ -226,8 +226,8 @@ function buildAdminNotifications(app) {
         "admin",
         "screening",
         "warning",
-        "New application requires PT(IKL) screening",
-        "Permohonan baharu perlu semakan PT(IKL)",
+        "New IKL application submitted",
+        "Permohonan IKL baharu telah dihantar",
         `${reference} (${type}) was submitted for ${project} at ${location}.`,
         `${reference} (${type}) telah dihantar untuk ${project} di ${location}.`
       )
@@ -241,10 +241,10 @@ function buildAdminNotifications(app) {
         "admin",
         "screening",
         "warning",
-        "KU(IKL) second verification required",
-        "Verifikasi kedua KU(IKL) diperlukan",
-        `${reference} passed PT(IKL) screening and is waiting for KU(IKL).`,
-        `${reference} telah lulus semakan PT(IKL) dan menunggu KU(IKL).`
+        "IKL verification update",
+        "Kemas kini verifikasi IKL",
+        `${reference} is waiting for the next IKL verification step.`,
+        `${reference} sedang menunggu langkah verifikasi IKL seterusnya.`
       )
     );
   }

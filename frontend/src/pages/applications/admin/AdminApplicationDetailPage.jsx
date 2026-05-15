@@ -5,7 +5,7 @@ function AdminApplicationDetailPage() {
 
   return (
     <Navigate
-      to={`/admin/applications/${id}/step-1`}
+      to={`/admin/applications/${id}/view/step-1?id=${id}`}
       replace
     />
   );

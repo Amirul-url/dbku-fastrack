@@ -235,12 +235,12 @@ function NotificationsPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 xl:justify-end">
+                      <div className="flex items-center gap-2 self-start xl:self-center xl:justify-end">
                         {!item.read && (
                           <button
                             type="button"
                             onClick={() => markAsRead(item.id)}
-                            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                            className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                           >
                             {t("notifications.markRead", "Mark Read")}
                           </button>
@@ -248,9 +248,14 @@ function NotificationsPage() {
                         <Link
                           to={item.actionUrl}
                           onClick={() => markAsRead(item.id)}
-                          className="inline-flex min-h-8 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800"
+                          className="inline-flex min-h-10 min-w-[112px] items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3.5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/25"
                         >
-                          {t("notifications.openRecord", "View")}
+                          <span className="material-symbols-outlined text-[18px] !text-white">
+                            visibility
+                          </span>
+                          <span className="!text-white">
+                            {t("notifications.openRecord", "View")}
+                          </span>
                         </Link>
                       </div>
                     </article>

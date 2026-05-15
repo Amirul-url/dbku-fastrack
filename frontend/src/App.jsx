@@ -40,7 +40,6 @@ import SupportingDocumentPage from "./pages/applications/user/steps/SupportingDo
 import DeclarationPage from "./pages/applications/user/steps/DeclarationPage";
 
 /* ADMIN FLOW PAGES */
-import AutoScreeningPage from "./pages/admin/auto-screening/AutoScreeningPage";
 import TechnicalReviewPage from "./pages/admin/technical-review/TechnicalReviewPage";
 import ApprovalPage from "./pages/admin/approval/ApprovalPage";
 import PaymentPage from "./pages/admin/payment/PaymentPage";
@@ -637,7 +636,7 @@ function App() {
           path="/admin/auto-screening"
           element={
             <AdminRoute>
-              <AutoScreeningPage />
+              <Navigate to="/admin/applications" replace />
             </AdminRoute>
           }
         />

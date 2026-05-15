@@ -27,7 +27,7 @@ const units = [
     icon: "description",
     color: "bg-cyan-700",
     statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment"],
-    path: "/admin/auto-screening",
+    path: "/admin/applications",
   },
   {
     code: "BLG",
@@ -308,7 +308,7 @@ function ClaimableTaskView({
                   label: t("common.reference"),
                   render: (application) => (
                     <Link
-                      to={`/admin/applications/${application.id}`}
+                      to={`/admin/applications/${application.id}/view/step-1?id=${application.id}`}
                       className="font-semibold text-emerald-700 hover:underline"
                     >
                       {getApplicationReference(application)}
