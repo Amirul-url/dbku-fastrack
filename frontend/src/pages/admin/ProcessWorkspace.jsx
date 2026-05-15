@@ -4,6 +4,7 @@ import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
 import {
   apiRequest,
+  getStoredUser,
   uploadApplicationDocument,
 } from "../../services/api";
 import {
@@ -36,6 +37,16 @@ function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const config = configs[type];
+  const userDepartment = normalizeDepartmentCode(getStoredUser()?.department);
+
+  if (!canAccessWorkspace(config, userDepartment)) {
+    return <AdminDashboardLayout />;
+  }
+
+  return <ProcessWorkspaceContent config={config} navigate={navigate} t={t} />;
+}
+
+function ProcessWorkspaceContent({ config, navigate, t }) {
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -417,6 +428,21 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function normalizeDepartmentCode(value) {
+  const department = String(value || "").trim().toUpperCase();
+  return department === "UNIT IKLAN" ? "IKL" : department;
+}
+
+function canAccessWorkspace(config, department) {
+  const allowedDepartments = config?.allowedDepartments;
+
+  if (!Array.isArray(allowedDepartments) || allowedDepartments.length === 0) {
+    return true;
+  }
+
+  return allowedDepartments.includes(department);
+}
+
 function hasAttachment(row) {
   return Boolean(row?.attachment || row?.file || row?.file_url || row?.url);
 }
@@ -480,6 +506,7 @@ function areSupportingDocumentsComplete(app, step10) {
 
 const configs = {
   screening: {
+    allowedDepartments: ["IKL"],
     eyebrow: "S2 Verification",
     eyebrowKey: "workspace.screening.eyebrow",
     title: "Application Screening",
@@ -573,6 +600,7 @@ const configs = {
     details: ScreeningDetails,
   },
   technical: {
+    allowedDepartments: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
     eyebrow: "Parallel Review",
     eyebrowKey: "workspace.technical.eyebrow",
     title: "Technical Review",

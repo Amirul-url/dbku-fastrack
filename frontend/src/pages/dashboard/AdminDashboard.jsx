@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest } from "../../services/api";
+import { apiRequest, getStoredUser } from "../../services/api";
 import {
   Alert,
   DataTable,
@@ -21,6 +21,7 @@ import {
 const units = [
   {
     code: "Unit Iklan",
+    department: "IKL",
     title: "IKL",
     descriptionKey: "admin.unit.ikl.desc",
     icon: "description",
@@ -30,6 +31,7 @@ const units = [
   },
   {
     code: "BLG",
+    department: "BLG",
     title: "BLG",
     descriptionKey: "admin.unit.blg.desc",
     icon: "edit_square",
@@ -39,6 +41,7 @@ const units = [
   },
   {
     code: "GPM",
+    department: "GPM",
     title: "GPM",
     descriptionKey: "admin.unit.gpm.desc",
     icon: "payments",
@@ -48,6 +51,7 @@ const units = [
   },
   {
     code: "MNE",
+    department: "MNE",
     title: "MNE",
     descriptionKey: "admin.unit.mne.desc",
     icon: "account_balance",
@@ -57,6 +61,7 @@ const units = [
   },
   {
     code: "IMT",
+    department: "IMT",
     title: "IMT",
     descriptionKey: "admin.unit.imt.desc",
     icon: "hub",
@@ -67,6 +72,7 @@ const units = [
   },
   {
     code: "LNP",
+    department: "LNP",
     title: "LNP",
     descriptionKey: "admin.unit.lnp.desc",
     icon: "fact_check",
@@ -76,6 +82,7 @@ const units = [
   },
   {
     code: "ENG",
+    department: "ENG",
     title: "ENG",
     descriptionKey: "admin.unit.eng.desc",
     icon: "engineering",
@@ -114,9 +121,23 @@ const workflowCards = [
 ];
 
 function AdminDashboard() {
+  const location = useLocation();
+  const view = new URLSearchParams(location.search).get("view") || "personal";
+
+  if (view === "approval") {
+    return <AdminDashboardLayout />;
+  }
+
+  return <PersonalTaskDashboard />;
+}
+
+function PersonalTaskDashboard() {
   const { t } = useLanguage();
+  const userDepartment = normalizeDepartmentCode(getStoredUser()?.department);
+  const assignedUnit = getAssignedUnit(userDepartment);
+  const activeDepartment = assignedUnit?.department || "";
   const [applications, setApplications] = useState([]);
-  const [selectedUnit, setSelectedUnit] = useState("Unit Iklan");
+  const [selectedUnit, setSelectedUnit] = useState(assignedUnit?.code || units[0].code);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -141,36 +162,29 @@ function AdminDashboard() {
   const unitTasks = useMemo(() => {
     return units.map((unit) => ({
       ...unit,
+      locked: Boolean(activeDepartment) && unit.department !== activeDepartment,
       tasks: applications.filter((application) =>
-        unit.statuses.includes(normalizeStatus(application.status))
+        unit.statuses.includes(normalizeStatus(application.status)) &&
+        (!activeDepartment || unit.department === activeDepartment)
       ),
     }));
-  }, [applications]);
+  }, [applications, activeDepartment]);
 
   const selected = unitTasks.find((unit) => unit.code === selectedUnit) || unitTasks[0];
-  const workflowRows = applications.filter(
-    (application) => normalizeStatus(application.status) !== "draft"
-  );
-  const totalClaimable = unitTasks.reduce((sum, unit) => sum + unit.tasks.length, 0);
-  const submitted = workflowRows.length;
-
   return (
     <AdminDashboardLayout>
       <Alert message={error} />
 
       <section className="mb-5 border border-slate-300 bg-white p-3">
-        <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <SummaryBox label={t("admin.dashboard.submittedForms")} value={loading ? "..." : submitted} />
-          <SummaryBox label={t("admin.dashboard.taskToClaim")} value={loading ? "..." : totalClaimable} />
-          <SummaryBox label={t("admin.dashboard.units")} value={units.length} />
-        </div>
-
         <ClaimableTaskView
           t={t}
           loading={loading}
           selected={selected}
           selectedUnit={selectedUnit}
-          setSelectedUnit={setSelectedUnit}
+          onSelectUnit={(unit) => {
+            if (unit.locked) return;
+            setSelectedUnit(unit.code);
+          }}
           unitTasks={unitTasks}
         />
       </section>
@@ -201,7 +215,7 @@ function ClaimableTaskView({
   loading,
   selected,
   selectedUnit,
-  setSelectedUnit,
+  onSelectUnit,
   unitTasks,
 }) {
   return (
@@ -216,10 +230,14 @@ function ClaimableTaskView({
             <button
               type="button"
               key={unit.code}
-              onClick={() => setSelectedUnit(unit.code)}
+              onClick={() => onSelectUnit(unit)}
+              disabled={unit.locked}
+              aria-disabled={unit.locked}
               className={`group flex flex-col items-center rounded-md border p-2.5 text-center transition ${
                 selectedUnit === unit.code
                   ? "border-emerald-600 bg-emerald-50"
+                  : unit.locked
+                    ? "cursor-not-allowed border-transparent bg-white opacity-45"
                   : "border-transparent bg-white hover:border-slate-300 hover:bg-slate-50"
               }`}
             >
@@ -234,7 +252,7 @@ function ClaimableTaskView({
                 {unit.title}
               </span>
               <span className="text-xs font-semibold italic text-slate-950">
-                {t("admin.dashboard.taskCount")} : {loading ? "..." : unit.tasks.length}
+                {t("admin.dashboard.taskCount")} : {unit.locked ? "" : loading ? "..." : unit.tasks.length}
               </span>
             </button>
           ))}
@@ -320,15 +338,14 @@ function ClaimableTaskView({
   );
 }
 
-function SummaryBox({ label, value }) {
-  return (
-    <div className="border border-slate-200 bg-slate-50 px-3 py-2.5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-1 text-xl font-bold text-slate-950">{value}</p>
-    </div>
-  );
+function normalizeDepartmentCode(value) {
+  const department = String(value || "").trim().toUpperCase();
+  return department === "UNIT IKLAN" ? "IKL" : department;
+}
+
+function getAssignedUnit(department) {
+  if (!department) return null;
+  return units.find((unit) => unit.department === department) || null;
 }
 
 export default AdminDashboard;
