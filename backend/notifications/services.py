@@ -449,6 +449,26 @@ def get_admin_email_recipients():
     return recipients
 
 
+def get_default_superadmin():
+    User = get_user_model()
+    return (
+        User.objects.filter(role="superadmin", is_active=True)
+        .order_by("id")
+        .first()
+    )
+
+
+def get_notification_sender_email():
+    superadmin = get_default_superadmin()
+    email = normalize_email(getattr(superadmin, "email", ""))
+    return email or getattr(settings, "BREVO_FROM_EMAIL", "")
+
+
+def get_notification_sender_phone():
+    superadmin = get_default_superadmin()
+    return normalize_phone(getattr(superadmin, "mobile_number", ""))
+
+
 def get_admin_web_recipients():
     User = get_user_model()
     return list(User.objects.filter(role__in=["admin", "staff"]))
@@ -558,7 +578,7 @@ def send_brevo_email(recipient, subject, message):
     payload = {
         "sender": {
             "name": settings.BREVO_FROM_NAME,
-            "email": settings.BREVO_FROM_EMAIL,
+            "email": get_notification_sender_email(),
         },
         "to": [{"email": recipient}],
         "subject": subject,
@@ -590,7 +610,12 @@ def send_webhook_whatsapp(recipient, message):
     if settings.WHATSAPP_WEBHOOK_TOKEN:
         headers["Authorization"] = f"Bearer {settings.WHATSAPP_WEBHOOK_TOKEN}"
 
-    post_json(settings.WHATSAPP_WEBHOOK_URL, {"to": recipient, "message": message}, headers)
+    payload = {"to": recipient, "message": message}
+    sender_phone = get_notification_sender_phone()
+    if sender_phone:
+        payload["from"] = sender_phone
+
+    post_json(settings.WHATSAPP_WEBHOOK_URL, payload, headers)
 
 
 def send_evolution_whatsapp(recipient, message):
@@ -661,7 +686,7 @@ def is_channel_configured(channel):
         return bool(
             settings.NOTIFICATION_EMAIL_ENABLED
             and settings.BREVO_API_KEY
-            and settings.BREVO_FROM_EMAIL
+            and get_notification_sender_email()
         )
 
     if channel == "whatsapp":

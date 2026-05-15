@@ -17,6 +17,7 @@ const emptyForm = {
 };
 
 const departments = ["IKL", "BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const recentActivityPageSize = 5;
 const adminCsvHeaders = [
   "full_name",
   "nric",
@@ -120,6 +121,9 @@ const screenText = {
     superAdminAccounts: "Total SuperAdmin Accounts",
     recentActivity: "Recent Activity",
     latestFiveActivities: "Latest 5 account activities",
+    activityDateFilter: "Activity date",
+    previous: "Previous",
+    next: "Next",
     accessSummary: "Access Summary",
     yourPermissions: "Your permissions",
     noRecentActivity: "No recent account activity.",
@@ -225,6 +229,9 @@ const screenText = {
     superAdminAccounts: "Jumlah Akaun SuperAdmin",
     recentActivity: "Aktiviti Terkini",
     latestFiveActivities: "5 aktiviti akaun terkini",
+    activityDateFilter: "Tarikh aktiviti",
+    previous: "Sebelum",
+    next: "Seterusnya",
     accessSummary: "Ringkasan Akses",
     yourPermissions: "Kebenaran anda",
     noRecentActivity: "Tiada aktiviti akaun terkini.",
@@ -274,6 +281,8 @@ function SuperAdminHome() {
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activityDateFilter, setActivityDateFilter] = useState("");
+  const [activityPage, setActivityPage] = useState(0);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -298,17 +307,27 @@ function SuperAdminHome() {
     const totalUsers = summary.users ?? accounts.filter((account) => account.role === "applicant").length;
     const totalAdmins = accounts.filter((account) => account.role === "admin").length;
     const superAdminAccounts = accounts.filter((account) => account.role === "superadmin").length;
-    const recentAccounts = [...accounts]
-      .sort((first, second) => getAccountActivityTime(second) - getAccountActivityTime(first))
-      .slice(0, 5);
+    const activityDateKey = getActivityDateFilterKey(activityDateFilter);
+    const recentActivities = getAccountActivities(accounts).filter((activity) => (
+      !activityDateKey || getLocalDateKey(activity.timestamp) === activityDateKey
+    ));
+    const totalActivityPages = Math.max(1, Math.ceil(recentActivities.length / recentActivityPageSize));
+    const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
+    const visibleActivities = recentActivities.slice(
+      currentActivityPage * recentActivityPageSize,
+      (currentActivityPage + 1) * recentActivityPageSize
+    );
 
     return {
       totalUsers,
       totalAdmins,
       superAdminAccounts,
-      recentAccounts,
+      currentActivityPage,
+      recentActivities,
+      totalActivityPages,
+      visibleActivities,
     };
-  }, [accounts, summary.users]);
+  }, [accounts, summary.users, activityDateFilter, activityPage]);
 
   return (
     <AppShell role="superadmin">
@@ -342,33 +361,68 @@ function SuperAdminHome() {
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className="rounded-md border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <h2 className="text-base font-semibold text-slate-950">{labels.recentActivity}</h2>
-            <p className="mt-1 text-sm text-slate-500">{labels.latestFiveActivities}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">{labels.recentActivity}</h2>
+              <p className="mt-1 text-sm text-slate-500">{labels.latestFiveActivities}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={activityDateFilter}
+                onChange={(event) => {
+                  setActivityDateFilter(event.target.value);
+                  setActivityPage(0);
+                }}
+                aria-label={labels.activityDateFilter}
+                title={labels.activityDateFilter}
+                className="h-9 w-36 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
+              />
+              <button
+                type="button"
+                onClick={() => setActivityPage((current) => Math.max(current - 1, 0))}
+                disabled={loading || dashboard.currentActivityPage === 0}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label={labels.previous}
+                title={labels.previous}
+              >
+                <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivityPage((current) => Math.min(current + 1, dashboard.totalActivityPages - 1))}
+                disabled={loading || dashboard.currentActivityPage >= dashboard.totalActivityPages - 1}
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label={labels.next}
+                title={labels.next}
+              >
+                <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+              </button>
+            </div>
           </div>
 
           <div className="divide-y divide-slate-100">
             {loading ? (
               <div className="px-4 py-10 text-center text-slate-500">{labels.loadingAccounts}</div>
-            ) : dashboard.recentAccounts.length === 0 ? (
+            ) : dashboard.visibleActivities.length === 0 ? (
               <div className="px-4 py-10 text-center text-slate-500">{labels.noRecentActivity}</div>
             ) : (
-              dashboard.recentAccounts.map((account) => {
-                const hasLogin = Boolean(account.last_login);
+              dashboard.visibleActivities.map((activity) => {
+                const account = activity.account;
                 return (
-                  <div key={account.id} className="flex items-center justify-between gap-4 px-4 py-4">
+                  <div key={activity.id} className="flex items-center justify-between gap-4 px-4 py-4">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-950">
                         {account.full_name || account.username}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {hasLogin ? labels.loggedInActivity : labels.createdActivity}
+                        {activity.type === "login" ? labels.loggedInActivity : labels.createdActivity}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <RolePill account={account} labels={labels} />
                       <span className="w-28 text-right !text-xs leading-5 text-slate-500">
-                        {formatCompactDateTime(hasLogin ? account.last_login : account.date_joined, labels, language)}
+                        {formatCompactDateTime(activity.timestamp, labels, language)}
                       </span>
                     </div>
                   </div>
@@ -1221,17 +1275,75 @@ function compareAccounts(first, second) {
   );
 }
 
-function getAccountActivityTime(account) {
-  const latestValue = account.last_login || account.date_joined;
-  const timestamp = new Date(latestValue || 0).getTime();
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
-
 function getRoleLabel(account, labels = screenText.en) {
   if (account.role === "applicant") return labels.userRole;
   if (account.role === "staff") return labels.staffRole;
   if (account.role === "superadmin") return labels.superAdminRole;
   return labels.adminRole;
+}
+
+function getAccountActivities(accounts) {
+  return accounts
+    .flatMap((account) => {
+      const activities = [];
+
+      if (account.last_login) {
+        activities.push({
+          id: `${account.id}-login-${account.last_login}`,
+          account,
+          timestamp: account.last_login,
+          type: "login",
+        });
+      }
+
+      if (account.date_joined) {
+        activities.push({
+          id: `${account.id}-created-${account.date_joined}`,
+          account,
+          timestamp: account.date_joined,
+          type: "created",
+        });
+      }
+
+      return activities;
+    })
+    .sort((first, second) => getTimestamp(second.timestamp) - getTimestamp(first.timestamp));
+}
+
+function getTimestamp(value) {
+  const timestamp = new Date(value || 0).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function getActivityDateFilterKey(value) {
+  const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+
+  const [, yearText, monthText, dayText] = match;
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return "";
+  }
+
+  return value;
+}
+
+function getLocalDateKey(value) {
+  const date = new Date(value || 0);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatDateTime(value, labels = screenText.en, language = "en") {
