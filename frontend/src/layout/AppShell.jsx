@@ -149,7 +149,7 @@ function AppShell({ children, role = "admin" }) {
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
-  const userDisplayName = normalizeDisplayName(user?.full_name || user?.username || t("role.ALiSUser"));
+  const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
   const currentAdminApplicationId = getAdminApplicationStepIdFromPath(location.pathname);
   const isAdminViewMode = isAdminApplicationViewPath(location.pathname);
@@ -177,8 +177,9 @@ function AppShell({ children, role = "admin" }) {
     apiRequest("/auth/me/")
       .then((data) => {
         if (!active || !data?.user) return;
-        localStorage.setItem("fastrack_user", JSON.stringify(data.user));
-        setUser(data.user);
+        const normalizedUser = normalizeStoredUser(data.user);
+        localStorage.setItem("fastrack_user", JSON.stringify(normalizedUser));
+        setUser(normalizedUser);
       })
       .catch(() => {});
 
@@ -449,19 +450,9 @@ function AppShell({ children, role = "admin" }) {
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-4 px-7">
             <div className="min-w-0">
-              {role === "superadmin" ? (
-                <p className="truncate text-sm font-semibold text-slate-950">
-                  {t("profile.welcome")}, Super Admin
-                </p>
-              ) : role === "admin" ? (
-                <p className="truncate text-sm font-semibold text-slate-950">
-                  {t("profile.welcome")}, Admin
-                </p>
-              ) : (
-                <p className="truncate text-sm font-semibold text-slate-950">
-                  {t("profile.welcome")}, {userDisplayName}
-                </p>
-              )}
+              <p className="truncate text-sm font-semibold text-slate-950">
+                {t("profile.welcome")}, {userDisplayName}
+              </p>
             </div>
 
             <div className="relative flex items-center gap-2">
@@ -510,6 +501,25 @@ function AppShell({ children, role = "admin" }) {
 
 function normalizeDisplayName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function normalizeStoredUser(user) {
+  if (!user) return user;
+  return {
+    ...user,
+    full_name: normalizeDisplayName(user.full_name),
+  };
+}
+
+function getHeaderDisplayName(user, role, t) {
+  const fallback =
+    role === "superadmin"
+      ? "Super Admin"
+      : role === "admin"
+        ? "Admin"
+        : t("role.ALiSUser");
+
+  return normalizeDisplayName(user?.full_name || user?.username || fallback);
 }
 
 function ApplicationStepLinks({
