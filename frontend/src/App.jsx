@@ -1,8 +1,11 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Navigate,
   BrowserRouter as Router,
   Routes,
   Route,
+  useLocation,
+  useNavigate,
   useParams,
 } from "react-router-dom";
 
@@ -52,11 +55,15 @@ import ReportsPage from "./pages/reports/ReportsPage";
 import NotificationsPage from "./pages/notifications/NotificationsPage";
 import {
   clearAuthSession,
+  getAccessTokenExpiryMs,
   getStoredUser,
   isAdminUser,
   isApplicantUser,
   isSuperAdminUser,
+  refreshAccessToken,
 } from "./services/api";
+
+const SESSION_WARNING_MS = 5 * 60 * 1000;
 
 function getUser() {
   return getStoredUser();
@@ -166,9 +173,126 @@ function RedirectAdminStep({ toStep }) {
   );
 }
 
+function SessionManager() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const timerRef = useRef(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [extending, setExtending] = useState(false);
+
+  const clearSessionTimer = useCallback(() => {
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const scheduleSessionWarning = useCallback(() => {
+    clearSessionTimer();
+    const expiryMs = getAccessTokenExpiryMs();
+
+    if (!expiryMs || location.pathname === "/login/malaysian" || location.pathname === "/") {
+      setModalOpen(false);
+      return;
+    }
+
+    const timeUntilWarning = expiryMs - Date.now() - SESSION_WARNING_MS;
+
+    if (timeUntilWarning <= 0) {
+      setModalOpen(true);
+      return;
+    }
+
+    timerRef.current = window.setTimeout(() => {
+      setModalOpen(true);
+    }, timeUntilWarning);
+  }, [clearSessionTimer, location.pathname]);
+
+  useEffect(() => {
+    const initialCheckId = window.setTimeout(scheduleSessionWarning, 0);
+
+    window.addEventListener("fastrack:auth-changed", scheduleSessionWarning);
+    window.addEventListener("focus", scheduleSessionWarning);
+
+    return () => {
+      window.clearTimeout(initialCheckId);
+      clearSessionTimer();
+      window.removeEventListener("fastrack:auth-changed", scheduleSessionWarning);
+      window.removeEventListener("focus", scheduleSessionWarning);
+    };
+  }, [clearSessionTimer, scheduleSessionWarning]);
+
+  async function handleExtendSession() {
+    try {
+      setExtending(true);
+      const token = await refreshAccessToken();
+      if (!token) throw new Error("Unable to extend session.");
+      setModalOpen(false);
+      scheduleSessionWarning();
+    } catch {
+      clearAuthSession();
+      navigate("/login/malaysian", { replace: true });
+    } finally {
+      setExtending(false);
+    }
+  }
+
+  function handleLogout() {
+    clearAuthSession();
+    navigate("/login/malaysian", { replace: true });
+  }
+
+  if (!modalOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 px-4">
+      <div className="w-full max-w-md rounded-md bg-white shadow-2xl">
+        <div className="flex items-start gap-3 border-b border-slate-200 px-5 py-4">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-amber-50 text-amber-700">
+            <span className="material-symbols-outlined text-[24px]">schedule</span>
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-slate-950">Session expiring soon</h2>
+            <p className="mt-1 text-sm leading-5 text-slate-500">
+              Your login session is about to expire. Extend it to continue working without signing in again.
+            </p>
+          </div>
+        </div>
+
+        <div className="px-5 py-4">
+          <p className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+            Choose Extend session to keep using ALiS, or Logout to end this session now.
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={extending}
+            className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Logout
+          </button>
+          <button
+            type="button"
+            onClick={handleExtendSession}
+            disabled={extending}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[18px]">update</span>
+            {extending ? "Extending..." : "Extend session"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <Router>
+      <SessionManager />
       <Routes>
         {/* PUBLIC LICENSE VERIFY */}
         <Route

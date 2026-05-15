@@ -103,7 +103,19 @@ export function clearAuthSession() {
   window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
 
-async function refreshAccessToken() {
+export function getAccessTokenExpiryMs() {
+  const token = localStorage.getItem("fastrack_access_token");
+  if (!token) return 0;
+
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1] || ""));
+    return Number(payload.exp || 0) * 1000;
+  } catch {
+    return 0;
+  }
+}
+
+export async function refreshAccessToken() {
   const refresh = localStorage.getItem("fastrack_refresh_token");
 
   if (!refresh) {

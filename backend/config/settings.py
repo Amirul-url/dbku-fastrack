@@ -104,7 +104,12 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(
+        hours=int(os.getenv("JWT_ACCESS_TOKEN_HOURS", "1"))
+    ),
+    'REFRESH_TOKEN_LIFETIME': timedelta(
+        days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "7"))
+    ),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
