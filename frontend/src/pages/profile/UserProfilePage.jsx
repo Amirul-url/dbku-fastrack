@@ -25,6 +25,15 @@ const initialForm = {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MYKAD_PATTERN = /^\d{12}$/;
 const ADDRESS_MAX_LENGTH = 150;
+
+function uppercaseNameInput(value) {
+  return String(value || "").toUpperCase();
+}
+
+function normalizeNameValue(value) {
+  return uppercaseNameInput(value).trim().replace(/\s+/g, " ");
+}
+
 const stateCityOptions = {
   Johor: ["Johor Bahru", "Batu Pahat", "Muar", "Kluang", "Kulai", "Skudai", "Segamat", "Pontian", "Pasir Gudang", "Kota Tinggi"],
   Kedah: ["Alor Setar", "Sungai Petani", "Kulim", "Langkawi", "Jitra", "Baling", "Kuala Nerang"],
@@ -144,7 +153,7 @@ function UserProfilePage() {
       const data = await apiRequest("/auth/me/", {
         method: "PATCH",
         body: JSON.stringify({
-          full_name: form.fullName.trim(),
+          full_name: normalizeNameValue(form.fullName),
           mykad_number: form.mykadNumber.trim(),
           gender: form.gender,
           date_of_birth: form.dateOfBirth,
@@ -218,7 +227,7 @@ function UserProfilePage() {
               <TextInput
                 disabled={!editing}
                 value={form.fullName}
-                onChange={(value) => updateField("fullName", value)}
+                onChange={(value) => updateField("fullName", uppercaseNameInput(value))}
                 error={fieldErrors.fullName}
                 placeholder={t("auth.fullNamePlaceholder")}
               />
@@ -444,7 +453,7 @@ function buildFormFromUser(user) {
 
   return {
     ...initialForm,
-    fullName: user?.full_name || "",
+    fullName: normalizeNameValue(user?.full_name || ""),
     gender: user?.gender || "",
     dateOfBirth: user?.date_of_birth || "",
     nationality: user?.nationality || "Malaysian",

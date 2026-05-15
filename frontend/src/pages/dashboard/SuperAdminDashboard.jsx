@@ -421,7 +421,7 @@ function SuperAdminHome() {
                   <div key={activity.id} className="flex items-center justify-between gap-4 px-4 py-4">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-950">
-                        {account.full_name || account.username}
+                        {getAccountDisplayName(account)}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
                         {activity.type === "login" ? labels.loggedInActivity : labels.createdActivity}
@@ -525,7 +525,7 @@ function SuperAdminAccountManagement({ view }) {
     return accounts
       .filter((account) => {
         const textMatch = [
-          account.full_name,
+          getAccountDisplayName(account),
           account.username,
           account.email,
           account.department,
@@ -561,7 +561,7 @@ function SuperAdminAccountManagement({ view }) {
     setEditingAccount(account);
     setForm({
       username: account.username || "",
-      full_name: account.full_name || "",
+      full_name: normalizeNameValue(account.full_name || ""),
       email: account.email || "",
       department: account.department || "",
       mobile_number: cleanMobileNumberValue(account.mobile_number),
@@ -600,6 +600,7 @@ function SuperAdminAccountManagement({ view }) {
       setSuccess("");
       const payload = {
         ...form,
+        full_name: normalizeNameValue(form.full_name),
         mykad_number: form.username,
         mobile_number: cleanMobileNumberValue(form.mobile_number),
       };
@@ -659,7 +660,7 @@ function SuperAdminAccountManagement({ view }) {
       header,
       ...filteredAccounts.map((account) => {
         const base = [
-          account.full_name || "",
+          getAccountDisplayName(account),
           formatCsvIdentifier(account.username),
           account.email || "",
         ];
@@ -735,7 +736,7 @@ function SuperAdminAccountManagement({ view }) {
           throw new Error(
             labels.csvPasswordMismatch.replace(
               "{name}",
-              row.full_name || row.name || row.nric || row.username
+              normalizeNameValue(row.full_name || row.name) || row.nric || row.username
             )
           );
         }
@@ -745,7 +746,7 @@ function SuperAdminAccountManagement({ view }) {
           body: JSON.stringify({
             username: importedUsername,
             mykad_number: importedUsername,
-            full_name: row.name || row.full_name,
+            full_name: normalizeNameValue(row.name || row.full_name),
             email: normalizeImportedEmail(row.email),
             department: String(row.department || "").trim().toUpperCase(),
             mobile_number: importedMobile,
@@ -912,7 +913,7 @@ function SuperAdminAccountManagement({ view }) {
                 filteredAccounts.map((account) => (
                   <tr key={account.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-semibold text-slate-950">
-                      <span className="block truncate">{account.full_name || account.username}</span>
+                      <span className="block truncate">{getAccountDisplayName(account)}</span>
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       <span className="block truncate">{account.username}</span>
@@ -1018,7 +1019,7 @@ function SuperAdminAccountManagement({ view }) {
 }
 
 function DeleteConfirmModal({ account, labels, saving, onCancel, onConfirm }) {
-  const accountName = account.full_name || account.username;
+  const accountName = getAccountDisplayName(account);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4">
@@ -1091,7 +1092,7 @@ function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSu
           <FormField label={labels.fullName} className="md:col-span-2">
             <input
               value={form.full_name}
-              onChange={(event) => onChange({ full_name: event.target.value })}
+              onChange={(event) => onChange({ full_name: uppercaseNameInput(event.target.value) })}
               placeholder={labels.enterFullName}
               className={inputClassName}
               required
@@ -1185,7 +1186,7 @@ function RegistrationInfoModal({ account, labels, language, onClose }) {
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">{labels.registrationInfo}</h2>
-            <p className="mt-1 text-sm text-slate-500">{account.full_name || account.username}</p>
+            <p className="mt-1 text-sm text-slate-500">{getAccountDisplayName(account)}</p>
           </div>
           <button
             type="button"
@@ -1200,7 +1201,7 @@ function RegistrationInfoModal({ account, labels, language, onClose }) {
         <div className="max-h-[72vh] space-y-7 overflow-y-auto p-5">
           <RegistrationSection icon="person" title={labels.personalInformation}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <ReadonlyField label={labels.fullNameMyKad} required value={account.full_name || account.username} />
+              <ReadonlyField label={labels.fullNameMyKad} required value={getAccountDisplayName(account)} />
               <ReadonlyField label={labels.gender} required value={formatGender(account.gender, language)} />
               <ReadonlyField label={labels.dateOfBirth} required value={formatDateOnly(account.date_of_birth, labels, language)} />
               <ReadonlyField label={labels.nationality} required value={account.nationality} />
@@ -1347,9 +1348,7 @@ function compareAccounts(first, second) {
     return firstSuperAdmin - secondSuperAdmin;
   }
 
-  return String(first.full_name || first.username || "").localeCompare(
-    String(second.full_name || second.username || "")
-  );
+  return getAccountDisplayName(first).localeCompare(getAccountDisplayName(second));
 }
 
 function getRoleLabel(account, labels = screenText.en) {
@@ -1493,6 +1492,18 @@ function formatMobileNumber(value) {
 function cleanMobileNumberValue(value) {
   const text = String(value || "").trim();
   return text === "-" ? "" : text;
+}
+
+function uppercaseNameInput(value) {
+  return String(value || "").toUpperCase();
+}
+
+function normalizeNameValue(value) {
+  return uppercaseNameInput(value).trim().replace(/\s+/g, " ");
+}
+
+function getAccountDisplayName(account) {
+  return normalizeNameValue(account?.full_name || account?.username || "");
 }
 
 function normalizePhoneSearchValue(value) {

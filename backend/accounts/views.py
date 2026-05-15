@@ -152,7 +152,7 @@ def get_user_address_parts(user):
 
 
 def build_user_payload(user):
-    full_name = f"{user.first_name} {user.last_name}".strip()
+    full_name = normalize_full_name(f"{user.first_name} {user.last_name}")
     mykad_number = user.mykad_number or user.username
     date_of_birth = user.date_of_birth
     if date_of_birth and hasattr(date_of_birth, "isoformat"):
@@ -204,6 +204,10 @@ def normalize_phone_number(value):
 
 def normalize_email_address(value):
     return str(value or "").strip().lower()
+
+
+def normalize_full_name(value):
+    return " ".join(str(value or "").strip().upper().split())
 
 
 def normalize_mykad_identifier(value):
@@ -321,7 +325,7 @@ def get_password_reset_user(channel, identifier):
 
 
 def build_password_reset_message(user, otp):
-    name = f"{user.first_name} {user.last_name}".strip() or user.username
+    name = normalize_full_name(f"{user.first_name} {user.last_name}") or normalize_full_name(user.username)
     return (
         f"Hello {name},\n\n"
         f"Your ALiS password reset OTP is {otp}.\n"
@@ -392,7 +396,7 @@ def register_view(request):
     password = data.get("password", "")
     password2 = data.get("password2", "")
 
-    full_name = str(data.get("full_name", "")).strip()
+    full_name = normalize_full_name(data.get("full_name", ""))
     role = str(data.get("role", "applicant")).strip().lower()
 
     allowed_public_roles = ["applicant", "user"]
@@ -475,9 +479,7 @@ def register_view(request):
         user.date_of_birth = parse_date(date_of_birth)
 
     if full_name:
-        name_parts = full_name.split(" ", 1)
-        user.first_name = name_parts[0]
-        user.last_name = name_parts[1] if len(name_parts) > 1 else ""
+        user.first_name, user.last_name = split_full_name(full_name)
 
     user.save()
 
@@ -723,7 +725,7 @@ def password_reset_confirm_view(request):
 
 
 def split_full_name(full_name):
-    name_parts = str(full_name or "").strip().split(" ", 1)
+    name_parts = normalize_full_name(full_name).split(" ", 1)
     return (
         name_parts[0] if name_parts else "",
         name_parts[1] if len(name_parts) > 1 else "",
@@ -740,7 +742,7 @@ def normalize_managed_role(value):
 def apply_managed_account_data(user, data, require_password=False):
     username = normalize_mykad_identifier(data.get("username", user.username or ""))
     email = normalize_email_address(data.get("email", user.email or ""))
-    full_name = str(data.get("full_name", "")).strip()
+    full_name = normalize_full_name(data.get("full_name", ""))
     role = normalize_managed_role(data.get("role", user.role))
     password = data.get("password", "")
     password2 = data.get("password2", password)
@@ -886,7 +888,7 @@ def me_view(request):
 
     if request.method == "PATCH":
         data = request.data
-        full_name = str(data.get("full_name", "")).strip()
+        full_name = normalize_full_name(data.get("full_name", ""))
         email = str(data.get("email", "")).strip()
         mykad_number = str(data.get("mykad_number", "")).strip()
 
@@ -928,9 +930,7 @@ def me_view(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        name_parts = full_name.split(" ", 1)
-        user.first_name = name_parts[0]
-        user.last_name = name_parts[1] if len(name_parts) > 1 else ""
+        user.first_name, user.last_name = split_full_name(full_name)
         user.email = email
         user.username = mykad_number
         user.mykad_number = mykad_number

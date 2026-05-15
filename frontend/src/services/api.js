@@ -69,6 +69,10 @@ export function getUserRedirectPath(user) {
   return "/login/malaysian";
 }
 
+function normalizeStoredFullName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
 export function saveAuthSession(data, rememberMe = false) {
   clearSidebarSessionState();
 
@@ -85,6 +89,7 @@ export function saveAuthSession(data, rememberMe = false) {
       "fastrack_user",
       JSON.stringify({
         ...data.user,
+        full_name: normalizeStoredFullName(data.user.full_name),
         role: getNormalizedRole(data.user) || data.user.role,
       })
     );

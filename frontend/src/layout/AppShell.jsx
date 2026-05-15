@@ -149,7 +149,7 @@ function AppShell({ children, role = "admin" }) {
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
-  const userDisplayName = user?.full_name || user?.username || t("role.ALiSUser");
+  const userDisplayName = normalizeDisplayName(user?.full_name || user?.username || t("role.ALiSUser"));
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
   const currentAdminApplicationId = getAdminApplicationStepIdFromPath(location.pathname);
   const isAdminViewMode = isAdminApplicationViewPath(location.pathname);
@@ -506,6 +506,10 @@ function AppShell({ children, role = "admin" }) {
       </div>
     </div>
   );
+}
+
+function normalizeDisplayName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
 }
 
 function ApplicationStepLinks({

@@ -26,6 +26,15 @@ const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
 const ADDRESS_MAX_LENGTH = 150;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MYKAD_PATTERN = /^\d{12}$/;
+
+function uppercaseNameInput(value) {
+  return String(value || "").toUpperCase();
+}
+
+function normalizeNameValue(value) {
+  return uppercaseNameInput(value).trim().replace(/\s+/g, " ");
+}
+
 const stateCityOptions = {
   Johor: [
     "Johor Bahru",
@@ -419,7 +428,7 @@ function RegisterMalaysian() {
           account_type: "applicant",
           nationality_type: "malaysian",
           role: "applicant",
-          full_name: form.fullName.trim(),
+          full_name: normalizeNameValue(form.fullName),
           username: form.mykadNumber.trim(),
           mykad_number: form.mykadNumber.trim(),
           mobile_number: form.mobileNumber.trim(),
@@ -527,7 +536,7 @@ function RegisterMalaysian() {
                     aria-describedby={fieldErrors.fullName ? "fullName-error" : undefined}
                     placeholder={t("auth.fullNamePlaceholder")}
                     value={form.fullName}
-                    onChange={(e) => updateField("fullName", e.target.value)}
+                    onChange={(e) => updateField("fullName", uppercaseNameInput(e.target.value))}
                     className={getInputClass("fullName", "w-full")}
                   />
                   <FieldError id="fullName-error" message={fieldErrors.fullName} />

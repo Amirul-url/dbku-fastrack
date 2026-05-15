@@ -2,7 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from .models import User
-from .views import apply_managed_account_data, get_password_reset_user
+from .views import apply_managed_account_data, build_user_payload, get_password_reset_user
 
 
 class ManagedAccountImportTests(TestCase):
@@ -29,6 +29,9 @@ class ManagedAccountImportTests(TestCase):
 
         self.assertEqual(user.username, "020215130135")
         self.assertEqual(user.mykad_number, "020215130135")
+        self.assertEqual(user.first_name, "CSV")
+        self.assertEqual(user.last_name, "IMPORTED USER")
+        self.assertEqual(build_user_payload(user)["full_name"], "CSV IMPORTED USER")
         self.assertEqual(user.email, "importeduser@example.com")
         self.assertTrue(user.check_password("Password123"))
         self.assertEqual(get_password_reset_user("email", "importeduser@example.com"), user)
@@ -100,6 +103,8 @@ class ManagedAccountImportTests(TestCase):
         )
 
         self.assertEqual(error, "")
+        self.assertEqual(user.first_name, "SECOND")
+        self.assertEqual(user.last_name, "ADMIN")
         self.assertEqual(user.mobile_number, "")
 
     def test_managed_user_list_includes_legacy_user_role(self):
