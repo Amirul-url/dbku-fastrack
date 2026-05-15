@@ -174,7 +174,7 @@ def build_user_payload(user):
         "role": user.role,
         "department": user.department,
         "mykad_number": mykad_number,
-        "mobile_number": user.mobile_number,
+        "mobile_number": clean_mobile_number(user.mobile_number),
         "address": user.address,
         **address_parts,
         "gender": gender,
@@ -210,6 +210,11 @@ def normalize_mykad_identifier(value):
     text = str(value or "").strip()
     digits = re.sub(r"\D", "", text)
     return digits if len(digits) == 12 else text
+
+
+def clean_mobile_number(value):
+    text = str(value or "").strip()
+    return "" if text == "-" else text
 
 
 def find_user_by_normalized_email(identifier):
@@ -453,7 +458,7 @@ def register_view(request):
 
     user.role = "applicant"
     user.mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
-    user.mobile_number = str(data.get("mobile_number", "")).strip()
+    user.mobile_number = clean_mobile_number(data.get("mobile_number", ""))
     user.address_line1 = str(data.get("address_line1", "")).strip()
     user.address_line2 = str(data.get("address_line2", "")).strip()
     user.postcode = str(data.get("postcode", "")).strip()
@@ -763,7 +768,7 @@ def apply_managed_account_data(user, data, require_password=False):
     user.role = role
     user.department = str(data.get("department", user.department or "")).strip().upper()
     user.mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
-    user.mobile_number = str(data.get("mobile_number", user.mobile_number or "")).strip()
+    user.mobile_number = clean_mobile_number(data.get("mobile_number", user.mobile_number or ""))
     user.is_active = bool(data.get("is_active", True))
 
     if role == "superadmin":
@@ -919,7 +924,7 @@ def me_view(request):
         user.email = email
         user.username = mykad_number
         user.mykad_number = mykad_number
-        user.mobile_number = str(data.get("mobile_number", "")).strip()
+        user.mobile_number = clean_mobile_number(data.get("mobile_number", ""))
         user.address_line1 = str(data.get("address_line1", "")).strip()
         user.address_line2 = str(data.get("address_line2", "")).strip()
         user.postcode = str(data.get("postcode", "")).strip()

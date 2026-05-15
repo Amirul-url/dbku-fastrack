@@ -62,3 +62,24 @@ class ManagedAccountImportTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+    def test_managed_account_dash_mobile_is_saved_as_empty(self):
+        user = User()
+        error = apply_managed_account_data(
+            user,
+            {
+                "username": "admin2",
+                "full_name": "Second Admin",
+                "email": "admin2@example.com",
+                "mobile_number": "-",
+                "department": "ikl",
+                "role": "admin",
+                "password": "Password123",
+                "password2": "Password123",
+                "is_active": True,
+            },
+            require_password=True,
+        )
+
+        self.assertEqual(error, "")
+        self.assertEqual(user.mobile_number, "")

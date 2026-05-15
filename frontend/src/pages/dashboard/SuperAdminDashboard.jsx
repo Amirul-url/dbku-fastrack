@@ -501,7 +501,7 @@ function SuperAdminAccountManagement({ view }) {
       full_name: account.full_name || "",
       email: account.email || "",
       department: account.department || "",
-      mobile_number: account.mobile_number || "",
+      mobile_number: cleanMobileNumberValue(account.mobile_number),
       role: account.role || "applicant",
       password: "",
       password2: "",
@@ -538,6 +538,7 @@ function SuperAdminAccountManagement({ view }) {
       const payload = {
         ...form,
         mykad_number: form.username,
+        mobile_number: cleanMobileNumberValue(form.mobile_number),
       };
       const path = editingAccount
         ? `/auth/accounts/${editingAccount.id}/`
@@ -986,11 +987,12 @@ function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSu
           </FormField>
           <FormField label={labels.mobileNumber}>
             <input
+              type="tel"
+              inputMode="tel"
               value={form.mobile_number}
               onChange={(event) => onChange({ mobile_number: event.target.value })}
               placeholder={labels.enterMobile}
               className={inputClassName}
-              required
             />
           </FormField>
           <FormField label={labels.department}>
@@ -1286,16 +1288,21 @@ function formatGender(value, language = "en") {
 }
 
 function stripMalaysiaDialCode(value) {
-  return String(value || "").replace(/^\+?60/, "");
+  return cleanMobileNumberValue(value).replace(/^\+?60/, "");
 }
 
 function formatMobileNumber(value) {
-  const raw = String(value || "").trim();
+  const raw = cleanMobileNumberValue(value);
   if (!raw) return "-";
   if (raw.startsWith("+")) return raw;
   if (raw.startsWith("60")) return `+${raw}`;
   if (raw.startsWith("0")) return raw;
   return `0${raw}`;
+}
+
+function cleanMobileNumberValue(value) {
+  const text = String(value || "").trim();
+  return text === "-" ? "" : text;
 }
 
 function normalizePhoneSearchValue(value) {
