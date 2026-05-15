@@ -2,8 +2,7 @@ import { useEffect } from "react";
 import TopBar from "./TopBar";
 import { useLanguage } from "../context/LanguageContext";
 import { Link } from "react-router-dom";
-
-const logo = "/ALiS.png";
+import HtmlAssetFrame from "../components/HtmlAssetFrame";
 
 function AuthLayout({ children }) {
   const { t } = useLanguage();
@@ -20,14 +19,21 @@ function AuthLayout({ children }) {
     <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
       <TopBar />
       <main className="grid min-h-[calc(100vh-73px-81px)] grid-cols-[58%_42%]">
-        <section
-          className="min-h-full bg-cover bg-center"
-          style={{ backgroundImage: "url('/DUN.jpg')" }}
-        >
-          <div className="flex h-full items-end px-16 pb-12">
+        <section className="relative min-h-full overflow-hidden bg-emerald-950">
+          <HtmlAssetFrame
+            src="/DUN.html"
+            title="DUN background"
+            fit="cover"
+            className="absolute inset-0 h-full w-full"
+          />
+          <div className="relative flex h-full items-end px-16 pb-12">
             <div className="max-w-[790px] rounded-md bg-[#053b2e]/90 p-8 text-white shadow-2xl shadow-black/30">
               <div className="mb-7 flex items-center gap-6">
-                <img src={logo} alt="ALiS Logo" className="h-[72px] w-auto" />
+                <HtmlAssetFrame
+                  src="/ALiS.html"
+                  title="ALiS Logo"
+                  className="h-[72px] w-[132px] shrink-0 bg-white"
+                />
                 <div>
                   <p className="text-[28px] font-bold leading-none text-white">
                     ALiS
