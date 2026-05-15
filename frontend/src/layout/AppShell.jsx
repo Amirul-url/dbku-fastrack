@@ -74,6 +74,12 @@ function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode) {
       icon: "folder_open",
       stepGroup: applicationStepGroup,
     },
+    {
+      labelKey: "nav.guidelines",
+      fallback: "Guidelines",
+      path: "/admin/guidelines",
+      icon: "menu_book",
+    },
   ];
 }
 
