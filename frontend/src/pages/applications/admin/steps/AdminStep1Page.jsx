@@ -85,7 +85,7 @@ function AdminStep1Page() {
           ?.slice()
           .reverse()
           .find((document) => document.title === "Site Image") || null;
-      const savedSiteImage = step1.site_image || siteImageDocument;
+      const savedSiteImage = siteImageDocument || step1.site_image || null;
       const savedSiteImageUrl = getSiteImageUrl(
         applicationId,
         savedSiteImage,
