@@ -41,12 +41,20 @@ export function getApplicationDocumentUrl(applicationId, documentId) {
   );
 }
 
+export function getApplicationSiteImageUrl(applicationId) {
+  if (!applicationId) return "";
+
+  return getApiUrl(`/applications/${applicationId}/site-image/download/`);
+}
+
 export function getSiteImageUrl(applicationId, savedSiteImage, stepData = {}) {
   const documentId =
     savedSiteImage?.document_id ||
     savedSiteImage?.id ||
     stepData.site_image_document_id;
-  const documentUrl = getApplicationDocumentUrl(applicationId, documentId);
+  const documentUrl =
+    getApplicationSiteImageUrl(applicationId) ||
+    getApplicationDocumentUrl(applicationId, documentId);
 
   if (documentUrl) return documentUrl;
 

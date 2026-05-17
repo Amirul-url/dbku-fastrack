@@ -124,6 +124,43 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             application=application,
         )
 
+        return self.file_response(document)
+
+    @action(detail=True, methods=["get"], url_path="site-image/download")
+    def download_site_image(self, request, pk=None):
+        application = self.get_object()
+        step_1 = (application.form_data or {}).get("step_1", {})
+        saved_site_image = step_1.get("site_image") or {}
+        saved_document_ids = [
+            step_1.get("site_image_document_id"),
+            saved_site_image.get("document_id") if isinstance(saved_site_image, dict) else None,
+            saved_site_image.get("id") if isinstance(saved_site_image, dict) else None,
+        ]
+        documents = list(
+            application.supporting_documents.filter(title="Site Image").order_by(
+                "-uploaded_at"
+            )
+        )
+
+        for document_id in saved_document_ids:
+            if not document_id:
+                continue
+
+            try:
+                document = application.supporting_documents.get(id=document_id)
+            except (SupportingDocument.DoesNotExist, ValueError, TypeError):
+                continue
+
+            if document not in documents:
+                documents.append(document)
+
+        for document in documents:
+            if document.file and document.file.storage.exists(document.file.name):
+                return self.file_response(document)
+
+        raise Http404("Site image file not found.")
+
+    def file_response(self, document):
         try:
             content_type = (
                 mimetypes.guess_type(document.file.name)[0]
