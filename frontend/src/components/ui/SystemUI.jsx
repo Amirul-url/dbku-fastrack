@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
 import {
   AD_LICENSE_FLOW,
-  formatDate,
+  formatDateTime,
   formatWorkflowStatus,
+  getApplicantName,
+  getApplicationLocation,
   getApplicationReference,
+  getApplicationType,
   normalizeStatus,
 } from "../../utils/workflow";
 
@@ -71,7 +74,7 @@ export function Button({
   );
 }
 
-export function LinkButton({ to, children, icon, variant = "primary" }) {
+export function LinkButton({ to, children, icon, variant = "primary", className = "" }) {
   const variants = {
     primary:
       "border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800",
@@ -82,7 +85,7 @@ export function LinkButton({ to, children, icon, variant = "primary" }) {
   return (
     <Link
       to={to}
-      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition ${variants[variant]}`}
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition ${variants[variant]} ${className}`}
     >
       {icon && (
         <span className="material-symbols-outlined text-[18px]">{icon}</span>
@@ -309,14 +312,14 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 }
 
-export function ApplicationSummary({ app, labels = {} }) {
+export function ApplicationSummary({ app, labels = {}, actions }) {
   if (!app) return null;
-  const currentStep = Math.min(Number(app.current_step || 1), 5);
+  const status = formatWorkflowStatus(app.status);
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             {labels.selectedApplication || "Selected Application"}
           </p>
@@ -327,12 +330,29 @@ export function ApplicationSummary({ app, labels = {} }) {
             {app.title || labels.defaultTitle || "Advertisement License Application"}
           </p>
         </div>
-        <StatusPill value={formatWorkflowStatus(app.status)} />
+        {actions && <div className="shrink-0">{actions}</div>}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
-        <Info label={labels.created || "Created"} value={formatDate(app.created_at)} />
-        <Info label={labels.updated || "Updated"} value={formatDate(app.updated_at)} />
-        <Info label={labels.step || "Step"} value={`${currentStep} / 5`} />
+
+      <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+        <Info label={labels.applicant || "Applicant"} value={getApplicantName(app)} />
+        <Info label={labels.type || "Type"} value={getApplicationType(app)} />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            {labels.status || "Status"}
+          </p>
+          <div className="mt-1">
+            <StatusPill value={status} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+        <Info
+          label={labels.location || "Location"}
+          value={getApplicationLocation(app)}
+        />
+        <Info label={labels.created || "Created"} value={formatDateTime(app.created_at)} />
+        <Info label={labels.updated || "Updated"} value={formatDateTime(app.updated_at)} />
       </div>
     </div>
   );

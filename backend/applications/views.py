@@ -126,6 +126,37 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         return self.file_response(document)
 
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"documents/(?P<document_id>[^/.]+)",
+    )
+    def delete_document(self, request, pk=None, document_id=None):
+        application = self.get_object()
+        document = get_object_or_404(
+            SupportingDocument,
+            id=document_id,
+            application=application,
+        )
+
+        if (
+            request.user.role not in ["admin", "staff"]
+            and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
+        ):
+            return Response(
+                {
+                    "error": "Submitted applications can only be viewed unless they are returned for correction."
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if document.file:
+            document.file.delete(save=False)
+
+        document.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=["get"], url_path="site-image/download")
     def download_site_image(self, request, pk=None):
         application = self.get_object()

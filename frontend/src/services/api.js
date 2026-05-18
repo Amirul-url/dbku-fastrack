@@ -41,6 +41,14 @@ export function getApplicationDocumentUrl(applicationId, documentId) {
   );
 }
 
+export async function deleteApplicationDocument(applicationId, documentId) {
+  if (!applicationId || !documentId) return;
+
+  await apiRequest(`/applications/${applicationId}/documents/${documentId}/`, {
+    method: "DELETE",
+  });
+}
+
 export function getApplicationSiteImageUrl(applicationId) {
   if (!applicationId) return "";
 

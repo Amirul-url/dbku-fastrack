@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
 import {
   apiRequest,
+  deleteApplicationDocument,
+  fetchAuthenticatedBlob,
+  getApplicationDocumentUrl,
   getStoredUser,
   uploadApplicationDocument,
 } from "../../services/api";
@@ -47,8 +50,10 @@ function ProcessWorkspace({ type }) {
 }
 
 function ProcessWorkspaceContent({ config, navigate, t }) {
+  const location = useLocation();
+  const querySelectedId = new URLSearchParams(location.search).get("id") || "";
   const [applications, setApplications] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -68,6 +73,10 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
   useEffect(() => {
     fetchApplications();
   }, []);
+
+  useEffect(() => {
+    if (querySelectedId) setSelectedId(querySelectedId);
+  }, [querySelectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -153,6 +162,7 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
     selectedDetail && String(selectedDetail.id) === String(selected?.id)
       ? { ...selected, ...selectedDetail }
       : selected;
+  const isIklWorkspace = config.allowedDepartments?.includes("IKL");
 
   const stats = useMemo(() => config.stats(applications), [applications, config]);
 
@@ -162,10 +172,11 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
       return;
     }
 
+    const actionDecision = action.decision || decision;
     const cleanedComment = cleanRemark(comment);
     const requiresDecisionRemark =
       config.showComment &&
-      /reject|amendment|condition/i.test(String(decision || ""));
+      /reject|amendment|condition|not supported/i.test(String(actionDecision || ""));
 
     if ((action.requiresComment || requiresDecisionRemark) && !cleanedComment) {
       setError("Please enter notes or comments first.");
@@ -188,7 +199,7 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
       setSuccess("");
       const current = selectedRecord;
       const body = action.buildPayload(current, {
-        decision,
+        decision: actionDecision,
         comment: cleanedComment,
         technicalSite,
       });
@@ -212,11 +223,26 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
 
   return (
     <AdminDashboardLayout>
-      <PageHeader
-        eyebrow={t(config.eyebrowKey, config.eyebrow)}
-        title={t(config.titleKey, config.title)}
-        description={t(config.descriptionKey, config.description)}
-        actions={
+      {!isIklWorkspace && (
+        <PageHeader
+          eyebrow={t(config.eyebrowKey, config.eyebrow)}
+          title={t(config.titleKey, config.title)}
+          description={t(config.descriptionKey, config.description)}
+          actions={
+            <Button
+              type="button"
+              variant="secondary"
+              icon="arrow_back"
+              onClick={() => navigate("/dashboard/admin")}
+            >
+              {t("workspace.backToDashboard")}
+            </Button>
+          }
+        />
+      )}
+
+      {isIklWorkspace && (
+        <div className="mb-4 flex justify-end">
           <Button
             type="button"
             variant="secondary"
@@ -225,68 +251,78 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
           >
             {t("workspace.backToDashboard")}
           </Button>
-        }
-      />
+        </div>
+      )}
 
       <Alert message={error} />
       <Alert type="success" message={success} />
 
-      <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-        {stats.map((item) => (
-          <StatCard key={item.labelKey || item.label} {...item} label={t(item.labelKey, item.label)} />
-        ))}
-      </section>
+      {!isIklWorkspace && (
+        <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+          {stats.map((item) => (
+            <StatCard key={item.labelKey || item.label} {...item} label={t(item.labelKey, item.label)} />
+          ))}
+        </section>
+      )}
 
-      <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Panel
-          title={t(config.queueTitleKey, config.queueTitle)}
-          description={t("workspace.queue.instructions")}
-          className="xl:col-span-2"
-        >
-          <div className="mb-4">
-            <Field label={t("common.search")}>
-              <input
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-                className="form-input"
-                placeholder={t("workspace.search.placeholder")}
-              />
-            </Field>
-          </div>
+      <section
+        className={
+          isIklWorkspace
+            ? "mb-6 space-y-6"
+            : "mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3"
+        }
+      >
+        {!isIklWorkspace && (
+          <Panel
+            title={t(config.queueTitleKey, config.queueTitle)}
+            description={t("workspace.queue.instructions")}
+            className="xl:col-span-2"
+          >
+            <div className="mb-4">
+              <Field label={t("common.search")}>
+                <input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  className="form-input"
+                  placeholder={t("workspace.search.placeholder")}
+                />
+              </Field>
+            </div>
 
-          <DataTable
-            loading={loading}
-            rows={filtered}
-            emptyText={t("workspace.empty")}
-            columns={[
-              {
-                key: "reference",
-                label: t("common.reference"),
-                render: (app) => (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(String(app.id))}
-                    className="font-semibold text-emerald-700 hover:underline"
-                  >
-                    {getApplicationReference(app)}
-                  </button>
-                ),
-              },
-              { key: "applicant", label: t("common.applicant"), render: getApplicantName },
-              { key: "project", label: t("common.project"), render: getProjectName },
-              {
-                key: "status",
-                label: t("common.status"),
-                render: (app) => <StatusPill value={formatWorkflowStatus(app.status)} />,
-              },
-              {
-                key: "updated",
-                label: t("common.updated"),
-                render: (app) => formatDate(app.updated_at),
-              },
-            ]}
-          />
-        </Panel>
+            <DataTable
+              loading={loading}
+              rows={filtered}
+              emptyText={t("workspace.empty")}
+              columns={[
+                {
+                  key: "reference",
+                  label: t("common.reference"),
+                  render: (app) => (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(String(app.id))}
+                      className="font-semibold text-emerald-700 hover:underline"
+                    >
+                      {getApplicationReference(app)}
+                    </button>
+                  ),
+                },
+                { key: "applicant", label: t("common.applicant"), render: getApplicantName },
+                { key: "project", label: t("common.project"), render: getProjectName },
+                {
+                  key: "status",
+                  label: t("common.status"),
+                  render: (app) => <StatusPill value={formatWorkflowStatus(app.status)} />,
+                },
+                {
+                  key: "updated",
+                  label: t("common.updated"),
+                  render: (app) => formatDate(app.updated_at),
+                },
+              ]}
+            />
+          </Panel>
+        )}
 
         <Panel title={t("workspace.actionPanel")} description={t(config.actionDescriptionKey, config.actionDescription)}>
           {!selectedRecord ? (
@@ -298,10 +334,24 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
                 labels={{
                   selectedApplication: t("workspace.selectedApplication"),
                   defaultTitle: t("workspace.defaultApplicationTitle"),
+                  applicant: t("common.applicant"),
+                  type: t("common.type"),
+                  status: t("common.status"),
+                  location: t("workspace.location"),
                   created: t("workspace.created"),
                   updated: t("common.updated"),
-                  step: t("workspace.step"),
                 }}
+                actions={
+                  isIklWorkspace ? (
+                    <Button
+                      variant="secondary"
+                      icon="visibility"
+                      onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
+                    >
+                      {t("workspace.openForm")}
+                    </Button>
+                  ) : null
+                }
               />
 
               {config.showDecision && (
@@ -335,6 +385,7 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
               {config.showTechnicalSiteVisit && (
                 <TechnicalSiteVisitFields
                   t={t}
+                  applicationId={selectedRecord.id}
                   value={technicalSite}
                   onChange={setTechnicalSite}
                   onFileChange={async (files) => {
@@ -364,13 +415,15 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
               )}
 
               <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
-                >
-                  {t("workspace.openForm")}
-                </Button>
+                {!isIklWorkspace && (
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
+                  >
+                    {t("workspace.openForm")}
+                  </Button>
+                )}
                 {config.actions.map((action) => (
                   <Button
                     key={action.label}
@@ -389,20 +442,22 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
         </Panel>
       </section>
 
-      <Panel title={t("workspace.selectedRecord")} description={t("workspace.selectedRecordDesc")}>
-        {selectedRecord ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
-            <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
-            <Info label={t("common.type")} value={getApplicationType(selectedRecord)} />
-            <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
-            <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
-            <Info label={t("common.status")} value={formatWorkflowStatus(selectedRecord.status)} />
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
-        )}
-      </Panel>
+      {!isIklWorkspace && (
+        <Panel title={t("workspace.selectedRecord")} description={t("workspace.selectedRecordDesc")}>
+          {selectedRecord ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
+              <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
+              <Info label={t("common.type")} value={getApplicationType(selectedRecord)} />
+              <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
+              <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
+              <Info label={t("common.status")} value={formatWorkflowStatus(selectedRecord.status)} />
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
+          )}
+        </Panel>
+      )}
     </AdminDashboardLayout>
   );
 }
@@ -411,6 +466,36 @@ function mergeFormData(app, next) {
   return {
     ...(app.form_data || {}),
     ...next,
+  };
+}
+
+function buildIklTechnicalDecisionPayload(app, data) {
+  const now = new Date().toISOString();
+
+  return {
+    status: "technical_review_completed",
+    current_step: Math.max(Number(app.current_step || 1), 5),
+    form_data: mergeFormData(app, {
+      technical_review: {
+        ...(app.form_data?.technical_review || {}),
+        status: "Completed",
+        decision: data.decision,
+        comment: data.comment,
+        department: "IKL",
+        reviewed_by: "PT/PO/KP Unit Iklan",
+        reviewed_at: now,
+      },
+      technical_site_visit: {
+        ...(app.form_data?.technical_site_visit || {}),
+        site_photos: data.technicalSite.site_photos || [],
+        site_photo: data.technicalSite.site_photos?.[0] || null,
+        license_fee_calculation: data.technicalSite.license_fee_calculation,
+        deposit_calculation: data.technicalSite.deposit_calculation,
+        site_remarks: data.technicalSite.site_remarks || data.comment,
+        officer_role: "PT/PO/KP Unit Iklan",
+        visited_at: now,
+      },
+    }),
   };
 }
 
@@ -520,11 +605,11 @@ const configs = {
     showDecision: true,
     showComment: true,
     showTechnicalSiteVisit: true,
-    defaultDecision: "Complete - Send to KU(IKL)",
+    defaultDecision: "PT(IKL) Send to KU(IKL)",
     decisions: [
-      { value: "Complete - Send to KU(IKL)", labelKey: "workspace.decision.completeToKu" },
+      { value: "PT(IKL) Send to KU(IKL)", labelKey: "workspace.decision.completeToKu" },
       { value: "KU(IKL) Confirm - Send to Technical Units", labelKey: "workspace.decision.kuToTechnical" },
-      { value: "Reject to Applicant", labelKey: "workspace.decision.rejectApplicant" },
+      { value: "PT(IKL) Reject to Applicant", labelKey: "workspace.decision.rejectApplicant" },
       { value: "KU(IKL) Reject to Applicant", labelKey: "workspace.decision.kuRejectApplicant" },
       { value: "Technical Amendment Required", labelKey: "workspace.decision.technicalAmendment" },
     ],
@@ -540,64 +625,35 @@ const configs = {
     ],
     actions: [
       {
-        label: "Submit Screening Decision",
-        labelKey: "workspace.action.submitScreening",
-        icon: "fact_check",
-        success: "Screening decision saved.",
-        successKey: "workspace.message.screeningSaved",
-        buildPayload: (app, data) => {
-          const checks = buildScreeningChecks(app);
-          const reject = data.decision === "Reject to Applicant" || data.decision === "KU(IKL) Reject to Applicant";
-          const technicalAmendment = data.decision === "Technical Amendment Required";
-          const sendTechnical = data.decision === "KU(IKL) Confirm - Send to Technical Units";
-          return {
-            status: reject ? "incomplete" : technicalAmendment ? "technical_amendment" : sendTechnical ? "technical_review" : "ku_ikl_review",
-            current_step: Math.max(Number(app.current_step || 1), 5),
-            form_data: mergeFormData(app, {
-              auto_screening: {
-                status: "Screened",
-                result: reject ? "Rejected to Applicant" : data.decision,
-                remarks: data.comment,
-                checks,
-                checked_at: new Date().toISOString(),
-              },
-              correction_request: reject
-                ? {
-                    source: data.decision.includes("KU") ? "KU(IKL)" : "PT(IKL)",
-                    remarks: data.comment,
-                    requested_at: new Date().toISOString(),
-                  }
-                : app.form_data?.correction_request || null,
-            }),
-          };
-        },
+        label: "Supported",
+        labelKey: "workspace.decision.supported",
+        icon: "thumb_up",
+        decision: "Supported",
+        success: "Technical review saved.",
+        successKey: "workspace.message.technicalSaved",
+        buildPayload: buildIklTechnicalDecisionPayload,
       },
       {
-        label: "Submit Site Visit",
-        labelKey: "workspace.action.submitSiteVisit",
-        icon: "add_photo_alternate",
-        requiresComment: false,
-        success: "Site visit saved.",
-        successKey: "workspace.message.siteVisitSaved",
-        buildPayload: (app, data) => ({
-          status: "technical_site_visit",
-          current_step: Math.max(Number(app.current_step || 1), 5),
-          form_data: mergeFormData(app, {
-            technical_site_visit: {
-              ...(app.form_data?.technical_site_visit || {}),
-              site_photos: data.technicalSite.site_photos || [],
-              site_photo: data.technicalSite.site_photos?.[0] || null,
-              license_fee_calculation: data.technicalSite.license_fee_calculation,
-              deposit_calculation: data.technicalSite.deposit_calculation,
-              site_remarks: data.technicalSite.site_remarks,
-              officer_role: "PT/PO/KP Unit Iklan",
-              visited_at: new Date().toISOString(),
-            },
-          }),
-        }),
+        label: "Supported with Conditions",
+        labelKey: "workspace.decision.supportedConditions",
+        icon: "rule",
+        variant: "secondary",
+        decision: "Supported with Conditions",
+        success: "Technical review saved.",
+        successKey: "workspace.message.technicalSaved",
+        buildPayload: buildIklTechnicalDecisionPayload,
+      },
+      {
+        label: "Not Supported",
+        labelKey: "workspace.decision.notSupported",
+        icon: "thumb_down",
+        variant: "danger",
+        decision: "Not Supported",
+        success: "Technical review saved.",
+        successKey: "workspace.message.technicalSaved",
+        buildPayload: buildIklTechnicalDecisionPayload,
       },
     ],
-    details: ScreeningDetails,
   },
   technical: {
     allowedDepartments: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
@@ -963,18 +1019,29 @@ function ScreeningDetails({ app, t }) {
   );
 }
 
-function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
+function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileChange }) {
   const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
+  const [deletingIndex, setDeletingIndex] = useState(null);
 
   function updateField(field, nextValue) {
     onChange((prev) => ({ ...prev, [field]: nextValue }));
   }
 
-  function removePhoto(index) {
-    onChange((prev) => ({
-      ...prev,
-      site_photos: (prev.site_photos || []).filter((_, itemIndex) => itemIndex !== index),
-    }));
+  async function removePhoto(photo, index) {
+    try {
+      setDeletingIndex(index);
+
+      if (photo?.document_id) {
+        await deleteApplicationDocument(applicationId, photo.document_id);
+      }
+
+      onChange((prev) => ({
+        ...prev,
+        site_photos: (prev.site_photos || []).filter((_, itemIndex) => itemIndex !== index),
+      }));
+    } finally {
+      setDeletingIndex(null);
+    }
   }
 
   return (
@@ -1018,25 +1085,26 @@ function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {sitePhotos.map((photo, index) => (
             <div key={`${photo.name || "site-photo"}-${index}`} className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              {(photo.url || photo.file_url || photo.dataUrl) && (
-                <img
-                  src={photo.url || photo.file_url || photo.dataUrl}
-                  alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
-                  className="h-32 w-full object-cover"
-                />
-              )}
+              <SitePhotoPreview
+                photo={photo}
+                applicationId={applicationId}
+                alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
+              />
               <div className="flex items-center justify-between gap-2 px-2 py-1.5">
                 <span className="truncate text-xs font-medium text-slate-600">
                   {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => removePhoto(index)}
-                  className="material-symbols-outlined text-base text-red-600 hover:text-red-700"
-                  aria-label="Remove site photo"
-                >
-                  close
-                </button>
+                <SitePhotoActions
+                  photo={photo}
+                  applicationId={applicationId}
+                  disabled={deletingIndex === index}
+                  onRemove={() => removePhoto(photo, index)}
+                  labels={{
+                    view: t("common.view"),
+                    download: t("common.download"),
+                    delete: t("common.delete"),
+                  }}
+                />
               </div>
             </div>
           ))}
@@ -1071,6 +1139,150 @@ function TechnicalSiteVisitFields({ t, value, onChange, onFileChange }) {
           placeholder={t("workspace.technical.siteRemarksPlaceholder")}
         />
       </Field>
+    </div>
+  );
+}
+
+function getSitePhotoSource(photo, applicationId) {
+  return (
+    photo?.dataUrl ||
+    photo?.url ||
+    photo?.file_url ||
+    (photo?.document_id ? getApplicationDocumentUrl(applicationId, photo.document_id) : "")
+  );
+}
+
+async function getSitePhotoBlobUrl(photo, applicationId) {
+  const source = getSitePhotoSource(photo, applicationId);
+  if (!source) return { url: "", revoke: false };
+
+  if (source.startsWith("blob:")) return { url: source, revoke: false };
+
+  const blob = await fetchAuthenticatedBlob(source);
+  return { url: URL.createObjectURL(blob), revoke: true };
+}
+
+function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels }) {
+  async function viewPhoto() {
+    const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
+
+    if (!url) return;
+
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    if (revoke) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  }
+
+  async function downloadPhoto() {
+    const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
+    if (!url) return;
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = photo?.name || "site-photo";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    if (revoke) {
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  }
+
+  const actions = [
+    { icon: "visibility", label: labels.view, onClick: viewPhoto },
+    { icon: "download", label: labels.download, onClick: downloadPhoto },
+    { icon: "delete", label: labels.delete, onClick: onRemove, danger: true },
+  ];
+
+  return (
+    <div className="flex shrink-0 items-center gap-1">
+      {actions.map((action) => (
+        <button
+          key={action.icon}
+          type="button"
+          title={action.label}
+          aria-label={action.label}
+          disabled={disabled}
+          onClick={action.onClick}
+          className={`material-symbols-outlined rounded p-1 text-[18px] transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            action.danger
+              ? "text-red-600 hover:bg-red-50 hover:text-red-700"
+              : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+          }`}
+        >
+          {action.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SitePhotoPreview({ photo, applicationId, alt }) {
+  const source = getSitePhotoSource(photo, applicationId);
+  const isInlinePreview =
+    typeof source === "string" &&
+    (source.startsWith("blob:") || source.startsWith("data:"));
+  const [remotePreview, setRemotePreview] = useState({
+    source: "",
+    url: "",
+    error: false,
+  });
+  const displayPreview = isInlinePreview
+    ? source
+    : remotePreview.source === source
+      ? remotePreview.url
+      : "";
+
+  useEffect(() => {
+    let isActive = true;
+    let objectUrl = "";
+
+    if (!source || isInlinePreview) {
+      return undefined;
+    }
+
+    fetchAuthenticatedBlob(source)
+      .then((blob) => {
+        if (!isActive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setRemotePreview({ source, url: objectUrl, error: false });
+      })
+      .catch((error) => {
+        console.error("Failed to load site visit photo preview:", error);
+        if (isActive) {
+          setRemotePreview({ source, url: "", error: true });
+        }
+      });
+
+    return () => {
+      isActive = false;
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [isInlinePreview, source]);
+
+  if (!source) {
+    return <div className="h-32 bg-slate-50" />;
+  }
+
+  if (displayPreview) {
+    return (
+      <img
+        src={displayPreview}
+        alt={alt}
+        className="h-32 w-full object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-32 items-center justify-center bg-slate-50 px-3 text-center text-xs text-slate-500">
+      {remotePreview.error ? "Site photo could not be loaded." : "Loading site photo..."}
     </div>
   );
 }

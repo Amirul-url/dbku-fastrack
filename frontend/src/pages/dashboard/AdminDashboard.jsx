@@ -6,11 +6,12 @@ import { apiRequest, getStoredUser } from "../../services/api";
 import {
   Alert,
   DataTable,
+  LinkButton,
   Panel,
   StatusPill,
 } from "../../components/ui/SystemUI";
 import {
-  formatDate,
+  formatDateTime,
   formatWorkflowStatus,
   getApplicantName,
   getApplicationReference,
@@ -27,7 +28,7 @@ const units = [
     icon: "description",
     color: "bg-cyan-700",
     statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment"],
-    path: "/admin/applications",
+    path: "/admin/auto-screening",
   },
   {
     code: "BLG",
@@ -214,81 +215,59 @@ function ClaimableTaskView({
         </div>
       </fieldset>
 
-      <div className="mt-5 border border-slate-300">
-        <div className="bg-blue-700 px-3 py-1 text-sm font-semibold text-white">
-          {selected.title}
-        </div>
-        <div className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-full text-white ${selected.color}`}>
-              <span className={`material-symbols-outlined text-3xl ${selected.iconClassName || ""}`}>
-                {selected.icon}
-              </span>
-            </div>
-            <h2 className="text-lg font-semibold text-slate-950">{selected.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              {t(selected.descriptionKey)}
-            </p>
-            {selected.code === "Unit Iklan" && (
-              <div className="mt-4 rounded-md border border-emerald-100 bg-white p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
-                  {t("admin.dashboard.roleTitle")}
-                </p>
-                <ul className="mt-2 space-y-2 text-xs leading-5 text-slate-700">
-                  <li>{t("admin.dashboard.ptIklRole")}</li>
-                  <li>{t("admin.dashboard.kuIklRole")}</li>
-                  <li>{t("admin.dashboard.unitIklanTechnicalRole")}</li>
-                </ul>
-              </div>
-            )}
-            <Link
-              to={selected.path}
-                className="mt-4 inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800"
-            >
-              {t("admin.dashboard.openWorkspace")}
-            </Link>
-          </div>
-
-          <Panel
-            title={`${selected.title} ${t("admin.dashboard.taskQueue")}`}
-            description={t("admin.dashboard.queueDescription")}
-          >
-            <DataTable
-              loading={loading}
-              emptyText={t("admin.dashboard.noTask")}
-              rows={selected.tasks}
-              columns={[
-                {
-                  key: "reference",
-                  label: t("common.reference"),
-                  render: (application) => (
-                    <Link
-                      to={`/admin/applications/${application.id}/view/step-1?id=${application.id}`}
-                      className="font-semibold text-emerald-700 hover:underline"
-                    >
-                      {getApplicationReference(application)}
-                    </Link>
-                  ),
-                },
-                { key: "applicant", label: t("common.applicant"), render: getApplicantName },
-                { key: "project", label: t("common.project"), render: getProjectName },
-                {
-                  key: "status",
-                  label: t("common.status"),
-                  render: (application) => (
-                    <StatusPill value={formatWorkflowStatus(application.status)} />
-                  ),
-                },
-                {
-                  key: "updated",
-                  label: t("common.updated"),
-                  render: (application) => formatDate(application.updated_at),
-                },
-              ]}
-            />
-          </Panel>
-        </div>
-      </div>
+      <Panel
+        title={`${selected.title} ${t("admin.dashboard.taskQueue")}`}
+        description={t("admin.dashboard.queueDescription")}
+        className="mt-5"
+      >
+        <DataTable
+          loading={loading}
+          emptyText={t("admin.dashboard.noTask")}
+          rows={selected.tasks}
+          columns={[
+            {
+              key: "reference",
+              label: t("common.reference"),
+              render: (application) => (
+                <Link
+                  to={`/admin/applications/${application.id}/view/step-1?id=${application.id}`}
+                  className="font-semibold text-emerald-700 hover:underline"
+                >
+                  {getApplicationReference(application)}
+                </Link>
+              ),
+            },
+            { key: "applicant", label: t("common.applicant"), render: getApplicantName },
+            { key: "project", label: t("common.project"), render: getProjectName },
+            {
+              key: "status",
+              label: t("common.status"),
+              render: (application) => (
+                <StatusPill value={formatWorkflowStatus(application.status)} />
+              ),
+            },
+            {
+              key: "updated",
+              label: t("common.updated"),
+              render: (application) => formatDateTime(application.updated_at),
+            },
+            {
+              key: "action",
+              label: t("common.action"),
+              render: (application) => (
+                <LinkButton
+                  to={`${selected.path}?id=${application.id}`}
+                  icon="open_in_new"
+                  variant="secondary"
+                  className="min-h-8 px-3 py-1 text-xs"
+                >
+                  {t("common.open")}
+                </LinkButton>
+              ),
+            },
+          ]}
+        />
+      </Panel>
     </>
   );
 }
