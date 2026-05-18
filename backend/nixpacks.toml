@@ -8,4 +8,4 @@ cmds = ["pip install -r requirements.txt"]
 cmds = ["python manage.py collectstatic --noinput"]
 
 [start]
-cmd = "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 3 --timeout 120"
+cmd = "sh scripts/start.sh"
