@@ -205,7 +205,8 @@ def normalize_phone_number(value):
 
 
 def normalize_email_address(value):
-    return str(value or "").strip().lower()
+    text = str(value or "").strip().lower()
+    return "" if text == "-" else text
 
 
 def normalize_full_name(value):
@@ -758,6 +759,9 @@ def apply_managed_account_data(user, data, require_password=False):
 
     if role not in MANAGED_ACCOUNT_ROLES:
         return "SuperAdmin can only manage user and admin accounts."
+
+    if email and not EMAIL_PATTERN.match(email):
+        return "Please enter a valid email address."
 
     if require_password and not password:
         return "Password is required."

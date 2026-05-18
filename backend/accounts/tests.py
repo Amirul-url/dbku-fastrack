@@ -107,6 +107,47 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(user.last_name, "ADMIN")
         self.assertEqual(user.mobile_number, "")
 
+    def test_managed_account_dash_email_is_saved_as_empty(self):
+        user = User()
+        error = apply_managed_account_data(
+            user,
+            {
+                "username": "admin3",
+                "full_name": "Third Admin",
+                "email": "-",
+                "mobile_number": "-",
+                "department": "blg",
+                "role": "admin",
+                "password": "Password123",
+                "password2": "Password123",
+                "is_active": True,
+            },
+            require_password=True,
+        )
+
+        self.assertEqual(error, "")
+        self.assertEqual(user.email, "")
+
+    def test_managed_account_rejects_invalid_email(self):
+        user = User()
+        error = apply_managed_account_data(
+            user,
+            {
+                "username": "admin4",
+                "full_name": "Fourth Admin",
+                "email": "not-an-email",
+                "mobile_number": "",
+                "department": "blg",
+                "role": "admin",
+                "password": "Password123",
+                "password2": "Password123",
+                "is_active": True,
+            },
+            require_password=True,
+        )
+
+        self.assertEqual(error, "Please enter a valid email address.")
+
     def test_managed_user_list_includes_legacy_user_role(self):
         superadmin = User.objects.get(username="superadmin")
         superadmin.role = "superadmin"

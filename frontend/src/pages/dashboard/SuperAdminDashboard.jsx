@@ -601,6 +601,7 @@ function SuperAdminAccountManagement({ view }) {
       const payload = {
         ...form,
         full_name: normalizeNameValue(form.full_name),
+        email: cleanEmailValue(form.email),
         mykad_number: form.username,
         mobile_number: cleanMobileNumberValue(form.mobile_number),
       };
@@ -747,7 +748,7 @@ function SuperAdminAccountManagement({ view }) {
             username: importedUsername,
             mykad_number: importedUsername,
             full_name: normalizeNameValue(row.name || row.full_name),
-            email: normalizeImportedEmail(row.email),
+            email: cleanEmailValue(normalizeImportedEmail(row.email)),
             department: String(row.department || "").trim().toUpperCase(),
             mobile_number: importedMobile,
             role: normalizeImportedRole(row.role || roleFilter || "applicant"),
@@ -1109,12 +1110,12 @@ function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSu
           </FormField>
           <FormField label={labels.email}>
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={form.email}
               onChange={(event) => onChange({ email: event.target.value })}
               placeholder={labels.enterEmail}
               className={inputClassName}
-              required
             />
           </FormField>
           <FormField label={labels.mobileNumber}>
@@ -1490,6 +1491,11 @@ function formatMobileNumber(value) {
 }
 
 function cleanMobileNumberValue(value) {
+  const text = String(value || "").trim();
+  return text === "-" ? "" : text;
+}
+
+function cleanEmailValue(value) {
   const text = String(value || "").trim();
   return text === "-" ? "" : text;
 }
