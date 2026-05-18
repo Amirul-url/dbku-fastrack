@@ -184,11 +184,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   const isIklWorkspace = config.allowedDepartments?.includes("IKL");
   const isDepartmentTechnicalWorkspace = config.key === "technical";
-  const isFocusedPersonalWorkspace = isIklWorkspace || isDepartmentTechnicalWorkspace;
+  const isApprovalWorkspace = config.key === "approval";
+  const isFocusedPersonalWorkspace =
+    isIklWorkspace || isDepartmentTechnicalWorkspace || isApprovalWorkspace;
   const showSiteVisitFields =
     config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
-  const showBottomFormButton = !isIklWorkspace && !isDepartmentTechnicalWorkspace;
-  const actionGridClass = isDepartmentTechnicalWorkspace
+  const showBottomFormButton = !isFocusedPersonalWorkspace;
+  const actionGridClass = isFocusedPersonalWorkspace || isDepartmentTechnicalWorkspace
     ? "grid grid-cols-1 gap-2 pt-1"
     : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
 
@@ -994,6 +996,7 @@ const configs = {
     ],
   },
   approval: {
+    key: "approval",
     eyebrow: "Management and MPHLG",
     eyebrowKey: "workspace.approval.eyebrow",
     statuses: ["management_review", "mphlg_processing", "mphlg_decision_received"],
