@@ -43,6 +43,7 @@ const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_site_visit",
   "technical_review_completed",
 ];
+const TECHNICAL_REVIEW_STATUSES = new Set(TECHNICAL_DEPARTMENT_TASK_STATUSES);
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -183,6 +184,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   const isIklWorkspace = config.allowedDepartments?.includes("IKL");
   const isDepartmentTechnicalWorkspace = config.key === "technical";
+  const isFocusedPersonalWorkspace = isIklWorkspace || isDepartmentTechnicalWorkspace;
   const showSiteVisitFields =
     config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
   const showBottomFormButton = !isIklWorkspace && !isDepartmentTechnicalWorkspace;
@@ -294,7 +296,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   return (
     <AdminDashboardLayout>
-      {!isIklWorkspace && (
+      {!isFocusedPersonalWorkspace && (
         <PageHeader
           eyebrow={t(config.eyebrowKey, config.eyebrow)}
           title={t(config.titleKey, config.title)}
@@ -312,7 +314,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         />
       )}
 
-      {isIklWorkspace && (
+      {isFocusedPersonalWorkspace && (
         <div className="mb-4 flex justify-end">
           <Button
             type="button"
@@ -328,7 +330,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       <Alert message={error} />
       <Alert type="success" message={success} />
 
-      {!isIklWorkspace && (
+      {!isFocusedPersonalWorkspace && (
         <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           {stats.map((item) => (
             <StatCard key={item.labelKey || item.label} {...item} label={t(item.labelKey, item.label)} />
@@ -338,12 +340,12 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
       <section
         className={
-          isIklWorkspace
+          isFocusedPersonalWorkspace
             ? "mb-6 space-y-6"
             : "mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3"
         }
       >
-        {!isIklWorkspace && (
+        {!isFocusedPersonalWorkspace && (
           <Panel
             title={t(config.queueTitleKey, config.queueTitle)}
             description={t("workspace.queue.instructions")}
@@ -384,7 +386,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   key: "status",
                   label: t("common.status"),
                   render: (app) => (
-                    <StatusPill value={getWorkspaceStatusLabel(app, config, t)} />
+                    <StatusPill value={getWorkspaceStatusLabel(app, config, t, userDepartment)} />
                   ),
                 },
                 {
@@ -414,9 +416,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   created: t("workspace.created"),
                   updated: t("common.updated"),
                 }}
-                statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t)}
+                statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
+                applicationType={getLocalizedApplicationType(selectedRecord, t)}
                 actions={
-                  isIklWorkspace ? (
+                  isFocusedPersonalWorkspace ? (
                     <Button
                       variant="secondary"
                       icon="visibility"
@@ -445,7 +448,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
               ) : (
                 <>
                   {config.showDecision && (
-                    <Field label={t(config.decisionLabelKey, config.decisionLabel || "Decision")}>
+                    <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
                       <select
                         value={decision}
                         onChange={(event) => setDecision(event.target.value)}
@@ -534,18 +537,18 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         </Panel>
       </section>
 
-      {!isIklWorkspace && (
+      {!isFocusedPersonalWorkspace && (
         <Panel title={t("workspace.selectedRecord")} description={t("workspace.selectedRecordDesc")}>
           {selectedRecord ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
               <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
-              <Info label={t("common.type")} value={getApplicationType(selectedRecord)} />
+              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t)} />
               <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
               <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
               <Info
                 label={t("common.status")}
-                value={getWorkspaceStatusLabel(selectedRecord, config, t)}
+                value={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
               />
             </div>
           ) : (
@@ -564,15 +567,43 @@ function mergeFormData(app, next) {
   };
 }
 
-function getWorkspaceStatusLabel(app, config, t) {
+function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const status = normalizeStatus(app?.status);
   const isIklWorkspace = config?.allowedDepartments?.includes("IKL");
+  const isDepartmentTechnicalWorkspace = config?.key === "technical";
 
   if (isIklWorkspace && status === "submitted") {
     return t("status.pt_ku_review", "For PT/KU Review");
   }
 
+  if (isIklWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
+    return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${TECHNICAL_DEPARTMENTS.join(" / ")}`;
+  }
+
+  if (isDepartmentTechnicalWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
+    return getDepartmentReviewStatusLabel(userDepartment);
+  }
+
   return formatWorkflowStatus(status);
+}
+
+function getDepartmentReviewStatusLabel(department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  return normalizedDepartment ? `${normalizedDepartment} Review` : "Department Review";
+}
+
+function getLocalizedApplicationType(app, t) {
+  const type = getApplicationType(app);
+  const normalizedType = String(type || "").trim().toLowerCase();
+  const labelMap = {
+    "application for site (new site)": "application.type.siteNew",
+    "application for site": "application.type.site",
+    "sitting application": "application.type.sitting",
+    "signboard license": "application.type.signboard",
+    "building plan": "application.type.buildingPlan",
+  };
+
+  return labelMap[normalizedType] ? t(labelMap[normalizedType], type) : type;
 }
 
 function buildIklScreeningPayload(app, data) {
@@ -872,7 +903,7 @@ const configs = {
       { value: "Supported with Conditions", labelKey: "workspace.decision.supportedConditions" },
       { value: "Not Supported", labelKey: "workspace.decision.notSupported" },
     ],
-    commentLabel: "Technical Comment",
+    commentLabel: "Remarks",
     commentLabelKey: "workspace.comment.technical",
     commentPlaceholder: "Add department comments, conditions, site notes, or rejection reasons.",
     commentPlaceholderKey: "workspace.comment.technicalPlaceholder",
@@ -1229,16 +1260,16 @@ function IklWorkspaceSections({
     <div className="space-y-4">
       <section className="rounded-md border border-slate-200 bg-white p-3">
         <div className="mb-3">
-          <h3 className="text-sm font-semibold text-slate-950">
+          <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
             {t("workspace.ikl.screeningTitle")}
           </h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
+          <p className="mt-1 text-[14px] leading-5 text-slate-500">
             {t("workspace.ikl.screeningDesc")}
           </p>
         </div>
 
         <div className="space-y-3">
-          <Field label={t(config.decisionLabelKey, config.decisionLabel || "Decision")}>
+          <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
             <select
               value={decision}
               onChange={(event) => setDecision(event.target.value)}
@@ -1318,19 +1349,24 @@ function TechnicalDepartmentRemarks({ app, t }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-2">
-        <h3 className="text-sm font-semibold text-slate-950">
+        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
           {t("workspace.technical.compiledRemarksTitle")}
         </h3>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
+        <p className="mt-1 text-[14px] leading-5 text-slate-500">
           {t("workspace.technical.compiledRemarksDesc")}
         </p>
       </div>
       <div className="divide-y divide-slate-100">
+        <div className="hidden grid-cols-1 gap-4 bg-slate-50 px-3 py-2 text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500 md:grid md:grid-cols-[110px_210px_1fr]">
+          <div>{t("common.department", "Department")}</div>
+          <div>{t("common.status", "Status")}</div>
+          <div>{t("workspace.comment.remarks", "Remarks")}</div>
+        </div>
         {TECHNICAL_DEPARTMENTS.map((department) => {
           const review = reviews?.[department];
 
           return (
-            <div key={department} className="grid grid-cols-1 gap-2 px-3 py-2 text-sm md:grid-cols-[90px_180px_1fr]">
+            <div key={department} className="grid grid-cols-1 gap-4 px-3 py-2 text-[14px] leading-5 md:grid-cols-[110px_210px_1fr]">
               <div className="font-semibold text-slate-950">{department}</div>
               <div>
                 <StatusPill
@@ -1345,7 +1381,7 @@ function TechnicalDepartmentRemarks({ app, t }) {
                 {review?.remarks ? (
                   <>
                     <p className="whitespace-pre-wrap leading-5">{review.remarks}</p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-[13px] leading-5 text-slate-400">
                       {formatDateTime(review.reviewed_at)}
                     </p>
                   </>
@@ -1400,17 +1436,20 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
   return (
     <div className="space-y-3 rounded-md border border-emerald-100 bg-emerald-50/40 p-3">
       <div>
-        <h3 className="text-sm font-semibold text-slate-950">
+        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
           {t("workspace.technical.siteVisitTitle")}
         </h3>
-        <p className="mt-1 text-xs leading-5 text-slate-600">
+        <p className="mt-1 text-[14px] leading-5 text-slate-600">
           {t("workspace.technical.siteVisitDesc")}
         </p>
       </div>
 
-      <Field label={t("workspace.technical.sitePhoto")}>
+      <div>
+        <p className="mb-1.5 text-[14px] font-semibold leading-5 text-slate-700">
+          {t("workspace.technical.sitePhoto")}
+        </p>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800">
+          <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-white hover:bg-emerald-800">
             <span className="material-symbols-outlined mr-1 text-base">
               add_photo_alternate
             </span>
@@ -1427,12 +1466,12 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
             />
           </label>
           {sitePhotos.length > 0 && (
-            <span className="text-xs font-medium text-emerald-700">
+            <span className="text-[14px] font-medium leading-5 text-emerald-700">
               {t("workspace.technical.sitePhotoUploaded")}: {sitePhotos.length}
             </span>
           )}
         </div>
-      </Field>
+      </div>
 
       {sitePhotos.length > 0 && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1444,7 +1483,7 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
                 alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
               />
               <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-                <span className="truncate text-xs font-medium text-slate-600">
+                <span className="truncate text-[14px] font-medium leading-5 text-slate-600">
                   {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
                 </span>
                 <SitePhotoActions

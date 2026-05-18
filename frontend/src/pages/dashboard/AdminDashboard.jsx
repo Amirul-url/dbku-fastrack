@@ -24,6 +24,7 @@ const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_site_visit",
   "technical_review_completed",
 ];
+const TECHNICAL_DEPARTMENT_STATUS_SET = new Set(TECHNICAL_DEPARTMENT_TASK_STATUSES);
 
 const units = [
   {
@@ -325,6 +326,14 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
   if (unit?.department === "IKL" && status === "submitted") {
     return t("status.pt_ku_review", "PT/KU Review");
+  }
+
+  if (unit?.department === "IKL" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
+    return `${t(`status.${status}`, formatWorkflowStatus(status))}: BLG / GPM / MNE / IMT / LNP / ENG`;
+  }
+
+  if (unit?.department !== "IKL" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
+    return `${unit.department} Review`;
   }
 
   return formatWorkflowStatus(status);

@@ -63,7 +63,7 @@ export function Button({
   return (
     <button
       type="button"
-      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-[14px] font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${className}`}
       {...props}
     >
       {icon && (
@@ -85,7 +85,7 @@ export function LinkButton({ to, children, icon, variant = "primary", className 
   return (
     <Link
       to={to}
-      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold transition ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-[14px] font-semibold leading-5 transition ${variants[variant]} ${className}`}
     >
       {icon && (
         <span className="material-symbols-outlined text-[18px]">{icon}</span>
@@ -102,10 +102,10 @@ export function Panel({ title, description, action, children, className = "" }) 
         <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
           <div>
             {title && (
-              <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+              <h2 className="text-[16px] font-semibold leading-6 text-slate-950">{title}</h2>
             )}
             {description && (
-              <p className="mt-1 text-sm leading-5 text-slate-500">
+              <p className="mt-1 text-[14px] leading-5 text-slate-500">
                 {description}
               </p>
             )}
@@ -150,7 +150,7 @@ export function StatCard({ label, value, note, icon, tone = "emerald" }) {
 export function Field({ label, children, className = "" }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+      <span className="mb-1.5 block text-[14px] font-semibold leading-5 text-slate-700">
         {label}
       </span>
       {children}
@@ -167,7 +167,7 @@ export function Alert({ type = "error", message }) {
       : "border-red-200 bg-red-50 text-red-800";
 
   return (
-    <div className={`mb-4 rounded-md border px-3 py-2.5 text-sm ${styles}`}>
+    <div className={`mb-4 rounded-md border px-3 py-2.5 text-[14px] leading-5 ${styles}`}>
       {message}
     </div>
   );
@@ -185,6 +185,12 @@ export function StatusPill({ value }) {
     normalized.includes("issued") ||
     normalized.includes("active") ||
     normalized.includes("supported") ||
+    normalized.includes("disokong") ||
+    normalized.includes("dihantar") ||
+    normalized.includes("disahkan") ||
+    normalized.includes("dijana") ||
+    normalized.includes("aktif") ||
+    normalized.includes("lulus") ||
     normalized.includes("passed")
   ) {
     className = "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -196,7 +202,13 @@ export function StatusPill({ value }) {
     normalized.includes("processing") ||
     normalized.includes("condition") ||
     normalized.includes("draft") ||
-    normalized.includes("warning")
+    normalized.includes("warning") ||
+    normalized.includes("belum") ||
+    normalized.includes("menunggu") ||
+    normalized.includes("semakan") ||
+    normalized.includes("bersyarat") ||
+    normalized.includes("draf") ||
+    normalized.includes("amaran")
   ) {
     className = "border-amber-200 bg-amber-50 text-amber-700";
   }
@@ -205,14 +217,19 @@ export function StatusPill({ value }) {
     normalized.includes("reject") ||
     normalized.includes("failed") ||
     normalized.includes("revoked") ||
-    normalized.includes("invalid")
+    normalized.includes("invalid") ||
+    normalized.includes("tidak disokong") ||
+    normalized.includes("ditolak") ||
+    normalized.includes("gagal") ||
+    normalized.includes("dibatalkan") ||
+    normalized.includes("tidak sah")
   ) {
     className = "border-red-200 bg-red-50 text-red-700";
   }
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-5 ${className}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[13px] font-semibold leading-5 ${className}`}
     >
       {value || "Draft"}
     </span>
@@ -236,8 +253,8 @@ export function EmptyState({ title = "No data", description, icon = "inbox" }) {
 export function DataTable({ columns, rows, loading, emptyText, loadingText = "Loading..." }) {
   return (
     <div className="overflow-x-auto rounded-md border border-slate-200">
-      <table className="w-full min-w-[720px] text-left text-xs">
-        <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+      <table className="w-full min-w-[720px] text-left text-[14px] leading-5">
+        <thead className="bg-slate-50 text-[13px] uppercase tracking-wide text-slate-500">
           <tr>
             {columns.map((column) => (
               <th key={column.key} className="border-b border-slate-200 px-3 py-2.5">
@@ -312,7 +329,7 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 }
 
-export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
+export function ApplicationSummary({ app, labels = {}, actions, statusLabel, applicationType }) {
   if (!app) return null;
   const status = statusLabel || formatWorkflowStatus(app.status);
 
@@ -320,24 +337,24 @@ export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
             {labels.selectedApplication || "Selected Application"}
           </p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
+          <p className="mt-1 text-[14px] font-semibold leading-5 text-slate-950">
             {getApplicationReference(app)}
           </p>
-          <p className="text-sm text-slate-600">
+          <p className="text-[14px] leading-5 text-slate-600">
             {app.title || labels.defaultTitle || "Advertisement License Application"}
           </p>
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 text-[14px] leading-5 md:grid-cols-3">
         <Info label={labels.applicant || "Applicant"} value={getApplicantName(app)} />
-        <Info label={labels.type || "Type"} value={getApplicationType(app)} />
+        <Info label={labels.type || "Type"} value={applicationType || getApplicationType(app)} />
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
             {labels.status || "Status"}
           </p>
           <div className="mt-1">
@@ -346,7 +363,7 @@ export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 text-[14px] leading-5 md:grid-cols-3">
         <Info
           label={labels.location || "Location"}
           value={getApplicationLocation(app)}
@@ -361,10 +378,10 @@ export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
 export function Info({ label, value }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
         {label}
       </p>
-      <p className="mt-1 text-sm font-medium text-slate-800">{value || "-"}</p>
+      <p className="mt-1 text-[14px] font-medium leading-5 text-slate-800">{value || "-"}</p>
     </div>
   );
 }

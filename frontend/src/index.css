@@ -92,7 +92,8 @@ html.material-symbols-ready .material-symbols-outlined {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.55rem 0.65rem;
-  font-size: 0.8125rem;
+  font-size: 14px;
+  line-height: 1.4;
   outline: none;
   background: #ffffff;
   color: var(--text);
