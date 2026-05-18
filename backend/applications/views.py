@@ -37,7 +37,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         queryset = queryset.select_related("applicant").order_by("-updated_at")
 
         if self.action == "list":
-            return queryset.defer("form_data")
+            return queryset
 
         return queryset.prefetch_related("supporting_documents")
 

@@ -19,6 +19,12 @@ import {
   normalizeStatus,
 } from "../../utils/workflow";
 
+const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
+  "technical_review",
+  "technical_site_visit",
+  "technical_review_completed",
+];
+
 const units = [
   {
     code: "Unit Iklan",
@@ -27,7 +33,7 @@ const units = [
     descriptionKey: "admin.unit.ikl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment"],
+    statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment", "technical_review_completed"],
     path: "/admin/auto-screening",
   },
   {
@@ -37,7 +43,7 @@ const units = [
     descriptionKey: "admin.unit.blg.desc",
     icon: "edit_square",
     color: "bg-emerald-600",
-    statuses: ["technical_review", "technical_site_visit"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -47,7 +53,7 @@ const units = [
     descriptionKey: "admin.unit.gpm.desc",
     icon: "payments",
     color: "bg-blue-600",
-    statuses: ["technical_review", "technical_site_visit"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -57,7 +63,7 @@ const units = [
     descriptionKey: "admin.unit.mne.desc",
     icon: "account_balance",
     color: "bg-sky-600",
-    statuses: ["technical_review", "technical_site_visit"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -68,7 +74,7 @@ const units = [
     icon: "hub",
     color: "bg-yellow-400",
     iconClassName: "text-slate-900",
-    statuses: ["technical_review"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -78,7 +84,7 @@ const units = [
     descriptionKey: "admin.unit.lnp.desc",
     icon: "fact_check",
     color: "bg-green-600",
-    statuses: ["technical_review", "technical_site_visit"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -88,7 +94,7 @@ const units = [
     descriptionKey: "admin.unit.eng.desc",
     icon: "engineering",
     color: "bg-teal-600",
-    statuses: ["technical_review"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     path: "/admin/technical-review",
   },
 ];
@@ -114,16 +120,16 @@ function PersonalTaskDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError("");
       const data = await apiRequest("/applications/");
       setApplications(Array.isArray(data) ? data : data?.results || []);
     } catch (err) {
       setError(err.message || "Failed to load admin dashboard tasks.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -132,14 +138,37 @@ function PersonalTaskDashboard() {
     fetchApplications();
   }, [fetchApplications]);
 
+  useEffect(() => {
+    window.addEventListener("fastrack:applications-changed", fetchApplications);
+    const interval = window.setInterval(
+      () => fetchApplications({ silent: true }),
+      15000
+    );
+
+    return () => {
+      window.removeEventListener("fastrack:applications-changed", fetchApplications);
+      window.clearInterval(interval);
+    };
+  }, [fetchApplications]);
+
   const unitTasks = useMemo(() => {
     return units.map((unit) => ({
       ...unit,
       locked: Boolean(activeDepartment) && unit.department !== activeDepartment,
-      tasks: applications.filter((application) =>
-        unit.statuses.includes(normalizeStatus(application.status)) &&
-        (!activeDepartment || unit.department === activeDepartment)
-      ),
+      tasks: applications.filter((application) => {
+        const isAssignedDepartment =
+          !activeDepartment || unit.department === activeDepartment;
+        const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
+        const isDepartmentTechnicalTask =
+          unit.department !== "IKL" &&
+          !hasTechnicalDepartmentReview(application, unit.department);
+
+        return (
+          isAssignedDepartment &&
+          isMatchingStatus &&
+          (unit.department === "IKL" || isDepartmentTechnicalTask)
+        );
+      }),
     }));
   }, [applications, activeDepartment]);
 
@@ -274,12 +303,21 @@ function ClaimableTaskView({
 
 function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
+  if (department === "INP") return "LNP";
   return department === "UNIT IKLAN" ? "IKL" : department;
 }
 
 function getAssignedUnit(department) {
   if (!department) return null;
   return units.find((unit) => unit.department === department) || null;
+}
+
+function getTechnicalDepartmentReviews(app) {
+  return app?.technical_department_reviews || app?.form_data?.technical_department_reviews || {};
+}
+
+function hasTechnicalDepartmentReview(app, department) {
+  return Boolean(getTechnicalDepartmentReviews(app)?.[department]);
 }
 
 export default AdminDashboard;

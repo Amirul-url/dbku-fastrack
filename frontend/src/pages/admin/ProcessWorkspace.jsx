@@ -25,6 +25,7 @@ import {
 import {
   formatCurrency,
   formatDate,
+  formatDateTime,
   formatWorkflowStatus,
   getApplicantName,
   getApplicationLocation,
@@ -36,6 +37,13 @@ import {
   normalizeStatus,
 } from "../../utils/workflow";
 
+const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
+  "technical_review",
+  "technical_site_visit",
+  "technical_review_completed",
+];
+
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -46,10 +54,17 @@ function ProcessWorkspace({ type }) {
     return <AdminDashboardLayout />;
   }
 
-  return <ProcessWorkspaceContent config={config} navigate={navigate} t={t} />;
+  return (
+    <ProcessWorkspaceContent
+      config={config}
+      navigate={navigate}
+      t={t}
+      userDepartment={userDepartment}
+    />
+  );
 }
 
-function ProcessWorkspaceContent({ config, navigate, t }) {
+function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const location = useLocation();
   const querySelectedId = new URLSearchParams(location.search).get("id") || "";
   const [applications, setApplications] = useState([]);
@@ -123,9 +138,9 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
     });
   }, [selectedDetail?.id, selectedDetail?.updated_at]);
 
-  async function fetchApplications() {
+  async function fetchApplications({ silent = false } = {}) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError("");
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
@@ -134,13 +149,57 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
     } catch (err) {
       setError(err.message || "Failed to load applications.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
+  useEffect(() => {
+    let active = true;
+
+    async function refreshWorkspaceData() {
+      if (!active) return;
+
+      try {
+        await fetchApplications({ silent: true });
+
+        if (selectedId) {
+          const detail = await apiRequest(`/applications/${selectedId}/`);
+          if (active) setSelectedDetail(detail);
+        }
+      } catch {
+        // Keep the current screen stable during background refresh.
+      }
+    }
+
+    window.addEventListener("fastrack:applications-changed", refreshWorkspaceData);
+    const interval = window.setInterval(refreshWorkspaceData, 15000);
+
+    return () => {
+      active = false;
+      window.removeEventListener("fastrack:applications-changed", refreshWorkspaceData);
+      window.clearInterval(interval);
+    };
+  }, [selectedId]);
+
+  const isIklWorkspace = config.allowedDepartments?.includes("IKL");
+  const isDepartmentTechnicalWorkspace = config.key === "technical";
+  const showSiteVisitFields =
+    config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
+  const showBottomFormButton = !isIklWorkspace && !isDepartmentTechnicalWorkspace;
+  const actionGridClass = isDepartmentTechnicalWorkspace
+    ? "grid grid-cols-1 gap-2 pt-1"
+    : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
+
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
+    const statusScope = Array.isArray(config.statuses) ? config.statuses : [];
     return applications.filter((app) => {
+      const normalizedStatus = normalizeStatus(app.status);
+      const isInStatusScope =
+        statusScope.length === 0 || statusScope.includes(normalizedStatus);
+      const isInDepartmentScope =
+        !isDepartmentTechnicalWorkspace ||
+        !hasTechnicalDepartmentReview(app, userDepartment);
       const haystack = [
         getApplicationReference(app),
         getApplicantName(app),
@@ -151,20 +210,31 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
         .join(" ")
         .toLowerCase();
 
-      return !q || haystack.includes(q);
+      return isInStatusScope && isInDepartmentScope && (!q || haystack.includes(q));
     });
-  }, [applications, keyword]);
+  }, [applications, config.statuses, isDepartmentTechnicalWorkspace, keyword, userDepartment]);
+
+  useEffect(() => {
+    if (filtered.length === 0) return;
+    const hasSelected = filtered.some((app) => String(app.id) === String(selectedId));
+
+    if (!hasSelected) {
+      setSelectedId(String(filtered[0].id));
+    }
+  }, [filtered, selectedId]);
 
   const selected = useMemo(() => {
-    return applications.find((app) => String(app.id) === String(selectedId)) || filtered[0] || null;
-  }, [applications, filtered, selectedId]);
+    return filtered.find((app) => String(app.id) === String(selectedId)) || filtered[0] || null;
+  }, [filtered, selectedId]);
   const selectedRecord =
     selectedDetail && String(selectedDetail.id) === String(selected?.id)
       ? { ...selected, ...selectedDetail }
       : selected;
-  const isIklWorkspace = config.allowedDepartments?.includes("IKL");
 
-  const stats = useMemo(() => config.stats(applications), [applications, config]);
+  const stats = useMemo(
+    () => config.stats(applications, userDepartment),
+    [applications, config, userDepartment]
+  );
 
   async function submitAction(action) {
     if (!selectedRecord?.id) {
@@ -202,6 +272,7 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
         decision: actionDecision,
         comment: cleanedComment,
         technicalSite,
+        department: userDepartment,
       });
 
       await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -382,7 +453,7 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
                 </Field>
               )}
 
-              {config.showTechnicalSiteVisit && (
+              {showSiteVisitFields && (
                 <TechnicalSiteVisitFields
                   t={t}
                   applicationId={selectedRecord.id}
@@ -408,14 +479,18 @@ function ProcessWorkspaceContent({ config, navigate, t }) {
                 />
               )}
 
+              {isIklWorkspace && (
+                <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+              )}
+
               {detailLoading ? (
                 <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
               ) : (
                 config.details && <config.details app={selectedRecord} t={t} />
               )}
 
-              <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3">
-                {!isIklWorkspace && (
+              <div className={actionGridClass}>
+                {showBottomFormButton && (
                   <Button
                     variant="secondary"
                     className="w-full"
@@ -473,7 +548,7 @@ function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
 
   return {
-    status: "technical_review_completed",
+    status: "technical_review",
     current_step: Math.max(Number(app.current_step || 1), 5),
     form_data: mergeFormData(app, {
       technical_review: {
@@ -499,6 +574,44 @@ function buildIklTechnicalDecisionPayload(app, data) {
   };
 }
 
+function buildDepartmentTechnicalReviewPayload(app, data) {
+  const now = new Date().toISOString();
+  const department = normalizeDepartmentCode(data.department);
+  const currentReviews = getTechnicalDepartmentReviews(app);
+  const nextReviews = {
+    ...currentReviews,
+    [department]: {
+      department,
+      decision: data.decision,
+      remarks: data.comment,
+      reviewed_at: now,
+      reviewed_by: department,
+    },
+  };
+
+  return {
+    status: "technical_review",
+    current_step: Math.max(Number(app.current_step || 1), 5),
+    form_data: mergeFormData(app, {
+      technical_department_reviews: nextReviews,
+      technical_department_reviews_updated_at: now,
+    }),
+  };
+}
+
+function getTechnicalDepartmentReviews(app) {
+  return (
+    app?.technical_department_reviews ||
+    app?.form_data?.technical_department_reviews ||
+    {}
+  );
+}
+
+function hasTechnicalDepartmentReview(app, department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  return Boolean(getTechnicalDepartmentReviews(app)?.[normalizedDepartment]);
+}
+
 function countBy(applications, predicate) {
   return applications.filter(predicate).length;
 }
@@ -515,6 +628,7 @@ function cleanRemark(value) {
 
 function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
+  if (department === "INP") return "LNP";
   return department === "UNIT IKLAN" ? "IKL" : department;
 }
 
@@ -592,6 +706,7 @@ function areSupportingDocumentsComplete(app, step10) {
 const configs = {
   screening: {
     allowedDepartments: ["IKL"],
+    statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment", "technical_review_completed"],
     eyebrow: "S2 Verification",
     eyebrowKey: "workspace.screening.eyebrow",
     title: "Application Screening",
@@ -656,68 +771,47 @@ const configs = {
     ],
   },
   technical: {
+    key: "technical",
     allowedDepartments: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
+    statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
     eyebrow: "Parallel Review",
     eyebrowKey: "workspace.technical.eyebrow",
     title: "Technical Review",
     titleKey: "workspace.technical.title",
-    description: "Record site visit photos, license fee/deposit calculations, support decision, and technical remarks.",
+    description: "Record department site visit decision and remarks for IKL review.",
     descriptionKey: "workspace.technical.description",
     queueTitle: "Technical Queue",
     queueTitleKey: "workspace.technical.queue",
-    actionDescription: "Enter technical decision and site finding remarks.",
+    actionDescription: "Enter department decision and site finding remarks.",
     actionDescriptionKey: "workspace.technical.action",
     showDecision: true,
     showComment: true,
-    showTechnicalSiteVisit: true,
+    showTechnicalSiteVisit: false,
     defaultDecision: "Supported",
     decisions: [
       { value: "Supported", labelKey: "workspace.decision.supported" },
       { value: "Supported with Conditions", labelKey: "workspace.decision.supportedConditions" },
       { value: "Not Supported", labelKey: "workspace.decision.notSupported" },
-      { value: "Requires Amendment", labelKey: "workspace.decision.requiresAmendment" },
     ],
     commentLabel: "Technical Comment",
     commentLabelKey: "workspace.comment.technical",
     commentPlaceholder: "Add department comments, conditions, site notes, or rejection reasons.",
     commentPlaceholderKey: "workspace.comment.technicalPlaceholder",
-    stats: (apps) => [
-      { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !app.form_data?.technical_review), icon: "pending", tone: "amber" },
-      { label: "Completed", labelKey: "workspace.stat.completed", value: countBy(apps, (app) => Boolean(app.form_data?.technical_review)), icon: "task_alt" },
-      { label: "Supported", labelKey: "workspace.stat.supported", value: countBy(apps, (app) => app.form_data?.technical_review?.decision === "Supported"), icon: "thumb_up" },
-      { label: "Not Supported", labelKey: "workspace.stat.notSupported", value: countBy(apps, (app) => app.form_data?.technical_review?.decision === "Not Supported"), icon: "thumb_down", tone: "red" },
+    stats: (apps, department) => [
+      { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !hasTechnicalDepartmentReview(app, department)), icon: "pending", tone: "amber" },
+      { label: "Completed", labelKey: "workspace.stat.completed", value: countBy(apps, (app) => hasTechnicalDepartmentReview(app, department)), icon: "task_alt" },
+      { label: "Supported", labelKey: "workspace.stat.supported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Supported"), icon: "thumb_up" },
+      { label: "Not Supported", labelKey: "workspace.stat.notSupported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Not Supported"), icon: "thumb_down", tone: "red" },
     ],
     actions: [
       {
-        label: "Submit Review",
-        labelKey: "workspace.action.submitReview",
+        label: "Submit",
+        labelKey: "common.submit",
         icon: "send",
         requiresComment: true,
         success: "Technical review saved.",
         successKey: "workspace.message.technicalSaved",
-        buildPayload: (app, data) => ({
-              status: "technical_review_completed",
-              current_step: Math.max(Number(app.current_step || 1), 5),
-              form_data: mergeFormData(app, {
-                technical_review: {
-                  status: "Completed",
-                  decision: data.decision,
-                  comment: data.comment,
-                  department: "Advertisement Unit",
-                  reviewed_at: new Date().toISOString(),
-                },
-                technical_site_visit: {
-                  ...(app.form_data?.technical_site_visit || {}),
-                  site_photos: data.technicalSite.site_photos || [],
-                  site_photo: data.technicalSite.site_photos?.[0] || null,
-                  site_photo_note: data.comment,
-                  license_fee_calculation: data.technicalSite.license_fee_calculation,
-                  deposit_calculation: data.technicalSite.deposit_calculation,
-                  site_remarks: data.technicalSite.site_remarks || data.comment,
-                  visited_at: new Date().toISOString(),
-                },
-              }),
-            }),
+        buildPayload: buildDepartmentTechnicalReviewPayload,
       },
     ],
   },
@@ -1017,6 +1111,66 @@ function ScreeningDetails({ app, t }) {
       ))}
     </div>
   );
+}
+
+function TechnicalDepartmentRemarks({ app, t }) {
+  const reviews = getTechnicalDepartmentReviews(app);
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-2">
+        <h3 className="text-sm font-semibold text-slate-950">
+          {t("workspace.technical.compiledRemarksTitle")}
+        </h3>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          {t("workspace.technical.compiledRemarksDesc")}
+        </p>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {TECHNICAL_DEPARTMENTS.map((department) => {
+          const review = reviews?.[department];
+
+          return (
+            <div key={department} className="grid grid-cols-1 gap-2 px-3 py-2 text-sm md:grid-cols-[90px_180px_1fr]">
+              <div className="font-semibold text-slate-950">{department}</div>
+              <div>
+                <StatusPill
+                  value={
+                    review?.decision
+                      ? t(getDecisionLabelKey(review.decision), review.decision)
+                      : t("workspace.stat.pending")
+                  }
+                />
+              </div>
+              <div className="min-w-0 text-slate-700">
+                {review?.remarks ? (
+                  <>
+                    <p className="whitespace-pre-wrap leading-5">{review.remarks}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {formatDateTime(review.reviewed_at)}
+                    </p>
+                  </>
+                ) : (
+                  <span className="text-slate-400">{t("workspace.info.notSubmitted")}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function getDecisionLabelKey(value) {
+  const map = {
+    Supported: "workspace.decision.supported",
+    "Supported with Conditions": "workspace.decision.supportedConditions",
+    "Not Supported": "workspace.decision.notSupported",
+    "Requires Amendment": "workspace.decision.requiresAmendment",
+  };
+
+  return map[value] || value;
 }
 
 function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileChange }) {

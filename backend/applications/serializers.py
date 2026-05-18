@@ -65,6 +65,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     application_type_label = serializers.SerializerMethodField()
+    technical_department_reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -80,6 +81,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "status",
             "latest_remark",
             "current_step",
+            "technical_department_reviews",
             "created_at",
             "updated_at",
         ]
@@ -94,6 +96,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_application_type_label(self, obj):
         return obj.get_application_type_display()
+
+    def get_technical_department_reviews(self, obj):
+        return (obj.form_data or {}).get("technical_department_reviews", {})
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):
