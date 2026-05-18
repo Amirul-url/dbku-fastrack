@@ -85,16 +85,26 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # DATABASE SWITCH (SQLite local / PostgreSQL production)
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-if "coolify.petradigital.my" in DATABASE_URL or ":55432" in DATABASE_URL:
-    DATABASE_URL = ""
 USE_SQLITE = os.getenv("USE_SQLITE", "True") == "True" and not DATABASE_URL
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
-DB_HOST = os.getenv("DB_HOST", "")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_HOST = os.getenv("DB_HOST", "").strip()
+DB_PORT = os.getenv("DB_PORT", "5432").strip()
+COOLIFY_INTERNAL_DB_HOST = os.getenv(
+    "COOLIFY_INTERNAL_DB_HOST",
+    "i3mafgphfv3ym7q5uvvjev2a",
+).strip()
+COOLIFY_INTERNAL_DB_PORT = os.getenv("COOLIFY_INTERNAL_DB_PORT", "5432").strip()
 
-if DB_HOST == "coolify.petradigital.my" or DB_PORT == "55432":
-    DB_HOST = os.getenv("COOLIFY_INTERNAL_DB_HOST", "i3mafgphfv3ym7q5uvvjev2a")
-    DB_PORT = os.getenv("COOLIFY_INTERNAL_DB_PORT", "5432")
+
+def use_coolify_internal_db(host, port):
+    host = (host or "").strip().lower()
+    port = str(port or "").strip()
+    return host == "coolify.petradigital.my" or port == "55432"
+
+
+if use_coolify_internal_db(DB_HOST, DB_PORT):
+    DB_HOST = COOLIFY_INTERNAL_DB_HOST
+    DB_PORT = COOLIFY_INTERNAL_DB_PORT
 
 if USE_SQLITE:
     DATABASES = {
@@ -105,14 +115,21 @@ if USE_SQLITE:
     }
 elif DATABASE_URL:
     database = urlparse(DATABASE_URL)
+    database_host = database.hostname or ""
+    database_port = str(database.port or "5432")
+
+    if use_coolify_internal_db(database_host, database_port):
+        database_host = COOLIFY_INTERNAL_DB_HOST
+        database_port = COOLIFY_INTERNAL_DB_PORT
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': unquote(database.path.lstrip("/")),
             'USER': unquote(database.username or ""),
             'PASSWORD': unquote(database.password or ""),
-            'HOST': database.hostname or "",
-            'PORT': str(database.port or "5432"),
+            'HOST': database_host,
+            'PORT': database_port,
             'OPTIONS': {
                 'connect_timeout': DB_CONNECT_TIMEOUT,
             },
