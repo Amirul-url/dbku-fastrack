@@ -63,9 +63,9 @@ STATUS_MESSAGES = {
         "Application {reference} is ready for your department site visit review.",
     ),
     "technical_review_completed": (
-        "Technical review updated",
+        "KU(IKL) technical review required",
         "",
-        "Application {reference} has technical review updates for your department.",
+        "Application {reference} has completed technical department feedback and is ready for KU(IKL) review.",
     ),
 }
 
@@ -483,6 +483,9 @@ def get_admin_task_web_recipients(application):
     if status_key == "submitted":
         return [user for user in users if is_ikl_user(user)]
 
+    if status_key == "technical_review_completed":
+        return [user for user in users if is_ikl_user(user)]
+
     if status_key in ADMIN_TECHNICAL_TASK_STATUSES:
         pending_departments = get_pending_technical_departments(application)
         return [
@@ -571,6 +574,9 @@ def should_user_receive_admin_notification(user, application, status_key=None):
     department = normalize_department(getattr(user, "department", ""))
 
     if status == "submitted":
+        return department == "IKL"
+
+    if status == "technical_review_completed":
         return department == "IKL"
 
     if status in ADMIN_TECHNICAL_TASK_STATUSES:

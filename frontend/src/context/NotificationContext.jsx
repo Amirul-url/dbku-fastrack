@@ -57,6 +57,7 @@ function getLatestRemark(app) {
   return cleanRemark(
     form.correction_request?.remarks ||
     form.auto_screening?.remarks ||
+    form.technical_ku_review?.remarks ||
     form.technical_review?.comment ||
     form.approval?.notes ||
     form.payment?.receipt_reference ||
@@ -123,6 +124,10 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   }
 
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
+    if (normalizedStatus === "technical_review_completed") {
+      return department === "IKL";
+    }
+
     if (!technicalDepartments.has(department)) return false;
     if (!app) return true;
     return !departmentHasSubmittedReview(app, department);
@@ -140,6 +145,9 @@ function getNotificationUrl(role, app, category, user = null) {
 
   if (role === "admin") {
     const department = getUserDepartment(user);
+    if (category === "technical" && department === "IKL") {
+      return app?.id ? `/admin/auto-screening?id=${app.id}` : "/admin/auto-screening";
+    }
     if (category === "technical" || technicalDepartments.has(department)) {
       return app?.id ? `/admin/technical-review?id=${app.id}` : "/admin/technical-review";
     }

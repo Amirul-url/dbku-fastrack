@@ -576,6 +576,10 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.pt_ku_review", "For PT/KU Review");
   }
 
+  if (isIklWorkspace && status === "technical_review_completed") {
+    return t("status.technical_ku_review", "KU(IKL) Technical Review");
+  }
+
   if (isIklWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
     return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${TECHNICAL_DEPARTMENTS.join(" / ")}`;
   }
@@ -649,17 +653,20 @@ function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
 
   return {
-    status: "technical_review",
+    status: "technical_review_completed",
     current_step: Math.max(Number(app.current_step || 1), 5),
+    latest_remark: data.comment || app.latest_remark || "",
     form_data: mergeFormData(app, {
       technical_review: {
         ...(app.form_data?.technical_review || {}),
         status: "Completed",
+        final_decision: data.decision,
         decision: data.decision,
         comment: data.comment,
         department: "IKL",
         reviewed_by: "PT/PO/KP Unit Iklan",
         reviewed_at: now,
+        department_reviews: getTechnicalDepartmentReviews(app),
       },
       technical_site_visit: {
         ...(app.form_data?.technical_site_visit || {}),
@@ -671,6 +678,42 @@ function buildIklTechnicalDecisionPayload(app, data) {
         officer_role: "PT/PO/KP Unit Iklan",
         visited_at: now,
       },
+      correction_request: null,
+    }),
+  };
+}
+
+function buildKuTechnicalReviewPayload(app, data) {
+  const now = new Date().toISOString();
+  const amendmentRequired = data.decision === "KU(IKL) Request Technical Amendment";
+
+  return {
+    status: amendmentRequired ? "technical_amendment" : "management_review",
+    current_step: Math.max(Number(app.current_step || 1), 5),
+    latest_remark: data.comment || app.latest_remark || "",
+    form_data: mergeFormData(app, {
+      technical_ku_review: {
+        status: amendmentRequired ? "Amendment Required" : "Verified",
+        decision: data.decision,
+        remarks: data.comment,
+        reviewed_by: "KU(IKL)",
+        reviewed_at: now,
+      },
+      correction_request: amendmentRequired
+        ? {
+            source: "KU(IKL)",
+            target: "PT/PO/KP Unit Iklan",
+            remarks: data.comment,
+            requested_at: now,
+          }
+        : null,
+      kb_les_verification: amendmentRequired
+        ? app.form_data?.kb_les_verification || null
+        : {
+            status: "Pending KB(LES) Verification",
+            routed_from: "KU(IKL)",
+            routed_at: now,
+          },
     }),
   };
 }
@@ -711,6 +754,12 @@ function getTechnicalDepartmentReviews(app) {
 function hasTechnicalDepartmentReview(app, department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   return Boolean(getTechnicalDepartmentReviews(app)?.[normalizedDepartment]);
+}
+
+function areAllTechnicalDepartmentReviewsComplete(app) {
+  return TECHNICAL_DEPARTMENTS.every((department) =>
+    hasTechnicalDepartmentReview(app, department)
+  );
 }
 
 function countBy(applications, predicate) {
@@ -853,6 +902,7 @@ const configs = {
         labelKey: "workspace.decision.supported",
         icon: "thumb_up",
         decision: "Supported",
+        requiresComment: true,
         success: "Technical review saved.",
         successKey: "workspace.message.technicalSaved",
         buildPayload: buildIklTechnicalDecisionPayload,
@@ -863,6 +913,7 @@ const configs = {
         icon: "rule",
         variant: "secondary",
         decision: "Supported with Conditions",
+        requiresComment: true,
         success: "Technical review saved.",
         successKey: "workspace.message.technicalSaved",
         buildPayload: buildIklTechnicalDecisionPayload,
@@ -873,11 +924,28 @@ const configs = {
         icon: "thumb_down",
         variant: "danger",
         decision: "Not Supported",
+        requiresComment: true,
         success: "Technical review saved.",
         successKey: "workspace.message.technicalSaved",
         buildPayload: buildIklTechnicalDecisionPayload,
       },
     ],
+    kuTechnicalReview: {
+      defaultDecision: "KU(IKL) Confirm - Send to KB(LES)",
+      decisions: [
+        { value: "KU(IKL) Confirm - Send to KB(LES)", labelKey: "workspace.decision.kuConfirmToKb" },
+        { value: "KU(IKL) Request Technical Amendment", labelKey: "workspace.decision.kuRequestTechnicalAmendment" },
+      ],
+      action: {
+        label: "Submit KU(IKL) Review",
+        labelKey: "workspace.action.submitKuTechnicalReview",
+        icon: "verified",
+        requiresComment: true,
+        success: "KU(IKL) technical review saved.",
+        successKey: "workspace.message.kuTechnicalReviewSaved",
+        buildPayload: buildKuTechnicalReviewPayload,
+      },
+    },
     actions: [],
   },
   technical: {
@@ -928,6 +996,7 @@ const configs = {
   approval: {
     eyebrow: "Management and MPHLG",
     eyebrowKey: "workspace.approval.eyebrow",
+    statuses: ["management_review", "mphlg_processing", "mphlg_decision_received"],
     title: "Approval",
     titleKey: "workspace.approval.title",
     description: "Record KB(LES) verification, TP/PGH recommendation, MPHLG/SUT review, and final decision.",
@@ -1208,21 +1277,6 @@ function buildScreeningChecks(app) {
   ];
 }
 
-function ScreeningDetails({ app, t }) {
-  const checks = buildScreeningChecks(app);
-
-  return (
-    <div className="space-y-2">
-      {checks.map((item) => (
-        <div key={item.label} className="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2">
-          <span className="text-sm font-medium text-slate-700">{t(item.labelKey, item.label)}</span>
-          <StatusPill value={t(item.resultKey, item.result)} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function IklWorkspaceSections({
   t,
   config,
@@ -1236,6 +1290,20 @@ function IklWorkspaceSections({
   saving,
   submitAction,
 }) {
+  const status = normalizeStatus(selectedRecord.status);
+  const allDepartmentReviewsComplete = areAllTechnicalDepartmentReviewsComplete(selectedRecord);
+  const showScreeningDecision = ["submitted", "incomplete", "ku_ikl_review"].includes(status);
+  const showTechnicalFinalDecision = [
+    "technical_review",
+    "technical_site_visit",
+    "technical_amendment",
+  ].includes(status);
+  const showKuTechnicalReview = status === "technical_review_completed";
+  const [kuDecision, setKuDecision] = useState(
+    config.kuTechnicalReview?.defaultDecision || ""
+  );
+  const [kuRemarks, setKuRemarks] = useState("");
+
   async function handleSitePhotoUpload(files) {
     const fileList = Array.from(files || []);
     if (fileList.length === 0) return;
@@ -1258,85 +1326,156 @@ function IklWorkspaceSections({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-md border border-slate-200 bg-white p-3">
-        <div className="mb-3">
-          <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-            {t("workspace.ikl.screeningTitle")}
-          </h3>
-          <p className="mt-1 text-[14px] leading-5 text-slate-500">
-            {t("workspace.ikl.screeningDesc")}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
-            <select
-              value={decision}
-              onChange={(event) => setDecision(event.target.value)}
-              className="form-input"
-            >
-              {config.decisions.map((item) => (
-                <option key={item.value || item} value={item.value || item}>
-                  {t(item.labelKey, item.label || item)}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
-            <textarea
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              rows="4"
-              className="form-input"
-              placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
-            />
-          </Field>
-
-          <div className="flex justify-end">
-            <Button
-              icon="fact_check"
-              disabled={saving}
-              onClick={() => submitAction(config.screeningAction)}
-              className="w-full sm:w-auto"
-            >
-              {saving
-                ? t("workspace.saving")
-                : t(config.screeningAction.labelKey, config.screeningAction.label)}
-            </Button>
+      {showScreeningDecision && (
+        <section className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="mb-3">
+            <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+              {t("workspace.ikl.screeningTitle")}
+            </h3>
+            <p className="mt-1 text-[14px] leading-5 text-slate-500">
+              {t("workspace.ikl.screeningDesc")}
+            </p>
           </div>
-        </div>
-      </section>
 
-      <section className="space-y-3">
-        <TechnicalSiteVisitFields
-          t={t}
-          applicationId={selectedRecord.id}
-          value={technicalSite}
-          onChange={setTechnicalSite}
-          onFileChange={handleSitePhotoUpload}
-        />
+          <div className="space-y-3">
+            <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
+              <select
+                value={decision}
+                onChange={(event) => setDecision(event.target.value)}
+                className="form-input"
+              >
+                {config.decisions.map((item) => (
+                  <option key={item.value || item} value={item.value || item}>
+                    {t(item.labelKey, item.label || item)}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {config.technicalActions.map((action) => (
-            <Button
-              key={action.label}
-              onClick={() =>
-                submitAction(action, {
-                  comment: technicalSite.site_remarks,
-                  checkDecisionRemark: true,
-                })
-              }
-              disabled={saving}
-              variant={action.variant || "primary"}
-              icon={action.icon}
-              className="w-full"
-            >
-              {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-            </Button>
-          ))}
-        </div>
-      </section>
+            <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                rows="4"
+                className="form-input"
+                placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+              />
+            </Field>
+
+            <div className="flex justify-end">
+              <Button
+                icon="fact_check"
+                disabled={saving}
+                onClick={() => submitAction(config.screeningAction)}
+                className="w-full sm:w-auto"
+              >
+                {saving
+                  ? t("workspace.saving")
+                  : t(config.screeningAction.labelKey, config.screeningAction.label)}
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showTechnicalFinalDecision && (
+        <section className="space-y-3">
+          <TechnicalSiteVisitFields
+            t={t}
+            applicationId={selectedRecord.id}
+            value={technicalSite}
+            onChange={setTechnicalSite}
+            onFileChange={handleSitePhotoUpload}
+          />
+
+          {!allDepartmentReviewsComplete && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[14px] font-medium leading-5 text-amber-800">
+              {t("workspace.technical.awaitingDepartmentReviews")}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {config.technicalActions.map((action) => (
+              <Button
+                key={action.label}
+                onClick={() =>
+                  submitAction(action, {
+                    comment: technicalSite.site_remarks,
+                    checkDecisionRemark: true,
+                  })
+                }
+                disabled={saving || !allDepartmentReviewsComplete}
+                variant={action.variant || "primary"}
+                icon={action.icon}
+                className="w-full"
+              >
+                {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {showKuTechnicalReview && config.kuTechnicalReview && (
+        <section className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="mb-3">
+            <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+              {t("workspace.technical.kuReviewTitle")}
+            </h3>
+            <p className="mt-1 text-[14px] leading-5 text-slate-500">
+              {t("workspace.technical.kuReviewDesc")}
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <Field label={t("common.decision")}>
+              <select
+                value={kuDecision}
+                onChange={(event) => setKuDecision(event.target.value)}
+                className="form-input"
+              >
+                {config.kuTechnicalReview.decisions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {t(item.labelKey, item.value)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label={t("workspace.comment.remarks")}>
+              <textarea
+                value={kuRemarks}
+                onChange={(event) => setKuRemarks(event.target.value)}
+                rows="4"
+                className="form-input"
+                placeholder={t("workspace.technical.kuReviewPlaceholder")}
+              />
+            </Field>
+
+            <div className="flex justify-end">
+              <Button
+                icon={config.kuTechnicalReview.action.icon}
+                disabled={saving}
+                onClick={() =>
+                  submitAction(config.kuTechnicalReview.action, {
+                    decision: kuDecision,
+                    comment: kuRemarks,
+                    checkDecisionRemark: true,
+                  })
+                }
+                className="w-full sm:w-auto"
+              >
+                {saving
+                  ? t("workspace.saving")
+                  : t(
+                      config.kuTechnicalReview.action.labelKey,
+                      config.kuTechnicalReview.action.label
+                    )}
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
+import ApprovalPage from "../admin/approval/ApprovalPage";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getStoredUser } from "../../services/api";
 import {
@@ -105,7 +106,7 @@ function AdminDashboard() {
   const view = new URLSearchParams(location.search).get("view") || "personal";
 
   if (view === "approval") {
-    return <AdminDashboardLayout />;
+    return <ApprovalPage />;
   }
 
   return <PersonalTaskDashboard />;
@@ -326,6 +327,10 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
   if (unit?.department === "IKL" && status === "submitted") {
     return t("status.pt_ku_review", "PT/KU Review");
+  }
+
+  if (unit?.department === "IKL" && status === "technical_review_completed") {
+    return t("status.technical_ku_review", "KU(IKL) Technical Review");
   }
 
   if (unit?.department === "IKL" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
