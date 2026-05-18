@@ -1,5 +1,17 @@
+function getDefaultApiUrl() {
+  try {
+    if (window.location.hostname === "fastrack.sapotlokal.my") {
+      return "https://t13ibowgmqv1q5b97ctxtd3t.sapotlokal.my/api";
+    }
+  } catch {
+    // Vite runs this module in the browser; keep a safe fallback for tooling.
+  }
+
+  return "http://127.0.0.1:8000/api";
+}
+
 const RAW_API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+  import.meta.env.VITE_API_URL || getDefaultApiUrl();
 const API_URL = String(RAW_API_URL).replace(/\/+$/, "");
 const LOCAL_FILE_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 const SIDEBAR_SESSION_KEYS = [
