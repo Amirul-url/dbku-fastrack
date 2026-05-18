@@ -91,7 +91,7 @@ DB_HOST = os.getenv("DB_HOST", "").strip()
 DB_PORT = os.getenv("DB_PORT", "5432").strip()
 COOLIFY_INTERNAL_DB_HOST = os.getenv(
     "COOLIFY_INTERNAL_DB_HOST",
-    "i3mafgphfv3ym7q5uvvjev2a",
+    "i3mafgphfv3ym7q5uvwjev2a",
 ).strip()
 COOLIFY_INTERNAL_DB_PORT = os.getenv("COOLIFY_INTERNAL_DB_PORT", "5432").strip()
 
