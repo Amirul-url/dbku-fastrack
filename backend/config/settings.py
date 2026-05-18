@@ -85,6 +85,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # DATABASE SWITCH (SQLite local / PostgreSQL production)
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if "coolify.petradigital.my" in DATABASE_URL or ":55432" in DATABASE_URL:
+    DATABASE_URL = ""
 USE_SQLITE = os.getenv("USE_SQLITE", "True") == "True" and not DATABASE_URL
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
 DB_HOST = os.getenv("DB_HOST", "")
