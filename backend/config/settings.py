@@ -87,6 +87,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 USE_SQLITE = os.getenv("USE_SQLITE", "True") == "True" and not DATABASE_URL
 DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
+DB_HOST = os.getenv("DB_HOST", "")
+DB_PORT = os.getenv("DB_PORT", "5432")
+
+if DB_HOST == "coolify.petradigital.my" or DB_PORT == "55432":
+    DB_HOST = os.getenv("COOLIFY_INTERNAL_DB_HOST", "i3mafgphfv3ym7q5uvvjev2a")
+    DB_PORT = os.getenv("COOLIFY_INTERNAL_DB_PORT", "5432")
 
 if USE_SQLITE:
     DATABASES = {
@@ -117,8 +123,8 @@ else:
             'NAME': os.getenv("DB_NAME"),
             'USER': os.getenv("DB_USER"),
             'PASSWORD': os.getenv("DB_PASSWORD"),
-            'HOST': os.getenv("DB_HOST"),
-            'PORT': os.getenv("DB_PORT", "5432"),
+            'HOST': DB_HOST,
+            'PORT': DB_PORT,
             'OPTIONS': {
                 'connect_timeout': DB_CONNECT_TIMEOUT,
             },
