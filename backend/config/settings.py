@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import timedelta
+from urllib.parse import urlparse, unquote
 
 # Load .env
 load_dotenv()
@@ -83,13 +84,30 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # DATABASE SWITCH (SQLite local / PostgreSQL production)
-USE_SQLITE = os.getenv("USE_SQLITE", "True") == "True"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+USE_SQLITE = os.getenv("USE_SQLITE", "True") == "True" and not DATABASE_URL
+DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
 
 if USE_SQLITE:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+elif DATABASE_URL:
+    database = urlparse(DATABASE_URL)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': unquote(database.path.lstrip("/")),
+            'USER': unquote(database.username or ""),
+            'PASSWORD': unquote(database.password or ""),
+            'HOST': database.hostname or "",
+            'PORT': str(database.port or "5432"),
+            'OPTIONS': {
+                'connect_timeout': DB_CONNECT_TIMEOUT,
+            },
         }
     }
 else:
@@ -101,6 +119,9 @@ else:
             'PASSWORD': os.getenv("DB_PASSWORD"),
             'HOST': os.getenv("DB_HOST"),
             'PORT': os.getenv("DB_PORT", "5432"),
+            'OPTIONS': {
+                'connect_timeout': DB_CONNECT_TIMEOUT,
+            },
         }
     }
 
