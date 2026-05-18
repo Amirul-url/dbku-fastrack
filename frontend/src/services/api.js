@@ -1,5 +1,6 @@
-const API_URL =
+const RAW_API_URL =
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+const API_URL = String(RAW_API_URL).replace(/\/+$/, "");
 const LOCAL_FILE_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 const SIDEBAR_SESSION_KEYS = [
   "fastrack_admin_dashboard_menu_open",
@@ -22,6 +23,80 @@ function getApiOrigin() {
   } catch {
     return "";
   }
+}
+
+function getRequestUrl(path) {
+  return `${API_URL}${path}`;
+}
+
+function isLocalHostName(hostname = "") {
+  const normalized = hostname.toLowerCase();
+
+  return LOCAL_FILE_HOSTS.has(normalized) || normalized === "localhost";
+}
+
+function getCurrentHostName() {
+  try {
+    return window.location.hostname;
+  } catch {
+    return "";
+  }
+}
+
+function createNetworkError(path, cause) {
+  const requestUrl = getRequestUrl(path);
+  let message =
+    "Cannot reach the backend API. Please check that the backend service is running and accessible.";
+
+  try {
+    const target = new URL(requestUrl, window.location.origin);
+    const frontendHost = getCurrentHostName();
+    const isFrontendRemote = frontendHost && !isLocalHostName(frontendHost);
+
+    if (isFrontendRemote && isLocalHostName(target.hostname)) {
+      message = `Cannot reach the backend API at ${target.origin}. The frontend is configured to use a localhost API URL, so this deployed site is trying to call the visitor's own computer. Set VITE_API_URL in Coolify to your backend public URL ending with /api, then redeploy the frontend.`;
+    } else {
+      message = `Cannot reach the backend API at ${target.origin}. Check that the backend is online, the URL is correct, HTTPS is valid, and CORS allows this frontend domain.`;
+    }
+  } catch {
+    message = `Cannot reach the backend API. Check VITE_API_URL and confirm the backend service is online.`;
+  }
+
+  const error = new Error(message);
+  error.name = "ApiNetworkError";
+  error.isNetworkError = true;
+  error.requestUrl = requestUrl;
+  error.apiUrl = API_URL;
+  error.cause = cause;
+  return error;
+}
+
+function extractApiErrorMessage(data, status) {
+  if (!data || typeof data !== "object") {
+    return `Request failed (${status})`;
+  }
+
+  const directMessage =
+    data.error ||
+    data.detail ||
+    data.message ||
+    data.non_field_errors?.[0];
+
+  if (directMessage) return directMessage;
+
+  const firstFieldError = Object.entries(data).find(([, value]) => {
+    return Array.isArray(value) ? value.length > 0 : Boolean(value);
+  });
+
+  if (firstFieldError) {
+    const [field, value] = firstFieldError;
+    const message = Array.isArray(value) ? value[0] : value;
+    const label = field.replaceAll("_", " ");
+
+    return `${label}: ${message}`;
+  }
+
+  return `Request failed (${status})`;
 }
 
 export function getApiUrl(path) {
@@ -308,7 +383,7 @@ export async function apiRequest(path, options = {}) {
   const canRefreshAuth = Boolean(token) && !isPublicAuthRequest;
 
   const makeRequest = async (accessToken) => {
-    return fetch(`${API_URL}${path}`, {
+    return fetch(getRequestUrl(path), {
       ...options,
       headers: {
         ...(isFormData ? {} : { "Content-Type": "application/json" }),
@@ -322,7 +397,13 @@ export async function apiRequest(path, options = {}) {
     });
   };
 
-  let response = await makeRequest(token);
+  let response;
+
+  try {
+    response = await makeRequest(token);
+  } catch (error) {
+    throw createNetworkError(path, error);
+  }
 
   if (response.status === 401 && canRefreshAuth) {
     const newAccessToken = await refreshAccessToken();
@@ -332,7 +413,11 @@ export async function apiRequest(path, options = {}) {
       throw new Error("Session expired");
     }
 
-    response = await makeRequest(newAccessToken);
+    try {
+      response = await makeRequest(newAccessToken);
+    } catch (error) {
+      throw createNetworkError(path, error);
+    }
   }
 
   let data;
@@ -344,14 +429,7 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message =
-      data?.error ||
-      data?.detail ||
-      data?.message ||
-      data?.non_field_errors?.[0] ||
-      `Request failed (${response.status})`;
-
-    const error = new Error(message);
+    const error = new Error(extractApiErrorMessage(data, response.status));
     error.status = response.status;
     error.data = data;
     throw error;
