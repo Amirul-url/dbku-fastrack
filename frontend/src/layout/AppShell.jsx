@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useLanguage } from "../context/LanguageContext";
@@ -7,6 +7,26 @@ import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_APPLICATIONS_MENU_KEY = "fastrack_admin_applications_menu_open";
+const IKL_TASK_STATUSES = new Set([
+  "submitted",
+  "incomplete",
+  "ku_ikl_review",
+  "technical_review",
+  "technical_site_visit",
+  "technical_amendment",
+  "technical_review_completed",
+]);
+const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
+  "technical_review",
+  "technical_site_visit",
+  "technical_review_completed",
+]);
+const TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const APPROVAL_TASK_STATUSES = new Set([
+  "management_review",
+  "mphlg_processing",
+  "mphlg_decision_received",
+]);
 
 function readSessionBoolean(key, fallback = false) {
   try {
@@ -30,7 +50,7 @@ function writeSessionBoolean(key, value) {
   }
 }
 
-function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode) {
+function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, taskCounts = {}) {
   const stepModePath = isViewMode ? "/view" : "";
   const applicationStepGroup = showApplicationSteps
     ? {
@@ -58,12 +78,14 @@ function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode) {
           fallback: "Personal Task",
           path: "/dashboard/admin?view=personal",
           view: "personal",
+          badge: taskCounts.personal || 0,
         },
         {
           labelKey: "admin.dashboard.awaitingApproval",
           fallback: "Awaiting Approval",
           path: "/dashboard/admin?view=approval",
           view: "approval",
+          badge: taskCounts.approval || 0,
         },
       ],
     },
@@ -155,6 +177,7 @@ function AppShell({ children, role = "admin" }) {
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
+  const [adminTaskCounts, setAdminTaskCounts] = useState({ personal: 0, approval: 0 });
   const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
   const currentAdminApplicationId = getAdminApplicationStepIdFromPath(location.pathname);
@@ -169,13 +192,26 @@ function AppShell({ children, role = "admin" }) {
         return buildAdminNav(
           currentAdminApplicationId,
           Boolean(currentAdminApplicationId),
-          isAdminViewMode
+          isAdminViewMode,
+          adminTaskCounts
         );
       }
       return buildApplicantNav(stepApplicationId, showApplicationSteps);
     },
-    [role, currentAdminApplicationId, isAdminViewMode, stepApplicationId, showApplicationSteps]
+    [role, currentAdminApplicationId, isAdminViewMode, adminTaskCounts, stepApplicationId, showApplicationSteps]
   );
+
+  const refreshAdminTaskCounts = useCallback(async ({ silent = false } = {}) => {
+    if (role !== "admin") return;
+
+    try {
+      const data = await apiRequest("/applications/");
+      const applications = Array.isArray(data) ? data : data?.results || [];
+      setAdminTaskCounts(getAdminTaskCounts(applications, user));
+    } catch {
+      if (!silent) setAdminTaskCounts({ personal: 0, approval: 0 });
+    }
+  }, [role, user]);
 
   useEffect(() => {
     let active = true;
@@ -193,6 +229,27 @@ function AppShell({ children, role = "admin" }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (role !== "admin") {
+      setAdminTaskCounts({ personal: 0, approval: 0 });
+      return undefined;
+    }
+
+    refreshAdminTaskCounts();
+    const intervalId = window.setInterval(
+      () => refreshAdminTaskCounts({ silent: true }),
+      15000
+    );
+    const handleRefresh = () => refreshAdminTaskCounts({ silent: true });
+
+    window.addEventListener("fastrack:applications-changed", handleRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("fastrack:applications-changed", handleRefresh);
+    };
+  }, [role, refreshAdminTaskCounts]);
 
   function handleLogout() {
     clearAuthSession();
@@ -433,13 +490,14 @@ function AppShell({ children, role = "admin" }) {
                         <Link
                           key={child.path}
                           to={child.path}
-                          className={`block rounded-md px-3.5 py-2.5 text-sm font-medium ${
+                          className={`flex items-center justify-between gap-2 rounded-md px-3.5 py-2.5 text-sm font-medium ${
                             childActive
                               ? "bg-emerald-700 text-white"
                               : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                           }`}
                         >
-                          {t(child.labelKey, child.fallback)}
+                          <span className="truncate">{t(child.labelKey, child.fallback)}</span>
+                          <NavBadge count={child.badge} />
                         </Link>
                       );
                     })}
@@ -527,6 +585,101 @@ function getHeaderDisplayName(user, role, t) {
         : t("role.ALiSUser");
 
   return normalizeDisplayName(user?.full_name || user?.username || fallback);
+}
+
+function NavBadge({ count }) {
+  const value = Number(count || 0);
+  if (value <= 0) return null;
+
+  return (
+    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-none text-white">
+      {value > 99 ? "99+" : value}
+    </span>
+  );
+}
+
+function getAdminTaskCounts(applications, user) {
+  const department = normalizeDepartmentCode(user?.department);
+
+  return applications.reduce(
+    (counts, application) => {
+      if (isPersonalTaskForDepartment(application, department)) {
+        counts.personal += 1;
+      }
+
+      if (isAwaitingApprovalTask(application, department)) {
+        counts.approval += 1;
+      }
+
+      return counts;
+    },
+    { personal: 0, approval: 0 }
+  );
+}
+
+function isPersonalTaskForDepartment(application, department) {
+  const status = normalizeWorkflowStatus(application?.status);
+
+  if (department === "IKL") {
+    return IKL_TASK_STATUSES.has(status);
+  }
+
+  if (TECHNICAL_DEPARTMENTS.has(department)) {
+    return (
+      TECHNICAL_DEPARTMENT_TASK_STATUSES.has(status) &&
+      !hasTechnicalDepartmentReview(application, department)
+    );
+  }
+
+  return false;
+}
+
+function isAwaitingApprovalTask(application, department) {
+  if (department === "IKL" || TECHNICAL_DEPARTMENTS.has(department)) {
+    return false;
+  }
+
+  return (
+    APPROVAL_TASK_STATUSES.has(normalizeWorkflowStatus(application?.status)) &&
+    !application?.form_data?.approval
+  );
+}
+
+function normalizeWorkflowStatus(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeDepartmentCode(value) {
+  const department = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (department === "UNIT IKLAN") return "IKL";
+  if (department === "INP") return "LNP";
+  return department;
+}
+
+function getTechnicalDepartmentReviews(application) {
+  return (
+    application?.technical_department_reviews ||
+    application?.form_data?.technical_department_reviews ||
+    {}
+  );
+}
+
+function hasTechnicalDepartmentReview(application, department) {
+  const review = getTechnicalDepartmentReviews(application)?.[department];
+  if (!review || typeof review !== "object") return false;
+
+  return Boolean(
+    review.decision ||
+      review.status ||
+      review.remarks ||
+      review.comment ||
+      review.submitted_at
+  );
 }
 
 function ApplicationStepLinks({

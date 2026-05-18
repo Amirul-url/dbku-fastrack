@@ -810,7 +810,10 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
 }
 
 function translatedStatus(t, status) {
-  return t(`status.${normalizeStatus(status)}`, formatWorkflowStatus(status));
+  const normalized = normalizeStatus(status);
+  const displayStatus = normalized === "incomplete" ? "rejected" : normalized;
+
+  return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
 }
 
 function getApplicationAppliedDate(app) {
@@ -835,7 +838,7 @@ function getMonthOptions(language = "en") {
 function buildOverviewStatusSummary(applications, latest, t) {
   const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
   const pending = applications.filter((app) => isPendingApplication(app)).length;
-  const rejected = applications.filter((app) => normalizeStatus(app.status) === "rejected").length;
+  const rejected = applications.filter((app) => isRejectedApplication(app)).length;
   const approved = applications.filter((app) => isApprovedApplication(app)).length;
 
   return [
@@ -881,7 +884,7 @@ function buildOverviewStatusSummary(applications, latest, t) {
 function isPendingApplication(app) {
   const status = normalizeStatus(app.status);
 
-  return Boolean(status) && status !== "draft" && !isApprovedApplication(app) && status !== "rejected";
+  return Boolean(status) && status !== "draft" && !isApprovedApplication(app) && !isRejectedApplication(app);
 }
 
 function isApprovedApplication(app) {
@@ -893,6 +896,10 @@ function isApprovedApplication(app) {
     "payment_verified",
     "license_issued",
   ].includes(normalizeStatus(app.status));
+}
+
+function isRejectedApplication(app) {
+  return ["incomplete", "rejected"].includes(normalizeStatus(app.status));
 }
 
 function getPaymentHint(app, t) {

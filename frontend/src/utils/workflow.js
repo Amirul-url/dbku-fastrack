@@ -226,6 +226,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.DRAFT]: "Draft",
     [WORKFLOW_STATUS.INCOMPLETE]: "Incomplete",
     [WORKFLOW_STATUS.SUBMITTED]: "Submitted",
+    pt_ku_review: "For PT/KU Review",
     [WORKFLOW_STATUS.AUTO_SCREENED]: "S2 Verification",
     [WORKFLOW_STATUS.KU_IKL_REVIEW]: "KU(IKL) Verification",
     [WORKFLOW_STATUS.TECHNICAL_REVIEW]: "Technical Review",

@@ -312,9 +312,9 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 }
 
-export function ApplicationSummary({ app, labels = {}, actions }) {
+export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
   if (!app) return null;
-  const status = formatWorkflowStatus(app.status);
+  const status = statusLabel || formatWorkflowStatus(app.status);
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-3.5">

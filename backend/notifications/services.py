@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 APP_BRAND_NAME = "ALiS"
 
 
+TECHNICAL_DEPARTMENTS = {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}
+IKL_DEPARTMENTS = {"IKL", "UNIT IKLAN"}
+ADMIN_TECHNICAL_TASK_STATUSES = {
+    "technical_review",
+    "technical_site_visit",
+    "technical_review_completed",
+}
+
+
 STATUS_MESSAGES = {
     "submitted": (
         "Application submitted",
@@ -24,8 +33,8 @@ STATUS_MESSAGES = {
         "New application {reference} has been submitted and is waiting for review.",
     ),
     "incomplete": (
-        "Application returned",
-        "Your application {reference} was returned by ALiS. Please review the remark below and update your application.",
+        "Application rejected",
+        "Your application {reference} was rejected by ALiS. Please review the remark below and update your application.",
         "",
     ),
     "rejected": (
@@ -43,6 +52,21 @@ STATUS_MESSAGES = {
         "Your QR e-license for application {reference} has been generated successfully.",
         "",
     ),
+    "technical_review": (
+        "Technical task assigned",
+        "",
+        "Application {reference} is ready for your department technical review.",
+    ),
+    "technical_site_visit": (
+        "Technical site visit assigned",
+        "",
+        "Application {reference} is ready for your department site visit review.",
+    ),
+    "technical_review_completed": (
+        "Technical review updated",
+        "",
+        "Application {reference} has technical review updates for your department.",
+    ),
 }
 
 STATUS_UI = {
@@ -51,6 +75,9 @@ STATUS_UI = {
     "rejected": ("decision", "error"),
     "invoice_generated": ("payment", "warning"),
     "license_issued": ("license", "success"),
+    "technical_review": ("technical", "warning"),
+    "technical_site_visit": ("technical", "warning"),
+    "technical_review_completed": ("technical", "info"),
 }
 
 APPLICANT_NOTIFICATION_STATUSES = {
@@ -61,7 +88,7 @@ APPLICANT_NOTIFICATION_STATUSES = {
     "license_issued",
 }
 
-ADMIN_NOTIFICATION_STATUSES = {"submitted"}
+ADMIN_NOTIFICATION_STATUSES = {"submitted", *ADMIN_TECHNICAL_TASK_STATUSES}
 
 SUPERADMIN_NOTIFICATION_STATUSES = {"account_created"}
 
@@ -185,7 +212,7 @@ def build_event_key(application, status_key, remark_changed=False):
 
 def build_status_messages(application):
     status_key = str(application.status or "").strip().lower()
-    fallback_label = application.get_status_display()
+    fallback_label = get_notification_status_label(application)
     subject_template, applicant_template, admin_template = STATUS_MESSAGES.get(
         status_key,
         (
@@ -266,7 +293,7 @@ def format_notification_message(title, body, application, recipient_role):
         "",
         title,
         f"Reference: {application.reference_no}",
-        f"Status: {application.get_status_display()}",
+        f"Status: {get_notification_status_label(application)}",
     ]
 
     if application.title:
@@ -279,6 +306,15 @@ def format_notification_message(title, body, application, recipient_role):
         lines.extend(["", f"Remark: {remark}"])
 
     return "\n".join(lines)
+
+
+def get_notification_status_label(application):
+    status_key = str(application.status or "").strip().lower()
+
+    if status_key == "incomplete":
+        return "Rejected"
+
+    return application.get_status_display()
 
 
 def get_message_remark(application):
@@ -370,7 +406,9 @@ def build_recipients(application, messages):
     if status_key not in ADMIN_NOTIFICATION_STATUSES:
         return dedupe_recipients(recipients)
 
-    for user in get_admin_web_recipients():
+    admin_users = get_admin_task_web_recipients(application)
+
+    for user in admin_users:
         recipients.append({
             "user": user,
             "recipient_role": "admin",
@@ -381,7 +419,7 @@ def build_recipients(application, messages):
             "metadata": admin_metadata,
         })
 
-    for user, email in get_admin_email_recipients():
+    for user, email in get_admin_task_email_recipients(application, admin_users):
         recipients.append({
             "user": user,
             "recipient_role": "admin",
@@ -392,9 +430,9 @@ def build_recipients(application, messages):
             "metadata": admin_metadata,
         })
 
-    for phone in get_admin_whatsapp_numbers():
+    for user, phone in get_admin_task_whatsapp_numbers(application, admin_users):
         recipients.append({
-            "user": None,
+            "user": user,
             "recipient_role": "admin",
             "channel": "whatsapp",
             "recipient": phone,
@@ -437,21 +475,108 @@ def get_applicant_whatsapp_numbers(application):
     return [value for value in dedupe_values(normalize_phone(value) for value in candidates) if value]
 
 
-def get_admin_email_recipients():
+def get_admin_task_web_recipients(application):
     User = get_user_model()
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
+    users = User.objects.filter(role__in=["admin", "staff"], is_active=True)
+
+    if status_key == "submitted":
+        return [user for user in users if is_ikl_user(user)]
+
+    if status_key in ADMIN_TECHNICAL_TASK_STATUSES:
+        pending_departments = get_pending_technical_departments(application)
+        return [
+            user
+            for user in users
+            if normalize_department(getattr(user, "department", "")) in pending_departments
+        ]
+
+    return []
+
+
+def get_admin_task_email_recipients(application, users):
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
     recipients = []
 
-    for user in User.objects.filter(role__in=["admin", "staff"]).exclude(email=""):
-        email = normalize_email(user.email)
+    for user in users:
+        email = normalize_email(getattr(user, "email", ""))
         if email:
             recipients.append((user, email))
 
-    for email in settings.NOTIFICATION_ADMIN_EMAILS:
-        email = normalize_email(email)
-        if email:
-            recipients.append((None, email))
+    if status_key == "submitted" and not recipients:
+        for email in settings.NOTIFICATION_ADMIN_EMAILS:
+            email = normalize_email(email)
+            if email:
+                recipients.append((None, email))
 
     return recipients
+
+
+def get_admin_task_whatsapp_numbers(application, users):
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
+    recipients = []
+
+    for user in users:
+        phone = normalize_phone(getattr(user, "mobile_number", ""))
+        if phone:
+            recipients.append((user, phone))
+
+    if status_key == "submitted" and not recipients:
+        recipients.extend((None, phone) for phone in get_admin_whatsapp_numbers())
+
+    return recipients
+
+
+def get_pending_technical_departments(application):
+    reviews = get_technical_department_reviews(application)
+    return {
+        department
+        for department in TECHNICAL_DEPARTMENTS
+        if not isinstance(reviews.get(department), dict) or not reviews.get(department)
+    }
+
+
+def get_technical_department_reviews(application):
+    form_data = getattr(application, "form_data", None) or {}
+    reviews = form_data.get("technical_department_reviews") or {}
+    if not isinstance(reviews, dict):
+        return {}
+
+    return {
+        normalize_department(department): value
+        for department, value in reviews.items()
+        if normalize_department(department)
+    }
+
+
+def is_ikl_user(user):
+    return normalize_department(getattr(user, "department", "")) == "IKL"
+
+
+def normalize_department(value):
+    department = str(value or "").strip().upper().replace("-", " ")
+    department = " ".join(department.split())
+
+    if department in IKL_DEPARTMENTS:
+        return "IKL"
+
+    if department == "INP":
+        return "LNP"
+
+    return department
+
+
+def should_user_receive_admin_notification(user, application, status_key=None):
+    status = str(status_key or getattr(application, "status", "") or "").strip().lower()
+    department = normalize_department(getattr(user, "department", ""))
+
+    if status == "submitted":
+        return department == "IKL"
+
+    if status in ADMIN_TECHNICAL_TASK_STATUSES:
+        return department in get_pending_technical_departments(application)
+
+    return False
 
 
 def get_default_superadmin():

@@ -272,7 +272,7 @@ function ClaimableTaskView({
               key: "status",
               label: t("common.status"),
               render: (application) => (
-                <StatusPill value={formatWorkflowStatus(application.status)} />
+                <StatusPill value={getDashboardTaskStatusLabel(application, selected, t)} />
               ),
             },
             {
@@ -318,6 +318,16 @@ function getTechnicalDepartmentReviews(app) {
 
 function hasTechnicalDepartmentReview(app, department) {
   return Boolean(getTechnicalDepartmentReviews(app)?.[department]);
+}
+
+function getDashboardTaskStatusLabel(application, unit, t) {
+  const status = normalizeStatus(application?.status);
+
+  if (unit?.department === "IKL" && status === "submitted") {
+    return t("status.pt_ku_review", "PT/KU Review");
+  }
+
+  return formatWorkflowStatus(status);
 }
 
 export default AdminDashboard;

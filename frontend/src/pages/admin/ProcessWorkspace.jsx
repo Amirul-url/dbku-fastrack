@@ -236,16 +236,16 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     [applications, config, userDepartment]
   );
 
-  async function submitAction(action) {
+  async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
       return;
     }
 
-    const actionDecision = action.decision || decision;
-    const cleanedComment = cleanRemark(comment);
+    const actionDecision = overrides.decision || action.decision || decision;
+    const cleanedComment = cleanRemark(overrides.comment ?? comment);
     const requiresDecisionRemark =
-      config.showComment &&
+      (overrides.checkDecisionRemark ?? config.showComment) &&
       /reject|amendment|condition|not supported/i.test(String(actionDecision || ""));
 
     if ((action.requiresComment || requiresDecisionRemark) && !cleanedComment) {
@@ -383,7 +383,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 {
                   key: "status",
                   label: t("common.status"),
-                  render: (app) => <StatusPill value={formatWorkflowStatus(app.status)} />,
+                  render: (app) => (
+                    <StatusPill value={getWorkspaceStatusLabel(app, config, t)} />
+                  ),
                 },
                 {
                   key: "updated",
@@ -412,6 +414,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   created: t("workspace.created"),
                   updated: t("common.updated"),
                 }}
+                statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t)}
                 actions={
                   isIklWorkspace ? (
                     <Button
@@ -425,93 +428,107 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 }
               />
 
-              {config.showDecision && (
-                <Field label={t(config.decisionLabelKey, config.decisionLabel || "Decision")}>
-                  <select
-                    value={decision}
-                    onChange={(event) => setDecision(event.target.value)}
-                    className="form-input"
-                  >
-                    {config.decisions.map((item) => (
-                      <option key={item.value || item} value={item.value || item}>
-                        {t(item.labelKey, item.label || item)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
-
-              {config.showComment && (
-                <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
-                  <textarea
-                    value={comment}
-                    onChange={(event) => setComment(event.target.value)}
-                    rows="5"
-                    className="form-input"
-                    placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
-                  />
-                </Field>
-              )}
-
-              {showSiteVisitFields && (
-                <TechnicalSiteVisitFields
+              {isIklWorkspace ? (
+                <IklWorkspaceSections
                   t={t}
-                  applicationId={selectedRecord.id}
-                  value={technicalSite}
-                  onChange={setTechnicalSite}
-                  onFileChange={async (files) => {
-                    const fileList = Array.from(files || []);
-                    if (fileList.length === 0) return;
-                    const sitePhotos = await Promise.all(
-                      fileList.map((file) =>
-                        uploadApplicationDocument(
-                          selectedRecord.id,
-                          "Technical Site Photo",
-                          file
-                        )
-                      )
-                    );
-                    setTechnicalSite((prev) => ({
-                      ...prev,
-                      site_photos: [...(prev.site_photos || []), ...sitePhotos],
-                    }));
-                  }}
+                  config={config}
+                  selectedRecord={selectedRecord}
+                  decision={decision}
+                  setDecision={setDecision}
+                  comment={comment}
+                  setComment={setComment}
+                  technicalSite={technicalSite}
+                  setTechnicalSite={setTechnicalSite}
+                  saving={saving}
+                  submitAction={submitAction}
                 />
-              )}
-
-              {isIklWorkspace && (
-                <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
-              )}
-
-              {detailLoading ? (
-                <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
               ) : (
-                config.details && <config.details app={selectedRecord} t={t} />
-              )}
+                <>
+                  {config.showDecision && (
+                    <Field label={t(config.decisionLabelKey, config.decisionLabel || "Decision")}>
+                      <select
+                        value={decision}
+                        onChange={(event) => setDecision(event.target.value)}
+                        className="form-input"
+                      >
+                        {config.decisions.map((item) => (
+                          <option key={item.value || item} value={item.value || item}>
+                            {t(item.labelKey, item.label || item)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
 
-              <div className={actionGridClass}>
-                {showBottomFormButton && (
-                  <Button
-                    variant="secondary"
-                    className="w-full"
-                    onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
-                  >
-                    {t("workspace.openForm")}
-                  </Button>
-                )}
-                {config.actions.map((action) => (
-                  <Button
-                    key={action.label}
-                    onClick={() => submitAction(action)}
-                    disabled={saving}
-                    variant={action.variant || "primary"}
-                    icon={action.icon}
-                    className="w-full"
-                  >
-                    {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-                  </Button>
-                ))}
-              </div>
+                  {config.showComment && (
+                    <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
+                      <textarea
+                        value={comment}
+                        onChange={(event) => setComment(event.target.value)}
+                        rows="5"
+                        className="form-input"
+                        placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+                      />
+                    </Field>
+                  )}
+
+                  {showSiteVisitFields && (
+                    <TechnicalSiteVisitFields
+                      t={t}
+                      applicationId={selectedRecord.id}
+                      value={technicalSite}
+                      onChange={setTechnicalSite}
+                      onFileChange={async (files) => {
+                        const fileList = Array.from(files || []);
+                        if (fileList.length === 0) return;
+                        const sitePhotos = await Promise.all(
+                          fileList.map((file) =>
+                            uploadApplicationDocument(
+                              selectedRecord.id,
+                              "Technical Site Photo",
+                              file
+                            )
+                          )
+                        );
+                        setTechnicalSite((prev) => ({
+                          ...prev,
+                          site_photos: [...(prev.site_photos || []), ...sitePhotos],
+                        }));
+                      }}
+                    />
+                  )}
+
+                  {detailLoading ? (
+                    <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
+                  ) : (
+                    config.details && <config.details app={selectedRecord} t={t} />
+                  )}
+
+                  <div className={actionGridClass}>
+                    {showBottomFormButton && (
+                      <Button
+                        variant="secondary"
+                        className="w-full"
+                        onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
+                      >
+                        {t("workspace.openForm")}
+                      </Button>
+                    )}
+                    {config.actions.map((action) => (
+                      <Button
+                        key={action.label}
+                        onClick={() => submitAction(action)}
+                        disabled={saving}
+                        variant={action.variant || "primary"}
+                        icon={action.icon}
+                        className="w-full"
+                      >
+                        {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </Panel>
@@ -526,7 +543,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
               <Info label={t("common.type")} value={getApplicationType(selectedRecord)} />
               <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
               <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
-              <Info label={t("common.status")} value={formatWorkflowStatus(selectedRecord.status)} />
+              <Info
+                label={t("common.status")}
+                value={getWorkspaceStatusLabel(selectedRecord, config, t)}
+              />
             </div>
           ) : (
             <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
@@ -541,6 +561,56 @@ function mergeFormData(app, next) {
   return {
     ...(app.form_data || {}),
     ...next,
+  };
+}
+
+function getWorkspaceStatusLabel(app, config, t) {
+  const status = normalizeStatus(app?.status);
+  const isIklWorkspace = config?.allowedDepartments?.includes("IKL");
+
+  if (isIklWorkspace && status === "submitted") {
+    return t("status.pt_ku_review", "For PT/KU Review");
+  }
+
+  return formatWorkflowStatus(status);
+}
+
+function buildIklScreeningPayload(app, data) {
+  const now = new Date().toISOString();
+  const checks = buildScreeningChecks(app);
+  const reject =
+    data.decision === "PT(IKL) Reject to Applicant" ||
+    data.decision === "KU(IKL) Reject to Applicant";
+  const technicalAmendment = data.decision === "Technical Amendment Required";
+  const sendTechnical = data.decision === "KU(IKL) Confirm - Send to Technical Units";
+  const correctionRequired = reject || technicalAmendment;
+
+  return {
+    status: reject
+      ? "incomplete"
+      : technicalAmendment
+        ? "technical_amendment"
+        : sendTechnical
+          ? "technical_review"
+          : "ku_ikl_review",
+    current_step: Math.max(Number(app.current_step || 1), 5),
+    latest_remark: correctionRequired ? data.comment : app.latest_remark || "",
+    form_data: mergeFormData(app, {
+      auto_screening: {
+        status: "Screened",
+        result: correctionRequired ? "Rejected to Applicant" : data.decision,
+        remarks: data.comment,
+        checks,
+        checked_at: now,
+      },
+      correction_request: correctionRequired
+        ? {
+            source: data.decision.includes("KU") ? "KU(IKL)" : "PT(IKL)",
+            remarks: data.comment,
+            requested_at: now,
+          }
+        : app.form_data?.correction_request || null,
+    }),
   };
 }
 
@@ -738,7 +808,15 @@ const configs = {
       { label: "Screened", labelKey: "workspace.stat.screened", value: countBy(apps, (app) => ["ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed"].includes(normalizeStatus(app.status))), icon: "fact_check" },
       { label: "Passed", labelKey: "workspace.stat.passed", value: countBy(apps, (app) => ["ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed"].includes(normalizeStatus(app.status))), icon: "task_alt" },
     ],
-    actions: [
+    screeningAction: {
+      label: "Submit PT/KU Decision",
+      labelKey: "workspace.action.submitScreening",
+      icon: "fact_check",
+      success: "Screening decision saved.",
+      successKey: "workspace.message.screeningSaved",
+      buildPayload: buildIklScreeningPayload,
+    },
+    technicalActions: [
       {
         label: "Supported",
         labelKey: "workspace.decision.supported",
@@ -769,6 +847,7 @@ const configs = {
         buildPayload: buildIklTechnicalDecisionPayload,
       },
     ],
+    actions: [],
   },
   technical: {
     key: "technical",
@@ -1109,6 +1188,126 @@ function ScreeningDetails({ app, t }) {
           <StatusPill value={t(item.resultKey, item.result)} />
         </div>
       ))}
+    </div>
+  );
+}
+
+function IklWorkspaceSections({
+  t,
+  config,
+  selectedRecord,
+  decision,
+  setDecision,
+  comment,
+  setComment,
+  technicalSite,
+  setTechnicalSite,
+  saving,
+  submitAction,
+}) {
+  async function handleSitePhotoUpload(files) {
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0) return;
+
+    const sitePhotos = await Promise.all(
+      fileList.map((file) =>
+        uploadApplicationDocument(
+          selectedRecord.id,
+          "Technical Site Photo",
+          file
+        )
+      )
+    );
+
+    setTechnicalSite((prev) => ({
+      ...prev,
+      site_photos: [...(prev.site_photos || []), ...sitePhotos],
+    }));
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-md border border-slate-200 bg-white p-3">
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold text-slate-950">
+            {t("workspace.ikl.screeningTitle")}
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            {t("workspace.ikl.screeningDesc")}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          <Field label={t(config.decisionLabelKey, config.decisionLabel || "Decision")}>
+            <select
+              value={decision}
+              onChange={(event) => setDecision(event.target.value)}
+              className="form-input"
+            >
+              {config.decisions.map((item) => (
+                <option key={item.value || item} value={item.value || item}>
+                  {t(item.labelKey, item.label || item)}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              rows="4"
+              className="form-input"
+              placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+            />
+          </Field>
+
+          <div className="flex justify-end">
+            <Button
+              icon="fact_check"
+              disabled={saving}
+              onClick={() => submitAction(config.screeningAction)}
+              className="w-full sm:w-auto"
+            >
+              {saving
+                ? t("workspace.saving")
+                : t(config.screeningAction.labelKey, config.screeningAction.label)}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <TechnicalSiteVisitFields
+          t={t}
+          applicationId={selectedRecord.id}
+          value={technicalSite}
+          onChange={setTechnicalSite}
+          onFileChange={handleSitePhotoUpload}
+        />
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {config.technicalActions.map((action) => (
+            <Button
+              key={action.label}
+              onClick={() =>
+                submitAction(action, {
+                  comment: technicalSite.site_remarks,
+                  checkDecisionRemark: true,
+                })
+              }
+              disabled={saving}
+              variant={action.variant || "primary"}
+              icon={action.icon}
+              className="w-full"
+            >
+              {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+            </Button>
+          ))}
+        </div>
+      </section>
+
+      <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
     </div>
   );
 }

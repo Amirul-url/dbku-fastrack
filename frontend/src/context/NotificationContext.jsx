@@ -27,7 +27,13 @@ const applicantNotificationStatuses = new Set([
   "invoice_generated",
   "license_issued",
 ]);
-const adminNotificationStatuses = new Set(["submitted"]);
+const technicalDepartments = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const adminTechnicalTaskStatuses = new Set([
+  "technical_review",
+  "technical_site_visit",
+  "technical_review_completed",
+]);
+const adminNotificationStatuses = new Set(["submitted", ...adminTechnicalTaskStatuses]);
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
@@ -68,18 +74,86 @@ function getAdminApplicationViewUrl(app) {
   return `/admin/applications/${app.id}/view/step-1?id=${app.id}`;
 }
 
-function getNotificationUrl(role, app, category) {
+function normalizeDepartment(value) {
+  const department = String(value || "").trim().toUpperCase().replace(/-/g, " ").replace(/\s+/g, " ");
+
+  if (department === "UNIT IKLAN") return "IKL";
+  if (department === "INP") return "LNP";
+  return department;
+}
+
+function getUserDepartment(user) {
+  return normalizeDepartment(user?.department);
+}
+
+function getTechnicalDepartmentReviews(app) {
+  const reviews = app?.technical_department_reviews || app?.form_data?.technical_department_reviews || {};
+
+  if (!reviews || typeof reviews !== "object") return {};
+
+  return Object.entries(reviews).reduce((next, [department, value]) => {
+    const normalizedDepartment = normalizeDepartment(department);
+    if (normalizedDepartment) {
+      next[normalizedDepartment] = value;
+    }
+    return next;
+  }, {});
+}
+
+function departmentHasSubmittedReview(app, department) {
+  const review = getTechnicalDepartmentReviews(app)[department];
+
+  if (!review || typeof review !== "object") return false;
+
+  return Boolean(
+    review.decision ||
+      review.status ||
+      review.remarks ||
+      review.comment ||
+      review.submitted_at
+  );
+}
+
+function isAdminNotificationAllowedForUser(status, user, app = null) {
+  const department = getUserDepartment(user);
+  const normalizedStatus = normalizeStatus(status);
+
+  if (normalizedStatus === "submitted") {
+    return department === "IKL";
+  }
+
+  if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
+    if (!technicalDepartments.has(department)) return false;
+    if (!app) return true;
+    return !departmentHasSubmittedReview(app, department);
+  }
+
+  return false;
+}
+
+function getNotificationUrl(role, app, category, user = null) {
   if (role === "applicant") {
     if (category === "payment") return "/user/dashboard";
     if (category === "license") return "/user/dashboard";
     return `/applications/${app.id}/edit`;
   }
 
+  if (role === "admin") {
+    const department = getUserDepartment(user);
+    if (category === "technical" || technicalDepartments.has(department)) {
+      return app?.id ? `/admin/technical-review?id=${app.id}` : "/admin/technical-review";
+    }
+    if (category === "screening" || category === "submission") {
+      return app?.id ? `/admin/auto-screening?id=${app.id}` : "/admin/auto-screening";
+    }
+  }
+
   return getAdminApplicationViewUrl(app);
 }
 
-function buildBaseNotification(app, role, category, type, titleEn, titleMs, messageEn, messageMs) {
+function buildBaseNotification(app, role, category, type, titleEn, titleMs, messageEn, messageMs, user = null) {
   const status = normalizeStatus(app.status);
+  const displayStatus = getNotificationDisplayStatus(role, status, user);
   const reference = getApplicationReference(app);
   const updatedAt = app.updated_at || app.created_at || new Date().toISOString();
   const remark = getLatestRemark(app);
@@ -90,8 +164,9 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     appId: app.id,
     reference,
     project: getProjectName(app),
-    status,
-    statusLabel: formatWorkflowStatus(status),
+    status: displayStatus,
+    eventStatus: status,
+    statusLabel: formatWorkflowStatus(displayStatus),
     category,
     type,
     title: titleEn,
@@ -102,7 +177,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     messageMs,
     time: formatDate(updatedAt),
     timestamp: updatedAt,
-    actionUrl: getNotificationUrl(role, app, category),
+    actionUrl: getNotificationUrl(role, app, category, user),
   };
 }
 
@@ -134,10 +209,10 @@ function buildApplicantNotifications(app) {
         "applicant",
         "correction",
         "error",
-        "Application returned",
-        "Permohonan dikembalikan",
-        `${reference} was returned by ALiS${remark ? `: ${remark}` : "."}`,
-        `${reference} telah dikembalikan oleh ALiS${remark ? `: ${remark}` : "."}`
+        "Application rejected",
+        "Permohonan ditolak",
+        `${reference} was rejected by ALiS${remark ? `: ${remark}` : "."}`,
+        `${reference} telah ditolak oleh ALiS${remark ? `: ${remark}` : "."}`
       )
     );
   }
@@ -190,7 +265,7 @@ function buildApplicantNotifications(app) {
   return notifications;
 }
 
-function buildAdminNotifications(app) {
+function buildAdminNotifications(app, user) {
   const status = normalizeStatus(app.status);
   const reference = getApplicationReference(app);
   const project = getProjectName(app);
@@ -198,7 +273,7 @@ function buildAdminNotifications(app) {
   const type = getApplicationType(app);
   const notifications = [];
 
-  if (status === "submitted") {
+  if (status === "submitted" && isAdminNotificationAllowedForUser(status, user, app)) {
     notifications.push(
       buildBaseNotification(
         app,
@@ -208,7 +283,25 @@ function buildAdminNotifications(app) {
         "New IKL application submitted",
         "Permohonan IKL baharu telah dihantar",
         `${reference} (${type}) was submitted for ${project} at ${location}.`,
-        `${reference} (${type}) telah dihantar untuk ${project} di ${location}.`
+        `${reference} (${type}) telah dihantar untuk ${project} di ${location}.`,
+        user
+      )
+    );
+  }
+
+  if (adminTechnicalTaskStatuses.has(status) && isAdminNotificationAllowedForUser(status, user, app)) {
+    const department = getUserDepartment(user);
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "technical",
+        "warning",
+        `${department} technical task assigned`,
+        `Tugasan teknikal ${department} diberikan`,
+        `${reference} is ready for ${department} site review.`,
+        `${reference} sedia untuk semakan tapak ${department}.`,
+        user
       )
     );
   }
@@ -227,7 +320,7 @@ function buildNotifications(applications, user) {
   if (!builder) return [];
 
   return applications
-    .flatMap(builder)
+    .flatMap((app) => builder(app, user))
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
@@ -247,6 +340,35 @@ function getMessageSummary(message) {
   return lines.find((line) => !skipPrefixes.some((prefix) => line.startsWith(prefix))) || "";
 }
 
+function getNotificationDisplayStatus(role, status, user = null) {
+  const normalizedStatus = normalizeStatus(status);
+
+  if (role === "applicant" && normalizedStatus === "incomplete") {
+    return "rejected";
+  }
+
+  if (role === "admin" && normalizedStatus === "submitted" && getUserDepartment(user) === "IKL") {
+    return "pt_ku_review";
+  }
+
+  return normalizedStatus;
+}
+
+function normalizeApplicantNotificationText(value, role, status) {
+  if (role !== "applicant" || normalizeStatus(status) !== "incomplete") {
+    return value;
+  }
+
+  return String(value || "")
+    .replace(/Application returned/gi, "Application rejected")
+    .replace(/Your application ([^.\n]+?) was returned by ALiS/gi, "Your application $1 was rejected by ALiS")
+    .replace(/\bwas returned by ALiS\b/gi, "was rejected by ALiS")
+    .replace(/\bwas returned\b/gi, "was rejected")
+    .replace(/\breturned by ALiS\b/gi, "rejected by ALiS")
+    .replace(/\breturned\b/gi, "rejected")
+    .replace(/\bIncomplete\b/g, "Rejected");
+}
+
 function buildNotificationsFromDeliveries(deliveries, user) {
   const role = getNormalizedRole(user);
   const allowedStatuses =
@@ -260,15 +382,30 @@ function buildNotificationsFromDeliveries(deliveries, user) {
     .filter((delivery) => {
       const metadata = delivery.metadata || {};
       const eventStatus = normalizeStatus(metadata.event_status || delivery.status);
-      return allowedStatuses.has(eventStatus);
+      if (!allowedStatuses.has(eventStatus)) return false;
+      if (role === "admin") {
+        return isAdminNotificationAllowedForUser(eventStatus, user, {
+          technical_department_reviews: delivery.technical_department_reviews,
+        });
+      }
+      return true;
     })
     .map((delivery) => {
       const metadata = delivery.metadata || {};
       const category = metadata.category || "progress";
       const type = metadata.type || "info";
-      const title = metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject);
-      const message = metadata.message_en || metadata.message || getMessageSummary(delivery.message);
       const status = normalizeStatus(metadata.event_status || delivery.status);
+      const displayStatus = getNotificationDisplayStatus(role, status, user);
+      const title = normalizeApplicantNotificationText(
+        metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject),
+        role,
+        status
+      );
+      const message = normalizeApplicantNotificationText(
+        metadata.message_en || metadata.message || getMessageSummary(delivery.message),
+        role,
+        status
+      );
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
 
       return {
@@ -277,19 +414,20 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         appId: delivery.application_id,
         reference: delivery.reference_no || metadata.account_username || "-",
         project: delivery.project || metadata.account_name || "-",
-        status,
-        statusLabel: formatWorkflowStatus(status),
+        status: displayStatus,
+        eventStatus: status,
+        statusLabel: formatWorkflowStatus(displayStatus),
         category,
         type,
         title,
         titleEn: title,
-        titleMs: metadata.title_ms || title,
+        titleMs: normalizeApplicantNotificationText(metadata.title_ms || title, role, status),
         message,
         messageEn: message,
-        messageMs: metadata.message_ms || message,
+        messageMs: normalizeApplicantNotificationText(metadata.message_ms || message, role, status),
         time: formatDate(timestamp),
         timestamp,
-        actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category),
+        actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category, user),
         read: Boolean(delivery.read_at),
       };
     })

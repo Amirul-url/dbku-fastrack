@@ -10,6 +10,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     latest_remark = serializers.SerializerMethodField()
     application_updated_at = serializers.SerializerMethodField()
+    technical_department_reviews = serializers.SerializerMethodField()
 
     def get_application_id(self, obj):
         return obj.application_id
@@ -29,6 +30,11 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
     def get_application_updated_at(self, obj):
         return getattr(obj.application, "updated_at", None)
 
+    def get_technical_department_reviews(self, obj):
+        form_data = getattr(obj.application, "form_data", None) or {}
+        reviews = form_data.get("technical_department_reviews") or {}
+        return reviews if isinstance(reviews, dict) else {}
+
     class Meta:
         model = NotificationDelivery
         fields = [
@@ -39,6 +45,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
             "status",
             "latest_remark",
             "application_updated_at",
+            "technical_department_reviews",
             "recipient_role",
             "subject",
             "message",
