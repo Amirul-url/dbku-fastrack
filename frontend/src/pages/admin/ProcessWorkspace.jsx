@@ -156,7 +156,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
       setApplications(list);
-      if (!selectedId && list.length > 0) setSelectedId(String(list[0].id));
+      if (config.key !== "approval" && !selectedId && list.length > 0) {
+        setSelectedId(String(list[0].id));
+      }
     } catch (err) {
       setError(err.message || "Failed to load applications.");
     } finally {
@@ -240,14 +242,25 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     if (filtered.length === 0) return;
     const hasSelected = filtered.some((app) => String(app.id) === String(selectedId));
 
+    if (isSimpleApprovalWorkspace && !selectedId) {
+      return;
+    }
+
+    if (isSimpleApprovalWorkspace && selectedId && !hasSelected) {
+      setSelectedId("");
+      return;
+    }
+
     if (!hasSelected) {
       setSelectedId(String(filtered[0].id));
     }
-  }, [filtered, selectedId]);
+  }, [filtered, isSimpleApprovalWorkspace, selectedId]);
 
   const selected = useMemo(() => {
-    return filtered.find((app) => String(app.id) === String(selectedId)) || filtered[0] || null;
-  }, [filtered, selectedId]);
+    const matchingRecord = filtered.find((app) => String(app.id) === String(selectedId));
+    if (isSimpleApprovalWorkspace && !selectedId) return null;
+    return matchingRecord || filtered[0] || null;
+  }, [filtered, isSimpleApprovalWorkspace, selectedId]);
   const selectedRecord =
     selectedDetail && String(selectedDetail.id) === String(selected?.id)
       ? { ...selected, ...selectedDetail }
@@ -330,6 +343,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     }
   }
 
+  function openSelectedTask(app) {
+    if (!app?.id) return;
+
+    setSelectedId(String(app.id));
+    const params = new URLSearchParams(location.search);
+    params.set("id", app.id);
+    navigate(`${location.pathname}?${params.toString()}`);
+  }
+
   return (
     <AdminDashboardLayout>
       {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
@@ -378,16 +400,16 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         className={
           isFocusedPersonalWorkspace
             ? "mb-6 space-y-6"
-            : isSimpleApprovalWorkspace && !showActionPanel
-              ? "mb-6"
+            : isSimpleApprovalWorkspace
+              ? "mb-6 space-y-6"
             : "mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3"
         }
       >
-        {!isFocusedPersonalWorkspace && (
+        {!isFocusedPersonalWorkspace && !(isSimpleApprovalWorkspace && showActionPanel) && (
           <Panel
             title={isSimpleApprovalWorkspace ? t("admin.dashboard.awaitingApproval", "Awaiting Approval") : t(config.queueTitleKey, config.queueTitle)}
             description={isSimpleApprovalWorkspace ? "" : t("workspace.queue.instructions")}
-            className={isSimpleApprovalWorkspace && !showActionPanel ? "" : "xl:col-span-2"}
+            className={isSimpleApprovalWorkspace ? "" : "xl:col-span-2"}
           >
             {statusScopedApplications.length > 0 && (
               <div className="mb-4">
@@ -413,7 +435,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   render: (app) => (
                     <button
                       type="button"
-                      onClick={() => setSelectedId(String(app.id))}
+                      onClick={() =>
+                        isSimpleApprovalWorkspace
+                          ? openSelectedTask(app)
+                          : setSelectedId(String(app.id))
+                      }
                       className="font-semibold text-emerald-700 hover:underline"
                     >
                       {getApplicationReference(app)}
@@ -432,8 +458,27 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 {
                   key: "updated",
                   label: t("common.updated"),
-                  render: (app) => formatDate(app.updated_at),
+                  render: (app) => formatDateTime(app.updated_at),
                 },
+                ...(isSimpleApprovalWorkspace
+                  ? [
+                      {
+                        key: "action",
+                        label: t("common.action"),
+                        render: (app) => (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            icon="visibility"
+                            className="min-h-8 px-3 py-1 text-xs"
+                            onClick={() => openSelectedTask(app)}
+                          >
+                            {t("common.view", "View")}
+                          </Button>
+                        ),
+                      },
+                    ]
+                  : []),
               ]}
             />
           </Panel>

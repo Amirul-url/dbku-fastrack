@@ -47,8 +47,9 @@ function writeSessionBoolean(key, value) {
   }
 }
 
-function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, taskCounts = {}) {
+function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, taskCounts = {}, user = null) {
   const stepModePath = isViewMode ? "/view" : "";
+  const isSupervisor = String(user?.role || "").trim().toLowerCase() === "supervisor";
   const applicationStepGroup = showApplicationSteps
     ? {
         labelKey: "steps.applicationSteps",
@@ -63,43 +64,49 @@ function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, tas
       }
     : null;
 
-  return [
-    {
-      labelKey: "nav.dashboard",
-      fallback: "Dashboard",
-      path: "/dashboard/admin",
-      icon: "dashboard",
-      children: [
-        {
+  const dashboardChildren = [
+    isSupervisor
+      ? null
+      : {
           labelKey: "admin.dashboard.personalTask",
           fallback: "Personal Task",
           path: "/dashboard/admin?view=personal",
           view: "personal",
           badge: taskCounts.personal || 0,
         },
-        {
-          labelKey: "admin.dashboard.awaitingApproval",
-          fallback: "Awaiting Approval",
-          path: "/dashboard/admin?view=approval",
-          view: "approval",
-          badge: taskCounts.approval || 0,
-        },
-      ],
-    },
     {
-      labelKey: "nav.applications",
-      fallback: "Applications",
-      path: "/admin/applications",
-      icon: "folder_open",
-      stepGroup: applicationStepGroup,
+      labelKey: "admin.dashboard.awaitingApproval",
+      fallback: "Awaiting Approval",
+      path: "/dashboard/admin?view=approval",
+      view: "approval",
+      badge: taskCounts.approval || 0,
     },
+  ].filter(Boolean);
+
+  return [
+    {
+      labelKey: "nav.dashboard",
+      fallback: "Dashboard",
+      path: "/dashboard/admin",
+      icon: "dashboard",
+      children: dashboardChildren,
+    },
+    isSupervisor
+      ? null
+      : {
+          labelKey: "nav.applications",
+          fallback: "Applications",
+          path: "/admin/applications",
+          icon: "folder_open",
+          stepGroup: applicationStepGroup,
+        },
     {
       labelKey: "nav.guidelines",
       fallback: "Guidelines",
       path: "/admin/guidelines",
       icon: "menu_book",
     },
-  ];
+  ].filter(Boolean);
 }
 
 const superAdminNav = [
@@ -192,12 +199,13 @@ function AppShell({ children, role = "admin" }) {
           currentAdminApplicationId,
           Boolean(currentAdminApplicationId),
           isAdminViewMode,
-          adminTaskCounts
+          adminTaskCounts,
+          user
         );
       }
       return buildApplicantNav(stepApplicationId, showApplicationSteps);
     },
-    [role, currentAdminApplicationId, isAdminViewMode, adminTaskCounts, stepApplicationId, showApplicationSteps]
+    [role, currentAdminApplicationId, isAdminViewMode, adminTaskCounts, user, stepApplicationId, showApplicationSteps]
   );
 
   const refreshAdminTaskCounts = useCallback(async ({ silent = false } = {}) => {

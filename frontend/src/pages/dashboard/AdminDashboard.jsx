@@ -127,9 +127,10 @@ const units = [
 
 function AdminDashboard() {
   const location = useLocation();
+  const userRole = String(getStoredUser()?.role || "").trim().toLowerCase();
   const view = new URLSearchParams(location.search).get("view") || "personal";
 
-  if (view === "approval") {
+  if (view === "approval" || userRole === "supervisor") {
     return <ApprovalPage />;
   }
 
@@ -246,7 +247,7 @@ function ClaimableTaskView({
           {t("admin.dashboard.processList")}
         </legend>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-9">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {unitTasks.map((unit) => (
             <button
               type="button"
