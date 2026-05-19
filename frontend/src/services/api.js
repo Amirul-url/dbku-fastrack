@@ -251,7 +251,13 @@ export function getNormalizedRole(user) {
     return "superadmin";
   }
 
-  if (role === "admin" || role === "staff" || user?.is_staff || user?.is_superuser) {
+  if (
+    role === "admin" ||
+    role === "supervisor" ||
+    role === "staff" ||
+    user?.is_staff ||
+    user?.is_superuser
+  ) {
     return "admin";
   }
 

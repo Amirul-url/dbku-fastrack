@@ -347,6 +347,24 @@ function App() {
         />
 
         <Route
+          path="/superadmin/superadmins"
+          element={
+            <SuperAdminRoute>
+              <SuperAdminDashboard view="superadmins" />
+            </SuperAdminRoute>
+          }
+        />
+
+        <Route
+          path="/superadmin/supervisors"
+          element={
+            <SuperAdminRoute>
+              <SuperAdminDashboard view="supervisors" />
+            </SuperAdminRoute>
+          }
+        />
+
+        <Route
           path="/dashboard/admin"
           element={
             <AdminRoute>

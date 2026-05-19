@@ -31,9 +31,10 @@ const technicalDepartments = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"])
 const adminTechnicalTaskStatuses = new Set([
   "technical_review",
   "technical_site_visit",
+  "technical_amendment",
   "technical_review_completed",
 ]);
-const adminNotificationStatuses = new Set(["submitted", ...adminTechnicalTaskStatuses]);
+const adminNotificationStatuses = new Set(["submitted", "ku_ikl_review", ...adminTechnicalTaskStatuses]);
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
@@ -78,7 +79,10 @@ function getAdminApplicationViewUrl(app) {
 function normalizeDepartment(value) {
   const department = String(value || "").trim().toUpperCase().replace(/-/g, " ").replace(/\s+/g, " ");
 
-  if (department === "UNIT IKLAN") return "IKL";
+  if (department === "UNIT IKLAN") return "PT(IKL)";
+  if (department === "PT IKL") return "PT(IKL)";
+  if (department === "KU IKL") return "KU(IKL)";
+  if (department === "IKL TECHNICAL") return "IKL (TECHNICAL)";
   if (department === "INP") return "LNP";
   return department;
 }
@@ -120,12 +124,20 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   const normalizedStatus = normalizeStatus(status);
 
   if (normalizedStatus === "submitted") {
-    return department === "IKL";
+    return department === "PT(IKL)";
+  }
+
+  if (normalizedStatus === "ku_ikl_review") {
+    return department === "KU(IKL)";
   }
 
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
     if (normalizedStatus === "technical_review_completed") {
-      return department === "IKL";
+      return department === "KU(IKL)";
+    }
+
+    if (department === "IKL (TECHNICAL)") {
+      return ["technical_review", "technical_site_visit", "technical_amendment"].includes(normalizedStatus);
     }
 
     if (!technicalDepartments.has(department)) return false;
@@ -145,7 +157,10 @@ function getNotificationUrl(role, app, category, user = null) {
 
   if (role === "admin") {
     const department = getUserDepartment(user);
-    if (category === "technical" && department === "IKL") {
+    if (
+      category === "technical" &&
+      (department === "IKL (TECHNICAL)" || department === "KU(IKL)")
+    ) {
       return app?.id ? `/admin/auto-screening?id=${app.id}` : "/admin/auto-screening";
     }
     if (category === "technical" || technicalDepartments.has(department)) {
@@ -297,6 +312,22 @@ function buildAdminNotifications(app, user) {
     );
   }
 
+  if (status === "ku_ikl_review" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "screening",
+        "warning",
+        "Application ready for KU(IKL) review",
+        "Permohonan sedia untuk semakan KU(IKL)",
+        `${reference} is ready for KU(IKL) verification.`,
+        `${reference} sedia untuk pengesahan KU(IKL).`,
+        user
+      )
+    );
+  }
+
   if (adminTechnicalTaskStatuses.has(status) && isAdminNotificationAllowedForUser(status, user, app)) {
     const department = getUserDepartment(user);
     notifications.push(
@@ -355,8 +386,8 @@ function getNotificationDisplayStatus(role, status, user = null) {
     return "rejected";
   }
 
-  if (role === "admin" && normalizedStatus === "submitted" && getUserDepartment(user) === "IKL") {
-    return "pt_ku_review";
+  if (role === "admin" && normalizedStatus === "submitted" && getUserDepartment(user) === "PT(IKL)") {
+    return "pt_ikl_review";
   }
 
   return normalizedStatus;

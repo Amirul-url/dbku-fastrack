@@ -148,6 +148,30 @@ class ManagedAccountImportTests(TestCase):
 
         self.assertEqual(error, "Please enter a valid email address.")
 
+    def test_managed_account_accepts_supervisor_role(self):
+        user = User()
+        error = apply_managed_account_data(
+            user,
+            {
+                "username": "supervisor1",
+                "full_name": "Supervisor Account",
+                "email": "supervisor@example.com",
+                "mobile_number": "",
+                "department": "KB(LES)",
+                "role": "supervisor",
+                "password": "Password123",
+                "password2": "Password123",
+                "is_active": True,
+            },
+            require_password=True,
+        )
+
+        self.assertEqual(error, "")
+        self.assertEqual(user.role, "supervisor")
+        self.assertEqual(user.department, "KB(LES)")
+        self.assertTrue(user.is_staff)
+        self.assertFalse(user.is_superuser)
+
     def test_managed_user_list_includes_legacy_user_role(self):
         superadmin = User.objects.get(username="superadmin")
         superadmin.role = "superadmin"

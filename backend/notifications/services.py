@@ -18,10 +18,13 @@ APP_BRAND_NAME = "ALiS"
 
 
 TECHNICAL_DEPARTMENTS = {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}
-IKL_DEPARTMENTS = {"IKL", "UNIT IKLAN"}
+PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
+KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
+IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL TECHNICAL"}
 ADMIN_TECHNICAL_TASK_STATUSES = {
     "technical_review",
     "technical_site_visit",
+    "technical_amendment",
     "technical_review_completed",
 }
 
@@ -57,10 +60,20 @@ STATUS_MESSAGES = {
         "",
         "Application {reference} is ready for your department technical review.",
     ),
+    "ku_ikl_review": (
+        "KU(IKL) review required",
+        "",
+        "Application {reference} is ready for KU(IKL) verification.",
+    ),
     "technical_site_visit": (
         "Technical site visit assigned",
         "",
         "Application {reference} is ready for your department site visit review.",
+    ),
+    "technical_amendment": (
+        "Technical amendment required",
+        "",
+        "Application {reference} requires IKL technical amendment.",
     ),
     "technical_review_completed": (
         "KU(IKL) technical review required",
@@ -75,8 +88,10 @@ STATUS_UI = {
     "rejected": ("decision", "error"),
     "invoice_generated": ("payment", "warning"),
     "license_issued": ("license", "success"),
+    "ku_ikl_review": ("screening", "warning"),
     "technical_review": ("technical", "warning"),
     "technical_site_visit": ("technical", "warning"),
+    "technical_amendment": ("technical", "warning"),
     "technical_review_completed": ("technical", "info"),
 }
 
@@ -88,7 +103,7 @@ APPLICANT_NOTIFICATION_STATUSES = {
     "license_issued",
 }
 
-ADMIN_NOTIFICATION_STATUSES = {"submitted", *ADMIN_TECHNICAL_TASK_STATUSES}
+ADMIN_NOTIFICATION_STATUSES = {"submitted", "ku_ikl_review", *ADMIN_TECHNICAL_TASK_STATUSES}
 
 SUPERADMIN_NOTIFICATION_STATUSES = {"account_created"}
 
@@ -190,10 +205,18 @@ def build_account_created_message(account, created_by=None):
         "account_role": role,
         "account_name": account_name,
         "account_username": username,
-        "action_url": "/superadmin/users" if role in {"applicant", "user"} else "/superadmin/admins",
+        "action_url": get_account_management_url(role),
     }
 
     return subject, "\n".join(lines), metadata
+
+
+def get_account_management_url(role):
+    if role in {"applicant", "user"}:
+        return "/superadmin/users"
+    if role == "supervisor":
+        return "/superadmin/supervisors"
+    return "/superadmin/admins"
 
 
 def build_event_key(application, status_key, remark_changed=False):
@@ -478,13 +501,16 @@ def get_applicant_whatsapp_numbers(application):
 def get_admin_task_web_recipients(application):
     User = get_user_model()
     status_key = str(getattr(application, "status", "") or "").strip().lower()
-    users = User.objects.filter(role__in=["admin", "staff"], is_active=True)
+    users = User.objects.filter(role__in=["admin", "supervisor", "staff"], is_active=True)
 
     if status_key == "submitted":
-        return [user for user in users if is_ikl_user(user)]
+        return [user for user in users if is_pt_ikl_user(user)]
+
+    if status_key == "ku_ikl_review":
+        return [user for user in users if is_ku_ikl_user(user)]
 
     if status_key == "technical_review_completed":
-        return [user for user in users if is_ikl_user(user)]
+        return [user for user in users if is_ku_ikl_user(user)]
 
     if status_key in ADMIN_TECHNICAL_TASK_STATUSES:
         pending_departments = get_pending_technical_departments(application)
@@ -492,6 +518,7 @@ def get_admin_task_web_recipients(application):
             user
             for user in users
             if normalize_department(getattr(user, "department", "")) in pending_departments
+            or is_ikl_technical_user(user)
         ]
 
     return []
@@ -552,16 +579,30 @@ def get_technical_department_reviews(application):
     }
 
 
-def is_ikl_user(user):
-    return normalize_department(getattr(user, "department", "")) == "IKL"
+def is_pt_ikl_user(user):
+    return normalize_department(getattr(user, "department", "")) == "PT(IKL)"
+
+
+def is_ku_ikl_user(user):
+    return normalize_department(getattr(user, "department", "")) == "KU(IKL)"
+
+
+def is_ikl_technical_user(user):
+    return normalize_department(getattr(user, "department", "")) == "IKL (TECHNICAL)"
 
 
 def normalize_department(value):
     department = str(value or "").strip().upper().replace("-", " ")
     department = " ".join(department.split())
 
-    if department in IKL_DEPARTMENTS:
-        return "IKL"
+    if department in PT_IKL_DEPARTMENTS:
+        return "PT(IKL)"
+
+    if department in KU_IKL_DEPARTMENTS:
+        return "KU(IKL)"
+
+    if department in IKL_TECHNICAL_DEPARTMENTS:
+        return "IKL (TECHNICAL)"
 
     if department == "INP":
         return "LNP"
@@ -574,10 +615,16 @@ def should_user_receive_admin_notification(user, application, status_key=None):
     department = normalize_department(getattr(user, "department", ""))
 
     if status == "submitted":
-        return department == "IKL"
+        return department == "PT(IKL)"
 
     if status == "technical_review_completed":
-        return department == "IKL"
+        return department == "KU(IKL)"
+
+    if status == "ku_ikl_review":
+        return department == "KU(IKL)"
+
+    if status in {"technical_review", "technical_site_visit", "technical_amendment"} and department == "IKL (TECHNICAL)":
+        return True
 
     if status in ADMIN_TECHNICAL_TASK_STATUSES:
         return department in get_pending_technical_departments(application)
@@ -607,7 +654,7 @@ def get_notification_sender_phone():
 
 def get_admin_web_recipients():
     User = get_user_model()
-    return list(User.objects.filter(role__in=["admin", "staff"]))
+    return list(User.objects.filter(role__in=["admin", "supervisor", "staff"]))
 
 
 def get_superadmin_web_recipients():
@@ -623,7 +670,7 @@ def normalize_account_role(value):
     role = str(value or "").strip().lower()
     if role == "user":
         return "applicant"
-    if role in {"superadmin", "admin", "staff", "applicant"}:
+    if role in {"superadmin", "admin", "supervisor", "staff", "applicant"}:
         return role
     return "account"
 
@@ -635,6 +682,8 @@ def get_account_role_label(role):
         return "SUPERADMIN"
     if role == "admin":
         return "ADMIN"
+    if role == "supervisor":
+        return "SUPERVISOR"
     if role == "staff":
         return "STAFF"
     return "ACCOUNT"

@@ -7,14 +7,12 @@ import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_APPLICATIONS_MENU_KEY = "fastrack_admin_applications_menu_open";
-const IKL_TASK_STATUSES = new Set([
-  "submitted",
-  "incomplete",
-  "ku_ikl_review",
+const PT_IKL_TASK_STATUSES = new Set(["submitted", "incomplete"]);
+const KU_IKL_TASK_STATUSES = new Set(["ku_ikl_review", "technical_review_completed"]);
+const IKL_TECHNICAL_TASK_STATUSES = new Set([
   "technical_review",
   "technical_site_visit",
   "technical_amendment",
-  "technical_review_completed",
 ]);
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
   "technical_review",
@@ -109,6 +107,8 @@ const superAdminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/superadmin/dashboard", icon: "dashboard" },
   { labelKey: "superadmin.nav.users", fallback: "User", path: "/superadmin/users", icon: "group" },
   { labelKey: "superadmin.nav.admins", fallback: "Admin", path: "/superadmin/admins", icon: "admin_panel_settings" },
+  { labelKey: "superadmin.nav.superadmins", fallback: "SuperAdmin", path: "/superadmin/superadmins", icon: "shield_person" },
+  { labelKey: "superadmin.nav.supervisors", fallback: "Supervisor", path: "/superadmin/supervisors", icon: "supervisor_account" },
 ];
 
 function getApplicationStepPath(applicationId, route) {
@@ -620,8 +620,16 @@ function getAdminTaskCounts(applications, user) {
 function isPersonalTaskForDepartment(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
-  if (department === "IKL") {
-    return IKL_TASK_STATUSES.has(status);
+  if (department === "PT(IKL)") {
+    return PT_IKL_TASK_STATUSES.has(status);
+  }
+
+  if (department === "KU(IKL)") {
+    return KU_IKL_TASK_STATUSES.has(status);
+  }
+
+  if (department === "IKL (TECHNICAL)") {
+    return IKL_TECHNICAL_TASK_STATUSES.has(status);
   }
 
   if (TECHNICAL_DEPARTMENTS.has(department)) {
@@ -635,7 +643,12 @@ function isPersonalTaskForDepartment(application, department) {
 }
 
 function isAwaitingApprovalTask(application, department) {
-  if (department === "IKL" || TECHNICAL_DEPARTMENTS.has(department)) {
+  if (
+    department === "PT(IKL)" ||
+    department === "KU(IKL)" ||
+    department === "IKL (TECHNICAL)" ||
+    TECHNICAL_DEPARTMENTS.has(department)
+  ) {
     return false;
   }
 
@@ -656,7 +669,12 @@ function normalizeDepartmentCode(value) {
     .replace(/-/g, " ")
     .replace(/\s+/g, " ");
 
-  if (department === "UNIT IKLAN") return "IKL";
+  if (department === "UNIT IKLAN") return "PT(IKL)";
+  if (department === "PT IKL") return "PT(IKL)";
+  if (department === "KU IKL") return "KU(IKL)";
+  if (department === "IKL TECHNICAL" || department === "IKL-TECHNICAL") {
+    return "IKL (TECHNICAL)";
+  }
   if (department === "INP") return "LNP";
   return department;
 }

@@ -29,7 +29,7 @@ PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
 PASSWORD_RESET_MAX_ATTEMPTS = 5
 PASSWORD_RESET_PURPOSE = "password_reset"
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-MANAGED_ACCOUNT_ROLES = {"superadmin", "admin", "staff", "applicant"}
+MANAGED_ACCOUNT_ROLES = {"superadmin", "admin", "supervisor", "staff", "applicant"}
 
 
 class IsSuperAdmin(BasePermission):
@@ -758,7 +758,7 @@ def apply_managed_account_data(user, data, require_password=False):
         return "Full name is required."
 
     if role not in MANAGED_ACCOUNT_ROLES:
-        return "SuperAdmin can only manage user and admin accounts."
+        return "SuperAdmin can only manage user, admin, and supervisor accounts."
 
     if email and not EMAIL_PATTERN.match(email):
         return "Please enter a valid email address."
@@ -793,7 +793,7 @@ def apply_managed_account_data(user, data, require_password=False):
     if role == "superadmin":
         user.is_staff = True
         user.is_superuser = True
-    elif role in {"admin", "staff"}:
+    elif role in {"admin", "supervisor", "staff"}:
         user.is_staff = True
         user.is_superuser = False
     else:
@@ -817,7 +817,11 @@ def managed_accounts_view(request):
         if role_filter in {"applicant", "user"}:
             queryset = queryset.filter(role__in=["applicant", "user"])
         elif role_filter == "admin":
-            queryset = queryset.filter(role__in=["superadmin", "admin", "staff"])
+            queryset = queryset.filter(role__in=["admin", "staff"])
+        elif role_filter == "superadmin":
+            queryset = queryset.filter(role="superadmin")
+        elif role_filter == "supervisor":
+            queryset = queryset.filter(role="supervisor")
 
         if search:
             search_query = (
@@ -846,6 +850,7 @@ def managed_accounts_view(request):
                 "summary": {
                     "users": User.objects.filter(role__in=["applicant", "user"]).count(),
                     "admins": User.objects.filter(role__in=["superadmin", "admin", "staff"]).count(),
+                    "supervisors": User.objects.filter(role="supervisor").count(),
                     "active": User.objects.filter(is_active=True).count(),
                 },
             }

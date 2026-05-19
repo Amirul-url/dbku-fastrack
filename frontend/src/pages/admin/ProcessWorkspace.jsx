@@ -38,6 +38,12 @@ import {
 } from "../../utils/workflow";
 
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
+const IKL_DEPARTMENT_STATUS_SCOPE = {
+  "PT(IKL)": ["submitted", "incomplete"],
+  "KU(IKL)": ["ku_ikl_review", "technical_review_completed"],
+  "IKL (TECHNICAL)": ["technical_review", "technical_site_visit", "technical_amendment"],
+};
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
   "technical_site_visit",
@@ -182,7 +188,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     };
   }, [selectedId]);
 
-  const isIklWorkspace = config.allowedDepartments?.includes("IKL");
+  const isIklWorkspace = config.key === "screening";
   const isDepartmentTechnicalWorkspace = config.key === "technical";
   const isApprovalWorkspace = config.key === "approval";
   const isFocusedPersonalWorkspace =
@@ -194,9 +200,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     ? "grid grid-cols-1 gap-2 pt-1"
     : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
 
-  const filtered = useMemo(() => {
-    const q = keyword.trim().toLowerCase();
-    const statusScope = Array.isArray(config.statuses) ? config.statuses : [];
+  const statusScopedApplications = useMemo(() => {
+    const statusScope = getWorkspaceStatusScope(config, userDepartment);
     return applications.filter((app) => {
       const normalizedStatus = normalizeStatus(app.status);
       const isInStatusScope =
@@ -204,6 +209,14 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       const isInDepartmentScope =
         !isDepartmentTechnicalWorkspace ||
         !hasTechnicalDepartmentReview(app, userDepartment);
+
+      return isInStatusScope && isInDepartmentScope;
+    });
+  }, [applications, config, isDepartmentTechnicalWorkspace, userDepartment]);
+
+  const filtered = useMemo(() => {
+    const q = keyword.trim().toLowerCase();
+    return statusScopedApplications.filter((app) => {
       const haystack = [
         getApplicationReference(app),
         getApplicantName(app),
@@ -214,9 +227,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         .join(" ")
         .toLowerCase();
 
-      return isInStatusScope && isInDepartmentScope && (!q || haystack.includes(q));
+      return !q || haystack.includes(q);
     });
-  }, [applications, config.statuses, isDepartmentTechnicalWorkspace, keyword, userDepartment]);
+  }, [keyword, statusScopedApplications]);
 
   useEffect(() => {
     if (filtered.length === 0) return;
@@ -236,8 +249,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       : selected;
 
   const stats = useMemo(
-    () => config.stats(applications, userDepartment),
-    [applications, config, userDepartment]
+    () => config.stats(statusScopedApplications, userDepartment),
+    [config, statusScopedApplications, userDepartment]
   );
 
   async function submitAction(action, overrides = {}) {
@@ -446,6 +459,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   setTechnicalSite={setTechnicalSite}
                   saving={saving}
                   submitAction={submitAction}
+                  userDepartment={userDepartment}
                 />
               ) : (
                 <>
@@ -571,11 +585,15 @@ function mergeFormData(app, next) {
 
 function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const status = normalizeStatus(app?.status);
-  const isIklWorkspace = config?.allowedDepartments?.includes("IKL");
+  const isIklWorkspace = config?.key === "screening";
   const isDepartmentTechnicalWorkspace = config?.key === "technical";
 
   if (isIklWorkspace && status === "submitted") {
-    return t("status.pt_ku_review", "For PT/KU Review");
+    return t("status.pt_ikl_review", "PT(IKL) Review");
+  }
+
+  if (isIklWorkspace && status === "ku_ikl_review") {
+    return t("status.ku_ikl_review", "KU(IKL) Review");
   }
 
   if (isIklWorkspace && status === "technical_review_completed") {
@@ -665,7 +683,7 @@ function buildIklTechnicalDecisionPayload(app, data) {
         final_decision: data.decision,
         decision: data.decision,
         comment: data.comment,
-        department: "IKL",
+        department: "IKL (TECHNICAL)",
         reviewed_by: "PT/PO/KP Unit Iklan",
         reviewed_at: now,
         department_reviews: getTechnicalDepartmentReviews(app),
@@ -780,8 +798,13 @@ function cleanRemark(value) {
 
 function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
+  if (department === "PT IKL") return "PT(IKL)";
+  if (department === "KU IKL") return "KU(IKL)";
+  if (department === "IKL TECHNICAL" || department === "IKL-TECHNICAL") {
+    return "IKL (TECHNICAL)";
+  }
   if (department === "INP") return "LNP";
-  return department === "UNIT IKLAN" ? "IKL" : department;
+  return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
 
 function canAccessWorkspace(config, department) {
@@ -792,6 +815,14 @@ function canAccessWorkspace(config, department) {
   }
 
   return allowedDepartments.includes(department);
+}
+
+function getWorkspaceStatusScope(config, department) {
+  if (config?.key === "screening") {
+    return IKL_DEPARTMENT_STATUS_SCOPE[department] || [];
+  }
+
+  return Array.isArray(config?.statuses) ? config.statuses : [];
 }
 
 function hasAttachment(row) {
@@ -857,7 +888,8 @@ function areSupportingDocumentsComplete(app, step10) {
 
 const configs = {
   screening: {
-    allowedDepartments: ["IKL"],
+    key: "screening",
+    allowedDepartments: IKL_TASK_DEPARTMENTS,
     statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment", "technical_review_completed"],
     eyebrow: "S2 Verification",
     eyebrowKey: "workspace.screening.eyebrow",
@@ -1292,6 +1324,7 @@ function IklWorkspaceSections({
   setTechnicalSite,
   saving,
   submitAction,
+  userDepartment,
 }) {
   const status = normalizeStatus(selectedRecord.status);
   const allDepartmentReviewsComplete = areAllTechnicalDepartmentReviewsComplete(selectedRecord);
@@ -1306,6 +1339,19 @@ function IklWorkspaceSections({
     config.kuTechnicalReview?.defaultDecision || ""
   );
   const [kuRemarks, setKuRemarks] = useState("");
+  const screeningDecisionOptions = getIklScreeningDecisionOptions(
+    config.decisions,
+    userDepartment
+  );
+
+  useEffect(() => {
+    const hasDecision = screeningDecisionOptions.some(
+      (item) => (item.value || item) === decision
+    );
+    if (!hasDecision && screeningDecisionOptions.length > 0) {
+      setDecision(screeningDecisionOptions[0].value || screeningDecisionOptions[0]);
+    }
+  }, [decision, screeningDecisionOptions, setDecision]);
 
   async function handleSitePhotoUpload(files) {
     const fileList = Array.from(files || []);
@@ -1347,7 +1393,7 @@ function IklWorkspaceSections({
                 onChange={(event) => setDecision(event.target.value)}
                 className="form-input"
               >
-                {config.decisions.map((item) => (
+                {screeningDecisionOptions.map((item) => (
                   <option key={item.value || item} value={item.value || item}>
                     {t(item.labelKey, item.label || item)}
                   </option>
@@ -1548,6 +1594,23 @@ function getDecisionLabelKey(value) {
   };
 
   return map[value] || value;
+}
+
+function getIklScreeningDecisionOptions(decisions, department) {
+  const allowed = {
+    "PT(IKL)": new Set([
+      "PT(IKL) Send to KU(IKL)",
+      "PT(IKL) Reject to Applicant",
+    ]),
+    "KU(IKL)": new Set([
+      "KU(IKL) Confirm - Send to Technical Units",
+      "KU(IKL) Reject to Applicant",
+    ]),
+  }[department];
+
+  if (!allowed) return decisions;
+
+  return decisions.filter((item) => allowed.has(item.value || item));
 }
 
 function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileChange }) {

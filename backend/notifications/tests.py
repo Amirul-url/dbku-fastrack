@@ -60,6 +60,7 @@ class NotificationRoutingTests(TestCase):
             email="admin@sample.com",
             password="Password123",
             role="admin",
+            department="PT(IKL)",
             is_active=True,
         )
         self.application = Application.objects.create(

@@ -15,6 +15,8 @@ from .serializers import (
 )
 from notifications.services import notify_application_status_change
 
+STAFF_ROLES = ["admin", "supervisor", "staff"]
+
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -29,7 +31,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        if user.role in ["admin", "staff"]:
+        if user.role in STAFF_ROLES:
             queryset = Application.objects.filter(~Q(status="draft") | Q(applicant=user))
         else:
             queryset = Application.objects.filter(applicant=user)
@@ -57,7 +59,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def ensure_applicant_can_update(self, application):
         user = self.request.user
 
-        if user.role in ["admin", "staff"]:
+        if user.role in STAFF_ROLES:
             return
 
         editable_statuses = {"draft", "incomplete", "technical_amendment", "rejected"}
@@ -87,7 +89,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             )
 
         if (
-            request.user.role not in ["admin", "staff"]
+            request.user.role not in STAFF_ROLES
             and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
             and title != "Payment Receipt"
         ):
@@ -140,7 +142,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         )
 
         if (
-            request.user.role not in ["admin", "staff"]
+            request.user.role not in STAFF_ROLES
             and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
         ):
             return Response(
@@ -237,7 +239,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         application = self.get_object()
 
-        if request.user.role not in ["admin", "staff"]:
+        if request.user.role not in STAFF_ROLES:
             return Response(
                 {
                     "error": "You do not have permission to approve applications."
@@ -265,7 +267,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         application = self.get_object()
 
-        if request.user.role not in ["admin", "staff"]:
+        if request.user.role not in STAFF_ROLES:
             return Response(
                 {
                     "error": "You do not have permission to reject applications."

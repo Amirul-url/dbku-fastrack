@@ -26,16 +26,37 @@ const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review_completed",
 ];
 const TECHNICAL_DEPARTMENT_STATUS_SET = new Set(TECHNICAL_DEPARTMENT_TASK_STATUSES);
+const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 
 const units = [
   {
-    code: "Unit Iklan",
-    department: "IKL",
-    title: "IKL",
-    descriptionKey: "admin.unit.ikl.desc",
+    code: "PT(IKL)",
+    department: "PT(IKL)",
+    title: "PT(IKL)",
+    descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete", "ku_ikl_review", "technical_review", "technical_site_visit", "technical_amendment", "technical_review_completed"],
+    statuses: ["submitted", "incomplete"],
+    path: "/admin/auto-screening",
+  },
+  {
+    code: "KU(IKL)",
+    department: "KU(IKL)",
+    title: "KU(IKL)",
+    descriptionKey: "admin.unit.kuIkl.desc",
+    icon: "verified_user",
+    color: "bg-indigo-700",
+    statuses: ["ku_ikl_review", "technical_review_completed"],
+    path: "/admin/auto-screening",
+  },
+  {
+    code: "IKL (TECHNICAL)",
+    department: "IKL (TECHNICAL)",
+    title: "IKL Technical",
+    descriptionKey: "admin.unit.iklTechnical.desc",
+    icon: "engineering",
+    color: "bg-cyan-600",
+    statuses: ["technical_review", "technical_site_visit", "technical_amendment"],
     path: "/admin/auto-screening",
   },
   {
@@ -161,14 +182,15 @@ function PersonalTaskDashboard() {
         const isAssignedDepartment =
           !activeDepartment || unit.department === activeDepartment;
         const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
-        const isDepartmentTechnicalTask =
-          unit.department !== "IKL" &&
+        const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
+        const isExternalTechnicalTask =
+          isExternalTechnicalUnit &&
           !hasTechnicalDepartmentReview(application, unit.department);
 
         return (
           isAssignedDepartment &&
           isMatchingStatus &&
-          (unit.department === "IKL" || isDepartmentTechnicalTask)
+          (!isExternalTechnicalUnit || isExternalTechnicalTask)
         );
       }),
     }));
@@ -212,7 +234,7 @@ function ClaimableTaskView({
           {t("admin.dashboard.processList")}
         </legend>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-7">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-9">
           {unitTasks.map((unit) => (
             <button
               type="button"
@@ -305,8 +327,13 @@ function ClaimableTaskView({
 
 function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
+  if (department === "PT IKL") return "PT(IKL)";
+  if (department === "KU IKL") return "KU(IKL)";
+  if (department === "IKL TECHNICAL" || department === "IKL-TECHNICAL") {
+    return "IKL (TECHNICAL)";
+  }
   if (department === "INP") return "LNP";
-  return department === "UNIT IKLAN" ? "IKL" : department;
+  return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
 
 function getAssignedUnit(department) {
@@ -325,19 +352,19 @@ function hasTechnicalDepartmentReview(app, department) {
 function getDashboardTaskStatusLabel(application, unit, t) {
   const status = normalizeStatus(application?.status);
 
-  if (unit?.department === "IKL" && status === "submitted") {
-    return t("status.pt_ku_review", "PT/KU Review");
+  if (unit?.department === "PT(IKL)" && status === "submitted") {
+    return t("status.pt_ikl_review", "PT(IKL) Review");
   }
 
-  if (unit?.department === "IKL" && status === "technical_review_completed") {
+  if (unit?.department === "KU(IKL)" && status === "technical_review_completed") {
     return t("status.technical_ku_review", "KU(IKL) Technical Review");
   }
 
-  if (unit?.department === "IKL" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
+  if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
     return `${t(`status.${status}`, formatWorkflowStatus(status))}: BLG / GPM / MNE / IMT / LNP / ENG`;
   }
 
-  if (unit?.department !== "IKL" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
+  if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit?.department) && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
     return `${unit.department} Review`;
   }
 

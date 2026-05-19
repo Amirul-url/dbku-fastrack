@@ -16,7 +16,18 @@ const emptyForm = {
   is_active: true,
 };
 
-const departments = ["IKL", "BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const adminDepartments = [
+  "PT(IKL)",
+  "KU(IKL)",
+  "IKL (TECHNICAL)",
+  "BLG",
+  "GPM",
+  "MNE",
+  "IMT",
+  "LNP",
+  "ENG",
+];
+const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
 const recentActivityPageSize = 5;
 const adminCsvHeaders = [
   "full_name",
@@ -51,15 +62,23 @@ const screenText = {
   en: {
     userTitle: "User Management",
     adminTitle: "Admin Management",
+    superadminTitle: "SuperAdmin Management",
+    supervisorTitle: "Supervisor Management",
     userDescription: "Manage applicant login accounts and account access.",
     adminDescription: "Manage administrator login accounts and access roles.",
+    superadminDescription: "Manage SuperAdmin login accounts and system access.",
+    supervisorDescription: "Manage supervisor login accounts and approval access roles.",
     userList: "User List",
     adminList: "Admin List",
+    superadminList: "SuperAdmin List",
+    supervisorList: "Supervisor List",
     addAccount: "Add Account",
     importCsv: "Import CSV",
     exportCsv: "Export CSV",
     searchUser: "Search name, IC Number, email, or mobile number",
     searchAdmin: "Search name, NRIC, email, mobile number, or department",
+    searchSuperadmin: "Search name, NRIC, email, mobile number, or department",
+    searchSupervisor: "Search name, NRIC, email, mobile number, or department",
     allDepartments: "All departments",
     filter: "Filter",
     reset: "Reset",
@@ -85,6 +104,7 @@ const screenText = {
     userRole: "User",
     staffRole: "Staff",
     adminRole: "Admin",
+    supervisorRole: "Supervisor",
     superAdminRole: "SuperAdmin",
     addTitle: "Add Account",
     editTitle: "Edit Account",
@@ -163,15 +183,23 @@ const screenText = {
   ms: {
     userTitle: "Pengurusan Pengguna",
     adminTitle: "Pengurusan Admin",
+    superadminTitle: "Pengurusan SuperAdmin",
+    supervisorTitle: "Pengurusan Penyelia",
     userDescription: "Urus akaun log masuk pemohon dan akses akaun.",
     adminDescription: "Urus akaun log masuk pentadbir dan peranan akses.",
+    superadminDescription: "Urus akaun log masuk SuperAdmin dan akses sistem.",
+    supervisorDescription: "Urus akaun log masuk penyelia dan peranan akses kelulusan.",
     userList: "Senarai Pengguna",
     adminList: "Senarai Admin",
+    superadminList: "Senarai SuperAdmin",
+    supervisorList: "Senarai Penyelia",
     addAccount: "Tambah Akaun",
     importCsv: "Import CSV",
     exportCsv: "Eksport CSV",
     searchUser: "Cari nama, nombor IC, emel, atau nombor telefon",
     searchAdmin: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
+    searchSuperadmin: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
+    searchSupervisor: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
     allDepartments: "Semua jabatan",
     filter: "Tapis",
     reset: "Set Semula",
@@ -197,6 +225,7 @@ const screenText = {
     userRole: "Pengguna",
     staffRole: "Staf",
     adminRole: "Admin",
+    supervisorRole: "Penyelia",
     superAdminRole: "SuperAdmin",
     addTitle: "Tambah Akaun",
     editTitle: "Sunting Akaun",
@@ -473,6 +502,12 @@ function SuperAdminHome() {
 function SuperAdminAccountManagement({ view }) {
   const { language } = useLanguage();
   const labels = screenText[language] || screenText.en;
+  const isAdminView = view === "admins";
+  const isSuperadminView = view === "superadmins";
+  const isSupervisorView = view === "supervisors";
+  const isStaffAccountView = isAdminView || isSuperadminView || isSupervisorView;
+  const hasDepartmentField = isAdminView || isSupervisorView;
+  const departmentOptions = isSupervisorView ? supervisorDepartments : adminDepartments;
   const [accounts, setAccounts] = useState([]);
   const [searchName, setSearchName] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -487,16 +522,40 @@ function SuperAdminAccountManagement({ view }) {
   const [form, setForm] = useState(emptyForm);
   const importInputRef = useRef(null);
 
-  const roleFilter = view === "users" ? "applicant" : view === "admins" ? "admin" : "";
+  const roleFilter =
+    view === "users"
+      ? "applicant"
+      : isAdminView
+        ? "admin"
+        : isSuperadminView
+          ? "superadmin"
+          : isSupervisorView
+            ? "supervisor"
+            : "";
   const pageTitle =
     view === "users"
       ? labels.userTitle
-      : labels.adminTitle;
+      : isSuperadminView
+        ? labels.superadminTitle
+        : isSupervisorView
+        ? labels.supervisorTitle
+        : labels.adminTitle;
   const pageDescription =
     view === "users"
       ? labels.userDescription
-      : labels.adminDescription;
-  const listTitle = view === "users" ? labels.userList : labels.adminList;
+      : isSuperadminView
+        ? labels.superadminDescription
+        : isSupervisorView
+        ? labels.supervisorDescription
+        : labels.adminDescription;
+  const listTitle =
+    view === "users"
+      ? labels.userList
+      : isSuperadminView
+        ? labels.superadminList
+        : isSupervisorView
+        ? labels.supervisorList
+        : labels.adminList;
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -549,7 +608,13 @@ function SuperAdminAccountManagement({ view }) {
     setEditingAccount(null);
     setForm({
       ...emptyForm,
-      role: view === "admins" ? "admin" : "applicant",
+      role: isAdminView
+        ? "admin"
+        : isSuperadminView
+          ? "superadmin"
+          : isSupervisorView
+            ? "supervisor"
+            : "applicant",
       department: "",
     });
     setAccountModalOpen(true);
@@ -602,6 +667,7 @@ function SuperAdminAccountManagement({ view }) {
         ...form,
         full_name: normalizeNameValue(form.full_name),
         email: cleanEmailValue(form.email),
+        department: isSuperadminView ? "" : form.department,
         mykad_number: form.username,
         mobile_number: cleanMobileNumberValue(form.mobile_number),
       };
@@ -654,11 +720,14 @@ function SuperAdminAccountManagement({ view }) {
   }
 
   function exportCsv() {
-    const header = view === "admins"
+    const header = isStaffAccountView
       ? ["Full Name", "NRIC", "Email", "Mobile Number", "Department", "Role", "Password", "Confirm Password"]
       : ["Name", "IC Number", "Email", "Mobile Number", "Last Login"];
+    const staffHeader = isSuperadminView
+      ? ["Full Name", "NRIC", "Email", "Mobile Number", "Role", "Password", "Confirm Password"]
+      : header;
     const rows = [
-      header,
+      staffHeader,
       ...filteredAccounts.map((account) => {
         const base = [
           getAccountDisplayName(account),
@@ -666,12 +735,14 @@ function SuperAdminAccountManagement({ view }) {
           account.email || "",
         ];
 
-        if (view === "admins") {
+        if (isStaffAccountView) {
           base.push(formatCsvIdentifier(formatMobileNumber(account.mobile_number)));
-          base.push(account.department || "");
+          if (hasDepartmentField) {
+            base.push(account.department || "");
+          }
         }
 
-        if (view === "admins") {
+        if (isStaffAccountView) {
           return [
             ...base,
             getRoleLabel(account, labels),
@@ -749,9 +820,13 @@ function SuperAdminAccountManagement({ view }) {
             mykad_number: importedUsername,
             full_name: normalizeNameValue(row.name || row.full_name),
             email: cleanEmailValue(normalizeImportedEmail(row.email)),
-            department: String(row.department || "").trim().toUpperCase(),
+            department: isSuperadminView ? "" : normalizeDepartmentValue(row.department),
             mobile_number: importedMobile,
-            role: normalizeImportedRole(row.role || roleFilter || "applicant"),
+            role: isSupervisorView
+              ? "supervisor"
+              : isSuperadminView
+                ? "superadmin"
+                : normalizeImportedRole(row.role || roleFilter || "applicant"),
             password,
             password2,
             is_active: String(row.status || "active").toLowerCase() !== "inactive",
@@ -778,7 +853,7 @@ function SuperAdminAccountManagement({ view }) {
           <p className="mt-1 text-sm text-slate-600">{pageDescription}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {view === "admins" && (
+          {isStaffAccountView && (
             <>
               <Button icon="person_add" onClick={openCreate}>{labels.addAccount}</Button>
               <Button icon="upload" variant="secondary" disabled={saving} onClick={() => importInputRef.current?.click()}>
@@ -789,7 +864,7 @@ function SuperAdminAccountManagement({ view }) {
           <Button icon="download" className="bg-teal-700 hover:bg-teal-800" onClick={exportCsv}>
             {labels.exportCsv}
           </Button>
-          {view === "admins" && (
+          {isStaffAccountView && (
             <input
               ref={importInputRef}
               type="file"
@@ -806,24 +881,32 @@ function SuperAdminAccountManagement({ view }) {
 
       <section className="mb-5 rounded-md border border-slate-200 bg-white p-4">
         <div className={`grid grid-cols-1 gap-3 ${
-          view === "admins"
+          hasDepartmentField
             ? "lg:grid-cols-[minmax(0,1fr)_minmax(240px,360px)_auto_auto]"
             : "lg:grid-cols-[minmax(0,1fr)_auto_auto]"
         }`}>
           <input
             value={searchName}
             onChange={(event) => setSearchName(event.target.value)}
-            placeholder={view === "admins" ? labels.searchAdmin : labels.searchUser}
+            placeholder={
+              isSupervisorView
+                ? labels.searchSupervisor
+                : isSuperadminView
+                  ? labels.searchSuperadmin
+                : isAdminView
+                  ? labels.searchAdmin
+                  : labels.searchUser
+            }
             className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
           />
-          {view === "admins" && (
+          {hasDepartmentField && (
             <select
               value={departmentFilter}
               onChange={(event) => setDepartmentFilter(event.target.value)}
               className="h-11 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100"
             >
               <option value="">{labels.allDepartments}</option>
-              {departments.map((department) => (
+              {departmentOptions.map((department) => (
                 <option key={department} value={department}>{department}</option>
               ))}
             </select>
@@ -851,15 +934,15 @@ function SuperAdminAccountManagement({ view }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className={`w-full table-fixed text-left text-sm ${view === "admins" ? "min-w-[1350px]" : "min-w-[1080px]"}`}>
+          <table className={`w-full table-fixed text-left text-sm ${isStaffAccountView ? (hasDepartmentField ? "min-w-[1350px]" : "min-w-[1240px]") : "min-w-[1080px]"}`}>
             <colgroup>
-              {view === "admins" ? (
+              {isStaffAccountView ? (
                 <>
                   <col className="w-[170px]" />
                   <col className="w-[115px]" />
                   <col className="w-[245px]" />
                   <col className="w-[135px]" />
-                  <col className="w-[105px]" />
+                  {hasDepartmentField && <col className="w-[105px]" />}
                   <col className="w-[120px]" />
                   <col className="w-[95px]" />
                   <col className="w-[170px]" />
@@ -879,18 +962,20 @@ function SuperAdminAccountManagement({ view }) {
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.name}</th>
-                <th className="border-b border-slate-200 px-4 py-3">{view === "admins" ? labels.nric : labels.loginId}</th>
+                <th className="border-b border-slate-200 px-4 py-3">{isStaffAccountView ? labels.nric : labels.loginId}</th>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.email}</th>
-                {view === "admins" ? (
+                {isStaffAccountView ? (
                   <>
                     <th className="border-b border-slate-200 px-4 py-3">{labels.mobileNumber}</th>
-                    <th className="border-b border-slate-200 px-4 py-3">{labels.department}</th>
+                    {hasDepartmentField && (
+                      <th className="border-b border-slate-200 px-4 py-3">{labels.department}</th>
+                    )}
                     <th className="border-b border-slate-200 px-4 py-3">{labels.role}</th>
                   </>
                 ) : (
                   <th className="border-b border-slate-200 px-4 py-3">{labels.mobileNumber}</th>
                 )}
-                {view === "admins" && (
+                {isStaffAccountView && (
                   <th className="border-b border-slate-200 px-4 py-3">{labels.status}</th>
                 )}
                 <th className="border-b border-slate-200 px-4 py-3">{labels.lastLogin}</th>
@@ -900,13 +985,13 @@ function SuperAdminAccountManagement({ view }) {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={view === "admins" ? 9 : 6} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={isStaffAccountView ? (hasDepartmentField ? 9 : 8) : 6} className="px-4 py-10 text-center text-slate-500">
                     {labels.loadingAccounts}
                   </td>
                 </tr>
               ) : filteredAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan={view === "admins" ? 9 : 6} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={isStaffAccountView ? (hasDepartmentField ? 9 : 8) : 6} className="px-4 py-10 text-center text-slate-500">
                     {labels.noAccounts}
                   </td>
                 </tr>
@@ -922,15 +1007,17 @@ function SuperAdminAccountManagement({ view }) {
                     <td className="px-4 py-3 text-slate-700">
                       <span className="block truncate">{account.email || "-"}</span>
                     </td>
-                    {view === "admins" && (
+                    {isStaffAccountView && (
                       <>
                         <td className="px-4 py-3 text-slate-700">
                           <span className="block truncate">{formatMobileNumber(account.mobile_number)}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{account.department || "-"}</td>
+                        {hasDepartmentField && (
+                          <td className="px-4 py-3 text-slate-700">{account.department || "-"}</td>
+                        )}
                       </>
                     )}
-                    {view === "admins" ? (
+                    {isStaffAccountView ? (
                       <td className="px-4 py-3">
                         <RolePill account={account} labels={labels} />
                       </td>
@@ -939,7 +1026,7 @@ function SuperAdminAccountManagement({ view }) {
                         <span className="block truncate">{formatMobileNumber(account.mobile_number)}</span>
                       </td>
                     )}
-                    {view === "admins" && (
+                    {isStaffAccountView && (
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
                           account.is_active === false
@@ -962,7 +1049,7 @@ function SuperAdminAccountManagement({ view }) {
                             {labels.view}
                           </Button>
                         )}
-                        {view === "admins" && (
+                        {isStaffAccountView && (
                           <Button icon="edit" className="bg-blue-700 hover:bg-blue-800" onClick={() => openEdit(account)}>
                             {labels.edit}
                           </Button>
@@ -985,12 +1072,15 @@ function SuperAdminAccountManagement({ view }) {
         </div>
       </section>
 
-      {view === "admins" && accountModalOpen && (
+      {isStaffAccountView && accountModalOpen && (
         <AccountModal
           form={form}
           isEditing={Boolean(editingAccount)}
           saving={saving}
           labels={labels}
+          departmentOptions={departmentOptions}
+          roleOptions={getStaffRoleOptions(view, labels)}
+          showDepartment={hasDepartmentField}
           onChange={(next) => setForm((current) => ({ ...current, ...next }))}
           onClose={closeForm}
           onSubmit={saveAccount}
@@ -1065,12 +1155,19 @@ function DeleteConfirmModal({ account, labels, saving, onCancel, onConfirm }) {
   );
 }
 
-function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSubmit }) {
+function AccountModal({
+  form,
+  isEditing,
+  saving,
+  labels,
+  departmentOptions,
+  roleOptions,
+  showDepartment,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
   const inputClassName = "h-11 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100";
-  const roleOptions = [
-    { value: "admin", label: labels.adminRole },
-    { value: "superadmin", label: labels.superAdminRole },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
@@ -1128,19 +1225,21 @@ function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSu
               className={inputClassName}
             />
           </FormField>
-          <FormField label={labels.department}>
-            <select
-              value={form.department}
-              onChange={(event) => onChange({ department: event.target.value })}
-              className={inputClassName}
-              required
-            >
-              <option value="">{labels.selectDepartment}</option>
-              {departments.map((department) => (
-                <option key={department} value={department}>{department}</option>
-              ))}
-            </select>
-          </FormField>
+          {showDepartment && (
+            <FormField label={labels.department}>
+              <select
+                value={form.department}
+                onChange={(event) => onChange({ department: event.target.value })}
+                className={inputClassName}
+                required
+              >
+                <option value="">{labels.selectDepartment}</option>
+                {departmentOptions.map((department) => (
+                  <option key={department} value={department}>{department}</option>
+                ))}
+              </select>
+            </FormField>
+          )}
           <FormField label={labels.role}>
             <select value={form.role} onChange={(event) => onChange({ role: event.target.value })} className={inputClassName}>
               {roleOptions.map((option) => (
@@ -1148,7 +1247,7 @@ function AccountModal({ form, isEditing, saving, labels, onChange, onClose, onSu
               ))}
             </select>
           </FormField>
-          <div className="hidden md:block" />
+          {showDepartment && <div className="hidden md:block" />}
           <FormField label={isEditing ? labels.newPassword : labels.password}>
             <input
               type="password"
@@ -1332,6 +1431,8 @@ function RolePill({ account, labels }) {
     ? "bg-blue-50 text-blue-700"
     : account.role === "staff"
       ? "bg-amber-50 text-amber-700"
+      : account.role === "supervisor"
+        ? "bg-violet-50 text-violet-700"
       : "bg-rose-50 text-rose-700";
 
   return (
@@ -1339,6 +1440,20 @@ function RolePill({ account, labels }) {
       {role}
     </span>
   );
+}
+
+function getStaffRoleOptions(view, labels) {
+  if (view === "supervisors") {
+    return [{ value: "supervisor", label: labels.supervisorRole }];
+  }
+
+  if (view === "superadmins") {
+    return [{ value: "superadmin", label: labels.superAdminRole }];
+  }
+
+  return [
+    { value: "admin", label: labels.adminRole },
+  ];
 }
 
 function compareAccounts(first, second) {
@@ -1355,6 +1470,7 @@ function compareAccounts(first, second) {
 function getRoleLabel(account, labels = screenText.en) {
   if (account.role === "applicant") return labels.userRole;
   if (account.role === "staff") return labels.staffRole;
+  if (account.role === "supervisor") return labels.supervisorRole;
   if (account.role === "superadmin") return labels.superAdminRole;
   return labels.adminRole;
 }
@@ -1616,11 +1732,16 @@ function normalizeHeader(value) {
 }
 
 function getMissingCsvHeaders(headers, view) {
-  if (view !== "admins") {
+  if (!["admins", "superadmins", "supervisors"].includes(view)) {
     return [];
   }
 
-  return adminCsvHeaders
+  const requiredHeaders =
+    view === "superadmins"
+      ? adminCsvHeaders.filter((header) => header !== "department")
+      : adminCsvHeaders;
+
+  return requiredHeaders
     .filter((header) => !headers.includes(header))
     .map((header) => toCsvHeaderLabel(header));
 }
@@ -1645,8 +1766,13 @@ function normalizeImportedRole(value) {
   if (role === "user") return "applicant";
   if (role === "staff") return "staff";
   if (role === "admin") return "admin";
+  if (role === "supervisor") return "supervisor";
   if (role === "superadmin") return "superadmin";
   return "applicant";
+}
+
+function normalizeDepartmentValue(value) {
+  return String(value || "").trim().toUpperCase();
 }
 
 export default SuperAdminDashboard;
