@@ -23,6 +23,7 @@ import {
   formatWorkflowStatus,
   getApplicantActionKey,
   getApplicantApplicationRoute,
+  getApplicantDisplayStatus,
   getApplicantName,
   getApplicationReference,
   getApplicationType,
@@ -110,7 +111,7 @@ function UserDashboard() {
         getApplicationReference(app),
         getProjectName(app),
         getApplicationType(app),
-        formatWorkflowStatus(app.status),
+        translatedStatus(t, app.status),
       ]
         .join(" ")
         .toLowerCase()
@@ -810,8 +811,7 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
 }
 
 function translatedStatus(t, status) {
-  const normalized = normalizeStatus(status);
-  const displayStatus = normalized === "incomplete" ? "rejected" : normalized;
+  const displayStatus = getApplicantDisplayStatus(status);
 
   return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
 }

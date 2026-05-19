@@ -2,6 +2,7 @@ export const WORKFLOW_STATUS = {
   DRAFT: "draft",
   INCOMPLETE: "incomplete",
   SUBMITTED: "submitted",
+  UNDER_REVIEW: "under_review",
   AUTO_SCREENED: "auto_screened",
   KU_IKL_REVIEW: "ku_ikl_review",
   TECHNICAL_REVIEW: "technical_review",
@@ -226,6 +227,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.DRAFT]: "Draft",
     [WORKFLOW_STATUS.INCOMPLETE]: "Incomplete",
     [WORKFLOW_STATUS.SUBMITTED]: "Submitted",
+    [WORKFLOW_STATUS.UNDER_REVIEW]: "Under Review",
     pt_ku_review: "For PT/KU Review",
     [WORKFLOW_STATUS.AUTO_SCREENED]: "S2 Verification",
     [WORKFLOW_STATUS.KU_IKL_REVIEW]: "KU(IKL) Verification",
@@ -251,6 +253,33 @@ export function formatWorkflowStatus(status) {
   return normalized
     .replaceAll("_", " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export function getApplicantDisplayStatus(status) {
+  const normalized = normalizeStatus(status);
+
+  if (!normalized) return WORKFLOW_STATUS.DRAFT;
+
+  if (normalized === WORKFLOW_STATUS.INCOMPLETE) {
+    return WORKFLOW_STATUS.REJECTED;
+  }
+
+  if (
+    [
+      WORKFLOW_STATUS.AUTO_SCREENED,
+      WORKFLOW_STATUS.KU_IKL_REVIEW,
+      WORKFLOW_STATUS.TECHNICAL_REVIEW,
+      WORKFLOW_STATUS.TECHNICAL_SITE_VISIT,
+      WORKFLOW_STATUS.TECHNICAL_REVIEW_COMPLETED,
+      WORKFLOW_STATUS.MANAGEMENT_REVIEW,
+      WORKFLOW_STATUS.MPHLG_PROCESSING,
+      WORKFLOW_STATUS.MPHLG_DECISION_RECEIVED,
+    ].includes(normalized)
+  ) {
+    return WORKFLOW_STATUS.UNDER_REVIEW;
+  }
+
+  return normalized;
 }
 
 export function getApplicationReference(app) {

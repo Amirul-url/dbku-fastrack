@@ -24,6 +24,7 @@ const APPROVAL_TASK_STATUSES = new Set([
   "mphlg_processing",
   "mphlg_decision_received",
 ]);
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 
 function readSessionBoolean(key, fallback = false) {
   try {
@@ -642,19 +643,25 @@ function isPersonalTaskForDepartment(application, department) {
 }
 
 function isAwaitingApprovalTask(application, department) {
-  if (
-    department === "PT(IKL)" ||
-    department === "KU(IKL)" ||
-    department === "IKL (TECHNICAL)" ||
-    TECHNICAL_DEPARTMENTS.has(department)
-  ) {
+  const status = normalizeWorkflowStatus(application?.status);
+
+  if (!APPROVAL_TASK_STATUSES.has(status) || hasApplicationSection(application, "approval")) {
     return false;
   }
 
-  return (
-    APPROVAL_TASK_STATUSES.has(normalizeWorkflowStatus(application?.status)) &&
-    !application?.form_data?.approval
-  );
+  if (department === "KB(LES)") {
+    return status === "management_review" && !isKbLesVerified(application);
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
+    return (
+      status === "management_review" &&
+      isKbLesVerified(application) &&
+      !hasManagementSupport(application)
+    );
+  }
+
+  return false;
 }
 
 function normalizeWorkflowStatus(value) {
@@ -684,6 +691,29 @@ function getTechnicalDepartmentReviews(application) {
     application?.form_data?.technical_department_reviews ||
     {}
   );
+}
+
+function getApplicationSection(application, key) {
+  return application?.[key] || application?.form_data?.[key] || {};
+}
+
+function hasApplicationSection(application, key) {
+  const section = getApplicationSection(application, key);
+  return Boolean(section && Object.keys(section).length > 0);
+}
+
+function isKbLesVerified(application) {
+  const status = String(getApplicationSection(application, "kb_les_verification")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "verified";
+}
+
+function hasManagementSupport(application) {
+  const status = String(getApplicationSection(application, "management_recommendation")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "supported" || status === "completed";
 }
 
 function hasTechnicalDepartmentReview(application, department) {

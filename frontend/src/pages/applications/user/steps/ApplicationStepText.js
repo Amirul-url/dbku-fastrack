@@ -316,6 +316,7 @@ const STATUS_TEXT = {
   draft: { en: "Draft", ms: "Draf" },
   saved: { en: "Saved", ms: "Disimpan" },
   submitted: { en: "Submitted", ms: "Dihantar" },
+  "under review": { en: "Under Review", ms: "Dalam Semakan" },
   generated: { en: "Generated", ms: "Dijana" },
   incomplete: { en: "Incomplete", ms: "Tidak Lengkap" },
   rejected: { en: "Rejected", ms: "Ditolak" },

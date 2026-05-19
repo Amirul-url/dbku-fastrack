@@ -9,6 +9,7 @@ import {
 import {
   canEditApplicationForm,
   formatWorkflowStatus,
+  getApplicantDisplayStatus,
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
@@ -477,9 +478,11 @@ function ApplicationReference({ step1, language }) {
 }
 
 function ReadOnlyNotice({ language, status }) {
+  const displayStatus = getApplicantDisplayStatus(status);
+
   return (
     <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(status)))}
+      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(displayStatus)))}
     </div>
   );
 }

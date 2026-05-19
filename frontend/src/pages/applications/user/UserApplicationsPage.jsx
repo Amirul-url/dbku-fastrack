@@ -17,6 +17,7 @@ import {
   formatWorkflowStatus,
   getApplicantActionKey,
   getApplicantApplicationRoute,
+  getApplicantDisplayStatus,
   getApplicationReference,
   getApplicationType,
   getProjectName,
@@ -55,14 +56,15 @@ function UserApplicationsPage() {
         getApplicationReference(app),
         getProjectName(app),
         getApplicationType(app),
+        translatedStatus(t, app.status),
       ]
         .join(" ")
         .toLowerCase();
 
-      const status = normalizeStatus(app.status);
+      const status = getApplicantDisplayStatus(app.status);
       return (!q || haystack.includes(q)) && (statusFilter === "ALL" || status === statusFilter);
     });
-  }, [applications, keyword, statusFilter]);
+  }, [applications, keyword, statusFilter, t]);
 
   const summary = useMemo(() => {
     return {
@@ -111,7 +113,7 @@ function UserApplicationsPage() {
             >
               <option value="ALL">{t("common.allStatuses")}</option>
               <option value="draft">{t("status.draft")}</option>
-              <option value="submitted">{t("status.submitted")}</option>
+              <option value="under_review">{t("status.under_review")}</option>
               <option value="approved">{t("status.approved")}</option>
               <option value="invoice_generated">{t("status.invoice_generated")}</option>
               <option value="license_issued">{t("status.license_issued")}</option>
@@ -169,7 +171,8 @@ function UserApplicationsPage() {
 }
 
 function translatedStatus(t, status) {
-  return t(`status.${normalizeStatus(status)}`, formatWorkflowStatus(status));
+  const displayStatus = getApplicantDisplayStatus(status);
+  return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
 }
 
 export default UserApplicationsPage;

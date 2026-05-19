@@ -52,6 +52,7 @@ const TECHNICAL_REVIEW_STATUSES = new Set([
   ...TECHNICAL_DEPARTMENT_TASK_STATUSES,
   "technical_review_completed",
 ]);
+const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -194,7 +195,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const isDepartmentTechnicalWorkspace = config.key === "technical";
   const isApprovalWorkspace = config.key === "approval";
   const isFocusedPersonalWorkspace =
-    isIklWorkspace || isDepartmentTechnicalWorkspace || isApprovalWorkspace;
+    isIklWorkspace || isDepartmentTechnicalWorkspace;
   const showSiteVisitFields =
     config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
   const showBottomFormButton = !isFocusedPersonalWorkspace;
@@ -249,11 +250,25 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     selectedDetail && String(selectedDetail.id) === String(selected?.id)
       ? { ...selected, ...selectedDetail }
       : selected;
+  const approvalStageKey = isApprovalWorkspace ? getApprovalStageKey(selectedRecord) : "";
+  const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
+  const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
+  const canSubmitWorkspaceAction = !isApprovalWorkspace || workspaceActions.length > 0;
+  const actionUnavailableMessage = getActionUnavailableMessage(
+    config,
+    selectedRecord,
+    userDepartment
+  );
 
   const stats = useMemo(
     () => config.stats(statusScopedApplications, userDepartment),
     [config, statusScopedApplications, userDepartment]
   );
+
+  useEffect(() => {
+    const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
+    if (nextDecision) setDecision(nextDecision);
+  }, [approvalStageKey, config, selectedRecord?.id, userDepartment]);
 
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
@@ -468,14 +483,14 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 />
               ) : (
                 <>
-                  {config.showDecision && (
+                  {config.showDecision && canSubmitWorkspaceAction && (
                     <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
                       <select
                         value={decision}
                         onChange={(event) => setDecision(event.target.value)}
                         className="form-input"
                       >
-                        {config.decisions.map((item) => (
+                        {decisionOptions.map((item) => (
                           <option key={item.value || item} value={item.value || item}>
                             {t(item.labelKey, item.label || item)}
                           </option>
@@ -484,7 +499,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                     </Field>
                   )}
 
-                  {config.showComment && (
+                  {config.showComment && canSubmitWorkspaceAction && (
                     <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
                       <textarea
                         value={comment}
@@ -528,6 +543,12 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                     config.details && <config.details app={selectedRecord} t={t} />
                   )}
 
+                  {actionUnavailableMessage && (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      {actionUnavailableMessage}
+                    </p>
+                  )}
+
                   <div className={actionGridClass}>
                     {showBottomFormButton && (
                       <Button
@@ -538,7 +559,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                         {t("workspace.openForm")}
                       </Button>
                     )}
-                    {config.actions.map((action) => (
+                    {workspaceActions.map((action) => (
                       <Button
                         key={action.label}
                         onClick={() => submitAction(action)}
@@ -592,6 +613,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const status = normalizeStatus(app?.status);
   const isIklWorkspace = config?.key === "screening";
   const isDepartmentTechnicalWorkspace = config?.key === "technical";
+  const isApprovalWorkspace = config?.key === "approval";
 
   if (isIklWorkspace && status === "submitted") {
     return t("status.pt_ikl_review", "PT(IKL) Review");
@@ -613,6 +635,10 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return getDepartmentReviewStatusLabel(userDepartment);
   }
 
+  if (isApprovalWorkspace && status === "management_review") {
+    return getApprovalStageLabel(app);
+  }
+
   return formatWorkflowStatus(status);
 }
 
@@ -622,12 +648,123 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
     return t(copy.actionDescriptionKey, copy.actionDescription);
   }
 
+  if (config?.key === "approval") {
+    if (userDepartment === "KB(LES)") {
+      return t("workspace.approval.kbAction", "Verify applications before sending them to TP(RES)/PGH for support.");
+    }
+
+    if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
+      return t("workspace.approval.supportAction", "Support verified applications before they proceed to the MPHLG/SUT stage.");
+    }
+
+    return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES) verification or TP(RES)/PGH support.");
+  }
+
   return t(config.actionDescriptionKey, config.actionDescription);
 }
 
 function getDepartmentReviewStatusLabel(department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   return normalizedDepartment ? `${normalizedDepartment} Review` : "Department Review";
+}
+
+function getWorkspaceDecisionOptions(config, app, department) {
+  if (config?.key !== "approval") {
+    return config.decisions || [];
+  }
+
+  if (department === "KB(LES)" && getApprovalStageKey(app) === "kb") {
+    return [
+      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Reject", labelKey: "workspace.decision.reject" },
+    ];
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "support") {
+    return [
+      { value: "Support", labelKey: "workspace.decision.support" },
+      { value: "Not Supported", labelKey: "workspace.decision.notSupported" },
+    ];
+  }
+
+  return config.decisions || [];
+}
+
+function getDefaultWorkspaceDecision(config, app, department) {
+  const options = getWorkspaceDecisionOptions(config, app, department);
+  return options[0]?.value || options[0] || config?.defaultDecision || "";
+}
+
+function getWorkspaceActions(config, app, department) {
+  if (config?.key !== "approval") {
+    return config.actions || [];
+  }
+
+  const stage = getApprovalStageKey(app);
+  const canKbVerify = department === "KB(LES)" && stage === "kb";
+  const canSupport =
+    APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && stage === "support";
+
+  return canKbVerify || canSupport ? config.actions || [] : [];
+}
+
+function getActionUnavailableMessage(config, app, department) {
+  if (config?.key !== "approval" || !app) return "";
+
+  const stage = getApprovalStageKey(app);
+
+  if (department === "KB(LES)") {
+    return stage === "kb" ? "" : "KB(LES) verification is already complete or not required for this record.";
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    return stage === "support" ? "" : "TP(RES)/PGH support is available after KB(LES) verification.";
+  }
+
+  return "This queue is view-only for this account. KB(LES) verifies first; TP(RES)/PGH supports after verification.";
+}
+
+function getApprovalStageLabel(app) {
+  const stage = getApprovalStageKey(app);
+
+  if (stage === "support") return "Pending TP(RES)/PGH Support";
+  if (stage === "mphlg") return "Pending MPHLG/SUT";
+  if (stage === "decision") return "Pending Final Decision";
+  if (stage === "completed") return "Approval Completed";
+  return "Pending KB(LES) Verification";
+}
+
+function getApprovalStageKey(app) {
+  const status = normalizeStatus(app?.status);
+
+  if (hasApplicationSection(app, "approval")) return "completed";
+  if (status === "mphlg_processing") return "mphlg";
+  if (status === "mphlg_decision_received") return "decision";
+  if (isKbLesVerified(app) && !hasManagementSupport(app)) return "support";
+  return "kb";
+}
+
+function getApplicationSection(app, key) {
+  return app?.[key] || app?.form_data?.[key] || {};
+}
+
+function hasApplicationSection(app, key) {
+  const section = getApplicationSection(app, key);
+  return Boolean(section && Object.keys(section).length > 0);
+}
+
+function isKbLesVerified(app) {
+  const status = String(getApplicationSection(app, "kb_les_verification")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "verified";
+}
+
+function hasManagementSupport(app) {
+  const status = String(getApplicationSection(app, "management_recommendation")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "supported" || status === "completed";
 }
 
 function getLocalizedApplicationType(app, t) {
@@ -749,6 +886,88 @@ function buildKuTechnicalReviewPayload(app, data) {
             routed_at: now,
           },
     }),
+  };
+}
+
+function buildApprovalWorkflowPayload(app, data) {
+  const now = new Date().toISOString();
+  const department = normalizeDepartmentCode(data.department);
+  const decision = data.decision;
+  const rejected = decision === "Reject" || decision === "Not Supported";
+
+  if (department === "KB(LES)") {
+    return {
+      status: rejected ? "rejected" : "management_review",
+      current_step: Math.max(Number(app.current_step || 1), 5),
+      latest_remark: data.comment || app.latest_remark || "",
+      form_data: mergeFormData(app, {
+        kb_les_verification: {
+          ...(app.form_data?.kb_les_verification || {}),
+          officer: "KB(LES)",
+          status: rejected ? "Rejected" : "Verified",
+          decision,
+          remarks: data.comment,
+          verified_at: now,
+        },
+        management_recommendation: rejected
+          ? app.form_data?.management_recommendation || null
+          : {
+              ...(app.form_data?.management_recommendation || {}),
+              status: "Pending TP(RES)/PGH Support",
+              routed_from: "KB(LES)",
+              routed_at: now,
+            },
+        approval: rejected
+          ? {
+              status: "Rejected",
+              final_decision: "Rejected",
+              notes: data.comment,
+              decided_by: "KB(LES)",
+              approved_at: now,
+            }
+          : app.form_data?.approval || null,
+      }),
+    };
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    return {
+      status: rejected ? "rejected" : "mphlg_processing",
+      current_step: Math.max(Number(app.current_step || 1), 5),
+      latest_remark: data.comment || app.latest_remark || "",
+      form_data: mergeFormData(app, {
+        management_recommendation: {
+          ...(app.form_data?.management_recommendation || {}),
+          officer: department,
+          status: rejected ? "Not Supported" : "Supported",
+          decision,
+          remarks: data.comment,
+          signed_at: now,
+        },
+        mphlg_gateway: rejected
+          ? app.form_data?.mphlg_gateway || null
+          : {
+              ...(app.form_data?.mphlg_gateway || {}),
+              status: "Pending MPHLG/SUT Processing",
+              routed_from: department,
+              routed_at: now,
+            },
+        approval: rejected
+          ? {
+              status: "Rejected",
+              final_decision: "Not Supported",
+              notes: data.comment,
+              decided_by: department,
+              approved_at: now,
+            }
+          : app.form_data?.approval || null,
+      }),
+    };
+  }
+
+  return {
+    status: normalizeStatus(app.status),
+    form_data: app.form_data || {},
   };
 }
 
@@ -1060,63 +1279,27 @@ const configs = {
     actionDescriptionKey: "workspace.approval.action",
     showDecision: true,
     showComment: true,
-    defaultDecision: "Approved",
+    defaultDecision: "Verify",
     decisions: [
-      { value: "Approved", labelKey: "workspace.decision.approved" },
-      { value: "Approved with Conditions", labelKey: "workspace.decision.approvedConditions" },
-      { value: "Rejected", labelKey: "workspace.decision.rejected" },
+      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Reject", labelKey: "workspace.decision.reject" },
     ],
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
     stats: (apps) => [
-      { label: "Awaiting", labelKey: "workspace.stat.awaiting", value: countBy(apps, (app) => !app.form_data?.approval), icon: "pending", tone: "amber" },
-      { label: "Approved", labelKey: "workspace.stat.approved", value: countBy(apps, (app) => normalizeStatus(app.status) === "approved"), icon: "task_alt" },
-      { label: "Conditional", labelKey: "workspace.stat.conditional", value: countBy(apps, (app) => normalizeStatus(app.status) === "approved_with_conditions"), icon: "rule", tone: "blue" },
-      { label: "Rejected", labelKey: "workspace.stat.rejected", value: countBy(apps, (app) => normalizeStatus(app.status) === "rejected"), icon: "cancel", tone: "red" },
+      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified", tone: "amber" },
+      { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "approval_delegation", tone: "blue" },
+      { label: "MPHLG/SUT", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
+      { label: "Final Decision", value: countBy(apps, (app) => getApprovalStageKey(app) === "decision"), icon: "task_alt" },
     ],
     actions: [
       {
-        label: "Submit Decision",
-        labelKey: "workspace.action.submitDecision",
+        label: "Submit",
+        labelKey: "common.submit",
         icon: "approval_delegation",
-        requiresComment: true,
-        success: "Final decision saved.",
+        success: "Approval task saved.",
         successKey: "workspace.message.decisionSaved",
-        buildPayload: (app, data) => {
-          const status =
-            data.decision === "Rejected"
-              ? "rejected"
-              : data.decision === "Approved with Conditions"
-                ? "approved_with_conditions"
-                : "approved";
-          return {
-            status,
-            current_step: Math.max(Number(app.current_step || 1), 5),
-            form_data: mergeFormData(app, {
-              licensing_verification: {
-                officer: "KB(LES)",
-                status: "Verified",
-                remarks: data.comment,
-                verified_at: new Date().toISOString(),
-              },
-              management_recommendation: {
-                status: "Completed",
-                officer: "TP(RES) / PGH",
-                signed_at: new Date().toISOString(),
-              },
-              mphlg_gateway: {
-                status: "MPHLG / SUT Decision Received",
-                received_at: new Date().toISOString(),
-              },
-              approval: {
-                status: "Completed",
-                final_decision: data.decision,
-                notes: data.comment,
-                approved_at: new Date().toISOString(),
-              },
-            }),
-          };
-        },
+        buildPayload: buildApprovalWorkflowPayload,
       },
     ],
   },

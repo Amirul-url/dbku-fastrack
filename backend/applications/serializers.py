@@ -66,6 +66,10 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     )
     application_type_label = serializers.SerializerMethodField()
     technical_department_reviews = serializers.SerializerMethodField()
+    kb_les_verification = serializers.SerializerMethodField()
+    management_recommendation = serializers.SerializerMethodField()
+    mphlg_gateway = serializers.SerializerMethodField()
+    approval = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -82,6 +86,10 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "latest_remark",
             "current_step",
             "technical_department_reviews",
+            "kb_les_verification",
+            "management_recommendation",
+            "mphlg_gateway",
+            "approval",
             "created_at",
             "updated_at",
         ]
@@ -99,6 +107,18 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_technical_department_reviews(self, obj):
         return (obj.form_data or {}).get("technical_department_reviews", {})
+
+    def get_kb_les_verification(self, obj):
+        return (obj.form_data or {}).get("kb_les_verification", {})
+
+    def get_management_recommendation(self, obj):
+        return (obj.form_data or {}).get("management_recommendation", {})
+
+    def get_mphlg_gateway(self, obj):
+        return (obj.form_data or {}).get("mphlg_gateway", {})
+
+    def get_approval(self, obj):
+        return (obj.form_data or {}).get("approval", {})
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):
