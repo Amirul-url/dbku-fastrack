@@ -28,6 +28,7 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
   ...TECHNICAL_DEPARTMENT_TASK_STATUSES,
   "technical_review_completed",
 ]);
+const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 
 const units = [
@@ -198,6 +199,15 @@ function PersonalTaskDashboard() {
     }));
   }, [applications, activeDepartment]);
 
+  const processListUnits = useMemo(() => {
+    return unitTasks.filter((unit) => {
+      if (!IKL_DEPARTMENTS.has(unit.department)) return true;
+      return IKL_DEPARTMENTS.has(activeDepartment)
+        ? unit.department === activeDepartment
+        : unit.department === "PT(IKL)";
+    });
+  }, [activeDepartment, unitTasks]);
+
   const selected = unitTasks.find((unit) => unit.code === selectedUnit) || unitTasks[0];
   return (
     <AdminDashboardLayout>
@@ -213,7 +223,7 @@ function PersonalTaskDashboard() {
             if (unit.locked) return;
             setSelectedUnit(unit.code);
           }}
-          unitTasks={unitTasks}
+          unitTasks={processListUnits}
         />
       </section>
 
@@ -260,7 +270,7 @@ function ClaimableTaskView({
                 </span>
               </span>
               <span className="mt-3 text-sm font-bold italic text-slate-700">
-                {unit.title}
+                {getProcessIconTitle(unit)}
               </span>
               <span className="text-xs font-semibold italic text-slate-950">
                 {t("admin.dashboard.taskCount")} : {unit.locked ? "" : loading ? "..." : unit.tasks.length}
@@ -345,6 +355,10 @@ function normalizeDepartmentCode(value) {
 function getAssignedUnit(department) {
   if (!department) return null;
   return units.find((unit) => unit.department === department) || null;
+}
+
+function getProcessIconTitle(unit) {
+  return IKL_DEPARTMENTS.has(unit?.department) ? "IKL" : unit?.title || "";
 }
 
 function getTechnicalDepartmentReviews(app) {
