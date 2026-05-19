@@ -202,9 +202,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     isIklWorkspace || isDepartmentTechnicalWorkspace;
   const showSiteVisitFields =
     config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
-  const showBottomFormButton = !isFocusedPersonalWorkspace;
+  const showBottomFormButton = !isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace;
   const actionGridClass = isFocusedPersonalWorkspace || isDepartmentTechnicalWorkspace
     ? "grid grid-cols-1 gap-2 pt-1"
+    : isSimpleApprovalWorkspace
+      ? "flex justify-end pt-1"
     : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
 
   const statusScopedApplications = useMemo(() => {
@@ -352,6 +354,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     navigate(`${location.pathname}?${params.toString()}`);
   }
 
+  function returnToTaskList() {
+    setSelectedId("");
+    setSelectedDetail(null);
+    const params = new URLSearchParams(location.search);
+    params.delete("id");
+    const search = params.toString();
+    navigate(search ? `${location.pathname}?${search}` : location.pathname);
+  }
+
   return (
     <AdminDashboardLayout>
       {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
@@ -370,19 +381,6 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
             </Button>
           }
         />
-      )}
-
-      {(isFocusedPersonalWorkspace || isSimpleApprovalWorkspace) && (
-        <div className="mb-4 flex justify-end">
-          <Button
-            type="button"
-            variant="secondary"
-            icon="arrow_back"
-            onClick={() => navigate("/dashboard/admin")}
-          >
-            {t("workspace.backToDashboard")}
-          </Button>
-        </div>
       )}
 
       <Alert message={error} />
@@ -469,11 +467,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           <Button
                             type="button"
                             variant="secondary"
-                            icon="visibility"
+                            icon="open_in_new"
                             className="min-h-8 px-3 py-1 text-xs"
                             onClick={() => openSelectedTask(app)}
                           >
-                            {t("common.view", "View")}
+                            {t("common.open", "Open")}
                           </Button>
                         ),
                       },
@@ -482,6 +480,19 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
               ]}
             />
           </Panel>
+        )}
+
+        {isSimpleApprovalWorkspace && showActionPanel && (
+          <div className="flex justify-start">
+            <Button
+              type="button"
+              variant="secondary"
+              icon="arrow_back"
+              onClick={returnToTaskList}
+            >
+              {t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")}
+            </Button>
+          </div>
         )}
 
         {showActionPanel && (
@@ -508,17 +519,31 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
                 applicationType={getLocalizedApplicationType(selectedRecord, t)}
                 actions={
-                  isFocusedPersonalWorkspace ? (
+                  isFocusedPersonalWorkspace || isSimpleApprovalWorkspace ? (
                     <Button
                       variant="secondary"
                       icon="visibility"
-                      onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
+                      onClick={() =>
+                        navigate(
+                          isSimpleApprovalWorkspace
+                            ? `/admin/applications/${selectedRecord.id}/view/step-1?id=${selectedRecord.id}&from=approval`
+                            : `/admin/applications/${selectedRecord.id}`
+                        )
+                      }
                     >
                       {t("workspace.openForm")}
                     </Button>
                   ) : null
                 }
               />
+
+              {isSimpleApprovalWorkspace && userDepartment === "KB(LES)" && (
+                <ApprovalTechnicalReviewSummary
+                  t={t}
+                  selectedRecord={selectedRecord}
+                  technicalSite={technicalSite}
+                />
+              )}
 
               {isIklWorkspace ? (
                 <IklWorkspaceSections
@@ -542,7 +567,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                       <select
                         value={decision}
                         onChange={(event) => setDecision(event.target.value)}
-                        className="form-input"
+                        className={`form-input ${isSimpleApprovalWorkspace ? "max-w-xs" : ""}`}
                       >
                         {decisionOptions.map((item) => (
                           <option key={item.value || item} value={item.value || item}>
@@ -620,7 +645,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                         disabled={saving}
                         variant={action.variant || "primary"}
                         icon={action.icon}
-                        className="w-full"
+                        className={isSimpleApprovalWorkspace ? "min-w-56" : "w-full"}
                       >
                         {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
                       </Button>
@@ -1922,6 +1947,64 @@ function getIklScreeningCopy(department) {
     submitKey: "workspace.action.submitScreening",
     submitLabel: "Submit PT/KU Decision",
   };
+}
+
+function ApprovalTechnicalReviewSummary({ t, selectedRecord, technicalSite }) {
+  const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
+  const technicalReview = selectedRecord.form_data?.technical_review || {};
+  const kuReview = selectedRecord.form_data?.technical_ku_review || {};
+  const kuDecision = kuReview.decision || kuReview.status || "-";
+  const kuRemarks = kuReview.remarks || kuReview.comment || "-";
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="mb-3">
+        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+          {t("workspace.approval.technicalSummaryTitle", "KU(IKL) Final Checking")}
+        </h3>
+        <p className="mt-1 text-[14px] leading-5 text-slate-500">
+          {t(
+            "workspace.approval.technicalSummaryDesc",
+            "Review KU(IKL)'s final technical check before verifying this application."
+          )}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Info
+              label={t("workspace.technical.kuDecision", "KU(IKL) Decision")}
+              value={kuDecision}
+            />
+            <Info
+              label={t("workspace.technical.reviewedBy", "Reviewed By")}
+              value={kuReview.reviewed_by || "KU(IKL)"}
+            />
+            <Info
+              label={t("workspace.technical.reviewedAt", "Reviewed At")}
+              value={formatDateTime(kuReview.reviewed_at)}
+            />
+          </div>
+          <div className="mt-3">
+            <Info
+              label={t("workspace.comment.remarks", "Remarks")}
+              value={kuRemarks}
+            />
+          </div>
+        </div>
+
+        <KuTechnicalReviewPackage
+          t={t}
+          applicationId={selectedRecord.id}
+          technicalSite={reviewTechnicalSite}
+          technicalReview={technicalReview}
+        />
+
+        <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+      </div>
+    </section>
+  );
 }
 
 function KuTechnicalReviewPackage({ t, applicationId, technicalSite, technicalReview }) {

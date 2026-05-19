@@ -317,7 +317,7 @@ export function saveAuthSession(data, rememberMe = false) {
       JSON.stringify({
         ...data.user,
         full_name: normalizeStoredFullName(data.user.full_name),
-        role: getNormalizedRole(data.user) || data.user.role,
+        role: data.user.role || getNormalizedRole(data.user),
       })
     );
   }

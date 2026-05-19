@@ -39,6 +39,14 @@ function readSessionBoolean(key, fallback = false) {
   }
 }
 
+function hasSessionBoolean(key) {
+  try {
+    return window.sessionStorage.getItem(key) !== null;
+  } catch {
+    return false;
+  }
+}
+
 function writeSessionBoolean(key, value) {
   try {
     window.sessionStorage.setItem(key, value ? "true" : "false");
@@ -49,7 +57,7 @@ function writeSessionBoolean(key, value) {
 
 function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, taskCounts = {}, user = null) {
   const stepModePath = isViewMode ? "/view" : "";
-  const isSupervisor = String(user?.role || "").trim().toLowerCase() === "supervisor";
+  const isSupervisor = isApprovalWorkflowUser(user);
   const applicationStepGroup = showApplicationSteps
     ? {
         labelKey: "steps.applicationSteps",
@@ -100,12 +108,14 @@ function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, tas
           icon: "folder_open",
           stepGroup: applicationStepGroup,
         },
-    {
-      labelKey: "nav.guidelines",
-      fallback: "Guidelines",
-      path: "/admin/guidelines",
-      icon: "menu_book",
-    },
+    isSupervisor
+      ? null
+      : {
+          labelKey: "nav.guidelines",
+          fallback: "Guidelines",
+          path: "/admin/guidelines",
+          icon: "menu_book",
+        },
   ].filter(Boolean);
 }
 
@@ -174,7 +184,7 @@ function AppShell({ children, role = "admin" }) {
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
-    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false)
+    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, isApprovalWorkflowUser(getStoredUser()))
   );
   const [adminApplicationsOpen, setAdminApplicationsOpen] = useState(() =>
     Boolean(getAdminApplicationStepIdFromPath(location.pathname)) ||
@@ -229,6 +239,14 @@ function AppShell({ children, role = "admin" }) {
         const normalizedUser = normalizeStoredUser(data.user);
         localStorage.setItem("fastrack_user", JSON.stringify(normalizedUser));
         setUser(normalizedUser);
+
+        if (
+          isApprovalWorkflowUser(normalizedUser) &&
+          !hasSessionBoolean(ADMIN_DASHBOARD_MENU_KEY)
+        ) {
+          setAdminDashboardOpen(true);
+          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
+        }
       })
       .catch(() => {});
 
@@ -621,6 +639,17 @@ function getAdminTaskCounts(applications, user) {
       return counts;
     },
     { personal: 0, approval: 0 }
+  );
+}
+
+function isApprovalWorkflowUser(user) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  const department = normalizeDepartmentCode(user?.department);
+
+  return (
+    role === "supervisor" ||
+    department === "KB(LES)" ||
+    APPROVAL_SUPPORT_DEPARTMENTS.has(department)
   );
 }
 

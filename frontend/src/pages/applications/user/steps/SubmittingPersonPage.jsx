@@ -14,6 +14,8 @@ import {
   readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
+import AdminViewStepControls from "./AdminViewStepControls";
+import UserViewStepControls from "./UserViewStepControls";
 
 function SubmittingPersonPage({
   LayoutComponent = UserDashboardLayout,
@@ -209,7 +211,9 @@ function SubmittingPersonPage({
 
   const isReadOnly =
     isAdminView ||
-    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
+    (!isAdminReview &&
+      Boolean(applicationId) &&
+      (!applicationRecord || !canEditApplicationForm(applicationRecord)));
 
   return (
     <Layout>
@@ -227,28 +231,42 @@ function SubmittingPersonPage({
               </h1>
             </div>
 
-            <div className="flex gap-2">
-              <Link
-                to={
-                  isAdminReview
-                    ? adminStepPath(1)
-                    : `/applications/${applicationId}/edit?id=${applicationId}`
-                }
-                className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-              >
-                {tx("back")}
-              </Link>
-
-              {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={handleSaveStep3}
-                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+            {isAdminView ? (
+              <AdminViewStepControls
+                applicationId={applicationId}
+                currentStep={2}
+                language={language}
+              />
+            ) : isReadOnly ? (
+              <UserViewStepControls
+                applicationId={applicationId}
+                currentStep={2}
+                language={language}
+              />
+            ) : (
+              <div className="flex gap-2">
+                <Link
+                  to={
+                    isAdminReview
+                      ? adminStepPath(1)
+                      : `/applications/${applicationId}/edit?id=${applicationId}`
+                  }
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("saveNext")}
-                </button>
-              )}
-            </div>
+                  {tx("back")}
+                </Link>
+
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSaveStep3}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                  >
+                    {tx("saveNext")}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
@@ -496,28 +514,44 @@ function SubmittingPersonPage({
                 </div>
               </FormSection>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Link
-                  to={
-                    isAdminReview
-                      ? adminStepPath(1)
-                      : `/applications/${applicationId}/edit?id=${applicationId}`
-                  }
-                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-                >
-                  {tx("back")}
-                </Link>
-
-                {!isReadOnly && (
-                  <button
-                    type="button"
-                    onClick={handleSaveStep3}
-                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+              {isAdminView ? (
+                <AdminViewStepControls
+                  applicationId={applicationId}
+                  currentStep={2}
+                  language={language}
+                  className="pt-2"
+                />
+              ) : isReadOnly ? (
+                <UserViewStepControls
+                  applicationId={applicationId}
+                  currentStep={2}
+                  language={language}
+                  className="pt-2"
+                />
+              ) : (
+                <div className="flex justify-end gap-2 pt-2">
+                  <Link
+                    to={
+                      isAdminReview
+                        ? adminStepPath(1)
+                        : `/applications/${applicationId}/edit?id=${applicationId}`
+                    }
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("saveNext")}
-                  </button>
-                )}
-              </div>
+                    {tx("back")}
+                  </Link>
+
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={handleSaveStep3}
+                      className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                    >
+                      {tx("saveNext")}
+                    </button>
+                  )}
+                </div>
+              )}
             </fieldset>
           </section>
         </main>

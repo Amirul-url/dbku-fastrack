@@ -22,6 +22,8 @@ import {
   readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
+import AdminViewStepControls from "./AdminViewStepControls";
+import UserViewStepControls from "./UserViewStepControls";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -300,7 +302,9 @@ function SittingApplicationPage({
 
   const isReadOnly =
     isAdminView ||
-    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
+    (!isAdminReview &&
+      Boolean(applicationId) &&
+      (!applicationRecord || !canEditApplicationForm(applicationRecord)));
 
   return (
     <Layout>
@@ -318,25 +322,39 @@ function SittingApplicationPage({
               </h1>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleSaveDraftAndBack}
-                className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-              >
-                {tx("back")}
-              </button>
-
-              {!isReadOnly && (
+            {isAdminView ? (
+              <AdminViewStepControls
+                applicationId={applicationId}
+                currentStep={1}
+                language={language}
+              />
+            ) : isReadOnly ? (
+              <UserViewStepControls
+                applicationId={applicationId}
+                currentStep={1}
+                language={language}
+              />
+            ) : (
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={handleSave}
-                  className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                  onClick={handleSaveDraftAndBack}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("saveNext")}
+                  {tx("back")}
                 </button>
-              )}
-            </div>
+
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                  >
+                    {tx("saveNext")}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
@@ -521,25 +539,41 @@ function SittingApplicationPage({
                 </Field>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleSaveDraftAndBack}
-                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-                >
-                  {tx("back")}
-                </button>
-
-                {!isReadOnly && (
+              {isAdminView ? (
+                <AdminViewStepControls
+                  applicationId={applicationId}
+                  currentStep={1}
+                  language={language}
+                  className="pt-2"
+                />
+              ) : isReadOnly ? (
+                <UserViewStepControls
+                  applicationId={applicationId}
+                  currentStep={1}
+                  language={language}
+                  className="pt-2"
+                />
+              ) : (
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={handleSave}
-                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                    onClick={handleSaveDraftAndBack}
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("saveNext")}
+                    {tx("back")}
                   </button>
-                )}
-              </div>
+
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                    >
+                      {tx("saveNext")}
+                    </button>
+                  )}
+                </div>
+              )}
             </fieldset>
           </section>
         </main>

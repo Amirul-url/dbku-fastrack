@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../../layout/AdminDashboardLayout";
-import { apiRequest } from "../../../services/api";
+import { apiRequest, getStoredUser } from "../../../services/api";
 import {
   Alert,
   Button,
@@ -23,8 +23,30 @@ import {
   normalizeStatus,
 } from "../../../utils/workflow";
 
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+
+function normalizeDepartmentCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function isApprovalWorkflowUser(user) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  const department = normalizeDepartmentCode(user?.department);
+
+  return (
+    role === "supervisor" ||
+    department === "KB(LES)" ||
+    APPROVAL_SUPPORT_DEPARTMENTS.has(department)
+  );
+}
+
 function AdminApplicationsPage() {
   const navigate = useNavigate();
+  const storedUser = getStoredUser();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
@@ -96,6 +118,10 @@ function AdminApplicationsPage() {
       active: applications.filter((app) => normalizeStatus(app.status) === "license_issued").length,
     };
   }, [applications]);
+
+  if (isApprovalWorkflowUser(storedUser)) {
+    return <Navigate to="/dashboard/admin?view=approval" replace />;
+  }
 
   async function deleteApplication(app) {
     const confirmed = window.confirm(`Delete ${getApplicationReference(app)}?`);

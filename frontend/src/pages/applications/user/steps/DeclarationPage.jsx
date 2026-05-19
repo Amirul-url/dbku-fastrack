@@ -14,6 +14,8 @@ import {
   readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
+import AdminViewStepControls from "./AdminViewStepControls";
+import UserViewStepControls from "./UserViewStepControls";
 
 function DeclarationPage({
   LayoutComponent = UserDashboardLayout,
@@ -136,7 +138,9 @@ function DeclarationPage({
 
   const isReadOnly =
     isAdminView ||
-    (!isAdminReview && applicationRecord && !canEditApplicationForm(applicationRecord));
+    (!isAdminReview &&
+      Boolean(applicationId) &&
+      (!applicationRecord || !canEditApplicationForm(applicationRecord)));
 
   const applicantName =
     step3.full_name ||
@@ -199,29 +203,43 @@ function DeclarationPage({
               </h1>
             </div>
 
-            <div className="flex gap-2">
-              <Link
-                to={
-                  isAdminReview
-                    ? adminStepPath(3)
-                    : `/applications/${applicationId}/supporting-document?id=${applicationId}`
-                }
-                className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
-              >
-                {tx("back")}
-              </Link>
-
-              {!isReadOnly && (
-                <button
-                  type="button"
-                  onClick={handleSaveAndNext}
-                  disabled={saving}
-                  className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
+            {isAdminView ? (
+              <AdminViewStepControls
+                applicationId={applicationId}
+                currentStep={4}
+                language={language}
+              />
+            ) : isReadOnly ? (
+              <UserViewStepControls
+                applicationId={applicationId}
+                currentStep={4}
+                language={language}
+              />
+            ) : (
+              <div className="flex gap-2">
+                <Link
+                  to={
+                    isAdminReview
+                      ? adminStepPath(3)
+                      : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+                  }
+                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                 >
-                  {saving ? tx("saving") : tx("saveNext")}
-                </button>
-              )}
-            </div>
+                  {tx("back")}
+                </Link>
+
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={handleSaveAndNext}
+                    disabled={saving}
+                    className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
+                  >
+                    {saving ? tx("saving") : tx("saveNext")}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
@@ -259,29 +277,45 @@ function DeclarationPage({
                 </div>
               </label>
 
-              <div className="flex justify-end gap-2 pt-3">
-                <Link
-                  to={
-                    isAdminReview
-                      ? adminStepPath(3)
-                      : `/applications/${applicationId}/supporting-document?id=${applicationId}`
-                  }
-                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
-                >
-                  {tx("back")}
-                </Link>
-
-                {!isReadOnly && (
-                  <button
-                    type="button"
-                    onClick={handleSaveAndNext}
-                    disabled={saving}
-                    className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
+              {isAdminView ? (
+                <AdminViewStepControls
+                  applicationId={applicationId}
+                  currentStep={4}
+                  language={language}
+                  className="pt-3"
+                />
+              ) : isReadOnly ? (
+                <UserViewStepControls
+                  applicationId={applicationId}
+                  currentStep={4}
+                  language={language}
+                  className="pt-3"
+                />
+              ) : (
+                <div className="flex justify-end gap-2 pt-3">
+                  <Link
+                    to={
+                      isAdminReview
+                        ? adminStepPath(3)
+                        : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+                    }
+                    className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                   >
-                    {saving ? tx("saving") : tx("saveNext")}
-                  </button>
-                )}
-              </div>
+                    {tx("back")}
+                  </Link>
+
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={handleSaveAndNext}
+                      disabled={saving}
+                      className="rounded bg-[#006d32] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#005224] disabled:opacity-60"
+                    >
+                      {saving ? tx("saving") : tx("saveNext")}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         </main>

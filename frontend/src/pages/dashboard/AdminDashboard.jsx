@@ -127,10 +127,24 @@ const units = [
 
 function AdminDashboard() {
   const location = useLocation();
-  const userRole = String(getStoredUser()?.role || "").trim().toLowerCase();
+  const [currentUser, setCurrentUser] = useState(getStoredUser);
   const view = new URLSearchParams(location.search).get("view") || "personal";
 
-  if (view === "approval" || userRole === "supervisor") {
+  useEffect(() => {
+    let active = true;
+
+    apiRequest("/auth/me/")
+      .then((data) => {
+        if (active && data?.user) setCurrentUser(data.user);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (view === "approval" || isApprovalWorkflowUser(currentUser)) {
     return <ApprovalPage />;
   }
 
@@ -351,6 +365,20 @@ function normalizeDepartmentCode(value) {
   }
   if (department === "INP") return "LNP";
   return department === "UNIT IKLAN" ? "PT(IKL)" : department;
+}
+
+function isApprovalWorkflowUser(user) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  const department = normalizeDepartmentCode(user?.department);
+
+  return (
+    role === "supervisor" ||
+    department === "KB(LES)" ||
+    department === "TP(RES)" ||
+    department === "PGH" ||
+    department === "TP(RES)/PGH" ||
+    department === "TP/PGH"
+  );
 }
 
 function getAssignedUnit(department) {
