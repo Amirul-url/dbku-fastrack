@@ -1412,7 +1412,7 @@ function IklWorkspaceSections({
               <select
                 value={decision}
                 onChange={(event) => setDecision(event.target.value)}
-                className={`form-input ${userDepartment === "PT(IKL)" ? "max-w-64" : ""}`}
+                className={`form-input ${["PT(IKL)", "KU(IKL)"].includes(userDepartment) ? "max-w-64" : ""}`}
               >
                 {screeningDecisionOptions.map((item) => (
                   <option key={item.value || item} value={item.value || item}>
@@ -1579,9 +1579,9 @@ function getIklScreeningCopy(department) {
       descriptionKey: "workspace.ikl.kuScreeningDesc",
       description: "Review the screening result, then send the application to technical review or reject it with remarks.",
       placeholderKey: "workspace.comment.kuScreeningPlaceholder",
-      placeholder: "Enter KU(IKL) remarks. Required when rejecting.",
-      submitKey: "workspace.action.submitKuScreening",
-      submitLabel: "Submit KU(IKL) Decision",
+      placeholder: "Required when rejecting.",
+      submitKey: "common.submit",
+      submitLabel: "Submit",
     };
   }
 
@@ -1673,6 +1673,16 @@ function getIklScreeningDecisionLabel(item, department, t) {
     }
 
     if (value === "PT(IKL) Reject to Applicant") {
+      return t("workspace.decision.reject", "Reject");
+    }
+  }
+
+  if (department === "KU(IKL)") {
+    if (value === "KU(IKL) Confirm - Send to Technical Units") {
+      return t("workspace.decision.approve", "Approve");
+    }
+
+    if (value === "KU(IKL) Reject to Applicant") {
       return t("workspace.decision.reject", "Reject");
     }
   }
