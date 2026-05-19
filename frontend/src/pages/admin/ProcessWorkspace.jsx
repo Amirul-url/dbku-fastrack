@@ -363,6 +363,30 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     navigate(search ? `${location.pathname}?${search}` : location.pathname);
   }
 
+  function returnToPersonalTask() {
+    navigate("/dashboard/admin?view=personal");
+  }
+
+  function getSelectedActionPanelPath(applicationId) {
+    const params = new URLSearchParams(location.search);
+    params.set("id", applicationId);
+
+    if (config.key === "approval" && location.pathname === "/dashboard/admin") {
+      params.set("view", "approval");
+    }
+
+    return `${location.pathname}?${params.toString()}`;
+  }
+
+  function getSelectedFormViewPath(applicationId) {
+    const params = new URLSearchParams();
+    params.set("id", applicationId);
+    params.set("from", "action-panel");
+    params.set("returnTo", getSelectedActionPanelPath(applicationId));
+
+    return `/admin/applications/${applicationId}/view/step-1?${params.toString()}`;
+  }
+
   return (
     <AdminDashboardLayout>
       {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
@@ -482,6 +506,19 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
           </Panel>
         )}
 
+        {isFocusedPersonalWorkspace && showActionPanel && (
+          <div className="flex justify-start">
+            <Button
+              type="button"
+              variant="secondary"
+              icon="arrow_back"
+              onClick={returnToPersonalTask}
+            >
+              {t("workspace.backToPersonalTask", "Back to Personal Task")}
+            </Button>
+          </div>
+        )}
+
         {isSimpleApprovalWorkspace && showActionPanel && (
           <div className="flex justify-start">
             <Button
@@ -525,8 +562,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                       icon="visibility"
                       onClick={() =>
                         navigate(
-                          isSimpleApprovalWorkspace
-                            ? `/admin/applications/${selectedRecord.id}/view/step-1?id=${selectedRecord.id}&from=approval`
+                          isFocusedPersonalWorkspace || isSimpleApprovalWorkspace
+                            ? getSelectedFormViewPath(selectedRecord.id)
                             : `/admin/applications/${selectedRecord.id}`
                         )
                       }

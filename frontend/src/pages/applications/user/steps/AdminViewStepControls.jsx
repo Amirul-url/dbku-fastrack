@@ -3,10 +3,9 @@ import { stepText } from "./ApplicationStepText";
 
 const TOTAL_STEPS = 5;
 
-function buildStepPath(applicationId, step, from) {
-  const params = new URLSearchParams();
+function buildStepPath(applicationId, step, currentParams) {
+  const params = new URLSearchParams(currentParams);
   params.set("id", applicationId);
-  if (from) params.set("from", from);
 
   return `/admin/applications/${applicationId}/view/step-${step}?${params.toString()}`;
 }
@@ -38,8 +37,16 @@ function isApprovalWorkflowUser() {
   }
 }
 
-function buildReturnPath(applicationId, from, approvalWorkflowUser) {
-  if (from === "approval" || approvalWorkflowUser) {
+function isSafeInternalPath(path) {
+  return Boolean(path) && path.startsWith("/") && !path.startsWith("//");
+}
+
+function buildReturnPath(applicationId, from, returnTo, approvalWorkflowUser) {
+  if (isSafeInternalPath(returnTo)) {
+    return returnTo;
+  }
+
+  if (from === "approval" || from === "action-panel" || approvalWorkflowUser) {
     return `/dashboard/admin?view=approval&id=${applicationId}`;
   }
 
@@ -59,21 +66,28 @@ function AdminViewStepControls({ applicationId, currentStep, language, className
   const queryParams = new URLSearchParams(location.search);
   const approvalWorkflowUser = isApprovalWorkflowUser();
   const from = queryParams.get("from") || (approvalWorkflowUser ? "approval" : "");
+  const returnTo = queryParams.get("returnTo") || "";
+  const returnPath = buildReturnPath(applicationId, from, returnTo, approvalWorkflowUser);
+  const backText = isSafeInternalPath(returnTo) || from === "action-panel"
+    ? stepText(language, "backToActionPanel")
+    : from === "approval"
+      ? stepText(language, "backToAwaitingApproval")
+      : stepText(language, "back");
   const previousStep = currentStep - 1;
   const nextStep = currentStep + 1;
 
   return (
     <div className={`flex flex-wrap justify-end gap-2 ${className}`}>
       <Link
-        to={buildReturnPath(applicationId, from, approvalWorkflowUser)}
+        to={returnPath}
         className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
       >
-        {stepText(language, "backToAwaitingApproval")}
+        {backText}
       </Link>
 
       {previousStep >= 1 ? (
         <Link
-          to={buildStepPath(applicationId, previousStep, from)}
+          to={buildStepPath(applicationId, previousStep, queryParams)}
           className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
         >
           {stepText(language, "previous")}
@@ -84,7 +98,7 @@ function AdminViewStepControls({ applicationId, currentStep, language, className
 
       {nextStep <= TOTAL_STEPS ? (
         <Link
-          to={buildStepPath(applicationId, nextStep, from)}
+          to={buildStepPath(applicationId, nextStep, queryParams)}
           className="rounded bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224]"
         >
           {stepText(language, "next")}

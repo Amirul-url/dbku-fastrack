@@ -254,6 +254,18 @@ function ClaimableTaskView({
   onSelectUnit,
   unitTasks,
 }) {
+  function getApplicationViewPath(application) {
+    const returnParams = new URLSearchParams();
+    returnParams.set("id", application.id);
+
+    const viewParams = new URLSearchParams();
+    viewParams.set("id", application.id);
+    viewParams.set("from", "action-panel");
+    viewParams.set("returnTo", `${selected.path}?${returnParams.toString()}`);
+
+    return `/admin/applications/${application.id}/view/step-1?${viewParams.toString()}`;
+  }
+
   return (
     <>
       <fieldset className="border border-slate-300 px-3 pb-4 pt-2">
@@ -310,7 +322,7 @@ function ClaimableTaskView({
               label: t("common.reference"),
               render: (application) => (
                 <Link
-                  to={`/admin/applications/${application.id}/view/step-1?id=${application.id}`}
+                  to={getApplicationViewPath(application)}
                   className="font-semibold text-emerald-700 hover:underline"
                 >
                   {getApplicationReference(application)}

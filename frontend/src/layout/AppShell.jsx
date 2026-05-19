@@ -6,7 +6,6 @@ import { useNotifications } from "../context/NotificationContext";
 import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
-const ADMIN_APPLICATIONS_MENU_KEY = "fastrack_admin_applications_menu_open";
 const PT_IKL_TASK_STATUSES = new Set(["submitted", "incomplete", "technical_amendment"]);
 const KU_IKL_TASK_STATUSES = new Set(["ku_ikl_review", "technical_review_completed"]);
 const IKL_TECHNICAL_TASK_STATUSES = new Set([
@@ -55,22 +54,8 @@ function writeSessionBoolean(key, value) {
   }
 }
 
-function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, taskCounts = {}, user = null) {
-  const stepModePath = isViewMode ? "/view" : "";
+function buildAdminNav(taskCounts = {}, user = null) {
   const isSupervisor = isApprovalWorkflowUser(user);
-  const applicationStepGroup = showApplicationSteps
-    ? {
-        labelKey: "steps.applicationSteps",
-        fallback: "Application Steps",
-        children: [
-          { no: 1, labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-1?id=${adminApplicationId}` },
-          { no: 2, labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-2?id=${adminApplicationId}` },
-          { no: 3, labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-3?id=${adminApplicationId}` },
-          { no: 4, labelKey: "steps.declaration", fallback: "Declaration", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-4?id=${adminApplicationId}` },
-          { no: 5, labelKey: "steps.printForm", fallback: "Print Form", path: `/admin/applications/${adminApplicationId}${stepModePath}/step-5?id=${adminApplicationId}` },
-        ],
-      }
-    : null;
 
   const dashboardChildren = [
     isSupervisor
@@ -99,15 +84,6 @@ function buildAdminNav(adminApplicationId, showApplicationSteps, isViewMode, tas
       icon: "dashboard",
       children: dashboardChildren,
     },
-    isSupervisor
-      ? null
-      : {
-          labelKey: "nav.applications",
-          fallback: "Applications",
-          path: "/admin/applications",
-          icon: "folder_open",
-          stepGroup: applicationStepGroup,
-        },
     isSupervisor
       ? null
       : {
@@ -186,18 +162,12 @@ function AppShell({ children, role = "admin" }) {
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
     readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, isApprovalWorkflowUser(getStoredUser()))
   );
-  const [adminApplicationsOpen, setAdminApplicationsOpen] = useState(() =>
-    Boolean(getAdminApplicationStepIdFromPath(location.pathname)) ||
-    readSessionBoolean(ADMIN_APPLICATIONS_MENU_KEY, false)
-  );
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const [adminTaskCounts, setAdminTaskCounts] = useState({ personal: 0, approval: 0 });
   const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
-  const currentAdminApplicationId = getAdminApplicationStepIdFromPath(location.pathname);
-  const isAdminViewMode = isAdminApplicationViewPath(location.pathname);
   const showApplicationSteps =
     location.pathname === "/applications/new" || Boolean(currentApplicationId);
   const stepApplicationId = currentApplicationId;
@@ -205,17 +175,11 @@ function AppShell({ children, role = "admin" }) {
     () => {
       if (role === "superadmin") return superAdminNav;
       if (role === "admin") {
-        return buildAdminNav(
-          currentAdminApplicationId,
-          Boolean(currentAdminApplicationId),
-          isAdminViewMode,
-          adminTaskCounts,
-          user
-        );
+        return buildAdminNav(adminTaskCounts, user);
       }
       return buildApplicantNav(stepApplicationId, showApplicationSteps);
     },
-    [role, currentAdminApplicationId, isAdminViewMode, adminTaskCounts, user, stepApplicationId, showApplicationSteps]
+    [role, adminTaskCounts, user, stepApplicationId, showApplicationSteps]
   );
 
   const refreshAdminTaskCounts = useCallback(async ({ silent = false } = {}) => {
@@ -343,16 +307,14 @@ function AppShell({ children, role = "admin" }) {
             const activeView = new URLSearchParams(location.search).get("view");
             const hasChildren = Boolean(item.children || item.stepGroup);
             const adminDashboardItem = role === "admin" && item.path === "/dashboard/admin";
-            const adminApplicationsItem = role === "admin" && item.path === "/admin/applications";
             const submenuOpen =
               hasChildren &&
               ((role === "applicant" && applicantDashboardOpen) ||
-                (adminDashboardItem && adminDashboardOpen) ||
-                (adminApplicationsItem && adminApplicationsOpen));
+                (adminDashboardItem && adminDashboardOpen));
 
             return (
               <div key={item.path}>
-                {hasChildren && (role === "applicant" || adminDashboardItem || adminApplicationsItem) ? (
+                {hasChildren && (role === "applicant" || adminDashboardItem) ? (
                   <div
                     className={`flex w-full items-center justify-between rounded-md px-3.5 py-2.5 text-left text-sm font-medium ${
                       active
@@ -379,12 +341,6 @@ function AppShell({ children, role = "admin" }) {
                       onClick={() => {
                         if (role === "applicant") {
                           setApplicantDashboardOpen((current) => !current);
-                        } else if (adminApplicationsItem) {
-                          setAdminApplicationsOpen((current) => {
-                            const next = !current;
-                            writeSessionBoolean(ADMIN_APPLICATIONS_MENU_KEY, next);
-                            return next;
-                          });
                         } else {
                           setAdminDashboardOpen((current) => {
                             const next = !current;
@@ -862,15 +818,6 @@ function DashboardFooter({ t }) {
 function getApplicationIdFromPath(pathname) {
   const match = String(pathname || "").match(/^\/applications\/(\d+)/);
   return match?.[1] || "";
-}
-
-function getAdminApplicationStepIdFromPath(pathname) {
-  const match = String(pathname || "").match(/^\/admin\/applications\/(\d+)\/(?:view\/)?step-\d+/);
-  return match?.[1] || "";
-}
-
-function isAdminApplicationViewPath(pathname) {
-  return /^\/admin\/applications\/\d+\/view\/step-\d+/.test(String(pathname || ""));
 }
 
 function getPathname(path) {
