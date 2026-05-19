@@ -39,7 +39,7 @@ const units = [
     descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete"],
+    statuses: ["submitted", "incomplete", "technical_amendment"],
     path: "/admin/auto-screening",
   },
   {
@@ -59,7 +59,7 @@ const units = [
     descriptionKey: "admin.unit.iklTechnical.desc",
     icon: "engineering",
     color: "bg-cyan-600",
-    statuses: ["technical_review", "technical_site_visit", "technical_amendment"],
+    statuses: ["technical_review", "technical_site_visit"],
     path: "/admin/auto-screening",
   },
   {

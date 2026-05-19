@@ -40,9 +40,9 @@ import {
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
-  "PT(IKL)": ["submitted", "incomplete"],
+  "PT(IKL)": ["submitted", "incomplete", "technical_amendment"],
   "KU(IKL)": ["ku_ikl_review", "technical_review_completed"],
-  "IKL (TECHNICAL)": ["technical_review", "technical_site_visit", "technical_amendment"],
+  "IKL (TECHNICAL)": ["technical_review", "technical_site_visit"],
 };
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
@@ -140,8 +140,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       : saved.site_photo
         ? [saved.site_photo]
         : [];
+    const currentPhotos = getCurrentTechnicalSitePhotos(savedPhotos, selectedDetail);
     setTechnicalSite({
-      site_photos: savedPhotos,
+      site_photos: currentPhotos,
       license_fee_calculation: saved.license_fee_calculation || "",
       deposit_calculation: saved.deposit_calculation || "",
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
@@ -194,6 +195,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const isIklWorkspace = config.key === "screening";
   const isDepartmentTechnicalWorkspace = config.key === "technical";
   const isApprovalWorkspace = config.key === "approval";
+  const isSimpleApprovalWorkspace = isApprovalWorkspace;
   const isFocusedPersonalWorkspace =
     isIklWorkspace || isDepartmentTechnicalWorkspace;
   const showSiteVisitFields =
@@ -254,6 +256,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = !isApprovalWorkspace || workspaceActions.length > 0;
+  const showActionPanel =
+    !isSimpleApprovalWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction);
   const actionUnavailableMessage = getActionUnavailableMessage(
     config,
     selectedRecord,
@@ -328,7 +332,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   return (
     <AdminDashboardLayout>
-      {!isFocusedPersonalWorkspace && (
+      {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
         <PageHeader
           eyebrow={t(config.eyebrowKey, config.eyebrow)}
           title={t(config.titleKey, config.title)}
@@ -346,7 +350,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         />
       )}
 
-      {isFocusedPersonalWorkspace && (
+      {(isFocusedPersonalWorkspace || isSimpleApprovalWorkspace) && (
         <div className="mb-4 flex justify-end">
           <Button
             type="button"
@@ -362,7 +366,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       <Alert message={error} />
       <Alert type="success" message={success} />
 
-      {!isFocusedPersonalWorkspace && (
+      {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
         <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           {stats.map((item) => (
             <StatCard key={item.labelKey || item.label} {...item} label={t(item.labelKey, item.label)} />
@@ -374,25 +378,29 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         className={
           isFocusedPersonalWorkspace
             ? "mb-6 space-y-6"
+            : isSimpleApprovalWorkspace && !showActionPanel
+              ? "mb-6"
             : "mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3"
         }
       >
         {!isFocusedPersonalWorkspace && (
           <Panel
-            title={t(config.queueTitleKey, config.queueTitle)}
-            description={t("workspace.queue.instructions")}
-            className="xl:col-span-2"
+            title={isSimpleApprovalWorkspace ? t("admin.dashboard.awaitingApproval", "Awaiting Approval") : t(config.queueTitleKey, config.queueTitle)}
+            description={isSimpleApprovalWorkspace ? "" : t("workspace.queue.instructions")}
+            className={isSimpleApprovalWorkspace && !showActionPanel ? "" : "xl:col-span-2"}
           >
-            <div className="mb-4">
-              <Field label={t("common.search")}>
-                <input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  className="form-input"
-                  placeholder={t("workspace.search.placeholder")}
-                />
-              </Field>
-            </div>
+            {statusScopedApplications.length > 0 && (
+              <div className="mb-4">
+                <Field label={t("common.search")}>
+                  <input
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    className="form-input"
+                    placeholder={t("workspace.search.placeholder")}
+                  />
+                </Field>
+              </div>
+            )}
 
             <DataTable
               loading={loading}
@@ -431,14 +439,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
           </Panel>
         )}
 
-        <Panel
-          title={t("workspace.actionPanel")}
-          description={getWorkspaceActionDescription(config, t, userDepartment)}
-        >
-          {!selectedRecord ? (
-            <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
-          ) : (
-            <div className="space-y-4">
+        {showActionPanel && (
+          <Panel
+            title={t("workspace.actionPanel")}
+            description={getWorkspaceActionDescription(config, t, userDepartment)}
+          >
+            {!selectedRecord ? (
+              <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
+            ) : (
+              <div className="space-y-4">
               <ApplicationSummary
                 app={selectedRecord}
                 labels={{
@@ -574,12 +583,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   </div>
                 </>
               )}
-            </div>
-          )}
-        </Panel>
+              </div>
+            )}
+          </Panel>
+        )}
       </section>
 
-      {!isFocusedPersonalWorkspace && (
+      {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
         <Panel title={t("workspace.selectedRecord")} description={t("workspace.selectedRecordDesc")}>
           {selectedRecord ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1029,6 +1039,52 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function getCurrentTechnicalSitePhotos(savedPhotos, application) {
+  const documents = Array.isArray(application?.supporting_documents)
+    ? application.supporting_documents
+    : [];
+  const technicalDocuments = documents.filter(
+    (document) => document.title === "Technical Site Photo"
+  );
+  const documentIds = new Set(documents.map((document) => String(document.id)));
+  const currentSavedPhotos = savedPhotos.filter((photo) => {
+    if (!photo?.document_id) return true;
+    return documentIds.has(String(photo.document_id));
+  });
+  const savedDocumentIds = new Set(
+    currentSavedPhotos
+      .map((photo) => photo?.document_id)
+      .filter(Boolean)
+      .map(String)
+  );
+  const missingTechnicalPhotos = technicalDocuments
+    .filter((document) => !savedDocumentIds.has(String(document.id)))
+    .map((document) => ({
+      document_id: document.id,
+      title: document.title,
+      name: getFileNameFromUrl(document.file || document.file_url) || document.title,
+      url: document.file_url || document.file || "",
+      file_url: document.file_url || document.file || "",
+      uploaded_at: document.uploaded_at,
+    }));
+
+  return [...currentSavedPhotos, ...missingTechnicalPhotos];
+}
+
+function getFileNameFromUrl(value) {
+  const url = String(value || "");
+  if (!url) return "";
+
+  try {
+    return decodeURIComponent(new URL(url, window.location.origin).pathname)
+      .split("/")
+      .filter(Boolean)
+      .pop() || "";
+  } catch {
+    return url.split(/[\\/]/).filter(Boolean).pop() || "";
+  }
+}
+
 function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
   if (department === "PT IKL") return "PT(IKL)";
@@ -1195,10 +1251,7 @@ const configs = {
         icon: "thumb_down",
         variant: "danger",
         decision: "Not Supported",
-        requiresComment: true,
-        success: "Technical review saved.",
-        successKey: "workspace.message.technicalSaved",
-        buildPayload: buildIklTechnicalDecisionPayload,
+        disabled: true,
       },
     ],
     kuTechnicalReview: {
@@ -1651,13 +1704,15 @@ function IklWorkspaceSections({
             {config.technicalActions.map((action) => (
               <Button
                 key={action.label}
-                onClick={() =>
+                onClick={() => {
+                  if (action.disabled) return;
+
                   submitAction(action, {
                     comment: technicalSite.site_remarks,
                     checkDecisionRemark: true,
-                  })
-                }
-                disabled={saving || !allDepartmentReviewsComplete}
+                  });
+                }}
+                disabled={saving || !allDepartmentReviewsComplete || action.disabled}
                 variant={action.variant || "primary"}
                 icon={action.icon}
                 className="w-full"
@@ -2020,9 +2075,11 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
 function getSitePhotoSource(photo, applicationId) {
   return (
     photo?.dataUrl ||
+    (photo?.document_id ? getApplicationDocumentUrl(applicationId, photo.document_id) : "") ||
     photo?.url ||
     photo?.file_url ||
-    (photo?.document_id ? getApplicationDocumentUrl(applicationId, photo.document_id) : "")
+    photo?.file ||
+    ""
   );
 }
 

@@ -7,12 +7,11 @@ import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_APPLICATIONS_MENU_KEY = "fastrack_admin_applications_menu_open";
-const PT_IKL_TASK_STATUSES = new Set(["submitted", "incomplete"]);
+const PT_IKL_TASK_STATUSES = new Set(["submitted", "incomplete", "technical_amendment"]);
 const KU_IKL_TASK_STATUSES = new Set(["ku_ikl_review", "technical_review_completed"]);
 const IKL_TECHNICAL_TASK_STATUSES = new Set([
   "technical_review",
   "technical_site_visit",
-  "technical_amendment",
 ]);
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
   "technical_review",
