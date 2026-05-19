@@ -82,7 +82,9 @@ function normalizeDepartment(value) {
   if (department === "UNIT IKLAN") return "PT(IKL)";
   if (department === "PT IKL") return "PT(IKL)";
   if (department === "KU IKL") return "KU(IKL)";
-  if (department === "IKL TECHNICAL") return "IKL (TECHNICAL)";
+  if (department === "IKL(TECHNICAL)" || department === "IKL TECHNICAL") {
+    return "IKL (TECHNICAL)";
+  }
   if (department === "INP") return "LNP";
   return department;
 }

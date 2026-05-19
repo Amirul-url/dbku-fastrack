@@ -23,9 +23,11 @@ import {
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
   "technical_site_visit",
-  "technical_review_completed",
 ];
-const TECHNICAL_DEPARTMENT_STATUS_SET = new Set(TECHNICAL_DEPARTMENT_TASK_STATUSES);
+const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
+  ...TECHNICAL_DEPARTMENT_TASK_STATUSES,
+  "technical_review_completed",
+]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 
 const units = [
@@ -329,7 +331,11 @@ function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
   if (department === "PT IKL") return "PT(IKL)";
   if (department === "KU IKL") return "KU(IKL)";
-  if (department === "IKL TECHNICAL" || department === "IKL-TECHNICAL") {
+  if (
+    department === "IKL(TECHNICAL)" ||
+    department === "IKL TECHNICAL" ||
+    department === "IKL-TECHNICAL"
+  ) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";

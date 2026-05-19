@@ -47,9 +47,11 @@ const IKL_DEPARTMENT_STATUS_SCOPE = {
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
   "technical_site_visit",
-  "technical_review_completed",
 ];
-const TECHNICAL_REVIEW_STATUSES = new Set(TECHNICAL_DEPARTMENT_TASK_STATUSES);
+const TECHNICAL_REVIEW_STATUSES = new Set([
+  ...TECHNICAL_DEPARTMENT_TASK_STATUSES,
+  "technical_review_completed",
+]);
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -414,7 +416,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
           </Panel>
         )}
 
-        <Panel title={t("workspace.actionPanel")} description={t(config.actionDescriptionKey, config.actionDescription)}>
+        <Panel
+          title={t("workspace.actionPanel")}
+          description={getWorkspaceActionDescription(config, t, userDepartment)}
+        >
           {!selectedRecord ? (
             <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
           ) : (
@@ -611,6 +616,15 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   return formatWorkflowStatus(status);
 }
 
+function getWorkspaceActionDescription(config, t, userDepartment) {
+  if (config?.key === "screening") {
+    const copy = getIklScreeningCopy(userDepartment);
+    return t(copy.actionDescriptionKey, copy.actionDescription);
+  }
+
+  return t(config.actionDescriptionKey, config.actionDescription);
+}
+
 function getDepartmentReviewStatusLabel(department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   return normalizedDepartment ? `${normalizedDepartment} Review` : "Department Review";
@@ -800,7 +814,11 @@ function normalizeDepartmentCode(value) {
   const department = String(value || "").trim().toUpperCase();
   if (department === "PT IKL") return "PT(IKL)";
   if (department === "KU IKL") return "KU(IKL)";
-  if (department === "IKL TECHNICAL" || department === "IKL-TECHNICAL") {
+  if (
+    department === "IKL(TECHNICAL)" ||
+    department === "IKL TECHNICAL" ||
+    department === "IKL-TECHNICAL"
+  ) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
@@ -1335,6 +1353,8 @@ function IklWorkspaceSections({
     "technical_amendment",
   ].includes(status);
   const showKuTechnicalReview = status === "technical_review_completed";
+  const showTechnicalDepartmentRemarks =
+    userDepartment === "IKL (TECHNICAL)" || showKuTechnicalReview;
   const [kuDecision, setKuDecision] = useState(
     config.kuTechnicalReview?.defaultDecision || ""
   );
@@ -1343,6 +1363,7 @@ function IklWorkspaceSections({
     config.decisions,
     userDepartment
   );
+  const screeningCopy = getIklScreeningCopy(userDepartment);
 
   useEffect(() => {
     const hasDecision = screeningDecisionOptions.some(
@@ -1379,10 +1400,10 @@ function IklWorkspaceSections({
         <section className="rounded-md border border-slate-200 bg-white p-3">
           <div className="mb-3">
             <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-              {t("workspace.ikl.screeningTitle")}
+              {t(screeningCopy.titleKey, screeningCopy.title)}
             </h3>
             <p className="mt-1 text-[14px] leading-5 text-slate-500">
-              {t("workspace.ikl.screeningDesc")}
+              {t(screeningCopy.descriptionKey, screeningCopy.description)}
             </p>
           </div>
 
@@ -1391,11 +1412,11 @@ function IklWorkspaceSections({
               <select
                 value={decision}
                 onChange={(event) => setDecision(event.target.value)}
-                className="form-input"
+                className={`form-input ${userDepartment === "PT(IKL)" ? "max-w-64" : ""}`}
               >
                 {screeningDecisionOptions.map((item) => (
                   <option key={item.value || item} value={item.value || item}>
-                    {t(item.labelKey, item.label || item)}
+                    {getIklScreeningDecisionLabel(item, userDepartment, t)}
                   </option>
                 ))}
               </select>
@@ -1407,7 +1428,7 @@ function IklWorkspaceSections({
                 onChange={(event) => setComment(event.target.value)}
                 rows="4"
                 className="form-input"
-                placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+                placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
               />
             </Field>
 
@@ -1420,7 +1441,7 @@ function IklWorkspaceSections({
               >
                 {saving
                   ? t("workspace.saving")
-                  : t(config.screeningAction.labelKey, config.screeningAction.label)}
+                  : t(screeningCopy.submitKey, screeningCopy.submitLabel)}
               </Button>
             </div>
           </div>
@@ -1526,9 +1547,56 @@ function IklWorkspaceSections({
         </section>
       )}
 
-      <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+      {showTechnicalDepartmentRemarks && (
+        <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+      )}
     </div>
   );
+}
+
+function getIklScreeningCopy(department) {
+  if (department === "PT(IKL)") {
+    return {
+      actionDescriptionKey: "workspace.screening.actionPt",
+      actionDescription: "Record PT(IKL) decision for the selected application.",
+      titleKey: "workspace.ikl.ptScreeningTitle",
+      title: "PT(IKL) Verification",
+      descriptionKey: "workspace.ikl.ptScreeningDesc",
+      description: "Review applicant information and documents, then send the application onward or reject it with remarks.",
+      placeholderKey: "workspace.comment.ptScreeningPlaceholder",
+      placeholder: "Required when rejecting.",
+      submitKey: "common.submit",
+      submitLabel: "Submit",
+    };
+  }
+
+  if (department === "KU(IKL)") {
+    return {
+      actionDescriptionKey: "workspace.screening.actionKu",
+      actionDescription: "Record KU(IKL) decision for the selected application.",
+      titleKey: "workspace.ikl.kuScreeningTitle",
+      title: "KU(IKL) Verification",
+      descriptionKey: "workspace.ikl.kuScreeningDesc",
+      description: "Review the screening result, then send the application to technical review or reject it with remarks.",
+      placeholderKey: "workspace.comment.kuScreeningPlaceholder",
+      placeholder: "Enter KU(IKL) remarks. Required when rejecting.",
+      submitKey: "workspace.action.submitKuScreening",
+      submitLabel: "Submit KU(IKL) Decision",
+    };
+  }
+
+  return {
+    actionDescriptionKey: "workspace.screening.action",
+    actionDescription: "Record PT(IKL) or KU(IKL) decision for the selected application.",
+    titleKey: "workspace.ikl.screeningTitle",
+    title: "PT(IKL) / KU(IKL) Verification",
+    descriptionKey: "workspace.ikl.screeningDesc",
+    description: "Use this section to send to KU(IKL), send to technical review, or reject to the applicant with remarks.",
+    placeholderKey: "workspace.comment.screeningPlaceholder",
+    placeholder: "Enter PT(IKL) / KU(IKL) remarks. Required when rejecting.",
+    submitKey: "workspace.action.submitScreening",
+    submitLabel: "Submit PT/KU Decision",
+  };
 }
 
 function TechnicalDepartmentRemarks({ app, t }) {
@@ -1594,6 +1662,22 @@ function getDecisionLabelKey(value) {
   };
 
   return map[value] || value;
+}
+
+function getIklScreeningDecisionLabel(item, department, t) {
+  const value = item.value || item;
+
+  if (department === "PT(IKL)") {
+    if (value === "PT(IKL) Send to KU(IKL)") {
+      return t("workspace.decision.approve", "Approve");
+    }
+
+    if (value === "PT(IKL) Reject to Applicant") {
+      return t("workspace.decision.reject", "Reject");
+    }
+  }
+
+  return t(item.labelKey, item.label || item);
 }
 
 function getIklScreeningDecisionOptions(decisions, department) {

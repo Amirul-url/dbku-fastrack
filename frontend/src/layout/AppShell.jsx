@@ -17,7 +17,6 @@ const IKL_TECHNICAL_TASK_STATUSES = new Set([
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
   "technical_review",
   "technical_site_visit",
-  "technical_review_completed",
 ]);
 const TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 const APPROVAL_TASK_STATUSES = new Set([
@@ -672,7 +671,7 @@ function normalizeDepartmentCode(value) {
   if (department === "UNIT IKLAN") return "PT(IKL)";
   if (department === "PT IKL") return "PT(IKL)";
   if (department === "KU IKL") return "KU(IKL)";
-  if (department === "IKL TECHNICAL" || department === "IKL-TECHNICAL") {
+  if (department === "IKL(TECHNICAL)" || department === "IKL TECHNICAL") {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
