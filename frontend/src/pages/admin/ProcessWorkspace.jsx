@@ -747,9 +747,14 @@ function getApprovalStageLabel(app) {
 function getApprovalStageKey(app) {
   const status = normalizeStatus(app?.status);
 
-  if (hasApplicationSection(app, "approval")) return "completed";
+  if (status === "management_review") {
+    if (!isKbLesVerified(app)) return "kb";
+    return hasManagementSupport(app) ? "mphlg" : "support";
+  }
+
   if (status === "mphlg_processing") return "mphlg";
   if (status === "mphlg_decision_received") return "decision";
+  if (hasApplicationSection(app, "approval")) return "completed";
   if (isKbLesVerified(app) && !hasManagementSupport(app)) return "support";
   return "kb";
 }
@@ -889,12 +894,15 @@ function buildKuTechnicalReviewPayload(app, data) {
           }
         : null,
       kb_les_verification: amendmentRequired
-        ? app.form_data?.kb_les_verification || null
+        ? null
         : {
             status: "Pending KB(LES) Verification",
             routed_from: "KU(IKL)",
             routed_at: now,
           },
+      management_recommendation: null,
+      mphlg_gateway: null,
+      approval: null,
     }),
   };
 }
@@ -1264,7 +1272,7 @@ const configs = {
         label: "Submit",
         labelKey: "common.submit",
         icon: "send",
-        requiresComment: true,
+        requiresComment: false,
         success: "KU(IKL) technical review saved.",
         successKey: "workspace.message.kuTechnicalReviewSaved",
         buildPayload: buildKuTechnicalReviewPayload,
