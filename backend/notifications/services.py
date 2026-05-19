@@ -268,6 +268,11 @@ def build_status_messages(application):
     subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     applicant_body = applicant_template.format(**context)
     admin_body = admin_template.format(**context)
+
+    if status_key == "management_review":
+        title, admin_body = get_management_review_admin_text(application)
+        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+
     applicant_metadata = build_web_metadata(
         application=application,
         title=title,
@@ -592,6 +597,21 @@ def should_use_admin_contact_fallback(status_key):
         "technical_review_completed",
         "management_review",
     }
+
+
+def get_management_review_admin_text(application):
+    reference = getattr(application, "reference_no", "") or "-"
+
+    if is_management_support_pending(application):
+        return (
+            "TP(RES)/PGH support required",
+            f"Application {reference} is ready for TP(RES)/PGH support.",
+        )
+
+    return (
+        "KB(LES) verification required",
+        f"Application {reference} is ready for KB(LES) verification.",
+    )
 
 
 def get_pending_technical_departments(application):

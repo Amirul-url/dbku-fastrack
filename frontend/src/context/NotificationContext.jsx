@@ -28,6 +28,7 @@ const applicantNotificationStatuses = new Set([
   "license_issued",
 ]);
 const technicalDepartments = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const adminTechnicalTaskStatuses = new Set([
   "technical_review",
   "technical_site_visit",
@@ -94,6 +95,25 @@ function getUserDepartment(user) {
   return normalizeDepartment(user?.department);
 }
 
+function getUserDisplayName(user) {
+  const name = String(user?.full_name || "").trim();
+  if (name) return name;
+
+  const department = getUserDepartment(user);
+  if (department) return department;
+
+  return String(user?.username || user?.email || "").trim() || "Current user";
+}
+
+function getMemoSubject(subject, title, reference) {
+  const cleanSubject = String(subject || "").trim();
+  if (cleanSubject) return cleanSubject;
+
+  const cleanTitle = String(title || "").trim();
+  const cleanReference = String(reference || "").trim();
+  return cleanReference ? `ALiS - ${cleanTitle} (${cleanReference})` : `ALiS - ${cleanTitle}`;
+}
+
 function getTechnicalDepartmentReviews(app) {
   const reviews = app?.technical_department_reviews || app?.form_data?.technical_department_reviews || {};
 
@@ -140,6 +160,35 @@ function hasManagementSupport(app) {
   return status === "supported" || status === "completed";
 }
 
+function isApprovalSupportPending(app) {
+  return isKbLesVerified(app) && !hasManagementSupport(app);
+}
+
+function getApprovalStageNotificationText(app, user) {
+  const reference = getApplicationReference(app);
+  const department = getUserDepartment(user);
+  const supportPending = isApprovalSupportPending(app);
+  const supportUser = approvalSupportDepartments.has(department);
+
+  if (supportPending || supportUser) {
+    return {
+      displayStatus: "approval_support",
+      titleEn: "Application ready for TP(RES)/PGH support",
+      titleMs: "Permohonan sedia untuk sokongan TP(RES)/PGH",
+      messageEn: `${reference} is ready for TP(RES)/PGH support.`,
+      messageMs: `${reference} sedia untuk sokongan TP(RES)/PGH.`,
+    };
+  }
+
+  return {
+    displayStatus: "management_review",
+    titleEn: "Application ready for KB(LES) verification",
+    titleMs: "Permohonan sedia untuk verifikasi KB(LES)",
+    messageEn: `${reference} is ready for KB(LES) verification.`,
+    messageMs: `${reference} sedia untuk verifikasi KB(LES).`,
+  };
+}
+
 function isAdminNotificationAllowedForUser(status, user, app = null) {
   const department = getUserDepartment(user);
   const normalizedStatus = normalizeStatus(status);
@@ -153,9 +202,9 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   }
 
   if (normalizedStatus === "management_review") {
-    if (!app) return department === "KB(LES)" || department === "TP(RES)" || department === "PGH";
+    if (!app) return department === "KB(LES)" || approvalSupportDepartments.has(department);
     if (!isKbLesVerified(app)) return department === "KB(LES)";
-    return (department === "TP(RES)" || department === "PGH") && !hasManagementSupport(app);
+    return approvalSupportDepartments.has(department) && !hasManagementSupport(app);
   }
 
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
@@ -213,7 +262,7 @@ function getNotificationUrl(role, app, category, user = null) {
 
 function buildBaseNotification(app, role, category, type, titleEn, titleMs, messageEn, messageMs, user = null) {
   const status = normalizeStatus(app.status);
-  const displayStatus = getNotificationDisplayStatus(role, status, user);
+  const displayStatus = getNotificationDisplayStatus(role, status, user, app);
   const reference = getApplicationReference(app);
   const updatedAt = app.updated_at || app.created_at || new Date().toISOString();
   const remark = getLatestRemark(app);
@@ -235,13 +284,19 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     message: messageEn,
     messageEn,
     messageMs,
+    body: messageEn,
+    bodyEn: messageEn,
+    bodyMs: messageMs,
+    from: "ALiS Notification Center",
+    to: getUserDisplayName(user),
+    subject: getMemoSubject("", titleEn, reference),
     time: formatDate(updatedAt),
     timestamp: updatedAt,
     actionUrl: getNotificationUrl(role, app, category, user),
   };
 }
 
-function buildApplicantNotifications(app) {
+function buildApplicantNotifications(app, user) {
   const status = normalizeStatus(app.status);
   const reference = getApplicationReference(app);
   const remark = getLatestRemark(app);
@@ -257,7 +312,8 @@ function buildApplicantNotifications(app) {
         "Application submitted",
         "Permohonan dihantar",
         `${reference} has been submitted successfully.`,
-        `${reference} telah berjaya dihantar.`
+        `${reference} telah berjaya dihantar.`,
+        user
       )
     );
   }
@@ -272,7 +328,8 @@ function buildApplicantNotifications(app) {
         "Application rejected",
         "Permohonan ditolak",
         `${reference} was rejected by ALiS${remark ? `: ${remark}` : "."}`,
-        `${reference} telah ditolak oleh ALiS${remark ? `: ${remark}` : "."}`
+        `${reference} telah ditolak oleh ALiS${remark ? `: ${remark}` : "."}`,
+        user
       )
     );
   }
@@ -287,7 +344,8 @@ function buildApplicantNotifications(app) {
         "Application rejected",
         "Permohonan ditolak",
         `${reference} was rejected${remark ? `: ${remark}` : "."}`,
-        `${reference} telah ditolak${remark ? `: ${remark}` : "."}`
+        `${reference} telah ditolak${remark ? `: ${remark}` : "."}`,
+        user
       )
     );
   }
@@ -302,7 +360,8 @@ function buildApplicantNotifications(app) {
         "Payment proof required",
         "Bukti bayaran diperlukan",
         `${reference} has an invoice ready. Please upload your proof of payment.`,
-        `${reference} mempunyai bil yang sedia. Sila muat naik bukti bayaran anda.`
+        `${reference} mempunyai bil yang sedia. Sila muat naik bukti bayaran anda.`,
+        user
       )
     );
   }
@@ -317,7 +376,8 @@ function buildApplicantNotifications(app) {
         "QR e-license generated",
         "E-lesen QR dijana",
         `${reference} QR e-license has been generated successfully.`,
-        `E-lesen QR ${reference} telah berjaya dijana.`
+        `E-lesen QR ${reference} telah berjaya dijana.`,
+        user
       )
     );
   }
@@ -388,16 +448,17 @@ function buildAdminNotifications(app, user) {
   }
 
   if (status === "management_review" && isAdminNotificationAllowedForUser(status, user, app)) {
+    const approvalText = getApprovalStageNotificationText(app, user);
     notifications.push(
       buildBaseNotification(
         app,
         "admin",
         "approval",
         "warning",
-        "Application ready for KB(LES) verification",
-        "Permohonan sedia untuk verifikasi KB(LES)",
-        `${reference} is ready for KB(LES) verification.`,
-        `${reference} sedia untuk verifikasi KB(LES).`,
+        approvalText.titleEn,
+        approvalText.titleMs,
+        approvalText.messageEn,
+        approvalText.messageMs,
         user
       )
     );
@@ -437,7 +498,7 @@ function getMessageSummary(message) {
   return lines.find((line) => !skipPrefixes.some((prefix) => line.startsWith(prefix))) || "";
 }
 
-function getNotificationDisplayStatus(role, status, user = null) {
+function getNotificationDisplayStatus(role, status, user = null, app = null) {
   const normalizedStatus = normalizeStatus(status);
 
   if (role === "applicant" && normalizedStatus === "incomplete") {
@@ -446,6 +507,10 @@ function getNotificationDisplayStatus(role, status, user = null) {
 
   if (role === "admin" && normalizedStatus === "submitted" && getUserDepartment(user) === "PT(IKL)") {
     return "pt_ikl_review";
+  }
+
+  if (role === "admin" && normalizedStatus === "management_review" && app && isApprovalSupportPending(app)) {
+    return "approval_support";
   }
 
   return normalizedStatus;
@@ -483,6 +548,8 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       if (role === "admin") {
         return isAdminNotificationAllowedForUser(eventStatus, user, {
           technical_department_reviews: delivery.technical_department_reviews,
+          kb_les_verification: delivery.kb_les_verification,
+          management_recommendation: delivery.management_recommendation,
         });
       }
       return true;
@@ -492,18 +559,34 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       const category = metadata.category || "progress";
       const type = metadata.type || "info";
       const status = normalizeStatus(metadata.event_status || delivery.status);
-      const displayStatus = getNotificationDisplayStatus(role, status, user);
-      const title = normalizeApplicantNotificationText(
+      const deliveryApp = {
+        id: delivery.application_id,
+        reference_no: delivery.reference_no,
+        status,
+        kb_les_verification: delivery.kb_les_verification,
+        management_recommendation: delivery.management_recommendation,
+      };
+      const approvalText =
+        role === "admin" && status === "management_review"
+          ? getApprovalStageNotificationText(deliveryApp, user)
+          : null;
+      const displayStatus = getNotificationDisplayStatus(role, status, user, deliveryApp);
+      const title = approvalText?.titleEn || normalizeApplicantNotificationText(
         metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject),
         role,
         status
       );
-      const message = normalizeApplicantNotificationText(
+      const message = approvalText?.messageEn || normalizeApplicantNotificationText(
         metadata.message_en || metadata.message || getMessageSummary(delivery.message),
         role,
         status
       );
+      const titleMs = approvalText?.titleMs || normalizeApplicantNotificationText(metadata.title_ms || title, role, status);
+      const messageMs = approvalText?.messageMs || normalizeApplicantNotificationText(metadata.message_ms || message, role, status);
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
+      const recipientName = String(delivery.recipient_name || "").trim();
+      const recipientDepartment = normalizeDepartment(delivery.recipient_department);
+      const to = recipientName || recipientDepartment || getUserDisplayName(user);
 
       return {
         id: `web:${delivery.id}`,
@@ -518,10 +601,16 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         type,
         title,
         titleEn: title,
-        titleMs: normalizeApplicantNotificationText(metadata.title_ms || title, role, status),
         message,
         messageEn: message,
-        messageMs: normalizeApplicantNotificationText(metadata.message_ms || message, role, status),
+        titleMs,
+        messageMs,
+        body: message,
+        bodyEn: message,
+        bodyMs: messageMs,
+        from: "ALiS Notification Center",
+        to,
+        subject: getMemoSubject(delivery.subject, title, delivery.reference_no || metadata.account_username),
         time: formatDate(timestamp),
         timestamp,
         actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category, user),

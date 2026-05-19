@@ -157,6 +157,45 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
 
+    def test_management_review_notifies_tp_pgh_after_kb_les_verification(self):
+        tp_user = User.objects.create_user(
+            username="tp-res",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="TP(RES)",
+            is_active=True,
+        )
+        User.objects.create_user(
+            username="kb-les",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Verified"},
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Support"},
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("management_review")
+
+        deliveries = NotificationDelivery.objects.filter(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="management_review",
+        )
+        self.assertTrue(deliveries.filter(user=tp_user).exists())
+        delivery = deliveries.get(user=tp_user)
+        self.assertIn("TP(RES)/PGH support", delivery.metadata["title_en"])
+        self.assertIn("TP(RES)/PGH support", delivery.metadata["message_en"])
+        self.assertNotIn("KB(LES) verification", delivery.metadata["title_en"])
+
 
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):

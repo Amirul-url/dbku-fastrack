@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppShell from "../../layout/AppShell";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
@@ -63,6 +63,7 @@ function NotificationsPage() {
   } = useNotifications();
   const { language, t } = useLanguage();
   const [filter, setFilter] = useState("all");
+  const [selectedNotificationId, setSelectedNotificationId] = useState("");
   const storedUser = getStoredUser();
   const Layout = isSuperAdminUser(storedUser)
     ? SuperAdminNotificationsLayout
@@ -83,6 +84,17 @@ function NotificationsPage() {
     });
   }, [filter, notifications]);
 
+  useEffect(() => {
+    if (filtered.length === 0) {
+      setSelectedNotificationId("");
+      return;
+    }
+
+    if (!filtered.some((item) => item.id === selectedNotificationId)) {
+      setSelectedNotificationId(filtered[0].id);
+    }
+  }, [filtered, selectedNotificationId]);
+
   const filterCounts = useMemo(() => {
     return activeFilters.reduce((counts, item) => {
       if (item.value === "all") {
@@ -101,6 +113,15 @@ function NotificationsPage() {
 
   const activeFilterLabel =
     activeFilters.find((item) => item.value === filter) || activeFilters[0];
+  const selectedNotification =
+    filtered.find((item) => item.id === selectedNotificationId) || filtered[0] || null;
+
+  function openMemo(item) {
+    setSelectedNotificationId(item.id);
+    if (!item.read) {
+      markAsRead(item.id);
+    }
+  }
 
   return (
     <Layout>
@@ -192,89 +213,181 @@ function NotificationsPage() {
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-slate-200">
+              <div className="grid min-h-[450px] xl:grid-cols-[minmax(320px,430px)_1fr]">
+                <div className="divide-y divide-slate-200 border-b border-slate-200 xl:border-b-0 xl:border-r">
                 {filtered.map((item) => {
                   const style = typeStyles[item.type] || typeStyles.info;
 
                   return (
-                    <article
+                    <button
                       key={item.id}
-                      className={`group grid gap-3 border-l-4 px-4 py-3 transition hover:bg-slate-50 xl:grid-cols-[1fr_auto] ${
-                        item.read
-                          ? "border-l-transparent bg-white"
-                          : "border-l-emerald-600 bg-emerald-50/40"
+                      type="button"
+                      onClick={() => openMemo(item)}
+                      className={`group flex w-full gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-slate-50 ${
+                        selectedNotification?.id === item.id
+                          ? "border-l-emerald-700 bg-emerald-50"
+                          : item.read
+                            ? "border-l-transparent bg-white"
+                            : "border-l-emerald-600 bg-emerald-50/40"
                       }`}
                     >
-                      <div className="flex min-w-0 gap-3">
-                        <span className={`material-symbols-outlined mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[20px] ${style.className}`}>
-                          {style.icon}
-                        </span>
+                      <span className={`material-symbols-outlined mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[20px] ${style.className}`}>
+                        {style.icon}
+                      </span>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 flex-col gap-1 md:flex-row md:items-baseline md:justify-between">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              {!item.read && (
-                                <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                              )}
-                              <h3
-                                className={`truncate text-sm ${
-                                  item.read
-                                    ? "font-semibold text-slate-800"
-                                    : "font-bold text-slate-950"
-                                }`}
-                              >
-                                {getLocalized(item, "title", language)}
-                              </h3>
-                              <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
-                            </div>
-                            <time className="shrink-0 text-xs text-slate-500">
-                              {item.time}
-                            </time>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2">
+                            {!item.read && (
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-600" />
+                            )}
+                            <h3
+                              className={`truncate text-sm ${
+                                item.read
+                                  ? "font-semibold text-slate-800"
+                                  : "font-bold text-slate-950"
+                              }`}
+                            >
+                              {getLocalized(item, "title", language)}
+                            </h3>
                           </div>
+                          <time className="shrink-0 text-xs text-slate-500">
+                            {item.time}
+                          </time>
+                        </div>
 
-                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
-                            {getLocalized(item, "message", language)}
-                          </p>
+                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+                          {getLocalized(item, "message", language)}
+                        </p>
 
-                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                            <span className="font-semibold text-slate-600">{item.reference}</span>
-                            <span>{item.project}</span>
-                          </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                          <span className="font-semibold text-slate-600">{item.reference}</span>
+                          <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 self-start xl:self-center xl:justify-end">
-                        {!item.read && (
-                          <button
-                            type="button"
-                            onClick={() => markAsRead(item.id)}
-                            className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                          >
-                            {t("notifications.markRead", "Mark Read")}
-                          </button>
-                        )}
-                        <Link
-                          to={item.actionUrl}
-                          onClick={() => markAsRead(item.id)}
-                          className="inline-flex min-h-10 min-w-[112px] items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3.5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/25"
-                        >
-                          <span className="material-symbols-outlined text-[18px] !text-white">
-                            visibility
-                          </span>
-                          <span className="!text-white">
-                            {t("notifications.openRecord", "View")}
-                          </span>
-                        </Link>
-                      </div>
-                    </article>
+                    </button>
                   );
                 })}
+                </div>
+
+                <NotificationMemo
+                  item={selectedNotification}
+                  language={language}
+                  t={t}
+                  onMarkRead={markAsRead}
+                />
               </div>
             )}
           </div>
         </div>
       </section>
     </Layout>
+  );
+}
+
+function NotificationMemo({ item, language, t, onMarkRead }) {
+  if (!item) {
+    return (
+      <div className="flex min-h-[360px] items-center justify-center px-6 text-center">
+        <div className="max-w-sm">
+          <span className="material-symbols-outlined text-[44px] text-slate-300">
+            mail
+          </span>
+          <h3 className="mt-3 text-base font-semibold text-slate-950">
+            {t("notifications.noMemoSelected", "No memo selected")}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            {t("notifications.noMemoDescription", "Open a notification to read its memo content.")}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const subject = item.subject || getLocalized(item, "title", language);
+  const body = getLocalized(item, "body", language) || getLocalized(item, "message", language);
+  const bodyLines = String(body || "").split(/\r?\n/).filter((line) => line.trim());
+
+  return (
+    <article className="min-w-0 bg-white">
+      <div className="border-b border-slate-200 px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+              {t("notifications.memo", "Memo")}
+            </p>
+            <h3 className="mt-1 break-words text-lg font-bold leading-7 text-slate-950">
+              {subject}
+            </h3>
+          </div>
+          <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
+        </div>
+      </div>
+
+      <div className="space-y-5 px-5 py-5">
+        <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm md:grid-cols-[88px_1fr]">
+          <dt className="font-semibold text-slate-500">{t("notifications.memo.from", "From")}:</dt>
+          <dd className="min-w-0 break-words text-slate-900">{item.from || "ALiS Notification Center"}</dd>
+          <dt className="font-semibold text-slate-500">{t("notifications.memo.to", "To")}:</dt>
+          <dd className="min-w-0 break-words text-slate-900">{item.to || "-"}</dd>
+          <dt className="font-semibold text-slate-500">{t("notifications.memo.subject", "Subject")}:</dt>
+          <dd className="min-w-0 break-words text-slate-900">{subject}</dd>
+        </dl>
+
+        <div className="min-h-[180px] rounded-md border border-slate-200 bg-white px-4 py-4">
+          {bodyLines.length > 0 ? (
+            <div className="space-y-3 text-sm leading-6 text-slate-700">
+              {bodyLines.map((line, index) => (
+                <p key={`${item.id}:line:${index}`}>{line}</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">
+              {t("notifications.memo.emptyBody", "No memo message was provided.")}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:grid-cols-2">
+          <div>
+            <span className="block text-xs font-semibold uppercase text-slate-500">
+              {t("applications.reference", "Reference")}
+            </span>
+            <span className="font-semibold text-slate-900">{item.reference}</span>
+          </div>
+          <div>
+            <span className="block text-xs font-semibold uppercase text-slate-500">
+              {t("applications.project", "Project")}
+            </span>
+            <span className="text-slate-900">{item.project}</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!item.read && (
+            <button
+              type="button"
+              onClick={() => onMarkRead(item.id)}
+              className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              {t("notifications.markRead", "Mark Read")}
+            </button>
+          )}
+          <Link
+            to={item.actionUrl}
+            onClick={() => onMarkRead(item.id)}
+            className="inline-flex min-h-10 min-w-[132px] items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3.5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/25"
+          >
+            <span className="material-symbols-outlined text-[18px] !text-white">
+              open_in_new
+            </span>
+            <span className="!text-white">
+              {t("notifications.openRecord", "Open Record")}
+            </span>
+          </Link>
+        </div>
+      </div>
+    </article>
   );
 }
 
