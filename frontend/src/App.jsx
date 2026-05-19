@@ -58,6 +58,7 @@ import {
   clearAuthSession,
   getAccessTokenExpiryMs,
   getStoredUser,
+  getUserRedirectPath,
   isAdminUser,
   isApplicantUser,
   isSuperAdminUser,
@@ -92,6 +93,30 @@ function PrivateRoute({ children }) {
   }
 
   return children;
+}
+
+function PublicAuthRoute({ children }) {
+  if (isAuthenticated()) {
+    const redirectPath = getUserRedirectPath(getUser());
+
+    if (redirectPath !== "/login/malaysian") {
+      return <Navigate to={redirectPath} replace />;
+    }
+  }
+
+  return children;
+}
+
+function AuthAwareFallback() {
+  if (isAuthenticated()) {
+    const redirectPath = getUserRedirectPath(getUser());
+
+    if (redirectPath !== "/login/malaysian") {
+      return <Navigate to={redirectPath} replace />;
+    }
+  }
+
+  return <Navigate to="/login/malaysian" replace />;
 }
 
 function AdminRoute({ children }) {
@@ -302,10 +327,31 @@ function App() {
         />
 
         {/* AUTH */}
-        <Route path="/" element={<LoginMalaysian />} />
+        <Route
+          path="/"
+          element={
+            <PublicAuthRoute>
+              <LoginMalaysian />
+            </PublicAuthRoute>
+          }
+        />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/login/malaysian" element={<LoginMalaysian />} />
-        <Route path="/register/malaysian" element={<RegisterMalaysian />} />
+        <Route
+          path="/login/malaysian"
+          element={
+            <PublicAuthRoute>
+              <LoginMalaysian />
+            </PublicAuthRoute>
+          }
+        />
+        <Route
+          path="/register/malaysian"
+          element={
+            <PublicAuthRoute>
+              <RegisterMalaysian />
+            </PublicAuthRoute>
+          }
+        />
         <Route path="/faq" element={<FaqPage />} />
 
         {/* ADMIN HOME */}
@@ -734,7 +780,7 @@ function App() {
           }
         />
 
-        <Route path="*" element={<Navigate to="/login/malaysian" replace />} />
+        <Route path="*" element={<AuthAwareFallback />} />
       </Routes>
     </Router>
   );
