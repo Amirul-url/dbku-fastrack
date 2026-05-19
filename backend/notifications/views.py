@@ -23,17 +23,18 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
         elif self.request.user.role in ["admin", "supervisor", "staff"]:
             department = normalize_department(getattr(self.request.user, "department", ""))
             if department == "PT(IKL)":
-                allowed_event_statuses = {"submitted"}
+                allowed_event_statuses = {"submitted", "technical_amendment"}
             elif department == "KU(IKL)":
                 allowed_event_statuses = {"ku_ikl_review", "technical_review_completed"}
             elif department == "IKL (TECHNICAL)":
                 allowed_event_statuses = {
                     "technical_review",
                     "technical_site_visit",
-                    "technical_amendment",
                 }
             elif department in {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}:
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
+            elif department in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+                allowed_event_statuses = {"management_review"}
             else:
                 allowed_event_statuses = set()
         else:

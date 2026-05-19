@@ -117,6 +117,46 @@ class NotificationRoutingTests(TestCase):
 
         self.assertFalse(NotificationDelivery.objects.exists())
 
+    def test_management_review_notifies_kb_les_with_fallback_contacts(self):
+        kb_user = User.objects.create_user(
+            username="kb-les",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Pending KB(LES) Verification"},
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("management_review")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="admin",
+            metadata__event_status="management_review",
+        )
+        self.assertEqual(
+            set(deliveries.values_list("channel", flat=True)),
+            {"web", "email", "whatsapp"},
+        )
+        self.assertTrue(deliveries.filter(channel="web", user=kb_user).exists())
+        self.assertTrue(
+            deliveries.filter(
+                channel="email",
+                recipient="admin-notify@sample.com",
+            ).exists()
+        )
+        self.assertTrue(
+            deliveries.filter(
+                channel="whatsapp",
+                recipient="60111111111",
+            ).exists()
+        )
+
 
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):

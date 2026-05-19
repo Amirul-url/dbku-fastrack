@@ -634,7 +634,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   if (isIklWorkspace && status === "technical_review_completed") {
-    return t("status.technical_ku_review", "KU(IKL) Technical Review");
+    return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
   }
 
   if (isIklWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
@@ -883,7 +883,7 @@ function buildKuTechnicalReviewPayload(app, data) {
       correction_request: amendmentRequired
         ? {
             source: "KU(IKL)",
-            target: "PT/PO/KP Unit Iklan",
+            target: "PT(IKL)",
             remarks: data.comment,
             requested_at: now,
           }
@@ -1261,9 +1261,9 @@ const configs = {
         { value: "KU(IKL) Request Technical Amendment", labelKey: "workspace.decision.kuRequestTechnicalAmendment" },
       ],
       action: {
-        label: "Submit KU(IKL) Review",
-        labelKey: "workspace.action.submitKuTechnicalReview",
-        icon: "verified",
+        label: "Submit",
+        labelKey: "common.submit",
+        icon: "send",
         requiresComment: true,
         success: "KU(IKL) technical review saved.",
         successKey: "workspace.message.kuTechnicalReviewSaved",
@@ -1591,10 +1591,13 @@ function IklWorkspaceSections({
   const showKuTechnicalReview = status === "technical_review_completed";
   const showTechnicalDepartmentRemarks =
     userDepartment === "IKL (TECHNICAL)" || showKuTechnicalReview;
+  const showStandaloneTechnicalDepartmentRemarks =
+    showTechnicalDepartmentRemarks && !showKuTechnicalReview;
   const [kuDecision, setKuDecision] = useState(
     config.kuTechnicalReview?.defaultDecision || ""
   );
   const [kuRemarks, setKuRemarks] = useState("");
+  const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
   const screeningDecisionOptions = getIklScreeningDecisionOptions(
     config.decisions,
     userDepartment
@@ -1736,11 +1739,20 @@ function IklWorkspaceSections({
           </div>
 
           <div className="space-y-3">
+            <KuTechnicalReviewPackage
+              t={t}
+              applicationId={selectedRecord.id}
+              technicalSite={reviewTechnicalSite}
+              technicalReview={selectedRecord.form_data?.technical_review || {}}
+            />
+
+            <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+
             <Field label={t("common.decision")}>
               <select
                 value={kuDecision}
                 onChange={(event) => setKuDecision(event.target.value)}
-                className="form-input"
+                className="form-input max-w-64"
               >
                 {config.kuTechnicalReview.decisions.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -1775,21 +1787,43 @@ function IklWorkspaceSections({
               >
                 {saving
                   ? t("workspace.saving")
-                  : t(
-                      config.kuTechnicalReview.action.labelKey,
-                      config.kuTechnicalReview.action.label
-                    )}
+                  : t("common.submit", "Submit")}
               </Button>
             </div>
           </div>
         </section>
       )}
 
-      {showTechnicalDepartmentRemarks && (
+      {showStandaloneTechnicalDepartmentRemarks && (
         <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
       )}
     </div>
   );
+}
+
+function getReviewTechnicalSite(technicalSite, selectedRecord) {
+  const saved = selectedRecord?.form_data?.technical_site_visit || {};
+  const savedPhotos = Array.isArray(saved.site_photos)
+    ? saved.site_photos
+    : saved.site_photo
+      ? [saved.site_photo]
+      : [];
+  const currentPhotos = Array.isArray(technicalSite.site_photos)
+    ? technicalSite.site_photos
+    : [];
+
+  return {
+    site_photos: currentPhotos.length > 0 ? currentPhotos : savedPhotos,
+    license_fee_calculation:
+      technicalSite.license_fee_calculation || saved.license_fee_calculation || "",
+    deposit_calculation:
+      technicalSite.deposit_calculation || saved.deposit_calculation || "",
+    site_remarks:
+      technicalSite.site_remarks ||
+      saved.site_remarks ||
+      saved.site_photo_note ||
+      "",
+  };
 }
 
 function getIklScreeningCopy(department) {
@@ -1835,6 +1869,77 @@ function getIklScreeningCopy(department) {
     submitKey: "workspace.action.submitScreening",
     submitLabel: "Submit PT/KU Decision",
   };
+}
+
+function KuTechnicalReviewPackage({ t, applicationId, technicalSite, technicalReview }) {
+  const sitePhotos = Array.isArray(technicalSite.site_photos)
+    ? technicalSite.site_photos
+    : [];
+  const decision = technicalReview.final_decision || technicalReview.decision || "-";
+  const siteRemarks = technicalSite.site_remarks || technicalReview.comment || "-";
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
+        {t("workspace.technical.kuPackageTitle", "IKL Technical Review Details")}
+      </h4>
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <Info label={t("common.decision")} value={decision} />
+        <Info
+          label={t("workspace.technical.licenseFee")}
+          value={technicalSite.license_fee_calculation || "-"}
+        />
+        <Info
+          label={t("workspace.technical.deposit")}
+          value={technicalSite.deposit_calculation || "-"}
+        />
+      </div>
+      <div className="mt-3">
+        <Info label={t("workspace.technical.siteRemarks")} value={siteRemarks} />
+      </div>
+
+      <div className="mt-3">
+        <p className="mb-1.5 text-[14px] font-semibold leading-5 text-slate-700">
+          {t("workspace.technical.sitePhoto")}
+        </p>
+        {sitePhotos.length === 0 ? (
+          <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-500">
+            {t("workspace.info.notSubmitted", "Not submitted")}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {sitePhotos.map((photo, index) => (
+              <div
+                key={`${photo.name || "ku-site-photo"}-${index}`}
+                className="overflow-hidden rounded-md border border-slate-200 bg-white"
+              >
+                <SitePhotoPreview
+                  photo={photo}
+                  applicationId={applicationId}
+                  alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
+                />
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                  <span className="truncate text-[14px] font-medium leading-5 text-slate-600">
+                    {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
+                  </span>
+                  <SitePhotoActions
+                    photo={photo}
+                    applicationId={applicationId}
+                    hideDelete
+                    labels={{
+                      view: t("common.view"),
+                      download: t("common.download"),
+                      delete: t("common.delete"),
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function TechnicalDepartmentRemarks({ app, t }) {
@@ -2093,7 +2198,7 @@ async function getSitePhotoBlobUrl(photo, applicationId) {
   return { url: URL.createObjectURL(blob), revoke: true };
 }
 
-function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels }) {
+function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hideDelete = false }) {
   async function viewPhoto() {
     const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
 
@@ -2125,8 +2230,8 @@ function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels }) 
   const actions = [
     { icon: "visibility", label: labels.view, onClick: viewPhoto },
     { icon: "download", label: labels.download, onClick: downloadPhoto },
-    { icon: "delete", label: labels.delete, onClick: onRemove, danger: true },
-  ];
+    hideDelete ? null : { icon: "delete", label: labels.delete, onClick: onRemove, danger: true },
+  ].filter(Boolean);
 
   return (
     <div className="flex shrink-0 items-center gap-1">

@@ -377,7 +377,7 @@ function getDashboardTaskStatusLabel(application, unit, t) {
   }
 
   if (unit?.department === "KU(IKL)" && status === "technical_review_completed") {
-    return t("status.technical_ku_review", "KU(IKL) Technical Review");
+    return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
   }
 
   if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {

@@ -21,6 +21,8 @@ TECHNICAL_DEPARTMENTS = {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}
 PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
 KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
 IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL"}
+APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
+APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
 ADMIN_TECHNICAL_TASK_STATUSES = {
     "technical_review",
     "technical_site_visit",
@@ -73,12 +75,17 @@ STATUS_MESSAGES = {
     "technical_amendment": (
         "Technical amendment required",
         "",
-        "Application {reference} requires IKL technical amendment.",
+        "Application {reference} requires PT(IKL) amendment before KU(IKL) can continue.",
     ),
     "technical_review_completed": (
         "KU(IKL) technical review required",
         "",
         "Application {reference} has completed technical department feedback and is ready for KU(IKL) review.",
+    ),
+    "management_review": (
+        "KB(LES) verification required",
+        "",
+        "Application {reference} is ready for KB(LES) verification.",
     ),
 }
 
@@ -93,6 +100,7 @@ STATUS_UI = {
     "technical_site_visit": ("technical", "warning"),
     "technical_amendment": ("technical", "warning"),
     "technical_review_completed": ("technical", "info"),
+    "management_review": ("approval", "warning"),
 }
 
 APPLICANT_NOTIFICATION_STATUSES = {
@@ -103,7 +111,12 @@ APPLICANT_NOTIFICATION_STATUSES = {
     "license_issued",
 }
 
-ADMIN_NOTIFICATION_STATUSES = {"submitted", "ku_ikl_review", *ADMIN_TECHNICAL_TASK_STATUSES}
+ADMIN_NOTIFICATION_STATUSES = {
+    "submitted",
+    "ku_ikl_review",
+    "management_review",
+    *ADMIN_TECHNICAL_TASK_STATUSES,
+}
 
 SUPERADMIN_NOTIFICATION_STATUSES = {"account_created"}
 
@@ -512,6 +525,18 @@ def get_admin_task_web_recipients(application):
     if status_key == "technical_review_completed":
         return [user for user in users if is_ku_ikl_user(user)]
 
+    if status_key == "technical_amendment":
+        return [user for user in users if is_pt_ikl_user(user)]
+
+    if status_key == "management_review":
+        if is_kb_les_verification_pending(application):
+            return [user for user in users if is_kb_les_user(user)]
+
+        if is_management_support_pending(application):
+            return [user for user in users if is_approval_support_user(user)]
+
+        return []
+
     if status_key in ADMIN_TECHNICAL_TASK_STATUSES:
         pending_departments = get_pending_technical_departments(application)
         return [
@@ -533,7 +558,7 @@ def get_admin_task_email_recipients(application, users):
         if email:
             recipients.append((user, email))
 
-    if status_key == "submitted" and not recipients:
+    if should_use_admin_contact_fallback(status_key) and not recipients:
         for email in settings.NOTIFICATION_ADMIN_EMAILS:
             email = normalize_email(email)
             if email:
@@ -551,10 +576,22 @@ def get_admin_task_whatsapp_numbers(application, users):
         if phone:
             recipients.append((user, phone))
 
-    if status_key == "submitted" and not recipients:
+    if should_use_admin_contact_fallback(status_key) and not recipients:
         recipients.extend((None, phone) for phone in get_admin_whatsapp_numbers())
 
     return recipients
+
+
+def should_use_admin_contact_fallback(status_key):
+    return status_key in {
+        "submitted",
+        "ku_ikl_review",
+        "technical_review",
+        "technical_site_visit",
+        "technical_amendment",
+        "technical_review_completed",
+        "management_review",
+    }
 
 
 def get_pending_technical_departments(application):
@@ -591,6 +628,31 @@ def is_ikl_technical_user(user):
     return normalize_department(getattr(user, "department", "")) == "IKL (TECHNICAL)"
 
 
+def is_kb_les_user(user):
+    return normalize_department(getattr(user, "department", "")) == "KB(LES)"
+
+
+def is_approval_support_user(user):
+    return normalize_department(getattr(user, "department", "")) in APPROVAL_SUPPORT_DEPARTMENTS
+
+
+def get_form_section(application, key):
+    form_data = getattr(application, "form_data", None) or {}
+    section = form_data.get(key) or {}
+    return section if isinstance(section, dict) else {}
+
+
+def is_kb_les_verification_pending(application):
+    status = str(get_form_section(application, "kb_les_verification").get("status", "") or "").strip().lower()
+    return status != "verified"
+
+
+def is_management_support_pending(application):
+    kb_status = str(get_form_section(application, "kb_les_verification").get("status", "") or "").strip().lower()
+    support_status = str(get_form_section(application, "management_recommendation").get("status", "") or "").strip().lower()
+    return kb_status == "verified" and support_status not in {"supported", "completed"}
+
+
 def normalize_department(value):
     department = str(value or "").strip().upper().replace("-", " ")
     department = " ".join(department.split())
@@ -603,6 +665,12 @@ def normalize_department(value):
 
     if department in IKL_TECHNICAL_DEPARTMENTS:
         return "IKL (TECHNICAL)"
+
+    if department in APPROVAL_VERIFICATION_DEPARTMENTS:
+        return "KB(LES)"
+
+    if department in APPROVAL_SUPPORT_DEPARTMENTS:
+        return department
 
     if department == "INP":
         return "LNP"
@@ -622,6 +690,14 @@ def should_user_receive_admin_notification(user, application, status_key=None):
 
     if status == "ku_ikl_review":
         return department == "KU(IKL)"
+
+    if status == "management_review":
+        if is_kb_les_verification_pending(application):
+            return department == "KB(LES)"
+        return department in APPROVAL_SUPPORT_DEPARTMENTS and is_management_support_pending(application)
+
+    if status == "technical_amendment":
+        return department == "PT(IKL)"
 
     if status in {"technical_review", "technical_site_visit", "technical_amendment"} and department == "IKL (TECHNICAL)":
         return True

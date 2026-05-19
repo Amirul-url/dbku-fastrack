@@ -35,6 +35,7 @@ const adminTechnicalTaskStatuses = new Set([
   "technical_review_completed",
 ]);
 const adminNotificationStatuses = new Set(["submitted", "ku_ikl_review", ...adminTechnicalTaskStatuses]);
+adminNotificationStatuses.add("management_review");
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
@@ -121,6 +122,24 @@ function departmentHasSubmittedReview(app, department) {
   );
 }
 
+function getApplicationSection(app, key) {
+  return app?.[key] || app?.form_data?.[key] || {};
+}
+
+function isKbLesVerified(app) {
+  const status = String(getApplicationSection(app, "kb_les_verification")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "verified";
+}
+
+function hasManagementSupport(app) {
+  const status = String(getApplicationSection(app, "management_recommendation")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "supported" || status === "completed";
+}
+
 function isAdminNotificationAllowedForUser(status, user, app = null) {
   const department = getUserDepartment(user);
   const normalizedStatus = normalizeStatus(status);
@@ -133,13 +152,23 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
     return department === "KU(IKL)";
   }
 
+  if (normalizedStatus === "management_review") {
+    if (!app) return department === "KB(LES)" || department === "TP(RES)" || department === "PGH";
+    if (!isKbLesVerified(app)) return department === "KB(LES)";
+    return (department === "TP(RES)" || department === "PGH") && !hasManagementSupport(app);
+  }
+
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
+    if (normalizedStatus === "technical_amendment") {
+      return department === "PT(IKL)";
+    }
+
     if (normalizedStatus === "technical_review_completed") {
       return department === "KU(IKL)";
     }
 
     if (department === "IKL (TECHNICAL)") {
-      return ["technical_review", "technical_site_visit", "technical_amendment"].includes(normalizedStatus);
+      return ["technical_review", "technical_site_visit"].includes(normalizedStatus);
     }
 
     if (!technicalDepartments.has(department)) return false;
@@ -165,11 +194,17 @@ function getNotificationUrl(role, app, category, user = null) {
     ) {
       return app?.id ? `/admin/auto-screening?id=${app.id}` : "/admin/auto-screening";
     }
+    if (category === "technical" && department === "PT(IKL)") {
+      return app?.id ? `/admin/auto-screening?id=${app.id}` : "/admin/auto-screening";
+    }
     if (category === "technical" || technicalDepartments.has(department)) {
       return app?.id ? `/admin/technical-review?id=${app.id}` : "/admin/technical-review";
     }
     if (category === "screening" || category === "submission") {
       return app?.id ? `/admin/auto-screening?id=${app.id}` : "/admin/auto-screening";
+    }
+    if (category === "approval") {
+      return app?.id ? `/dashboard/admin?view=approval&id=${app.id}` : "/dashboard/admin?view=approval";
     }
   }
 
@@ -332,16 +367,37 @@ function buildAdminNotifications(app, user) {
 
   if (adminTechnicalTaskStatuses.has(status) && isAdminNotificationAllowedForUser(status, user, app)) {
     const department = getUserDepartment(user);
+    const amendmentTask = status === "technical_amendment";
     notifications.push(
       buildBaseNotification(
         app,
         "admin",
         "technical",
         "warning",
-        `${department} technical task assigned`,
-        `Tugasan teknikal ${department} diberikan`,
-        `${reference} is ready for ${department} site review.`,
-        `${reference} sedia untuk semakan tapak ${department}.`,
+        amendmentTask ? "PT(IKL) amendment required" : `${department} technical task assigned`,
+        amendmentTask ? "Pindaan PT(IKL) diperlukan" : `Tugasan teknikal ${department} diberikan`,
+        amendmentTask
+          ? `${reference} requires PT(IKL) amendment before KU(IKL) can continue.`
+          : `${reference} is ready for ${department} site review.`,
+        amendmentTask
+          ? `${reference} memerlukan pindaan PT(IKL) sebelum KU(IKL) boleh meneruskan.`
+          : `${reference} sedia untuk semakan tapak ${department}.`,
+        user
+      )
+    );
+  }
+
+  if (status === "management_review" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "approval",
+        "warning",
+        "Application ready for KB(LES) verification",
+        "Permohonan sedia untuk verifikasi KB(LES)",
+        `${reference} is ready for KB(LES) verification.`,
+        `${reference} sedia untuk verifikasi KB(LES).`,
         user
       )
     );
