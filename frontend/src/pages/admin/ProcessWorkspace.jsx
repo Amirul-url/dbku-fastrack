@@ -277,6 +277,16 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     isApprovalWorkspace &&
     approvalStageKey === "support" &&
     APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment);
+  const isMphlgApprovalWorkspace =
+    isApprovalWorkspace &&
+    approvalStageKey === "mphlg" &&
+    MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
+  const isSutApprovalWorkspace =
+    isApprovalWorkspace &&
+    approvalStageKey === "sut" &&
+    SUT_APPROVAL_DEPARTMENTS.includes(userDepartment);
+  const showApprovalDecisionButtons =
+    isMphlgApprovalWorkspace || isSutApprovalWorkspace;
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = !isApprovalWorkspace || workspaceActions.length > 0;
@@ -303,6 +313,24 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     if (!action) return;
 
     submitAction(action, { decision: decisionValue, checkDecisionRemark: true });
+  }
+
+  function submitApprovalDecisionButton(decisionValue) {
+    const [action] = workspaceActions;
+    if (!action) return;
+
+    if (decisionValue === "Reject") {
+      setError("");
+      setSuccess(
+        t(
+          "workspace.message.rejectRoutingPending",
+          "Reject routing to DBKU is not configured yet. No changes were saved."
+        )
+      );
+      return;
+    }
+
+    submitAction(action, { decision: decisionValue, checkDecisionRemark: false });
   }
 
   async function submitAction(action, overrides = {}) {
@@ -616,7 +644,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 />
               ) : (
                 <>
-                  {config.showDecision && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && (
+                  {config.showDecision &&
+                    canSubmitWorkspaceAction &&
+                    !isApprovalSupportWorkspace &&
+                    !showApprovalDecisionButtons && (
                     <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
                       <select
                         value={decision}
@@ -711,6 +742,27 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           className="min-w-40"
                         >
                           {saving ? t("workspace.saving") : t("workspace.decision.support", "Support")}
+                        </Button>
+                      </>
+                    ) : showApprovalDecisionButtons ? (
+                      <>
+                        <Button
+                          onClick={() => submitApprovalDecisionButton("Reject")}
+                          disabled={saving}
+                          variant="danger"
+                          icon="thumb_down"
+                          className="min-w-40"
+                        >
+                          {t("workspace.decision.reject", "Reject")}
+                        </Button>
+                        <Button
+                          onClick={() => submitApprovalDecisionButton("Approve")}
+                          disabled={saving}
+                          variant="primary"
+                          icon="task_alt"
+                          className="min-w-40"
+                        >
+                          {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
                         </Button>
                       </>
                     ) : (
@@ -815,11 +867,11 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.mphlgAction", "Review supported applications before routing them to SUT approval.");
+      return t("workspace.approval.mphlgAction", "Review the full application before approving it for SUT final approval.");
     }
 
     if (SUT_APPROVAL_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.sutAction", "Record SUT final approval and optional comments.");
+      return t("workspace.approval.sutAction", "Record SUT final approval with optional comments.");
     }
 
     return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES), TP(RES)/PGH, MPHLG, or SUT action.");
