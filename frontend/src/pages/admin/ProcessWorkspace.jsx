@@ -3137,6 +3137,29 @@ function PaymentDetails({ app, t }) {
   const receiptFile = payment.receipt_file;
   const notGenerated = t("workspace.info.notGenerated");
   const amount = getBillAmount(app);
+  const receiptSource = getPaymentReceiptSource(receiptFile);
+
+  async function viewReceipt() {
+    if (!receiptSource) return;
+
+    try {
+      const isInlineFile =
+        receiptSource.startsWith("blob:") || receiptSource.startsWith("data:");
+      const url = isInlineFile
+        ? receiptSource
+        : URL.createObjectURL(await fetchAuthenticatedBlob(receiptSource));
+
+      window.open(url, "_blank", "noopener,noreferrer");
+
+      if (!isInlineFile) {
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+    } catch (error) {
+      console.error("Failed to open payment receipt:", error);
+      window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 gap-3 text-sm">
       <Info label={t("common.invoice")} value={getInvoiceNo(app) || notGenerated} />
@@ -3149,16 +3172,15 @@ function PaymentDetails({ app, t }) {
         value={getPaymentDetailStatus(payment.status, t) || notGenerated}
       />
       <Info label={t("workspace.info.receipt")} value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")} />
-      {(receiptFile?.url || receiptFile?.file_url || receiptFile?.dataUrl) && (
-        <a
-          href={receiptFile.url || receiptFile.file_url || receiptFile.dataUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
+      {receiptSource && (
+        <button
+          type="button"
+          onClick={viewReceipt}
+          className="inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
         >
           <Icon name="visibility" className="text-base" />
           {t("workspace.info.viewReceipt")}
-        </a>
+        </button>
       )}
       {payment.verification_result && (
         <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
@@ -3179,6 +3201,16 @@ function getPaymentDetailStatus(status, t) {
   }
 
   return value;
+}
+
+function getPaymentReceiptSource(receiptFile) {
+  return (
+    receiptFile?.dataUrl ||
+    receiptFile?.url ||
+    receiptFile?.file_url ||
+    receiptFile?.file ||
+    ""
+  );
 }
 
 function LicenseDetails({ app, t }) {

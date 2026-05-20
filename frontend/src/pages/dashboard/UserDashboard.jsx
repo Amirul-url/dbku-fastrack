@@ -216,7 +216,6 @@ function UserDashboard() {
         body: JSON.stringify({
           status: "payment_submitted",
           form_data: {
-            ...(current.form_data || {}),
             payment: {
               ...currentPayment,
               invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
