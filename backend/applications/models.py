@@ -20,6 +20,7 @@ class Application(models.Model):
         ("approved", "Approved"),
         ("approved_with_conditions", "Approved with Conditions"),
         ("rejected", "Rejected"),
+        ("bill_pending_ku", "Bill Pending KU(IKL) Confirmation"),
         ("invoice_generated", "Invoice Generated"),
         ("payment_submitted", "Payment Submitted"),
         ("payment_verified", "Payment Verified"),

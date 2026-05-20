@@ -290,7 +290,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     isMphlgApprovalWorkspace || isSutApprovalWorkspace;
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
-  const canSubmitWorkspaceAction = !isApprovalWorkspace || workspaceActions.length > 0;
+  const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
   const showActionPanel =
     !isSimpleApprovalWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction);
   const actionUnavailableMessage = getActionUnavailableMessage(
@@ -727,22 +727,22 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                     {isApprovalSupportWorkspace ? (
                       <>
                         <Button
-                          onClick={() => submitApprovalSupport("Not Supported")}
+                          onClick={() => submitApprovalSupport("Reject")}
                           disabled={saving}
                           variant="danger"
                           icon="cancel"
                           className="min-w-40"
                         >
-                          {t("workspace.decision.notSupport", "Not Support")}
+                          {t("workspace.decision.reject", "Reject")}
                         </Button>
                         <Button
-                          onClick={() => submitApprovalSupport("Support")}
+                          onClick={() => submitApprovalSupport("Approve")}
                           disabled={saving}
                           variant="primary"
                           icon="check_circle"
                           className="min-w-40"
                         >
-                          {saving ? t("workspace.saving") : t("workspace.decision.support", "Support")}
+                          {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
                         </Button>
                       </>
                     ) : showApprovalDecisionButtons ? (
@@ -860,11 +860,11 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
 
   if (config?.key === "approval") {
     if (userDepartment === "KB(LES)") {
-      return t("workspace.approval.kbAction", "Verify applications before sending them to TP(RES)/PGH for support.");
+      return t("workspace.approval.kbAction", "Support applications after SUT approval before sending them to TP(RES)/PGH.");
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.supportAction", "Support verified applications before they proceed to the MPHLG/SUT stage.");
+      return t("workspace.approval.supportAction", "Make the final approval decision after KB(LES) support.");
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
@@ -875,7 +875,21 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
       return t("workspace.approval.sutAction", "Record SUT final approval with optional comments.");
     }
 
-    return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES), TP(RES)/PGH, MPHLG, or SUT action.");
+    return t("workspace.approval.viewOnlyAction", "View applications awaiting SUT, KB(LES), or TP(RES)/PGH action.");
+  }
+
+  if (config?.key === "payment") {
+    if (userDepartment === "PT(IKL)") {
+      return t("workspace.payment.ptAction", "Generate the approval letter and bill, then verify uploaded payment proof.");
+    }
+
+    if (userDepartment === "KU(IKL)") {
+      return t("workspace.payment.kuAction", "Confirm the generated bill before it is sent to the applicant.");
+    }
+  }
+
+  if (config?.key === "license" && userDepartment === "PT(IKL)") {
+    return t("workspace.license.ptAction", "Generate the advertisement license and QR code after payment is verified.");
   }
 
   return t(config.actionDescriptionKey, config.actionDescription);
@@ -893,15 +907,15 @@ function getWorkspaceDecisionOptions(config, app, department) {
 
   if (department === "KB(LES)" && getApprovalStageKey(app) === "kb") {
     return [
-      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Support", labelKey: "workspace.decision.support" },
       { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "support") {
     return [
-      { value: "Support", labelKey: "workspace.decision.support" },
-      { value: "Not Supported", labelKey: "workspace.decision.notSupported" },
+      { value: "Approve", labelKey: "workspace.decision.approve" },
+      { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
   }
 
@@ -927,7 +941,10 @@ function getDefaultWorkspaceDecision(config, app, department) {
 
 function getWorkspaceActions(config, app, department) {
   if (config?.key !== "approval") {
-    return config.actions || [];
+    return (config.actions || []).filter((action) => {
+      if (typeof action.isAvailable !== "function") return true;
+      return action.isAvailable(app, department);
+    });
   }
 
   const stage = getApprovalStageKey(app);
@@ -969,7 +986,17 @@ function shouldShowApprovalTechnicalReport(department, app) {
 }
 
 function getActionUnavailableMessage(config, app, department) {
-  if (config?.key !== "approval" || !app) return "";
+  if (!app) return "";
+
+  if (config?.key === "payment") {
+    return getPaymentActionUnavailableMessage(app, department);
+  }
+
+  if (config?.key === "license") {
+    return getLicenseActionUnavailableMessage(app, department);
+  }
+
+  if (config?.key !== "approval") return "";
 
   const stage = getApprovalStageKey(app);
 
@@ -978,7 +1005,7 @@ function getActionUnavailableMessage(config, app, department) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
-    return stage === "support" ? "" : "TP(RES)/PGH support is available after KB(LES) verification.";
+    return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) support.";
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
@@ -989,17 +1016,53 @@ function getActionUnavailableMessage(config, app, department) {
     return stage === "sut" ? "" : "SUT approval is available after MPHLG approval.";
   }
 
-  return "This queue is view-only for this account. KB(LES) verifies first; TP(RES)/PGH supports, then MPHLG and SUT approve.";
+  return "This queue is view-only for this account. SUT records the result first, KB(LES) supports it, then TP(RES)/PGH makes the final approval.";
+}
+
+function getPaymentActionUnavailableMessage(app, department) {
+  const status = normalizeStatus(app?.status);
+
+  if (department === "PT(IKL)" && ["approved", "payment_submitted"].includes(status)) {
+    return "";
+  }
+
+  if (department === "KU(IKL)" && status === "bill_pending_ku") {
+    return "";
+  }
+
+  if (department === "PT(IKL)" && status === "bill_pending_ku") {
+    return "The bill is waiting for KU(IKL) confirmation before it is sent to the applicant.";
+  }
+
+  if (department === "KU(IKL)") {
+    return "KU(IKL) confirmation is available after PT(IKL) generates the approval letter and bill.";
+  }
+
+  return "Payment actions are available to PT(IKL) and KU(IKL) only.";
+}
+
+function getLicenseActionUnavailableMessage(app, department) {
+  const status = normalizeStatus(app?.status);
+
+  if (department === "PT(IKL)" && status === "payment_verified") {
+    return "";
+  }
+
+  if (department === "PT(IKL)" && status === "license_issued") {
+    return "";
+  }
+
+  return "PT(IKL) can generate the advertisement license after payment proof is verified.";
 }
 
 function getApprovalStageLabel(app) {
   const stage = getApprovalStageKey(app);
 
-  if (stage === "support") return "Pending TP(RES)/PGH Support";
+  if (stage === "support") return "Pending TP(RES)/PGH Approval";
   if (stage === "mphlg") return "Pending MPHLG Approval";
   if (stage === "sut") return "Pending SUT Approval";
   if (stage === "completed") return "Approval Completed";
-  return "Pending KB(LES) Verification";
+  return "Pending KB(LES) Support";
 }
 
 function getApprovalStageKey(app) {
@@ -1007,7 +1070,7 @@ function getApprovalStageKey(app) {
 
   if (status === "management_review") {
     if (!isKbLesVerified(app)) return "kb";
-    return hasManagementSupport(app) ? "mphlg" : "support";
+    return "support";
   }
 
   if (status === "mphlg_processing") return "mphlg";
@@ -1030,14 +1093,14 @@ function isKbLesVerified(app) {
   const status = String(getApplicationSection(app, "kb_les_verification")?.status || "")
     .trim()
     .toLowerCase();
-  return status === "verified";
+  return ["verified", "supported", "completed"].includes(status);
 }
 
 function hasManagementSupport(app) {
   const status = String(getApplicationSection(app, "management_recommendation")?.status || "")
     .trim()
     .toLowerCase();
-  return status === "supported" || status === "completed";
+  return ["supported", "approved", "completed"].includes(status);
 }
 
 function getLocalizedApplicationType(app, t) {
@@ -1132,7 +1195,7 @@ function buildKuTechnicalReviewPayload(app, data) {
   const amendmentRequired = data.decision === "KU(IKL) Request Technical Amendment";
 
   return {
-    status: amendmentRequired ? "technical_amendment" : "management_review",
+    status: amendmentRequired ? "technical_amendment" : "mphlg_decision_received",
     current_step: Math.max(Number(app.current_step || 1), 5),
     latest_remark: data.comment || app.latest_remark || "",
     form_data: mergeFormData(app, {
@@ -1154,12 +1217,20 @@ function buildKuTechnicalReviewPayload(app, data) {
       kb_les_verification: amendmentRequired
         ? null
         : {
-            status: "Pending KB(LES) Verification",
+            status: "Waiting for SUT Result",
             routed_from: "KU(IKL)",
             routed_at: now,
           },
       management_recommendation: null,
       mphlg_gateway: null,
+      sut_approval: amendmentRequired
+        ? app.form_data?.sut_approval || null
+        : {
+            ...(app.form_data?.sut_approval || {}),
+            status: "Pending SUT Approval",
+            routed_from: "KU(IKL)",
+            routed_at: now,
+          },
       approval: null,
     }),
   };
@@ -1180,16 +1251,16 @@ function buildApprovalWorkflowPayload(app, data) {
         kb_les_verification: {
           ...(app.form_data?.kb_les_verification || {}),
           officer: "KB(LES)",
-          status: rejected ? "Rejected" : "Verified",
+          status: rejected ? "Rejected" : "Supported",
           decision,
           remarks: data.comment,
-          verified_at: now,
+          supported_at: now,
         },
         management_recommendation: rejected
           ? app.form_data?.management_recommendation || null
           : {
               ...(app.form_data?.management_recommendation || {}),
-              status: "Pending TP(RES)/PGH Support",
+              status: "Pending TP(RES)/PGH Approval",
               routed_from: "KB(LES)",
               routed_at: now,
             },
@@ -1208,35 +1279,35 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     return {
-      status: rejected ? "rejected" : "mphlg_processing",
+      status: rejected ? "rejected" : "approved",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: data.comment || app.latest_remark || "",
       form_data: mergeFormData(app, {
         management_recommendation: {
           ...(app.form_data?.management_recommendation || {}),
           officer: department,
-          status: rejected ? "Not Supported" : "Supported",
+          status: rejected ? "Rejected" : "Approved",
           decision,
           remarks: data.comment,
-          signed_at: now,
+          decided_at: now,
         },
-        mphlg_gateway: rejected
-          ? app.form_data?.mphlg_gateway || null
-          : {
-              ...(app.form_data?.mphlg_gateway || {}),
-              status: "Pending MPHLG/SUT Processing",
-              routed_from: department,
-              routed_at: now,
-            },
+        mphlg_gateway: app.form_data?.mphlg_gateway || null,
         approval: rejected
           ? {
               status: "Rejected",
-              final_decision: "Not Supported",
+              final_decision: "Rejected",
+              notes: data.comment,
+              decided_by: department,
+              decided_at: now,
+            }
+          : {
+              ...(app.form_data?.approval || {}),
+              status: "Approved",
+              final_decision: "Approved",
               notes: data.comment,
               decided_by: department,
               approved_at: now,
-            }
-          : app.form_data?.approval || null,
+            },
       }),
     };
   }
@@ -1270,7 +1341,7 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
     return {
-      status: decision === "Approve" ? "approved" : normalizeStatus(app.status),
+      status: decision === "Approve" ? "management_review" : normalizeStatus(app.status),
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: data.comment || app.latest_remark || "",
       form_data: mergeFormData(app, {
@@ -1282,15 +1353,17 @@ function buildApprovalWorkflowPayload(app, data) {
           remarks: data.comment,
           approved_at: now,
         },
-        approval: decision === "Approve"
+        kb_les_verification: decision === "Approve"
           ? {
-              status: "Approved",
-              final_decision: "Approved",
-              notes: data.comment,
-              decided_by: "SUT",
-              approved_at: now,
+              status: "Pending KB(LES) Support",
+              routed_from: "SUT",
+              routed_at: now,
             }
-          : app.form_data?.approval || null,
+          : app.form_data?.kb_les_verification || null,
+        management_recommendation: decision === "Approve"
+          ? null
+          : app.form_data?.management_recommendation || null,
+        approval: app.form_data?.approval || null,
       }),
     };
   }
@@ -1442,6 +1515,16 @@ function canAccessWorkspace(config, department) {
 function getWorkspaceStatusScope(config, department) {
   if (config?.key === "screening") {
     return IKL_DEPARTMENT_STATUS_SCOPE[department] || [];
+  }
+
+  if (config?.key === "payment") {
+    if (department === "PT(IKL)") {
+      return ["approved", "bill_pending_ku", "payment_submitted", "payment_verified"];
+    }
+
+    if (department === "KU(IKL)") {
+      return ["bill_pending_ku"];
+    }
   }
 
   return Array.isArray(config?.statuses) ? config.statuses : [];
@@ -1648,12 +1731,12 @@ const configs = {
   },
   approval: {
     key: "approval",
-    eyebrow: "Management and MPHLG",
+    eyebrow: "SUT, KB(LES), and TP/PGH",
     eyebrowKey: "workspace.approval.eyebrow",
     statuses: ["management_review", "mphlg_processing", "mphlg_decision_received"],
     title: "Approval",
     titleKey: "workspace.approval.title",
-    description: "Record KB(LES) verification, TP/PGH recommendation, MPHLG/SUT review, and final decision.",
+    description: "Record the SUT result, KB(LES) support, and TP(RES)/PGH final approval.",
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",
@@ -1661,9 +1744,9 @@ const configs = {
     actionDescriptionKey: "workspace.approval.action",
     showDecision: true,
     showComment: true,
-    defaultDecision: "Verify",
+    defaultDecision: "Support",
     decisions: [
-      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Support", labelKey: "workspace.decision.support" },
       { value: "Reject", labelKey: "workspace.decision.reject" },
     ],
     commentLabel: "Approval Notes",
@@ -1686,15 +1769,18 @@ const configs = {
     ],
   },
   payment: {
+    key: "payment",
+    allowedDepartments: ["PT(IKL)", "KU(IKL)"],
+    statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified"],
     eyebrow: "Payment",
     eyebrowKey: "workspace.payment.eyebrow",
     title: "Invoice and Payment",
     titleKey: "workspace.payment.title",
-    description: "Generate invoices and verify uploaded payment receipt proof.",
+    description: "PT(IKL) generates approval letters and bills, KU(IKL) confirms bills, and PT(IKL) verifies uploaded payment proof.",
     descriptionKey: "workspace.payment.description",
     queueTitle: "Payment Queue",
     queueTitleKey: "workspace.payment.queue",
-    actionDescription: "Generate an invoice, then verify whether the uploaded receipt is valid or fake.",
+    actionDescription: "Generate an approval letter and bill, confirm the bill, then verify whether the uploaded receipt is valid or fake.",
     actionDescriptionKey: "workspace.payment.action",
     showComment: true,
     commentLabel: "Receipt Verification Notes",
@@ -1703,17 +1789,48 @@ const configs = {
     commentPlaceholderKey: "workspace.comment.paymentPlaceholder",
     stats: (apps) => [
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !app.form_data?.payment), icon: "pending", tone: "amber" },
+      { label: "Bill Review", labelKey: "workspace.stat.billReview", value: countBy(apps, (app) => normalizeStatus(app.status) === "bill_pending_ku"), icon: "fact_check", tone: "amber" },
       { label: "Invoiced", labelKey: "workspace.stat.invoiced", value: countBy(apps, (app) => normalizeStatus(app.status) === "invoice_generated"), icon: "receipt_long", tone: "blue" },
       { label: "Submitted", labelKey: "workspace.stat.submitted", value: countBy(apps, (app) => normalizeStatus(app.status) === "payment_submitted"), icon: "payments" },
       { label: "Verified", labelKey: "workspace.stat.verified", value: countBy(apps, (app) => normalizeStatus(app.status) === "payment_verified"), icon: "verified" },
     ],
     actions: [
       {
-        label: "Generate Invoice",
+        label: "Generate Letter & Bill",
         labelKey: "workspace.action.generateInvoice",
         icon: "receipt_long",
-        success: "Invoice generated.",
+        success: "Approval letter and bill generated for KU(IKL) confirmation.",
         successKey: "workspace.message.invoiceGenerated",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "approved",
+        buildPayload: (app) => ({
+          status: "bill_pending_ku",
+          form_data: mergeFormData(app, {
+            approval_letter: {
+              ...(app.form_data?.approval_letter || {}),
+              status: "Generated",
+              generated_by: "PT(IKL)",
+              generated_at: new Date().toISOString(),
+            },
+            payment: {
+              ...(app.form_data?.payment || {}),
+              invoice_no: getInvoiceNo(app),
+              amount: app.form_data?.payment?.amount || 250,
+              status: "Pending KU(IKL) Bill Confirmation",
+              generated_by: "PT(IKL)",
+              generated_at: new Date().toISOString(),
+            },
+          }),
+        }),
+      },
+      {
+        label: "Confirm Bill",
+        labelKey: "workspace.action.confirmBill",
+        icon: "task_alt",
+        success: "Bill confirmed and sent to applicant.",
+        successKey: "workspace.message.billConfirmed",
+        isAvailable: (app, department) =>
+          department === "KU(IKL)" && normalizeStatus(app?.status) === "bill_pending_ku",
         buildPayload: (app) => ({
           status: "invoice_generated",
           form_data: mergeFormData(app, {
@@ -1721,10 +1838,9 @@ const configs = {
               ...(app.form_data?.payment || {}),
               invoice_no: getInvoiceNo(app),
               amount: app.form_data?.payment?.amount || 250,
-              status: "Invoice Generated",
-              generated_by: "PT(IKL)",
-              verified_by: "KU(IKL)",
-              generated_at: new Date().toISOString(),
+              status: "Bill Confirmed - Awaiting Payment",
+              confirmed_by: "KU(IKL)",
+              confirmed_at: new Date().toISOString(),
             },
           }),
         }),
@@ -1737,6 +1853,8 @@ const configs = {
         successKey: "workspace.message.paymentVerified",
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
         buildPayload: (app, data) => ({
           status: "payment_verified",
           form_data: mergeFormData(app, {
@@ -1758,6 +1876,8 @@ const configs = {
         requiresComment: true,
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
         success: "Receipt rejected. Applicant can upload a new receipt.",
         successKey: "workspace.message.receiptRejected",
         buildPayload: (app, data) => ({
@@ -1777,15 +1897,18 @@ const configs = {
     details: PaymentDetails,
   },
   license: {
+    key: "license",
+    allowedDepartments: ["PT(IKL)"],
+    statuses: ["payment_verified", "license_issued", "license_revoked"],
     eyebrow: "Completion",
     eyebrowKey: "workspace.license.eyebrow",
     title: "E-License and QR",
     titleKey: "workspace.license.title",
-    description: "Generate QR e-license, monitor expiry, and issue renewal reminders.",
+    description: "Generate advertisement licenses, QR codes, monitor expiry, and issue renewal reminders.",
     descriptionKey: "workspace.license.description",
     queueTitle: "License Queue",
     queueTitleKey: "workspace.license.queue",
-    actionDescription: "Issue, revoke, or monitor the digital license.",
+    actionDescription: "Generate the advertisement license and QR code after payment is verified.",
     actionDescriptionKey: "workspace.license.action",
     showComment: false,
     stats: (apps) => [
@@ -1801,6 +1924,8 @@ const configs = {
         icon: "qr_code_2",
         success: "E-license issued.",
         successKey: "workspace.message.licenseIssued",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_verified",
         buildPayload: (app) => {
           const today = new Date();
           const expiry = new Date(today);
@@ -1836,6 +1961,8 @@ const configs = {
         variant: "danger",
         success: "License revoked.",
         successKey: "workspace.message.licenseRevoked",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_issued",
         buildPayload: (app) => ({
           status: "license_revoked",
           form_data: mergeFormData(app, {

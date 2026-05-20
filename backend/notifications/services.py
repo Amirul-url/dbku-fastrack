@@ -25,6 +25,8 @@ APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
 APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
 MPHLG_REVIEW_DEPARTMENTS = {"MPHLG"}
 SUT_APPROVAL_DEPARTMENTS = {"SUT"}
+KB_LES_COMPLETE_STATUSES = {"verified", "supported", "completed"}
+MANAGEMENT_SUPPORT_COMPLETE_STATUSES = {"supported", "approved", "completed"}
 ADMIN_TECHNICAL_TASK_STATUSES = {
     "technical_review",
     "technical_site_visit",
@@ -51,8 +53,28 @@ STATUS_MESSAGES = {
     ),
     "invoice_generated": (
         "Payment proof required",
-        "Invoice for application {reference} has been generated. Please upload your proof of payment.",
+        "Bill for application {reference} has been confirmed. Please upload your proof of payment.",
         "",
+    ),
+    "approved": (
+        "Final approval received",
+        "",
+        "Application {reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill.",
+    ),
+    "bill_pending_ku": (
+        "Bill confirmation required",
+        "",
+        "Application {reference} has a generated bill waiting for KU(IKL) confirmation.",
+    ),
+    "payment_submitted": (
+        "Payment proof submitted",
+        "",
+        "Applicant has uploaded payment proof for application {reference}. Please verify the receipt.",
+    ),
+    "payment_verified": (
+        "License issuance required",
+        "",
+        "Payment for application {reference} has been verified. Please generate the advertisement license and QR code.",
     ),
     "license_issued": (
         "QR e-license generated",
@@ -85,9 +107,9 @@ STATUS_MESSAGES = {
         "Application {reference} has completed technical department feedback and is ready for KU(IKL) review.",
     ),
     "management_review": (
-        "KB(LES) verification required",
+        "KB(LES) support required",
         "",
-        "Application {reference} is ready for KB(LES) verification.",
+        "Application {reference} has SUT approval recorded and is ready for KB(LES) support.",
     ),
     "mphlg_processing": (
         "MPHLG approval required",
@@ -106,6 +128,10 @@ STATUS_UI = {
     "incomplete": ("correction", "error"),
     "rejected": ("decision", "error"),
     "invoice_generated": ("payment", "warning"),
+    "approved": ("approval", "success"),
+    "bill_pending_ku": ("payment", "warning"),
+    "payment_submitted": ("payment", "warning"),
+    "payment_verified": ("payment", "success"),
     "license_issued": ("license", "success"),
     "ku_ikl_review": ("screening", "warning"),
     "technical_review": ("technical", "warning"),
@@ -128,6 +154,10 @@ APPLICANT_NOTIFICATION_STATUSES = {
 ADMIN_NOTIFICATION_STATUSES = {
     "submitted",
     "ku_ikl_review",
+    "approved",
+    "bill_pending_ku",
+    "payment_submitted",
+    "payment_verified",
     "management_review",
     "mphlg_processing",
     "mphlg_decision_received",
@@ -144,18 +174,29 @@ REMARK_REPEAT_STATUSES = {
 }
 
 
-def notify_application_status_change(application, old_status=None, old_remark=None):
+def notify_application_status_change(
+    application,
+    old_status=None,
+    old_remark=None,
+    old_form_data=None,
+):
     new_status = str(application.status or "").strip().lower()
     previous_status = str(old_status or "").strip().lower()
     current_remark = str(getattr(application, "latest_remark", "") or "").strip()
     previous_remark = str(old_remark or "").strip()
     status_changed = previous_status != new_status
     remark_changed = current_remark != previous_remark
+    routing_changed = has_notification_route_changed(
+        application,
+        previous_status,
+        new_status,
+        old_form_data,
+    )
 
     if new_status not in NOTIFIABLE_STATUSES:
         return
 
-    if not status_changed and not (
+    if not status_changed and not routing_changed and not (
         new_status in REMARK_REPEAT_STATUSES and remark_changed
     ):
         return
@@ -260,6 +301,30 @@ def build_event_key(application, status_key, remark_changed=False):
         occurrence = sha1(f"{occurrence}:{remark}".encode("utf-8")).hexdigest()[:12]
 
     return f"application:{application.id}:status:{status_key}:event:{occurrence}"
+
+
+def has_notification_route_changed(application, previous_status, new_status, old_form_data):
+    if previous_status != new_status:
+        return False
+
+    if new_status != "management_review":
+        return False
+
+    previous_route = get_management_review_route_key(old_form_data or {})
+    current_route = get_management_review_route_key(getattr(application, "form_data", None) or {})
+    return previous_route != current_route
+
+
+def get_management_review_route_key(form_data):
+    kb_section = get_form_data_section(form_data, "kb_les_verification")
+    support_section = get_form_data_section(form_data, "management_recommendation")
+    kb_status = normalize_status_value(kb_section.get("status"))
+    support_status = normalize_status_value(support_section.get("status"))
+
+    if kb_status in KB_LES_COMPLETE_STATUSES and support_status not in MANAGEMENT_SUPPORT_COMPLETE_STATUSES:
+        return "tp_pgh"
+
+    return "kb_les"
 
 
 def build_status_messages(application):
@@ -548,6 +613,15 @@ def get_admin_task_web_recipients(application):
     if status_key == "submitted":
         return [user for user in users if is_pt_ikl_user(user)]
 
+    if status_key == "approved":
+        return [user for user in users if is_pt_ikl_user(user)]
+
+    if status_key == "bill_pending_ku":
+        return [user for user in users if is_ku_ikl_user(user)]
+
+    if status_key in {"payment_submitted", "payment_verified"}:
+        return [user for user in users if is_pt_ikl_user(user)]
+
     if status_key == "ku_ikl_review":
         return [user for user in users if is_ku_ikl_user(user)]
 
@@ -620,6 +694,10 @@ def get_admin_task_whatsapp_numbers(application, users):
 def should_use_admin_contact_fallback(status_key):
     return status_key in {
         "submitted",
+        "approved",
+        "bill_pending_ku",
+        "payment_submitted",
+        "payment_verified",
         "ku_ikl_review",
         "technical_review",
         "technical_site_visit",
@@ -636,13 +714,13 @@ def get_management_review_admin_text(application):
 
     if is_management_support_pending(application):
         return (
-            "TP(RES)/PGH support required",
-            f"Application {reference} is ready for TP(RES)/PGH support.",
+            "TP(RES)/PGH approval required",
+            f"Application {reference} is ready for TP(RES)/PGH final approval.",
         )
 
     return (
-        "KB(LES) verification required",
-        f"Application {reference} is ready for KB(LES) verification.",
+        "KB(LES) support required",
+        f"Application {reference} has SUT approval recorded and is ready for KB(LES) support.",
     )
 
 
@@ -698,19 +776,27 @@ def is_sut_approval_user(user):
 
 def get_form_section(application, key):
     form_data = getattr(application, "form_data", None) or {}
-    section = form_data.get(key) or {}
+    return get_form_data_section(form_data, key)
+
+
+def get_form_data_section(form_data, key):
+    section = (form_data or {}).get(key) or {}
     return section if isinstance(section, dict) else {}
 
 
+def normalize_status_value(value):
+    return str(value or "").strip().lower()
+
+
 def is_kb_les_verification_pending(application):
-    status = str(get_form_section(application, "kb_les_verification").get("status", "") or "").strip().lower()
-    return status != "verified"
+    status = normalize_status_value(get_form_section(application, "kb_les_verification").get("status"))
+    return status not in KB_LES_COMPLETE_STATUSES
 
 
 def is_management_support_pending(application):
-    kb_status = str(get_form_section(application, "kb_les_verification").get("status", "") or "").strip().lower()
-    support_status = str(get_form_section(application, "management_recommendation").get("status", "") or "").strip().lower()
-    return kb_status == "verified" and support_status not in {"supported", "completed"}
+    kb_status = normalize_status_value(get_form_section(application, "kb_les_verification").get("status"))
+    support_status = normalize_status_value(get_form_section(application, "management_recommendation").get("status"))
+    return kb_status in KB_LES_COMPLETE_STATUSES and support_status not in MANAGEMENT_SUPPORT_COMPLETE_STATUSES
 
 
 def normalize_department(value):
@@ -749,6 +835,15 @@ def should_user_receive_admin_notification(user, application, status_key=None):
     department = normalize_department(getattr(user, "department", ""))
 
     if status == "submitted":
+        return department == "PT(IKL)"
+
+    if status == "approved":
+        return department == "PT(IKL)"
+
+    if status == "bill_pending_ku":
+        return department == "KU(IKL)"
+
+    if status in {"payment_submitted", "payment_verified"}:
         return department == "PT(IKL)"
 
     if status == "technical_review_completed":

@@ -28,9 +28,19 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
             department = normalize_department(getattr(self.request.user, "department", ""))
             use_department_inbox = bool(department)
             if department == "PT(IKL)":
-                allowed_event_statuses = {"submitted", "technical_amendment"}
+                allowed_event_statuses = {
+                    "submitted",
+                    "technical_amendment",
+                    "approved",
+                    "payment_submitted",
+                    "payment_verified",
+                }
             elif department == "KU(IKL)":
-                allowed_event_statuses = {"ku_ikl_review", "technical_review_completed"}
+                allowed_event_statuses = {
+                    "ku_ikl_review",
+                    "technical_review_completed",
+                    "bill_pending_ku",
+                }
             elif department == "IKL (TECHNICAL)":
                 allowed_event_statuses = {
                     "technical_review",

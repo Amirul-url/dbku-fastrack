@@ -746,14 +746,14 @@ function isKbLesVerified(application) {
   const status = String(getApplicationSection(application, "kb_les_verification")?.status || "")
     .trim()
     .toLowerCase();
-  return status === "verified";
+  return ["verified", "supported", "completed"].includes(status);
 }
 
 function hasManagementSupport(application) {
   const status = String(getApplicationSection(application, "management_recommendation")?.status || "")
     .trim()
     .toLowerCase();
-  return status === "supported" || status === "completed";
+  return ["supported", "approved", "completed"].includes(status);
 }
 
 function isMphlgReviewComplete(application) {

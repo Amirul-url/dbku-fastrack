@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from copy import deepcopy
 import mimetypes
 from .models import Application, SupportingDocument
 from .serializers import (
@@ -13,7 +14,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     SupportingDocumentSerializer,
 )
-from notifications.services import notify_application_status_change
+from notifications.services import normalize_department, notify_application_status_change
 
 STAFF_ROLES = ["admin", "supervisor", "staff"]
 
@@ -53,8 +54,63 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         self.ensure_applicant_can_update(serializer.instance)
         old_status = serializer.instance.status
         old_remark = serializer.instance.latest_remark
+        old_form_data = deepcopy(serializer.instance.form_data or {})
+        self.ensure_staff_can_update_workflow(serializer.instance)
         application = serializer.save()
-        notify_application_status_change(application, old_status, old_remark)
+        notify_application_status_change(
+            application,
+            old_status,
+            old_remark,
+            old_form_data=old_form_data,
+        )
+
+    def ensure_staff_can_update_workflow(self, application):
+        user = self.request.user
+        if user.role not in STAFF_ROLES:
+            return
+
+        requested_status = str(self.request.data.get("status", application.status) or "").strip().lower()
+        current_status = str(application.status or "").strip().lower()
+        department = normalize_department(getattr(user, "department", ""))
+
+        if requested_status == "management_review" and current_status == "mphlg_decision_received":
+            if department != "SUT":
+                raise PermissionDenied("Only SUT can record the SUT result for this application.")
+            return
+
+        if requested_status == "management_review" and current_status == "management_review":
+            if department != "KB(LES)":
+                raise PermissionDenied("Only KB(LES) can support the application at this stage.")
+            return
+
+        if requested_status == "approved" and current_status == "management_review":
+            if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+                raise PermissionDenied("Only TP(RES)/PGH can make the final approval decision.")
+            return
+
+        if requested_status == "rejected" and current_status == "management_review":
+            if department not in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+                raise PermissionDenied("Only KB(LES) or TP(RES)/PGH can reject at this approval stage.")
+            return
+
+        if requested_status == "bill_pending_ku":
+            if department != "PT(IKL)":
+                raise PermissionDenied("Only PT(IKL) can generate the approval letter and bill.")
+            return
+
+        if requested_status == "invoice_generated" and current_status == "bill_pending_ku":
+            if department != "KU(IKL)":
+                raise PermissionDenied("Only KU(IKL) can confirm the bill.")
+            return
+
+        if requested_status == "invoice_generated" and current_status == "payment_submitted":
+            if department != "PT(IKL)":
+                raise PermissionDenied("Only PT(IKL) can reject payment proof.")
+            return
+
+        if requested_status in {"payment_verified", "license_issued", "license_revoked"}:
+            if department != "PT(IKL)":
+                raise PermissionDenied("Only PT(IKL) can complete payment and license actions.")
 
     def ensure_applicant_can_update(self, application):
         user = self.request.user
@@ -239,7 +295,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         application = self.get_object()
 
-        if request.user.role not in STAFF_ROLES:
+        department = normalize_department(getattr(request.user, "department", ""))
+
+        if request.user.role not in STAFF_ROLES or department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
             return Response(
                 {
                     "error": "You do not have permission to approve applications."

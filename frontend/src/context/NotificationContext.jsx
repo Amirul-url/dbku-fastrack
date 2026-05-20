@@ -41,6 +41,10 @@ const adminNotificationStatuses = new Set(["submitted", "ku_ikl_review", ...admi
 adminNotificationStatuses.add("management_review");
 adminNotificationStatuses.add("mphlg_processing");
 adminNotificationStatuses.add("mphlg_decision_received");
+adminNotificationStatuses.add("approved");
+adminNotificationStatuses.add("bill_pending_ku");
+adminNotificationStatuses.add("payment_submitted");
+adminNotificationStatuses.add("payment_verified");
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
@@ -160,14 +164,14 @@ function isKbLesVerified(app) {
   const status = String(getApplicationSection(app, "kb_les_verification")?.status || "")
     .trim()
     .toLowerCase();
-  return status === "verified";
+  return ["verified", "supported", "completed"].includes(status);
 }
 
 function hasManagementSupport(app) {
   const status = String(getApplicationSection(app, "management_recommendation")?.status || "")
     .trim()
     .toLowerCase();
-  return status === "supported" || status === "completed";
+  return ["supported", "approved", "completed"].includes(status);
 }
 
 function isMphlgReviewPending(app) {
@@ -194,19 +198,19 @@ function getApprovalStageNotificationText(app, user) {
   if (supportPending || supportUser) {
     return {
       displayStatus: "approval_support",
-      titleEn: "Application ready for TP(RES)/PGH support",
-      titleMs: "Permohonan sedia untuk sokongan TP(RES)/PGH",
-      messageEn: `${reference} is ready for TP(RES)/PGH support.`,
-      messageMs: `${reference} sedia untuk sokongan TP(RES)/PGH.`,
+      titleEn: "Application ready for TP(RES)/PGH approval",
+      titleMs: "Permohonan sedia untuk kelulusan TP(RES)/PGH",
+      messageEn: `${reference} is ready for TP(RES)/PGH final approval.`,
+      messageMs: `${reference} sedia untuk kelulusan akhir TP(RES)/PGH.`,
     };
   }
 
   return {
     displayStatus: "management_review",
-    titleEn: "Application ready for KB(LES) verification",
-    titleMs: "Permohonan sedia untuk verifikasi KB(LES)",
-    messageEn: `${reference} is ready for KB(LES) verification.`,
-    messageMs: `${reference} sedia untuk verifikasi KB(LES).`,
+    titleEn: "Application ready for KB(LES) support",
+    titleMs: "Permohonan sedia untuk sokongan KB(LES)",
+    messageEn: `${reference} has SUT approval recorded and is ready for KB(LES) support.`,
+    messageMs: `${reference} telah menerima keputusan SUT dan sedia untuk sokongan KB(LES).`,
   };
 }
 
@@ -215,6 +219,18 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   const normalizedStatus = normalizeStatus(status);
 
   if (normalizedStatus === "submitted") {
+    return department === "PT(IKL)";
+  }
+
+  if (normalizedStatus === "approved") {
+    return department === "PT(IKL)";
+  }
+
+  if (normalizedStatus === "bill_pending_ku") {
+    return department === "KU(IKL)";
+  }
+
+  if (["payment_submitted", "payment_verified"].includes(normalizedStatus)) {
     return department === "PT(IKL)";
   }
 
@@ -285,6 +301,12 @@ function getNotificationUrl(role, app, category, user = null) {
     }
     if (category === "approval") {
       return app?.id ? `/dashboard/admin?view=approval&id=${app.id}` : "/dashboard/admin?view=approval";
+    }
+    if (category === "payment") {
+      return app?.id ? `/admin/payment?id=${app.id}` : "/admin/payment";
+    }
+    if (category === "license") {
+      return app?.id ? `/admin/license-qr?id=${app.id}` : "/admin/license-qr";
     }
   }
 
@@ -522,6 +544,70 @@ function buildAdminNotifications(app, user) {
         "Permohonan sedia untuk kelulusan SUT",
         `${reference} is ready for SUT approval.`,
         `${reference} sedia untuk kelulusan SUT.`,
+        user
+      )
+    );
+  }
+
+  if (status === "approved" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "payment",
+        "success",
+        "Final approval received",
+        "Kelulusan akhir diterima",
+        `${reference} has final TP(RES)/PGH approval. Generate the approval letter and bill.`,
+        `${reference} telah menerima kelulusan akhir TP(RES)/PGH. Jana surat kelulusan dan bil.`,
+        user
+      )
+    );
+  }
+
+  if (status === "bill_pending_ku" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "payment",
+        "warning",
+        "Bill confirmation required",
+        "Pengesahan bil diperlukan",
+        `${reference} has a generated bill waiting for KU(IKL) confirmation.`,
+        `${reference} mempunyai bil yang menunggu pengesahan KU(IKL).`,
+        user
+      )
+    );
+  }
+
+  if (status === "payment_submitted" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "payment",
+        "warning",
+        "Payment proof submitted",
+        "Bukti bayaran dihantar",
+        `${reference} has uploaded payment proof for PT(IKL) verification.`,
+        `${reference} telah memuat naik bukti bayaran untuk pengesahan PT(IKL).`,
+        user
+      )
+    );
+  }
+
+  if (status === "payment_verified" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "license",
+        "success",
+        "License issuance required",
+        "Penjanaan lesen diperlukan",
+        `${reference} payment is verified. Generate the advertisement license and QR code.`,
+        `Bayaran ${reference} telah disahkan. Jana lesen iklan dan kod QR.`,
         user
       )
     );

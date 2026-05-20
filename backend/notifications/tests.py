@@ -112,10 +112,47 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
         self.assertFalse(NotificationDelivery.objects.filter(recipient_role="admin").exists())
 
-    def test_unlisted_status_does_not_create_notifications(self):
+    def test_payment_verified_notifies_pt_ikl_for_license_generation(self):
         self.notify_status("payment_verified", old_status="payment_submitted")
 
-        self.assertFalse(NotificationDelivery.objects.exists())
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="payment_verified",
+        )
+        self.assertEqual(delivery.user, self.admin)
+        self.assertIn("License issuance", delivery.metadata["title_en"])
+
+    def test_final_approval_notifies_pt_ikl_for_billing(self):
+        self.notify_status("approved", old_status="management_review")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="approved",
+        )
+        self.assertEqual(delivery.user, self.admin)
+        self.assertIn("Final approval", delivery.metadata["title_en"])
+
+    def test_generated_bill_notifies_ku_ikl_for_confirmation(self):
+        ku_user = User.objects.create_user(
+            username="ku-ikl",
+            email="",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+
+        self.notify_status("bill_pending_ku", old_status="approved")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="bill_pending_ku",
+        )
+        self.assertEqual(delivery.user, ku_user)
+        self.assertIn("Bill confirmation", delivery.metadata["title_en"])
 
     def test_management_review_notifies_kb_les_with_fallback_contacts(self):
         kb_user = User.objects.create_user(
@@ -129,7 +166,7 @@ class NotificationRoutingTests(TestCase):
         )
         self.application.form_data = {
             **self.application.form_data,
-            "kb_les_verification": {"status": "Pending KB(LES) Verification"},
+            "kb_les_verification": {"status": "Pending KB(LES) Support"},
         }
         self.application.save(update_fields=["form_data"])
 
@@ -157,7 +194,7 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
 
-    def test_management_review_notifies_tp_pgh_after_kb_les_verification(self):
+    def test_management_review_notifies_tp_pgh_after_kb_les_support(self):
         tp_user = User.objects.create_user(
             username="tp-res",
             email="",
@@ -178,8 +215,8 @@ class NotificationRoutingTests(TestCase):
         )
         self.application.form_data = {
             **self.application.form_data,
-            "kb_les_verification": {"status": "Verified"},
-            "management_recommendation": {"status": "Pending TP(RES)/PGH Support"},
+            "kb_les_verification": {"status": "Supported"},
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
         }
         self.application.save(update_fields=["form_data"])
 
@@ -192,9 +229,45 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertTrue(deliveries.filter(user=tp_user).exists())
         delivery = deliveries.get(user=tp_user)
-        self.assertIn("TP(RES)/PGH support", delivery.metadata["title_en"])
-        self.assertIn("TP(RES)/PGH support", delivery.metadata["message_en"])
-        self.assertNotIn("KB(LES) verification", delivery.metadata["title_en"])
+        self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
+        self.assertIn("TP(RES)/PGH final approval", delivery.metadata["message_en"])
+        self.assertNotIn("KB(LES) support", delivery.metadata["title_en"])
+
+    def test_management_review_same_status_reroute_notifies_tp_pgh(self):
+        tp_user = User.objects.create_user(
+            username="tp-res-reroute",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="TP(RES)",
+            is_active=True,
+        )
+        old_form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Pending KB(LES) Support"},
+        }
+        self.application.status = "management_review"
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Supported"},
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        notify_application_status_change(
+            self.application,
+            old_status="management_review",
+            old_form_data=old_form_data,
+        )
+
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=tp_user,
+                metadata__event_status="management_review",
+            ).exists()
+        )
 
     def test_mphlg_processing_notifies_mphlg_admin(self):
         mphlg_user = User.objects.create_user(
@@ -263,7 +336,7 @@ class NotificationRoutingTests(TestCase):
         )
         self.application.form_data = {
             **self.application.form_data,
-            "kb_les_verification": {"status": "Pending KB(LES) Verification"},
+            "kb_les_verification": {"status": "Pending KB(LES) Support"},
         }
         self.application.save(update_fields=["form_data"])
 
@@ -279,8 +352,8 @@ class NotificationRoutingTests(TestCase):
         )
         self.application.form_data = {
             **self.application.form_data,
-            "kb_les_verification": {"status": "Verified"},
-            "management_recommendation": {"status": "Pending TP(RES)/PGH Support"},
+            "kb_les_verification": {"status": "Supported"},
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
         }
         self.application.save(update_fields=["form_data"])
 
@@ -292,7 +365,7 @@ class NotificationRoutingTests(TestCase):
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["metadata"]["event_status"], "management_review")
-        self.assertIn("KB(LES) verification", data[0]["metadata"]["title_en"])
+        self.assertIn("KB(LES) support", data[0]["metadata"]["title_en"])
 
 
 class SuperAdminAccountNotificationTests(TestCase):
