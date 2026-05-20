@@ -8,7 +8,7 @@ import {
   isSuperAdminUser,
 } from "../services/api";
 import {
-  formatDate,
+  formatDateTime,
   formatWorkflowStatus,
   getApplicationLocation,
   getApplicationReference,
@@ -290,7 +290,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     from: "ALiS Notification Center",
     to: getUserDisplayName(user),
     subject: getMemoSubject("", titleEn, reference),
-    time: formatDate(updatedAt),
+    time: formatDateTime(updatedAt),
     timestamp: updatedAt,
     actionUrl: getNotificationUrl(role, app, category, user),
   };
@@ -611,7 +611,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         from: "ALiS Notification Center",
         to,
         subject: getMemoSubject(delivery.subject, title, delivery.reference_no || metadata.account_username),
-        time: formatDate(timestamp),
+        time: formatDateTime(timestamp),
         timestamp,
         actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category, user),
         read: Boolean(delivery.read_at),

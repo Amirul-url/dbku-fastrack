@@ -10,7 +10,7 @@ import {
   StatusPill,
 } from "../../components/ui/SystemUI";
 import { isAdminUser, isSuperAdminUser, getStoredUser } from "../../services/api";
-import { formatDate } from "../../utils/workflow";
+import { formatDateTime } from "../../utils/workflow";
 
 const filters = [
   { value: "all", labelKey: "notifications.filter.all", fallback: "All" },
@@ -163,7 +163,7 @@ function NotificationsPage() {
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               {lastSyncedAt
-                ? `${t("notifications.lastSynced", "Last synced")}: ${formatDate(lastSyncedAt)}`
+                ? `${t("notifications.lastSynced", "Last synced")}: ${formatDateTime(lastSyncedAt)}`
                 : t("notifications.waitingForSync", "Waiting for live sync.")}
             </p>
           </div>
