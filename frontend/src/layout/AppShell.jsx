@@ -160,7 +160,7 @@ function AppShell({ children, role = "admin" }) {
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
-    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, isApprovalWorkflowUser(getStoredUser()))
+    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, role === "admin")
   );
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
@@ -204,10 +204,7 @@ function AppShell({ children, role = "admin" }) {
         localStorage.setItem("fastrack_user", JSON.stringify(normalizedUser));
         setUser(normalizedUser);
 
-        if (
-          isApprovalWorkflowUser(normalizedUser) &&
-          !hasSessionBoolean(ADMIN_DASHBOARD_MENU_KEY)
-        ) {
+        if (role === "admin" && !hasSessionBoolean(ADMIN_DASHBOARD_MENU_KEY)) {
           setAdminDashboardOpen(true);
           writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
         }
