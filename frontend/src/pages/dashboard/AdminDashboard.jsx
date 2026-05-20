@@ -390,9 +390,17 @@ function ClaimableTaskView({
 }
 
 function normalizeDepartmentCode(value) {
-  const department = String(value || "").trim().toUpperCase();
+  const department = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[.]+$/g, "")
+    .replace(/-/g, " ")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ");
   if (department === "PT IKL") return "PT(IKL)";
   if (department === "KU IKL") return "KU(IKL)";
+  if (department === "TP RES" || department === "TP(RES)") return "TP(RES)";
+  if (department === "TP RES/PGH" || department === "TP(RES)/PGH") return "TP(RES)/PGH";
   if (
     department === "IKL(TECHNICAL)" ||
     department === "IKL TECHNICAL" ||

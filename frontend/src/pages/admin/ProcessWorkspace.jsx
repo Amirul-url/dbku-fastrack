@@ -300,9 +300,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   function submitApprovalSupport(decisionValue) {
     const [action] = workspaceActions;
-    if (!action || decisionValue !== "Support") return;
+    if (!action) return;
 
-    submitAction(action, { decision: decisionValue });
+    submitAction(action, { decision: decisionValue, checkDecisionRemark: true });
   }
 
   async function submitAction(action, overrides = {}) {
@@ -590,7 +590,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 }
               />
 
-              {isSimpleApprovalWorkspace && userDepartment === "KB(LES)" && (
+              {isSimpleApprovalWorkspace &&
+                shouldShowApprovalTechnicalReport(userDepartment, selectedRecord) && (
                 <ApprovalTechnicalReviewSummary
                   t={t}
                   selectedRecord={selectedRecord}
@@ -897,6 +898,21 @@ function isApprovalTaskForDepartment(app, department) {
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
 
   return false;
+}
+
+function shouldShowApprovalTechnicalReport(department, app) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  const approvalDepartments = [
+    "KB(LES)",
+    ...APPROVAL_SUPPORT_DEPARTMENTS,
+    ...MPHLG_REVIEW_DEPARTMENTS,
+    ...SUT_APPROVAL_DEPARTMENTS,
+  ];
+
+  return (
+    approvalDepartments.includes(normalizedDepartment) ||
+    getApprovalStageKey(app) === "support"
+  );
 }
 
 function getActionUnavailableMessage(config, app, department) {
@@ -1337,9 +1353,17 @@ function getFileNameFromUrl(value) {
 }
 
 function normalizeDepartmentCode(value) {
-  const department = String(value || "").trim().toUpperCase();
+  const department = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[.]+$/g, "")
+    .replace(/-/g, " ")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ");
   if (department === "PT IKL") return "PT(IKL)";
   if (department === "KU IKL") return "KU(IKL)";
+  if (department === "TP RES" || department === "TP(RES)") return "TP(RES)";
+  if (department === "TP RES/PGH" || department === "TP(RES)/PGH") return "TP(RES)/PGH";
   if (
     department === "IKL(TECHNICAL)" ||
     department === "IKL TECHNICAL" ||
@@ -1991,14 +2015,16 @@ function IklWorkspaceSections({
           </div>
 
           <div className="space-y-3">
-            <KuTechnicalReviewPackage
+            <ApprovalTechnicalReviewSummary
               t={t}
-              applicationId={selectedRecord.id}
+              selectedRecord={selectedRecord}
               technicalSite={reviewTechnicalSite}
-              technicalReview={selectedRecord.form_data?.technical_review || {}}
+              title={t("workspace.technical.kuReviewReportTitle", "KU(IKL) Final Checking Report")}
+              description={t(
+                "workspace.technical.kuReviewReportDesc",
+                "Review the compiled technical report, site photos, fee calculations, and department findings before sending the application to KB(LES)."
+              )}
             />
-
-            <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
 
             <Field label={t("common.decision")}>
               <select
@@ -2123,30 +2149,95 @@ function getIklScreeningCopy(department) {
   };
 }
 
-function ApprovalTechnicalReviewSummary({ t, selectedRecord, technicalSite }) {
+function ApprovalTechnicalReviewSummary({
+  t,
+  selectedRecord,
+  technicalSite,
+  title,
+  description,
+}) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
+  const formData = selectedRecord.form_data || {};
+  const step1 = formData.step_1 || {};
   const technicalReview = selectedRecord.form_data?.technical_review || {};
   const kuReview = selectedRecord.form_data?.technical_ku_review || {};
   const kuDecision = kuReview.decision || kuReview.status || "-";
   const kuRemarks = kuReview.remarks || kuReview.comment || "-";
+  const applicantSitePhotos = getApplicantSitePhotos(selectedRecord);
+  const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
+    ? reviewTechnicalSite.site_photos
+    : [];
+  const coordinates = getApplicationCoordinates(step1);
+  const reportStatus =
+    technicalReview.final_decision ||
+    technicalReview.decision ||
+    kuReview.decision ||
+    kuReview.status ||
+    selectedRecord.latest_remark ||
+    "-";
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="mb-3">
-        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-          {t("workspace.approval.technicalSummaryTitle", "KU(IKL) Final Checking")}
-        </h3>
-        <p className="mt-1 text-[14px] leading-5 text-slate-500">
-          {t(
-            "workspace.approval.technicalSummaryDesc",
-            "Review KU(IKL)'s final technical check before verifying this application."
-          )}
-        </p>
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+              {t("workspace.approval.recommendationReport", "Recommendation Report")}
+            </p>
+            <h3 className="mt-1 text-[16px] font-semibold leading-6 text-slate-950">
+              {title || t("workspace.approval.technicalSummaryTitle", "Technical Report")}
+            </h3>
+            <p className="mt-1 text-[14px] leading-5 text-slate-500">
+              {description ||
+                t(
+                  "workspace.approval.technicalSummaryDesc",
+                  "Review the compiled application details, site photos, fee calculations, technical remarks, and KU(IKL) final check before making a decision."
+                )}
+            </p>
+          </div>
+          <StatusPill value={reportStatus} />
+        </div>
       </div>
 
-      <div className="space-y-3">
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <div className="space-y-3 p-3">
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+            {t("workspace.approval.applicationFacts", "Application Facts")}
+          </h4>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
+            <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
+            <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t)} />
+            <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
+            <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
+            <Info
+              label={t("workspace.applicationDate", "Application Date")}
+              value={formatDate(step1.application_date)}
+            />
+            <Info
+              label={t("workspace.technical.coordinates", "Coordinates")}
+              value={coordinates}
+            />
+            <Info
+              label={t("workspace.created")}
+              value={formatDateTime(selectedRecord.created_at)}
+            />
+            <Info
+              label={t("common.updated")}
+              value={formatDateTime(selectedRecord.updated_at)}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+            {t("workspace.approval.technicalRecommendation", "Technical Recommendation")}
+          </h4>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Info
+              label={t("common.decision")}
+              value={technicalReview.final_decision || technicalReview.decision || "-"}
+            />
             <Info
               label={t("workspace.technical.kuDecision", "KU(IKL) Decision")}
               value={kuDecision}
@@ -2160,19 +2251,53 @@ function ApprovalTechnicalReviewSummary({ t, selectedRecord, technicalSite }) {
               value={formatDateTime(kuReview.reviewed_at)}
             />
           </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Info
+              label={t("workspace.technical.licenseFee")}
+              value={formatReportAmount(reviewTechnicalSite.license_fee_calculation)}
+            />
+            <Info
+              label={t("workspace.technical.deposit")}
+              value={formatReportAmount(reviewTechnicalSite.deposit_calculation)}
+            />
+            <Info
+              label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
+              value={formatDateTime(formData.technical_site_visit?.visited_at)}
+            />
+          </div>
           <div className="mt-3">
             <Info
               label={t("workspace.comment.remarks", "Remarks")}
               value={kuRemarks}
             />
           </div>
+          <div className="mt-3">
+            <Info
+              label={t("workspace.technical.siteRemarks")}
+              value={
+                reviewTechnicalSite.site_remarks ||
+                technicalReview.comment ||
+                technicalReview.remarks ||
+                "-"
+              }
+            />
+          </div>
         </div>
 
-        <KuTechnicalReviewPackage
+        <ReportPhotoGrid
           t={t}
+          title={t("workspace.siteImage", "Applicant Site Image")}
+          emptyText={t("workspace.info.notSubmitted", "Not submitted")}
           applicationId={selectedRecord.id}
-          technicalSite={reviewTechnicalSite}
-          technicalReview={technicalReview}
+          photos={applicantSitePhotos}
+        />
+
+        <ReportPhotoGrid
+          t={t}
+          title={t("workspace.technical.sitePhoto")}
+          emptyText={t("workspace.info.notSubmitted", "Not submitted")}
+          applicationId={selectedRecord.id}
+          photos={technicalSitePhotos}
         />
 
         <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
@@ -2181,75 +2306,128 @@ function ApprovalTechnicalReviewSummary({ t, selectedRecord, technicalSite }) {
   );
 }
 
-function KuTechnicalReviewPackage({ t, applicationId, technicalSite, technicalReview }) {
-  const sitePhotos = Array.isArray(technicalSite.site_photos)
-    ? technicalSite.site_photos
-    : [];
-  const decision = technicalReview.final_decision || technicalReview.decision || "-";
-  const siteRemarks = technicalSite.site_remarks || technicalReview.comment || "-";
+function ReportPhotoGrid({ t, title, emptyText, applicationId, photos }) {
+  const reportPhotos = Array.isArray(photos) ? photos : [];
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-md border border-slate-200 bg-white p-3">
       <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
-        {t("workspace.technical.kuPackageTitle", "IKL Technical Review Details")}
+        {title}
       </h4>
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Info label={t("common.decision")} value={decision} />
-        <Info
-          label={t("workspace.technical.licenseFee")}
-          value={technicalSite.license_fee_calculation || "-"}
-        />
-        <Info
-          label={t("workspace.technical.deposit")}
-          value={technicalSite.deposit_calculation || "-"}
-        />
-      </div>
-      <div className="mt-3">
-        <Info label={t("workspace.technical.siteRemarks")} value={siteRemarks} />
-      </div>
-
-      <div className="mt-3">
-        <p className="mb-1.5 text-[14px] font-semibold leading-5 text-slate-700">
-          {t("workspace.technical.sitePhoto")}
+      {reportPhotos.length === 0 ? (
+        <p className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+          {emptyText}
         </p>
-        {sitePhotos.length === 0 ? (
-          <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-500">
-            {t("workspace.info.notSubmitted", "Not submitted")}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {sitePhotos.map((photo, index) => (
-              <div
-                key={`${photo.name || "ku-site-photo"}-${index}`}
-                className="overflow-hidden rounded-md border border-slate-200 bg-white"
-              >
-                <SitePhotoPreview
+      ) : (
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {reportPhotos.map((photo, index) => (
+            <div
+              key={`${photo.name || photo.title || title}-${index}`}
+              className="overflow-hidden rounded-md border border-slate-200 bg-white"
+            >
+              <SitePhotoPreview
+                photo={photo}
+                applicationId={applicationId}
+                alt={`${title} ${index + 1}`}
+              />
+              <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <span className="truncate text-[14px] font-medium leading-5 text-slate-600">
+                  {photo.name || photo.title || `${title} ${index + 1}`}
+                </span>
+                <SitePhotoActions
                   photo={photo}
                   applicationId={applicationId}
-                  alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
+                  hideDelete
+                  labels={{
+                    view: t("common.view"),
+                    download: t("common.download"),
+                    delete: t("common.delete"),
+                  }}
                 />
-                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-                  <span className="truncate text-[14px] font-medium leading-5 text-slate-600">
-                    {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
-                  </span>
-                  <SitePhotoActions
-                    photo={photo}
-                    applicationId={applicationId}
-                    hideDelete
-                    labels={{
-                      view: t("common.view"),
-                      download: t("common.download"),
-                      delete: t("common.delete"),
-                    }}
-                  />
-                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
+
+function getApplicantSitePhotos(app) {
+  const step1 = app?.form_data?.step_1 || {};
+  const documents = Array.isArray(app?.supporting_documents)
+    ? app.supporting_documents
+    : [];
+  const documentPhotos = documents
+    .filter((document) => document.title === "Site Image")
+    .map((document) => ({
+      ...document,
+      document_id: document.id,
+      name: getFileNameFromUrl(document.file_url || document.file) || document.title,
+      url: document.file_url || document.file || "",
+      file_url: document.file_url || document.file || "",
+    }));
+
+  if (documentPhotos.length > 0) return documentPhotos;
+
+  const savedPhoto = step1.site_image || null;
+
+  if (savedPhoto) {
+    return [
+      {
+        ...savedPhoto,
+        document_id:
+          savedPhoto.document_id ||
+          savedPhoto.id ||
+          step1.site_image_document_id ||
+          "",
+        name:
+          savedPhoto.name ||
+          step1.site_image_name ||
+          getFileNameFromUrl(savedPhoto.file_url || savedPhoto.file || step1.site_image_url) ||
+          "Site Image",
+        url: savedPhoto.url || savedPhoto.file_url || step1.site_image_url || "",
+        file_url: savedPhoto.file_url || savedPhoto.url || step1.site_image_url || "",
+      },
+    ];
+  }
+
+  if (step1.site_image_url || step1.site_image_preview) {
+    return [
+      {
+        document_id: step1.site_image_document_id || "",
+        name: step1.site_image_name || "Site Image",
+        url: step1.site_image_url || step1.site_image_preview,
+        file_url: step1.site_image_url || step1.site_image_preview,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function getApplicationCoordinates(step1) {
+  const latitude = step1.latitude;
+  const longitude = step1.longitude;
+
+  if (!hasValue(latitude) || !hasValue(longitude)) return "-";
+
+  return `${latitude}, ${longitude}`;
+}
+
+function formatReportAmount(value) {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  if (/^rm\s/i.test(text)) return text;
+
+  const numeric = Number(text.replace(/[^\d.-]/g, ""));
+  const isPlainNumber = /^-?\d+(\.\d+)?$/.test(text);
+
+  if (isPlainNumber && Number.isFinite(numeric)) {
+    return formatCurrency(numeric);
+  }
+
+  return text;
 }
 
 function TechnicalDepartmentRemarks({ app, t }) {
