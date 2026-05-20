@@ -1,4 +1,4 @@
-import { Panel } from "../ui/SystemUI";
+import { Icon, Panel } from "../ui/SystemUI";
 
 const workflowCards = [
   {
@@ -14,7 +14,7 @@ const workflowCards = [
   {
     titleKey: "admin.workflow.management",
     descriptionKey: "admin.workflow.managementDesc",
-    icon: "approval_delegation",
+    icon: "check_circle",
   },
   {
     titleKey: "admin.workflow.payment",
@@ -34,9 +34,7 @@ function OperationalWorkflowPanel({ t }) {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
         {workflowCards.map((item) => (
           <div key={item.titleKey} className="rounded-md border border-slate-200 bg-white p-3">
-            <span className="material-symbols-outlined text-2xl text-emerald-700">
-              {item.icon}
-            </span>
+            <Icon name={item.icon} className="text-2xl text-emerald-700" />
             <h3 className="mt-3 text-sm font-semibold text-slate-950">
               {t(item.titleKey)}
             </h3>

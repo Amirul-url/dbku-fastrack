@@ -16,6 +16,7 @@ import {
   Button,
   DataTable,
   Field,
+  Icon,
   Info,
   PageHeader,
   Panel,
@@ -729,7 +730,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           onClick={() => submitApprovalSupport("Not Supported")}
                           disabled={saving}
                           variant="danger"
-                          icon="thumb_down"
+                          icon="cancel"
                           className="min-w-40"
                         >
                           {t("workspace.decision.notSupport", "Not Support")}
@@ -738,7 +739,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           onClick={() => submitApprovalSupport("Support")}
                           disabled={saving}
                           variant="primary"
-                          icon="thumb_up"
+                          icon="check_circle"
                           className="min-w-40"
                         >
                           {saving ? t("workspace.saving") : t("workspace.decision.support", "Support")}
@@ -750,7 +751,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           onClick={() => submitApprovalDecisionButton("Reject")}
                           disabled={saving}
                           variant="danger"
-                          icon="thumb_down"
+                          icon="cancel"
                           className="min-w-40"
                         >
                           {t("workspace.decision.reject", "Reject")}
@@ -759,7 +760,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           onClick={() => submitApprovalDecisionButton("Approve")}
                           disabled={saving}
                           variant="primary"
-                          icon="task_alt"
+                          icon="check_circle"
                           className="min-w-40"
                         >
                           {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
@@ -1541,7 +1542,7 @@ const configs = {
       { label: "Total", labelKey: "workspace.stat.total", value: apps.length, icon: "folder" },
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => ["submitted", "incomplete"].includes(normalizeStatus(app.status))), icon: "pending", tone: "amber" },
       { label: "Screened", labelKey: "workspace.stat.screened", value: countBy(apps, (app) => ["ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed"].includes(normalizeStatus(app.status))), icon: "fact_check" },
-      { label: "Passed", labelKey: "workspace.stat.passed", value: countBy(apps, (app) => ["ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed"].includes(normalizeStatus(app.status))), icon: "task_alt" },
+      { label: "Passed", labelKey: "workspace.stat.passed", value: countBy(apps, (app) => ["ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed"].includes(normalizeStatus(app.status))), icon: "check_circle" },
     ],
     screeningAction: {
       label: "Submit PT/KU Decision",
@@ -1555,7 +1556,7 @@ const configs = {
       {
         label: "Supported",
         labelKey: "workspace.decision.supported",
-        icon: "thumb_up",
+        icon: "check_circle",
         decision: "Supported",
         requiresComment: true,
         success: "Technical review saved.",
@@ -1576,7 +1577,7 @@ const configs = {
       {
         label: "Not Supported",
         labelKey: "workspace.decision.notSupported",
-        icon: "thumb_down",
+        icon: "cancel",
         variant: "danger",
         decision: "Not Supported",
         disabled: true,
@@ -1629,9 +1630,9 @@ const configs = {
     commentPlaceholderKey: "workspace.comment.technicalPlaceholder",
     stats: (apps, department) => [
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !hasTechnicalDepartmentReview(app, department)), icon: "pending", tone: "amber" },
-      { label: "Completed", labelKey: "workspace.stat.completed", value: countBy(apps, (app) => hasTechnicalDepartmentReview(app, department)), icon: "task_alt" },
-      { label: "Supported", labelKey: "workspace.stat.supported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Supported"), icon: "thumb_up" },
-      { label: "Not Supported", labelKey: "workspace.stat.notSupported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Not Supported"), icon: "thumb_down", tone: "red" },
+      { label: "Completed", labelKey: "workspace.stat.completed", value: countBy(apps, (app) => hasTechnicalDepartmentReview(app, department)), icon: "check_circle" },
+      { label: "Supported", labelKey: "workspace.stat.supported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Supported"), icon: "check_circle" },
+      { label: "Not Supported", labelKey: "workspace.stat.notSupported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Not Supported"), icon: "cancel", tone: "red" },
     ],
     actions: [
       {
@@ -1668,16 +1669,16 @@ const configs = {
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
     stats: (apps) => [
-      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified", tone: "amber" },
-      { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "approval_delegation", tone: "blue" },
+      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
+      { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "check_circle", tone: "blue" },
       { label: "MPHLG", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
-      { label: "SUT", value: countBy(apps, (app) => getApprovalStageKey(app) === "sut"), icon: "task_alt" },
+      { label: "SUT", value: countBy(apps, (app) => getApprovalStageKey(app) === "sut"), icon: "gavel" },
     ],
     actions: [
       {
         label: "Submit",
         labelKey: "common.submit",
-        icon: "approval_delegation",
+        icon: "check_circle",
         success: "Approval task saved.",
         successKey: "workspace.message.decisionSaved",
         buildPayload: buildApprovalWorkflowPayload,
@@ -2632,9 +2633,7 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-white hover:bg-emerald-800">
-            <span className="material-symbols-outlined mr-1 text-base">
-              add_photo_alternate
-            </span>
+            <Icon name="add_photo_alternate" className="mr-1 text-base" />
             {t("workspace.technical.uploadSitePhoto")}
             <input
               type="file"
@@ -2783,13 +2782,13 @@ function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hi
           aria-label={action.label}
           disabled={disabled}
           onClick={action.onClick}
-          className={`material-symbols-outlined rounded p-1 text-[18px] transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`rounded p-1 transition disabled:cursor-not-allowed disabled:opacity-50 ${
             action.danger
               ? "text-red-600 hover:bg-red-50 hover:text-red-700"
               : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
           }`}
         >
-          {action.icon}
+          <Icon name={action.icon} className="text-[18px]" />
         </button>
       ))}
     </div>
@@ -2879,7 +2878,7 @@ function PaymentDetails({ app, t }) {
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
         >
-          <span className="material-symbols-outlined text-base">visibility</span>
+          <Icon name="visibility" className="text-base" />
           {t("workspace.info.viewReceipt")}
         </a>
       )}

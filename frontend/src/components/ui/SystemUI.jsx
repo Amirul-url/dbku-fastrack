@@ -10,6 +10,22 @@ import {
   normalizeStatus,
 } from "../../utils/workflow";
 
+export function Icon({ name, className = "", title, ...props }) {
+  if (!name) return null;
+
+  return (
+    <span
+      className={`material-symbols-outlined notranslate leading-none ${className}`}
+      aria-hidden={title ? undefined : true}
+      title={title}
+      translate="no"
+      {...props}
+    >
+      {name}
+    </span>
+  );
+}
+
 export function PageHeader({
   eyebrow,
   title,
@@ -66,9 +82,7 @@ export function Button({
       className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-[14px] font-semibold leading-5 transition disabled:cursor-not-allowed disabled:opacity-60 ${variants[variant]} ${className}`}
       {...props}
     >
-      {icon && (
-        <span className="material-symbols-outlined text-[18px]">{icon}</span>
-      )}
+      <Icon name={icon} className="text-[18px]" />
       {children}
     </button>
   );
@@ -87,9 +101,7 @@ export function LinkButton({ to, children, icon, variant = "primary", className 
       to={to}
       className={`inline-flex min-h-9 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-[14px] font-semibold leading-5 transition ${variants[variant]} ${className}`}
     >
-      {icon && (
-        <span className="material-symbols-outlined text-[18px]">{icon}</span>
-      )}
+      <Icon name={icon} className="text-[18px]" />
       {children}
     </Link>
   );
@@ -135,11 +147,7 @@ export function StatCard({ label, value, note, icon, tone = "emerald" }) {
           <p className="mt-1.5 text-2xl font-semibold text-slate-950">{value}</p>
         </div>
         {icon && (
-          <span
-            className={`material-symbols-outlined rounded-md p-2 text-[20px] ${tones[tone]}`}
-          >
-            {icon}
-          </span>
+          <Icon name={icon} className={`rounded-md p-2 text-[20px] ${tones[tone]}`} />
         )}
       </div>
       {note && <p className="mt-3 text-xs leading-5 text-slate-500">{note}</p>}
@@ -239,9 +247,7 @@ export function StatusPill({ value }) {
 export function EmptyState({ title = "No data", description, icon = "inbox" }) {
   return (
     <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
-      <span className="material-symbols-outlined text-4xl text-slate-300">
-        {icon}
-      </span>
+      <Icon name={icon} className="text-4xl text-slate-300" />
       <p className="mt-2 text-sm font-semibold text-slate-700">{title}</p>
       {description && (
         <p className="mt-1 text-sm text-slate-500">{description}</p>

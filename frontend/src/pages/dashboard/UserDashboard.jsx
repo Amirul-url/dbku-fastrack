@@ -875,7 +875,7 @@ function buildOverviewStatusSummary(applications, latest, t) {
       key: "approved",
       label: t("status.approved"),
       value: approved,
-      icon: "task_alt",
+      icon: "check_circle",
       tone: "emerald",
     },
   ];

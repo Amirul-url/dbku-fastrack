@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useLanguage } from "../context/LanguageContext";
 import { useNotifications } from "../context/NotificationContext";
+import { Icon } from "../components/ui/SystemUI";
 import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
@@ -69,7 +70,7 @@ function buildAdminNav(taskCounts = {}, user = null) {
         fallback: "Awaiting Approval",
         path: "/dashboard/admin?view=approval",
         view: "approval",
-        icon: "approval_delegation",
+        icon: "check_circle",
         badge: taskCounts.approval || 0,
       },
     ];
@@ -369,9 +370,7 @@ function AppShell({ children, role = "admin" }) {
                       }}
                       className="flex min-w-0 flex-1 items-center gap-3"
                     >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {item.icon}
-                      </span>
+                      <Icon name={item.icon} className="text-[20px]" />
                       <span className="truncate">{t(item.labelKey, item.fallback)}</span>
                     </Link>
                     <button
@@ -390,9 +389,7 @@ function AppShell({ children, role = "admin" }) {
                       aria-expanded={submenuOpen}
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-emerald-100"
                     >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {submenuOpen ? "expand_less" : "expand_more"}
-                      </span>
+                      <Icon name={submenuOpen ? "expand_less" : "expand_more"} className="text-[18px]" />
                     </button>
                   </div>
                 ) : (
@@ -405,9 +402,7 @@ function AppShell({ children, role = "admin" }) {
                     }`}
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className="material-symbols-outlined text-[20px]">
-                        {item.icon}
-                      </span>
+                      <Icon name={item.icon} className="text-[20px]" />
                       <span className="truncate">{t(item.labelKey, item.fallback)}</span>
                     </span>
                     <NavBadge count={item.badge} />
@@ -457,9 +452,7 @@ function AppShell({ children, role = "admin" }) {
                                   childActive || nestedActive ? "text-white" : "text-slate-600"
                                 }`}
                               >
-                                <span className="material-symbols-outlined text-[18px]">
-                                  {applicationStepsOpen ? "expand_less" : "expand_more"}
-                                </span>
+                                <Icon name={applicationStepsOpen ? "expand_less" : "expand_more"} className="text-[18px]" />
                               </button>
                             </div>
 
@@ -547,9 +540,7 @@ function AppShell({ children, role = "admin" }) {
                 aria-label={t("common.notifications")}
                 title={t("common.notifications")}
               >
-                <span className="material-symbols-outlined text-[21px]">
-                  notifications
-                </span>
+                <Icon name="notifications" className="text-[21px]" />
                 <span className="min-w-5 rounded-full bg-red-600 px-1.5 text-center text-xs font-bold text-white">
                   {unreadCount}
                 </span>
@@ -561,7 +552,7 @@ function AppShell({ children, role = "admin" }) {
                 aria-label={t("profile.accountProfile")}
                 title={t("profile.accountProfile")}
               >
-                <span className="material-symbols-outlined text-[22px]">person</span>
+                <Icon name="person" className="text-[22px]" />
               </button>
 
               {profileOpen && (
@@ -841,7 +832,7 @@ function ProfileDropdown({ role, t, onLogout }) {
           to="/user/profile"
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-800"
         >
-          <span className="material-symbols-outlined text-[19px]">account_circle</span>
+          <Icon name="account_circle" className="text-[19px]" />
           {t("profile.profile")}
         </Link>
       )}
@@ -850,7 +841,7 @@ function ProfileDropdown({ role, t, onLogout }) {
         onClick={onLogout}
         className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50"
       >
-        <span className="material-symbols-outlined text-[19px]">logout</span>
+        <Icon name="logout" className="text-[19px]" />
         {t("common.logout")}
       </button>
     </div>

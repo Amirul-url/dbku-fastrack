@@ -7,6 +7,7 @@ import { apiRequest, getStoredUser } from "../../services/api";
 import {
   Alert,
   DataTable,
+  Icon,
   LinkButton,
   Panel,
   StatusPill,
@@ -317,9 +318,7 @@ function ClaimableTaskView({
               <span
                 className={`flex aspect-square w-20 items-center justify-center rounded-full text-white shadow-sm ${unit.color}`}
               >
-                <span className={`material-symbols-outlined text-4xl ${unit.iconClassName || ""}`}>
-                  {unit.icon}
-                </span>
+                <Icon name={unit.icon} className={`text-4xl ${unit.iconClassName || ""}`} />
               </span>
               <span className="mt-3 text-sm font-bold italic text-slate-700">
                 {getProcessIconTitle(unit)}

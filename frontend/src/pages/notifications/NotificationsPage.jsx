@@ -28,7 +28,7 @@ const filters = [
 
 const typeStyles = {
   success: {
-    icon: "task_alt",
+    icon: "check_circle",
     className: "border-emerald-200 bg-emerald-50 text-emerald-700",
   },
   warning: {
