@@ -150,6 +150,7 @@ const screenText = {
     totalUsers: "Total User Accounts",
     totalAdmins: "Total Admin Accounts",
     superAdminAccounts: "Total SuperAdmin Accounts",
+    userAccounts: "User Accounts",
     dbkuAccounts: "DBKU Accounts",
     mphlgAccounts: "MPHLG Accounts",
     systemAccounts: "System Accounts",
@@ -170,7 +171,15 @@ const screenText = {
     dashboardAccess: "Dashboard Access",
     managementAccess: "Management Access",
     dashboardAccessDescription: "SuperAdmin can view dashboard account information.",
-    managementAccessDescription: "Full access to manage user, admin, and SuperAdmin login accounts.",
+    managementAccessDescription: "Full access to manage User, DBKU, MPHLG, and System login account sections.",
+    userAccess: "User Section",
+    userAccessDescription: "Manage applicant login accounts separately from agency staff.",
+    dbkuAccess: "DBKU Section",
+    dbkuAccessDescription: "Manage DBKU admin and supervisor login accounts.",
+    mphlgAccess: "MPHLG Section",
+    mphlgAccessDescription: "Manage MPHLG admin login accounts.",
+    systemAccess: "System Section",
+    systemAccessDescription: "Manage SuperAdmin login accounts and system access.",
     registrationInfo: "Registration Info",
     personalInformation: "Personal Information",
     fullNameMyKad: "Full Name (as per MyKad)",
@@ -280,6 +289,7 @@ const screenText = {
     totalUsers: "Jumlah Akaun Pengguna",
     totalAdmins: "Jumlah Akaun Admin",
     superAdminAccounts: "Jumlah Akaun SuperAdmin",
+    userAccounts: "Akaun Pengguna",
     dbkuAccounts: "Akaun DBKU",
     mphlgAccounts: "Akaun MPHLG",
     systemAccounts: "Akaun Sistem",
@@ -300,7 +310,15 @@ const screenText = {
     dashboardAccess: "Akses Papan Pemuka",
     managementAccess: "Akses Pengurusan",
     dashboardAccessDescription: "SuperAdmin boleh melihat maklumat akaun di papan pemuka.",
-    managementAccessDescription: "Akses penuh untuk mengurus akaun log masuk pengguna, admin, dan SuperAdmin.",
+    managementAccessDescription: "Akses penuh untuk mengurus bahagian akaun log masuk Pengguna, DBKU, MPHLG, dan Sistem.",
+    userAccess: "Bahagian Pengguna",
+    userAccessDescription: "Urus akaun log masuk pemohon secara berasingan daripada staf agensi.",
+    dbkuAccess: "Bahagian DBKU",
+    dbkuAccessDescription: "Urus akaun log masuk admin dan penyelia DBKU.",
+    mphlgAccess: "Bahagian MPHLG",
+    mphlgAccessDescription: "Urus akaun log masuk admin MPHLG.",
+    systemAccess: "Bahagian Sistem",
+    systemAccessDescription: "Urus akaun log masuk SuperAdmin dan akses sistem.",
     registrationInfo: "Maklumat Pendaftaran",
     personalInformation: "Maklumat Peribadi",
     fullNameMyKad: "Nama Penuh (seperti MyKad)",
@@ -406,13 +424,20 @@ function SuperAdminHome() {
 
       <Alert message={error} />
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+        <DashboardSectionCard
+          icon="group"
+          title={labels.userAccounts}
+          tone="teal"
+          items={[
+            { icon: "group", label: labels.userRole, value: loading ? "-" : dashboard.totalUsers },
+          ]}
+        />
         <DashboardSectionCard
           icon="account_balance"
           title={labels.dbkuAccounts}
           tone="emerald"
           items={[
-            { icon: "group", label: labels.userRole, value: loading ? "-" : dashboard.totalUsers },
             { icon: "admin_panel_settings", label: labels.adminRole, value: loading ? "-" : dashboard.dbkuAdmins },
             { icon: "supervisor_account", label: labels.supervisorRole, value: loading ? "-" : dashboard.totalSupervisors },
           ]}
@@ -530,6 +555,18 @@ function SuperAdminHome() {
             </AccessSummaryBlock>
             <AccessSummaryBlock icon="key" title={labels.managementAccess}>
               <p className="text-sm leading-6 text-slate-600">{labels.managementAccessDescription}</p>
+            </AccessSummaryBlock>
+            <AccessSummaryBlock icon="group" title={labels.userAccess}>
+              <p className="text-sm leading-6 text-slate-600">{labels.userAccessDescription}</p>
+            </AccessSummaryBlock>
+            <AccessSummaryBlock icon="account_balance" title={labels.dbkuAccess}>
+              <p className="text-sm leading-6 text-slate-600">{labels.dbkuAccessDescription}</p>
+            </AccessSummaryBlock>
+            <AccessSummaryBlock icon="admin_panel_settings" title={labels.mphlgAccess}>
+              <p className="text-sm leading-6 text-slate-600">{labels.mphlgAccessDescription}</p>
+            </AccessSummaryBlock>
+            <AccessSummaryBlock icon="settings_account_box" title={labels.systemAccess}>
+              <p className="text-sm leading-6 text-slate-600">{labels.systemAccessDescription}</p>
             </AccessSummaryBlock>
           </div>
         </section>

@@ -97,8 +97,9 @@ function buildAdminNav(taskCounts = {}, user = null) {
 
 const superAdminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/superadmin/dashboard", icon: "dashboard" },
-  { type: "section", labelKey: "superadmin.nav.sectionDbku", fallback: "DBKU", key: "dbku" },
+  { type: "section", labelKey: "superadmin.nav.sectionUser", fallback: "User", key: "user" },
   { labelKey: "superadmin.nav.users", fallback: "User", path: "/superadmin/users", icon: "group" },
+  { type: "section", labelKey: "superadmin.nav.sectionDbku", fallback: "DBKU", key: "dbku" },
   { labelKey: "superadmin.nav.dbkuAdmins", fallback: "Admin", path: "/superadmin/admins", icon: "admin_panel_settings" },
   { labelKey: "superadmin.nav.supervisors", fallback: "Supervisor", path: "/superadmin/supervisors", icon: "supervisor_account" },
   { type: "section", labelKey: "superadmin.nav.sectionMphlg", fallback: "MPHLG", key: "mphlg" },
