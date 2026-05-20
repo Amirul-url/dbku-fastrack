@@ -97,10 +97,14 @@ function buildAdminNav(taskCounts = {}, user = null) {
 
 const superAdminNav = [
   { labelKey: "nav.dashboard", fallback: "Dashboard", path: "/superadmin/dashboard", icon: "dashboard" },
+  { type: "section", labelKey: "superadmin.nav.sectionDbku", fallback: "DBKU", key: "dbku" },
   { labelKey: "superadmin.nav.users", fallback: "User", path: "/superadmin/users", icon: "group" },
-  { labelKey: "superadmin.nav.admins", fallback: "Admin", path: "/superadmin/admins", icon: "admin_panel_settings" },
-  { labelKey: "superadmin.nav.superadmins", fallback: "SuperAdmin", path: "/superadmin/superadmins", icon: "shield_person" },
+  { labelKey: "superadmin.nav.dbkuAdmins", fallback: "Admin", path: "/superadmin/admins", icon: "admin_panel_settings" },
   { labelKey: "superadmin.nav.supervisors", fallback: "Supervisor", path: "/superadmin/supervisors", icon: "supervisor_account" },
+  { type: "section", labelKey: "superadmin.nav.sectionMphlg", fallback: "MPHLG", key: "mphlg" },
+  { labelKey: "superadmin.nav.mphlgAdmins", fallback: "Admin", path: "/superadmin/mphlg-admins", icon: "admin_panel_settings" },
+  { type: "section", labelKey: "superadmin.nav.sectionSystem", fallback: "System", key: "system" },
+  { labelKey: "superadmin.nav.superadmins", fallback: "SuperAdmin", path: "/superadmin/superadmins", icon: "shield_person" },
 ];
 
 function getApplicationStepPath(applicationId, route) {
@@ -214,15 +218,14 @@ function AppShell({ children, role = "admin" }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     if (role !== "admin") {
-      setAdminTaskCounts({ personal: 0, approval: 0 });
       return undefined;
     }
 
-    refreshAdminTaskCounts();
+    const initialTimerId = window.setTimeout(refreshAdminTaskCounts, 0);
     const intervalId = window.setInterval(
       () => refreshAdminTaskCounts({ silent: true }),
       15000
@@ -232,6 +235,7 @@ function AppShell({ children, role = "admin" }) {
     window.addEventListener("fastrack:applications-changed", handleRefresh);
 
     return () => {
+      window.clearTimeout(initialTimerId);
       window.clearInterval(intervalId);
       window.removeEventListener("fastrack:applications-changed", handleRefresh);
     };
@@ -293,6 +297,17 @@ function AppShell({ children, role = "admin" }) {
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3.5 py-4">
           {nav.map((item) => {
+            if (item.type === "section") {
+              return (
+                <p
+                  key={item.key || item.labelKey}
+                  className="px-3.5 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wide text-slate-400 first:pt-0"
+                >
+                  {t(item.labelKey, item.fallback)}
+                </p>
+              );
+            }
+
             const active =
               location.pathname === item.path ||
               (role === "applicant" &&

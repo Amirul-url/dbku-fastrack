@@ -28,6 +28,7 @@ const adminDepartments = [
   "ENG",
 ];
 const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
+const mphlgDepartments = ["MPHLG"];
 const recentActivityPageSize = 5;
 const adminCsvHeaders = [
   "full_name",
@@ -62,14 +63,20 @@ const screenText = {
   en: {
     userTitle: "User Management",
     adminTitle: "Admin Management",
+    dbkuAdminTitle: "DBKU Admin Management",
+    mphlgAdminTitle: "MPHLG Admin Management",
     superadminTitle: "SuperAdmin Management",
     supervisorTitle: "Supervisor Management",
     userDescription: "Manage applicant login accounts and account access.",
     adminDescription: "Manage administrator login accounts and access roles.",
+    dbkuAdminDescription: "Manage DBKU administrator login accounts and access roles.",
+    mphlgAdminDescription: "Manage MPHLG administrator login accounts and ministry access.",
     superadminDescription: "Manage SuperAdmin login accounts and system access.",
     supervisorDescription: "Manage supervisor login accounts and approval access roles.",
     userList: "User List",
     adminList: "Admin List",
+    dbkuAdminList: "DBKU Admin List",
+    mphlgAdminList: "MPHLG Admin List",
     superadminList: "SuperAdmin List",
     supervisorList: "Supervisor List",
     addAccount: "Add Account",
@@ -143,6 +150,9 @@ const screenText = {
     totalUsers: "Total User Accounts",
     totalAdmins: "Total Admin Accounts",
     superAdminAccounts: "Total SuperAdmin Accounts",
+    dbkuAccounts: "DBKU Accounts",
+    mphlgAccounts: "MPHLG Accounts",
+    systemAccounts: "System Accounts",
     recentActivity: "Recent Activity",
     latestFiveActivities: "Latest 5 account activities",
     activityDateFilter: "Activity date",
@@ -183,14 +193,20 @@ const screenText = {
   ms: {
     userTitle: "Pengurusan Pengguna",
     adminTitle: "Pengurusan Admin",
+    dbkuAdminTitle: "Pengurusan Admin DBKU",
+    mphlgAdminTitle: "Pengurusan Admin MPHLG",
     superadminTitle: "Pengurusan SuperAdmin",
     supervisorTitle: "Pengurusan Penyelia",
     userDescription: "Urus akaun log masuk pemohon dan akses akaun.",
     adminDescription: "Urus akaun log masuk pentadbir dan peranan akses.",
+    dbkuAdminDescription: "Urus akaun log masuk pentadbir DBKU dan peranan akses.",
+    mphlgAdminDescription: "Urus akaun log masuk pentadbir MPHLG dan akses kementerian.",
     superadminDescription: "Urus akaun log masuk SuperAdmin dan akses sistem.",
     supervisorDescription: "Urus akaun log masuk penyelia dan peranan akses kelulusan.",
     userList: "Senarai Pengguna",
     adminList: "Senarai Admin",
+    dbkuAdminList: "Senarai Admin DBKU",
+    mphlgAdminList: "Senarai Admin MPHLG",
     superadminList: "Senarai SuperAdmin",
     supervisorList: "Senarai Penyelia",
     addAccount: "Tambah Akaun",
@@ -264,6 +280,9 @@ const screenText = {
     totalUsers: "Jumlah Akaun Pengguna",
     totalAdmins: "Jumlah Akaun Admin",
     superAdminAccounts: "Jumlah Akaun SuperAdmin",
+    dbkuAccounts: "Akaun DBKU",
+    mphlgAccounts: "Akaun MPHLG",
+    systemAccounts: "Akaun Sistem",
     recentActivity: "Aktiviti Terkini",
     latestFiveActivities: "5 aktiviti akaun terkini",
     activityDateFilter: "Tarikh aktiviti",
@@ -342,7 +361,16 @@ function SuperAdminHome() {
 
   const dashboard = useMemo(() => {
     const totalUsers = summary.users ?? accounts.filter((account) => account.role === "applicant").length;
+    const dbkuAdmins = accounts.filter((account) => (
+      account.role === "admin" &&
+      String(account.department || "").toUpperCase() !== "MPHLG"
+    )).length;
     const totalAdmins = accounts.filter((account) => account.role === "admin").length;
+    const totalSupervisors = accounts.filter((account) => account.role === "supervisor").length;
+    const mphlgAdmins = accounts.filter((account) => (
+      account.role === "admin" &&
+      String(account.department || "").toUpperCase() === "MPHLG"
+    )).length;
     const superAdminAccounts = accounts.filter((account) => account.role === "superadmin").length;
     const activityDateKey = getActivityDateFilterKey(activityDateFilter);
     const recentActivities = getAccountActivities(accounts).filter((activity) => (
@@ -358,6 +386,9 @@ function SuperAdminHome() {
     return {
       totalUsers,
       totalAdmins,
+      dbkuAdmins,
+      totalSupervisors,
+      mphlgAdmins,
       superAdminAccounts,
       currentActivityPage,
       recentActivities,
@@ -375,24 +406,32 @@ function SuperAdminHome() {
 
       <Alert message={error} />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <DashboardStatCard
-          icon="group"
-          label={labels.totalUsers}
-          value={loading ? "-" : dashboard.totalUsers}
-          tone="blue"
-        />
-        <DashboardStatCard
-          icon="admin_panel_settings"
-          label={labels.totalAdmins}
-          value={loading ? "-" : dashboard.totalAdmins}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <DashboardSectionCard
+          icon="account_balance"
+          title={labels.dbkuAccounts}
           tone="emerald"
+          items={[
+            { icon: "group", label: labels.userRole, value: loading ? "-" : dashboard.totalUsers },
+            { icon: "admin_panel_settings", label: labels.adminRole, value: loading ? "-" : dashboard.dbkuAdmins },
+            { icon: "supervisor_account", label: labels.supervisorRole, value: loading ? "-" : dashboard.totalSupervisors },
+          ]}
         />
-        <DashboardStatCard
-          icon="shield_person"
-          label={labels.superAdminAccounts}
-          value={loading ? "-" : dashboard.superAdminAccounts}
+        <DashboardSectionCard
+          icon="account_balance"
+          title={labels.mphlgAccounts}
+          tone="blue"
+          items={[
+            { icon: "admin_panel_settings", label: labels.adminRole, value: loading ? "-" : dashboard.mphlgAdmins },
+          ]}
+        />
+        <DashboardSectionCard
+          icon="settings_account_box"
+          title={labels.systemAccounts}
           tone="amber"
+          items={[
+            { icon: "shield_person", label: labels.superAdminRole, value: loading ? "-" : dashboard.superAdminAccounts },
+          ]}
         />
       </div>
 
@@ -458,7 +497,7 @@ function SuperAdminHome() {
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <RolePill account={account} labels={labels} />
-                      <span className="w-28 text-right !text-xs leading-5 text-slate-500">
+                      <span className="w-40 whitespace-nowrap text-right !text-xs leading-5 text-slate-500 tabular-nums">
                         {formatCompactDateTime(activity.timestamp, labels, language)}
                       </span>
                     </div>
@@ -502,12 +541,18 @@ function SuperAdminHome() {
 function SuperAdminAccountManagement({ view }) {
   const { language } = useLanguage();
   const labels = screenText[language] || screenText.en;
-  const isAdminView = view === "admins";
+  const isDbkuAdminView = view === "admins";
+  const isMphlgAdminView = view === "mphlg-admins";
+  const isAdminView = isDbkuAdminView || isMphlgAdminView;
   const isSuperadminView = view === "superadmins";
   const isSupervisorView = view === "supervisors";
   const isStaffAccountView = isAdminView || isSuperadminView || isSupervisorView;
   const hasDepartmentField = isAdminView || isSupervisorView;
-  const departmentOptions = isSupervisorView ? supervisorDepartments : adminDepartments;
+  const departmentOptions = isMphlgAdminView
+    ? mphlgDepartments
+    : isSupervisorView
+      ? supervisorDepartments
+      : adminDepartments;
   const [accounts, setAccounts] = useState([]);
   const [searchName, setSearchName] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
@@ -535,27 +580,39 @@ function SuperAdminAccountManagement({ view }) {
   const pageTitle =
     view === "users"
       ? labels.userTitle
-      : isSuperadminView
-        ? labels.superadminTitle
-        : isSupervisorView
-        ? labels.supervisorTitle
-        : labels.adminTitle;
+      : isMphlgAdminView
+        ? labels.mphlgAdminTitle
+        : isDbkuAdminView
+          ? labels.dbkuAdminTitle
+          : isSuperadminView
+            ? labels.superadminTitle
+            : isSupervisorView
+              ? labels.supervisorTitle
+              : labels.adminTitle;
   const pageDescription =
     view === "users"
       ? labels.userDescription
-      : isSuperadminView
-        ? labels.superadminDescription
-        : isSupervisorView
-        ? labels.supervisorDescription
-        : labels.adminDescription;
+      : isMphlgAdminView
+        ? labels.mphlgAdminDescription
+        : isDbkuAdminView
+          ? labels.dbkuAdminDescription
+          : isSuperadminView
+            ? labels.superadminDescription
+            : isSupervisorView
+              ? labels.supervisorDescription
+              : labels.adminDescription;
   const listTitle =
     view === "users"
       ? labels.userList
-      : isSuperadminView
-        ? labels.superadminList
-        : isSupervisorView
-        ? labels.supervisorList
-        : labels.adminList;
+      : isMphlgAdminView
+        ? labels.mphlgAdminList
+        : isDbkuAdminView
+          ? labels.dbkuAdminList
+          : isSuperadminView
+            ? labels.superadminList
+            : isSupervisorView
+              ? labels.supervisorList
+              : labels.adminList;
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -583,6 +640,7 @@ function SuperAdminAccountManagement({ view }) {
 
     return accounts
       .filter((account) => {
+        const accountDepartment = String(account.department || "").toUpperCase();
         const textMatch = [
           getAccountDisplayName(account),
           account.username,
@@ -598,11 +656,16 @@ function SuperAdminAccountManagement({ view }) {
         const nameMatch = !nameNeedle || textMatch || mobileMatch;
         const departmentMatch =
           !selectedDepartment ||
-          String(account.department || "").toUpperCase() === selectedDepartment;
-        return nameMatch && departmentMatch;
+          accountDepartment === selectedDepartment;
+        const agencyMatch =
+          !isAdminView ||
+          (isMphlgAdminView
+            ? accountDepartment === "MPHLG"
+            : accountDepartment !== "MPHLG");
+        return nameMatch && departmentMatch && agencyMatch;
       })
       .sort(compareAccounts);
-  }, [accounts, searchName, departmentFilter]);
+  }, [accounts, searchName, departmentFilter, isAdminView, isMphlgAdminView]);
 
   function openCreate() {
     setEditingAccount(null);
@@ -615,7 +678,7 @@ function SuperAdminAccountManagement({ view }) {
           : isSupervisorView
             ? "supervisor"
             : "applicant",
-      department: "",
+      department: isMphlgAdminView ? "MPHLG" : "",
     });
     setAccountModalOpen(true);
     setError("");
@@ -820,12 +883,18 @@ function SuperAdminAccountManagement({ view }) {
             mykad_number: importedUsername,
             full_name: normalizeNameValue(row.name || row.full_name),
             email: cleanEmailValue(normalizeImportedEmail(row.email)),
-            department: isSuperadminView ? "" : normalizeDepartmentValue(row.department),
+            department: isSuperadminView
+              ? ""
+              : isMphlgAdminView
+                ? "MPHLG"
+                : normalizeDepartmentValue(row.department),
             mobile_number: importedMobile,
             role: isSupervisorView
               ? "supervisor"
               : isSuperadminView
                 ? "superadmin"
+                : isMphlgAdminView
+                  ? "admin"
                 : normalizeImportedRole(row.role || roleFilter || "applicant"),
             password,
             password2,
@@ -1380,7 +1449,7 @@ function ReadonlyField({ label, value, prefix = "", hint = "", required = false,
   );
 }
 
-function DashboardStatCard({ icon, label, value, tone }) {
+function DashboardSectionCard({ icon, title, tone, items }) {
   const tones = {
     blue: "bg-blue-50 text-blue-700",
     emerald: "bg-emerald-50 text-emerald-700",
@@ -1390,15 +1459,26 @@ function DashboardStatCard({ icon, label, value, tone }) {
   };
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{value}</p>
-        </div>
-        <span className={`flex h-11 w-11 items-center justify-center rounded-md ${tones[tone] || tones.emerald}`}>
-          <span className="material-symbols-outlined text-[24px]">{icon}</span>
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${tones[tone] || tones.emerald}`}>
+          <span className="material-symbols-outlined text-[22px]">{icon}</span>
         </span>
+        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+      </div>
+
+      <div className="grid grid-cols-1 divide-y divide-slate-100">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="material-symbols-outlined text-[20px] text-slate-400">
+                {item.icon}
+              </span>
+              <p className="truncate text-sm font-semibold text-slate-600">{item.label}</p>
+            </div>
+            <p className="text-2xl font-semibold text-slate-950">{item.value}</p>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -1732,12 +1812,12 @@ function normalizeHeader(value) {
 }
 
 function getMissingCsvHeaders(headers, view) {
-  if (!["admins", "superadmins", "supervisors"].includes(view)) {
+  if (!["admins", "mphlg-admins", "superadmins", "supervisors"].includes(view)) {
     return [];
   }
 
   const requiredHeaders =
-    view === "superadmins"
+    view === "superadmins" || view === "mphlg-admins"
       ? adminCsvHeaders.filter((header) => header !== "department")
       : adminCsvHeaders;
 

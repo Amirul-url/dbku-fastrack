@@ -393,6 +393,15 @@ function App() {
         />
 
         <Route
+          path="/superadmin/mphlg-admins"
+          element={
+            <SuperAdminRoute>
+              <SuperAdminDashboard view="mphlg-admins" />
+            </SuperAdminRoute>
+          }
+        />
+
+        <Route
           path="/superadmin/superadmins"
           element={
             <SuperAdminRoute>
