@@ -42,6 +42,7 @@ function UserDashboard() {
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [licensePanelOpen, setLicensePanelOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
@@ -91,14 +92,22 @@ function UserDashboard() {
   }, [fetchApplications]);
 
   useEffect(() => {
-    if (selectedId && activeSection !== "applications") {
+    if (
+      selectedId &&
+      activeSection !== "applications" &&
+      (activeSection !== "license" || licensePanelOpen)
+    ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApplicationDetails(selectedId);
     }
-  }, [activeSection, fetchApplicationDetails, selectedId]);
+  }, [activeSection, fetchApplicationDetails, licensePanelOpen, selectedId]);
 
   const submittedApplications = useMemo(
     () => applications.filter((app) => normalizeStatus(app.status) !== "draft"),
+    [applications]
+  );
+  const eLicenseApplications = useMemo(
+    () => applications.filter(isELicenseApplication),
     [applications]
   );
 
@@ -149,6 +158,20 @@ function UserDashboard() {
 
   function openApplication(app) {
     navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?id=${app.id}`);
+  }
+
+  function openLicenseRecord(app) {
+    setSelectedId(String(app.id));
+    setSelectedApplication(app);
+    setLicensePanelOpen(true);
+    fetchApplicationDetails(app.id);
+  }
+
+  function returnToLicenseList() {
+    setLicensePanelOpen(false);
+    setSelectedApplication(null);
+    setPaymentReceipt(null);
+    setMessage({ type: "", text: "" });
   }
 
   async function submitPayment() {
@@ -357,7 +380,7 @@ function UserDashboard() {
       )}
 
       {activeSection === "license" && (
-        activeApplication ? (
+        licensePanelOpen && activeApplication ? (
           <LicenseSection
             app={activeApplication}
             license={license}
@@ -370,9 +393,15 @@ function UserDashboard() {
             onReceiptRemove={handlePaymentReceiptRemove}
             onSubmitPayment={submitPayment}
             onDownload={downloadELicense}
+            onBack={returnToLicenseList}
           />
         ) : (
-          <EmptyLicenseSection t={t} />
+          <LicenseListSection
+            applications={eLicenseApplications}
+            loading={loading}
+            t={t}
+            onOpen={openLicenseRecord}
+          />
         )
       )}
     </UserDashboardLayout>
@@ -617,11 +646,24 @@ function LicenseSection({
   onReceiptRemove,
   onSubmitPayment,
   onDownload,
+  onBack,
 }) {
   const canSubmitPaymentProof = canSubmitPayment(app);
 
   return (
-    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <section className="space-y-4">
+      <div className="flex justify-start">
+        <Button
+          type="button"
+          variant="secondary"
+          icon="arrow_back"
+          onClick={onBack}
+        >
+          {t("applicant.backToELicenseList", "Back to E-Licenses List")}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="rounded-md border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-950">
           {t("common.uploadReceipt")}
@@ -728,6 +770,75 @@ function LicenseSection({
           </div>
         )}
       </div>
+      </div>
+    </section>
+  );
+}
+
+function LicenseListSection({ applications, loading, t, onOpen }) {
+  return (
+    <section className="space-y-4">
+      <div className="rounded-md border border-slate-200 bg-white p-4">
+        <h2 className="text-base font-semibold text-slate-950">
+          {t("applicant.licenseSectionTitle")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("applicant.licenseSectionDescription")}
+        </p>
+      </div>
+
+      <DataTable
+        loading={loading}
+        loadingText={t("common.loading")}
+        emptyText={t("applicant.noApplicationSubmitted")}
+        rows={applications}
+        columns={[
+          {
+            key: "reference",
+            label: t("common.reference"),
+            render: (app) => (
+              <button
+                type="button"
+                onClick={() => onOpen(app)}
+                className="font-semibold text-emerald-700 hover:underline"
+              >
+                {getApplicationReference(app)}
+              </button>
+            ),
+          },
+          { key: "project", label: t("common.project"), render: getProjectName },
+          {
+            key: "status",
+            label: t("common.status"),
+            render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+          },
+          {
+            key: "payment",
+            label: t("common.paymentStatus", "Payment Status"),
+            render: (app) => app.form_data?.payment?.status || getPaymentHint(app, t),
+          },
+          {
+            key: "license",
+            label: t("common.eLicense", "E-License"),
+            render: (app) => app.form_data?.license?.status || t("applicant.qrLicensePending"),
+          },
+          {
+            key: "action",
+            label: t("common.action"),
+            render: (app) => (
+              <Button
+                type="button"
+                variant="secondary"
+                icon="open_in_new"
+                className="min-h-8 px-3 py-1 text-xs"
+                onClick={() => onOpen(app)}
+              >
+                {t("common.open", "Open")}
+              </Button>
+            ),
+          },
+        ]}
+      />
     </section>
   );
 }
@@ -895,6 +1006,18 @@ function isApprovedApplication(app) {
     "payment_submitted",
     "payment_verified",
     "license_issued",
+  ].includes(normalizeStatus(app.status));
+}
+
+function isELicenseApplication(app) {
+  return [
+    "approved",
+    "approved_with_conditions",
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+    "license_revoked",
   ].includes(normalizeStatus(app.status));
 }
 

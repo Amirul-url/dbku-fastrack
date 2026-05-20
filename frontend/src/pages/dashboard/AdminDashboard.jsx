@@ -40,14 +40,7 @@ const units = [
     descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: [
-      "submitted",
-      "incomplete",
-      "technical_amendment",
-      "approved",
-      "payment_submitted",
-      "payment_verified",
-    ],
+    statuses: ["submitted", "incomplete", "technical_amendment"],
     path: "/admin/auto-screening",
   },
   {
@@ -57,7 +50,7 @@ const units = [
     descriptionKey: "admin.unit.kuIkl.desc",
     icon: "verified_user",
     color: "bg-indigo-700",
-    statuses: ["ku_ikl_review", "technical_review_completed", "bill_pending_ku"],
+    statuses: ["ku_ikl_review", "technical_review_completed"],
     path: "/admin/auto-screening",
   },
   {

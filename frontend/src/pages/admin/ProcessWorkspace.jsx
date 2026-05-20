@@ -159,7 +159,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
       setApplications(list);
-      if (config.key !== "approval" && !selectedId && list.length > 0) {
+      if (!isTableFirstWorkspace(config) && !selectedId && list.length > 0) {
         setSelectedId(String(list[0].id));
       }
     } catch (err) {
@@ -201,14 +201,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const isDepartmentTechnicalWorkspace = config.key === "technical";
   const isApprovalWorkspace = config.key === "approval";
   const isSimpleApprovalWorkspace = isApprovalWorkspace;
+  const tableFirstWorkspace = isTableFirstWorkspace(config);
   const isFocusedPersonalWorkspace =
     isIklWorkspace || isDepartmentTechnicalWorkspace;
   const showSiteVisitFields =
     config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
-  const showBottomFormButton = !isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace;
+  const showBottomFormButton = !isFocusedPersonalWorkspace && !tableFirstWorkspace;
   const actionGridClass = isFocusedPersonalWorkspace || isDepartmentTechnicalWorkspace
     ? "grid grid-cols-1 gap-2 pt-1"
-    : isSimpleApprovalWorkspace
+    : tableFirstWorkspace
       ? "flex justify-end gap-2 pt-1"
     : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
 
@@ -250,11 +251,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     if (filtered.length === 0) return;
     const hasSelected = filtered.some((app) => String(app.id) === String(selectedId));
 
-    if (isSimpleApprovalWorkspace && !selectedId) {
+    if (tableFirstWorkspace && !selectedId) {
       return;
     }
 
-    if (isSimpleApprovalWorkspace && selectedId && !hasSelected) {
+    if (tableFirstWorkspace && selectedId && !hasSelected) {
       setSelectedId("");
       return;
     }
@@ -262,13 +263,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     if (!hasSelected) {
       setSelectedId(String(filtered[0].id));
     }
-  }, [filtered, isSimpleApprovalWorkspace, selectedId]);
+  }, [filtered, tableFirstWorkspace, selectedId]);
 
   const selected = useMemo(() => {
     const matchingRecord = filtered.find((app) => String(app.id) === String(selectedId));
-    if (isSimpleApprovalWorkspace && !selectedId) return null;
+    if (tableFirstWorkspace && !selectedId) return null;
     return matchingRecord || filtered[0] || null;
-  }, [filtered, isSimpleApprovalWorkspace, selectedId]);
+  }, [filtered, tableFirstWorkspace, selectedId]);
   const selectedRecord =
     selectedDetail && String(selectedDetail.id) === String(selected?.id)
       ? { ...selected, ...selectedDetail }
@@ -292,7 +293,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
   const showActionPanel =
-    !isSimpleApprovalWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction);
+    !tableFirstWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction);
   const actionUnavailableMessage = getActionUnavailableMessage(
     config,
     selectedRecord,
@@ -467,16 +468,16 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         className={
           isFocusedPersonalWorkspace
             ? "mb-6 space-y-6"
-            : isSimpleApprovalWorkspace
+            : tableFirstWorkspace
               ? "mb-6 space-y-6"
             : "mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3"
         }
       >
-        {!isFocusedPersonalWorkspace && !(isSimpleApprovalWorkspace && showActionPanel) && (
+        {!isFocusedPersonalWorkspace && !(tableFirstWorkspace && showActionPanel) && (
           <Panel
             title={isSimpleApprovalWorkspace ? t("admin.dashboard.awaitingApproval", "Awaiting Approval") : t(config.queueTitleKey, config.queueTitle)}
             description={isSimpleApprovalWorkspace ? "" : t("workspace.queue.instructions")}
-            className={isSimpleApprovalWorkspace ? "" : "xl:col-span-2"}
+            className={tableFirstWorkspace ? "" : "xl:col-span-2"}
           >
             {statusScopedApplications.length > 0 && (
               <div className="mb-4">
@@ -503,7 +504,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                     <button
                       type="button"
                       onClick={() =>
-                        isSimpleApprovalWorkspace
+                        tableFirstWorkspace
                           ? openSelectedTask(app)
                           : setSelectedId(String(app.id))
                       }
@@ -527,7 +528,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   label: t("common.updated"),
                   render: (app) => formatDateTime(app.updated_at),
                 },
-                ...(isSimpleApprovalWorkspace
+                ...(tableFirstWorkspace
                   ? [
                       {
                         key: "action",
@@ -564,7 +565,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
           </div>
         )}
 
-        {isSimpleApprovalWorkspace && showActionPanel && (
+        {tableFirstWorkspace && showActionPanel && (
           <div className="flex justify-start">
             <Button
               type="button"
@@ -572,7 +573,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
               icon="arrow_back"
               onClick={returnToTaskList}
             >
-              {t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")}
+              {isSimpleApprovalWorkspace
+                ? t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
+                : t("workspace.backToELicenseList", "Back to E-Licenses List")}
             </Button>
           </div>
         )}
@@ -601,13 +604,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
                 applicationType={getLocalizedApplicationType(selectedRecord, t)}
                 actions={
-                  isFocusedPersonalWorkspace || isSimpleApprovalWorkspace ? (
+                  isFocusedPersonalWorkspace || tableFirstWorkspace ? (
                     <Button
                       variant="secondary"
                       icon="visibility"
                       onClick={() =>
                         navigate(
-                          isFocusedPersonalWorkspace || isSimpleApprovalWorkspace
+                          isFocusedPersonalWorkspace || tableFirstWorkspace
                             ? getSelectedFormViewPath(selectedRecord.id)
                             : `/admin/applications/${selectedRecord.id}`
                         )
@@ -653,7 +656,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                       <select
                         value={decision}
                         onChange={(event) => setDecision(event.target.value)}
-                        className={`form-input ${isSimpleApprovalWorkspace ? "max-w-xs" : ""}`}
+                        className={`form-input ${tableFirstWorkspace ? "max-w-xs" : ""}`}
                       >
                         {decisionOptions.map((item) => (
                           <option key={item.value || item} value={item.value || item}>
@@ -774,7 +777,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           disabled={saving}
                           variant={action.variant || "primary"}
                           icon={action.icon}
-                          className={isSimpleApprovalWorkspace ? "min-w-56" : "w-full"}
+                          className={tableFirstWorkspace ? "min-w-56" : "w-full"}
                         >
                           {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
                         </Button>
@@ -789,7 +792,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         )}
       </section>
 
-      {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
+      {!isFocusedPersonalWorkspace && !tableFirstWorkspace && (
         <Panel title={t("workspace.selectedRecord")} description={t("workspace.selectedRecordDesc")}>
           {selectedRecord ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1510,6 +1513,10 @@ function canAccessWorkspace(config, department) {
   }
 
   return allowedDepartments.includes(department);
+}
+
+function isTableFirstWorkspace(config) {
+  return ["approval", "payment", "license"].includes(config?.key);
 }
 
 function getWorkspaceStatusScope(config, department) {

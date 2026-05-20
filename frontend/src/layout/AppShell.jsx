@@ -12,14 +12,10 @@ const PT_IKL_TASK_STATUSES = new Set([
   "submitted",
   "incomplete",
   "technical_amendment",
-  "approved",
-  "payment_submitted",
-  "payment_verified",
 ]);
 const KU_IKL_TASK_STATUSES = new Set([
   "ku_ikl_review",
   "technical_review_completed",
-  "bill_pending_ku",
 ]);
 const IKL_TECHNICAL_TASK_STATUSES = new Set([
   "technical_review",
@@ -566,13 +562,15 @@ function AppShell({ children, role = "admin" }) {
                         <Link
                           key={child.path}
                           to={child.path}
-                          className={`flex items-center justify-between gap-2 rounded-md px-3.5 py-2.5 text-sm font-medium ${
+                          className={`flex items-center justify-between gap-2 rounded-md px-3 py-2.5 text-sm font-medium ${
                             childActive
                               ? "bg-emerald-700 text-white"
                               : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                           }`}
                         >
-                          <span className="truncate">{t(child.labelKey, child.fallback)}</span>
+                          <span className="min-w-0 break-words leading-snug">
+                            {t(child.labelKey, child.fallback)}
+                          </span>
                           <NavBadge count={child.badge} />
                         </Link>
                       );
