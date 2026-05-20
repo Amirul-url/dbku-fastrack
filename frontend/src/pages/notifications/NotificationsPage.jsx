@@ -242,6 +242,7 @@ function NotificationsPage() {
                 t={t}
                 onBack={() => setSelectedNotificationId("")}
                 onMarkRead={markAsRead}
+                showRecordAction={!isAdminUser(storedUser)}
               />
             ) : (
               <div className="min-h-[450px] divide-y divide-slate-200">
@@ -305,7 +306,7 @@ function NotificationsPage() {
   );
 }
 
-function NotificationMemo({ item, language, t, onBack, onMarkRead }) {
+function NotificationMemo({ item, language, t, onBack, onMarkRead, showRecordAction = true }) {
   if (!item) {
     return (
       <div className="flex min-h-[360px] items-center justify-center px-6 text-center">
@@ -390,44 +391,48 @@ function NotificationMemo({ item, language, t, onBack, onMarkRead }) {
           )}
         </div>
 
-        <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:grid-cols-2">
-          <div>
-            <span className="block text-xs font-semibold uppercase text-slate-500">
-              {t("applications.reference", "Reference")}
-            </span>
-            <span className="font-semibold text-slate-900">{item.reference}</span>
-          </div>
-          <div>
-            <span className="block text-xs font-semibold uppercase text-slate-500">
-              {t("applications.project", "Project")}
-            </span>
-            <span className="text-slate-900">{item.project}</span>
-          </div>
-        </div>
+        {showRecordAction && (
+          <>
+            <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:grid-cols-2">
+              <div>
+                <span className="block text-xs font-semibold uppercase text-slate-500">
+                  {t("applications.reference", "Reference")}
+                </span>
+                <span className="font-semibold text-slate-900">{item.reference}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-semibold uppercase text-slate-500">
+                  {t("applications.project", "Project")}
+                </span>
+                <span className="text-slate-900">{item.project}</span>
+              </div>
+            </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {!item.read && (
-            <button
-              type="button"
-              onClick={() => onMarkRead(item.id)}
-              className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              {t("notifications.markRead", "Mark Read")}
-            </button>
-          )}
-          <Link
-            to={item.actionUrl}
-            onClick={() => onMarkRead(item.id)}
-            className="inline-flex min-h-10 min-w-[132px] items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3.5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/25"
-          >
-            <span className="material-symbols-outlined text-[18px] !text-white">
-              open_in_new
-            </span>
-            <span className="!text-white">
-              {t("notifications.openRecord", "Open Record")}
-            </span>
-          </Link>
-        </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {!item.read && (
+                <button
+                  type="button"
+                  onClick={() => onMarkRead(item.id)}
+                  className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  {t("notifications.markRead", "Mark Read")}
+                </button>
+              )}
+              <Link
+                to={item.actionUrl}
+                onClick={() => onMarkRead(item.id)}
+                className="inline-flex min-h-10 min-w-[132px] items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3.5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-600/25"
+              >
+                <span className="material-symbols-outlined text-[18px] !text-white">
+                  open_in_new
+                </span>
+                <span className="!text-white">
+                  {t("notifications.openRecord", "Open Record")}
+                </span>
+              </Link>
+            </div>
+          </>
+        )}
       </div>
     </article>
   );
