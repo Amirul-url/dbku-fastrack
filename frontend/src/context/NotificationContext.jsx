@@ -544,45 +544,26 @@ function buildNotificationsFromDeliveries(deliveries, user) {
     .filter((delivery) => {
       const metadata = delivery.metadata || {};
       const eventStatus = normalizeStatus(metadata.event_status || delivery.status);
-      if (!allowedStatuses.has(eventStatus)) return false;
-      if (role === "admin") {
-        return isAdminNotificationAllowedForUser(eventStatus, user, {
-          technical_department_reviews: delivery.technical_department_reviews,
-          kb_les_verification: delivery.kb_les_verification,
-          management_recommendation: delivery.management_recommendation,
-        });
-      }
-      return true;
+      return allowedStatuses.has(eventStatus);
     })
     .map((delivery) => {
       const metadata = delivery.metadata || {};
       const category = metadata.category || "progress";
       const type = metadata.type || "info";
       const status = normalizeStatus(metadata.event_status || delivery.status);
-      const deliveryApp = {
-        id: delivery.application_id,
-        reference_no: delivery.reference_no,
-        status,
-        kb_les_verification: delivery.kb_les_verification,
-        management_recommendation: delivery.management_recommendation,
-      };
-      const approvalText =
-        role === "admin" && status === "management_review"
-          ? getApprovalStageNotificationText(deliveryApp, user)
-          : null;
-      const displayStatus = getNotificationDisplayStatus(role, status, user, deliveryApp);
-      const title = approvalText?.titleEn || normalizeApplicantNotificationText(
+      const displayStatus = metadata.display_status || getNotificationDisplayStatus(role, status, user);
+      const title = normalizeApplicantNotificationText(
         metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject),
         role,
         status
       );
-      const message = approvalText?.messageEn || normalizeApplicantNotificationText(
+      const message = normalizeApplicantNotificationText(
         metadata.message_en || metadata.message || getMessageSummary(delivery.message),
         role,
         status
       );
-      const titleMs = approvalText?.titleMs || normalizeApplicantNotificationText(metadata.title_ms || title, role, status);
-      const messageMs = approvalText?.messageMs || normalizeApplicantNotificationText(metadata.message_ms || message, role, status);
+      const titleMs = normalizeApplicantNotificationText(metadata.title_ms || title, role, status);
+      const messageMs = normalizeApplicantNotificationText(metadata.message_ms || message, role, status);
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
       const recipientName = String(delivery.recipient_name || "").trim();
       const recipientDepartment = normalizeDepartment(delivery.recipient_department);

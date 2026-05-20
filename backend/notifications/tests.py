@@ -196,6 +196,48 @@ class NotificationRoutingTests(TestCase):
         self.assertIn("TP(RES)/PGH support", delivery.metadata["message_en"])
         self.assertNotIn("KB(LES) verification", delivery.metadata["title_en"])
 
+    def test_department_inbox_keeps_old_kb_les_memos(self):
+        User.objects.create_user(
+            username="kb-les-original",
+            email="",
+            password="Password123",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Pending KB(LES) Verification"},
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("management_review")
+
+        kb_viewer = User.objects.create_user(
+            username="kb-les-viewer",
+            email="",
+            password="Password123",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Verified"},
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Support"},
+        }
+        self.application.save(update_fields=["form_data"])
+
+        client = APIClient()
+        client.force_authenticate(user=kb_viewer)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["metadata"]["event_status"], "management_review")
+        self.assertIn("KB(LES) verification", data[0]["metadata"]["title_en"])
+
 
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):

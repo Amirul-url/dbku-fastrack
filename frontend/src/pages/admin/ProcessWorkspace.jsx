@@ -206,7 +206,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const actionGridClass = isFocusedPersonalWorkspace || isDepartmentTechnicalWorkspace
     ? "grid grid-cols-1 gap-2 pt-1"
     : isSimpleApprovalWorkspace
-      ? "flex justify-end pt-1"
+      ? "flex justify-end gap-2 pt-1"
     : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
 
   const statusScopedApplications = useMemo(() => {
@@ -268,6 +268,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       ? { ...selected, ...selectedDetail }
       : selected;
   const approvalStageKey = isApprovalWorkspace ? getApprovalStageKey(selectedRecord) : "";
+  const isApprovalSupportWorkspace =
+    isApprovalWorkspace &&
+    approvalStageKey === "support" &&
+    APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment);
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = !isApprovalWorkspace || workspaceActions.length > 0;
@@ -288,6 +292,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
     if (nextDecision) setDecision(nextDecision);
   }, [approvalStageKey, config, selectedRecord?.id, userDepartment]);
+
+  function submitApprovalSupport(decisionValue) {
+    const [action] = workspaceActions;
+    if (!action || decisionValue !== "Support") return;
+
+    submitAction(action, { decision: decisionValue });
+  }
 
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
@@ -599,7 +610,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 />
               ) : (
                 <>
-                  {config.showDecision && canSubmitWorkspaceAction && (
+                  {config.showDecision && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && (
                     <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
                       <select
                         value={decision}
@@ -675,18 +686,41 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                         {t("workspace.openForm")}
                       </Button>
                     )}
-                    {workspaceActions.map((action) => (
-                      <Button
-                        key={action.label}
-                        onClick={() => submitAction(action)}
-                        disabled={saving}
-                        variant={action.variant || "primary"}
-                        icon={action.icon}
-                        className={isSimpleApprovalWorkspace ? "min-w-56" : "w-full"}
-                      >
-                        {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-                      </Button>
-                    ))}
+                    {isApprovalSupportWorkspace ? (
+                      <>
+                        <Button
+                          onClick={() => submitApprovalSupport("Not Supported")}
+                          disabled={saving}
+                          variant="danger"
+                          icon="thumb_down"
+                          className="min-w-40"
+                        >
+                          {t("workspace.decision.notSupport", "Not Support")}
+                        </Button>
+                        <Button
+                          onClick={() => submitApprovalSupport("Support")}
+                          disabled={saving}
+                          variant="primary"
+                          icon="thumb_up"
+                          className="min-w-40"
+                        >
+                          {saving ? t("workspace.saving") : t("workspace.decision.support", "Support")}
+                        </Button>
+                      </>
+                    ) : (
+                      workspaceActions.map((action) => (
+                        <Button
+                          key={action.label}
+                          onClick={() => submitAction(action)}
+                          disabled={saving}
+                          variant={action.variant || "primary"}
+                          icon={action.icon}
+                          className={isSimpleApprovalWorkspace ? "min-w-56" : "w-full"}
+                        >
+                          {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+                        </Button>
+                      ))
+                    )}
                   </div>
                 </>
               )}
