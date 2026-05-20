@@ -7,8 +7,20 @@ import { Icon } from "../components/ui/SystemUI";
 import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
-const PT_IKL_TASK_STATUSES = new Set(["submitted", "incomplete", "technical_amendment"]);
-const KU_IKL_TASK_STATUSES = new Set(["ku_ikl_review", "technical_review_completed"]);
+const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
+const PT_IKL_TASK_STATUSES = new Set([
+  "submitted",
+  "incomplete",
+  "technical_amendment",
+  "approved",
+  "payment_submitted",
+  "payment_verified",
+]);
+const KU_IKL_TASK_STATUSES = new Set([
+  "ku_ikl_review",
+  "technical_review_completed",
+  "bill_pending_ku",
+]);
 const IKL_TECHNICAL_TASK_STATUSES = new Set([
   "technical_review",
   "technical_site_visit",
@@ -105,6 +117,30 @@ function buildAdminNav(taskCounts = {}, user = null) {
       icon: "dashboard",
       children: dashboardChildren,
     },
+    isPtIklUser(user)
+      ? {
+          labelKey: "nav.eLicenses",
+          fallback: "E-Licenses",
+          path: "/admin/e-licenses/payment",
+          activePathPrefix: "/admin/e-licenses",
+          icon: "qr_code_2",
+          menuKey: "eLicenses",
+          children: [
+            {
+              labelKey: "nav.approvalBillingReceipts",
+              fallback: "Approval Letter, Bill & Receipt",
+              path: "/admin/e-licenses/payment",
+              badge: taskCounts.eLicensePayment || 0,
+            },
+            {
+              labelKey: "nav.advertisementLicenseQr",
+              fallback: "Advertisement License / QR",
+              path: "/admin/e-licenses/license",
+              badge: taskCounts.eLicenseLicense || 0,
+            },
+          ],
+        }
+      : null,
     isSupervisor
       ? null
       : {
@@ -187,6 +223,9 @@ function AppShell({ children, role = "admin" }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
     readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, role === "admin")
+  );
+  const [adminELicensesOpen, setAdminELicensesOpen] = useState(() =>
+    readSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false)
   );
   const [applicantDashboardOpen, setApplicantDashboardOpen] = useState(true);
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
@@ -334,6 +373,8 @@ function AppShell({ children, role = "admin" }) {
             const activeView = new URLSearchParams(location.search).get("view") || "personal";
             const itemPathname = getPathname(item.path);
             const active =
+              (item.activePathPrefix &&
+                location.pathname.startsWith(item.activePathPrefix)) ||
               (role === "admin" &&
                 item.view &&
                 location.pathname === itemPathname &&
@@ -346,14 +387,17 @@ function AppShell({ children, role = "admin" }) {
                 location.pathname.startsWith(item.path));
             const hasChildren = Boolean(item.children || item.stepGroup);
             const adminDashboardItem = role === "admin" && item.path === "/dashboard/admin";
+            const adminELicensesItem = role === "admin" && item.menuKey === "eLicenses";
             const submenuOpen =
               hasChildren &&
               ((role === "applicant" && applicantDashboardOpen) ||
-                (adminDashboardItem && adminDashboardOpen));
+                (adminDashboardItem && adminDashboardOpen) ||
+                (adminELicensesItem &&
+                  (adminELicensesOpen || location.pathname.startsWith("/admin/e-licenses"))));
 
             return (
               <div key={item.path}>
-                {hasChildren && (role === "applicant" || adminDashboardItem) ? (
+                {hasChildren && (role === "applicant" || adminDashboardItem || adminELicensesItem) ? (
                   <div
                     className={`flex w-full items-center justify-between rounded-md px-3.5 py-2.5 text-left text-sm font-medium ${
                       active
@@ -366,6 +410,9 @@ function AppShell({ children, role = "admin" }) {
                       onClick={() => {
                         if (role === "applicant") {
                           setApplicantDashboardOpen(true);
+                        } else if (adminELicensesItem) {
+                          setAdminELicensesOpen(true);
+                          writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
                         }
                       }}
                       className="flex min-w-0 flex-1 items-center gap-3"
@@ -378,10 +425,16 @@ function AppShell({ children, role = "admin" }) {
                       onClick={() => {
                         if (role === "applicant") {
                           setApplicantDashboardOpen((current) => !current);
-                        } else {
+                        } else if (adminDashboardItem) {
                           setAdminDashboardOpen((current) => {
                             const next = !current;
                             writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, next);
+                            return next;
+                          });
+                        } else if (adminELicensesItem) {
+                          setAdminELicensesOpen((current) => {
+                            const next = !current;
+                            writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, next);
                             return next;
                           });
                         }
@@ -422,9 +475,11 @@ function AppShell({ children, role = "admin" }) {
                     {item.children.map((child) => {
                       const hasNestedChildren = Boolean(child.children?.length);
                       const childActive =
-                        role === "admin"
+                        role === "admin" && child.view
                           ? activeView === child.view
-                          : activeTab === child.tab;
+                          : role === "admin"
+                            ? location.pathname === getPathname(child.path)
+                            : activeTab === child.tab;
                       const nestedActive =
                         hasNestedChildren && location.pathname.startsWith("/applications");
 
@@ -622,10 +677,22 @@ function getAdminTaskCounts(applications, user) {
         counts.approval += 1;
       }
 
+      if (department === "PT(IKL)" && isELicensePaymentTask(application)) {
+        counts.eLicensePayment += 1;
+      }
+
+      if (department === "PT(IKL)" && isELicenseLicenseTask(application)) {
+        counts.eLicenseLicense += 1;
+      }
+
       return counts;
     },
-    { personal: 0, approval: 0 }
+    { personal: 0, approval: 0, eLicensePayment: 0, eLicenseLicense: 0 }
   );
+}
+
+function isPtIklUser(user) {
+  return normalizeDepartmentCode(user?.department) === "PT(IKL)";
 }
 
 function isApprovalWorkflowUser(user) {
@@ -642,6 +709,16 @@ function isApprovalWorkflowUser(user) {
 
 function isMphlgUser(user) {
   return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
+}
+
+function isELicensePaymentTask(application) {
+  return ["approved", "payment_submitted"].includes(
+    normalizeWorkflowStatus(application?.status)
+  );
+}
+
+function isELicenseLicenseTask(application) {
+  return normalizeWorkflowStatus(application?.status) === "payment_verified";
 }
 
 function isPersonalTaskForDepartment(application, department) {

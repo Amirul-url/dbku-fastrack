@@ -744,6 +744,33 @@ function App() {
         />
 
         <Route
+          path="/admin/e-licenses"
+          element={
+            <AdminRoute>
+              <Navigate to="/admin/e-licenses/payment" replace />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/e-licenses/payment"
+          element={
+            <AdminRoute>
+              <PaymentPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
+          path="/admin/e-licenses/license"
+          element={
+            <AdminRoute>
+              <LicenseQrPage />
+            </AdminRoute>
+          }
+        />
+
+        <Route
           path="/admin/payment"
           element={
             <AdminRoute>

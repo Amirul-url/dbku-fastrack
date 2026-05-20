@@ -303,10 +303,10 @@ function getNotificationUrl(role, app, category, user = null) {
       return app?.id ? `/dashboard/admin?view=approval&id=${app.id}` : "/dashboard/admin?view=approval";
     }
     if (category === "payment") {
-      return app?.id ? `/admin/payment?id=${app.id}` : "/admin/payment";
+      return app?.id ? `/admin/e-licenses/payment?id=${app.id}` : "/admin/e-licenses/payment";
     }
     if (category === "license") {
-      return app?.id ? `/admin/license-qr?id=${app.id}` : "/admin/license-qr";
+      return app?.id ? `/admin/e-licenses/license?id=${app.id}` : "/admin/e-licenses/license";
     }
   }
 

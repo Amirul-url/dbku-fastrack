@@ -40,7 +40,14 @@ const units = [
     descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete", "technical_amendment"],
+    statuses: [
+      "submitted",
+      "incomplete",
+      "technical_amendment",
+      "approved",
+      "payment_submitted",
+      "payment_verified",
+    ],
     path: "/admin/auto-screening",
   },
   {
@@ -50,7 +57,7 @@ const units = [
     descriptionKey: "admin.unit.kuIkl.desc",
     icon: "verified_user",
     color: "bg-indigo-700",
-    statuses: ["ku_ikl_review", "technical_review_completed"],
+    statuses: ["ku_ikl_review", "technical_review_completed", "bill_pending_ku"],
     path: "/admin/auto-screening",
   },
   {
@@ -281,13 +288,14 @@ function ClaimableTaskView({
   unitTasks,
 }) {
   function getApplicationViewPath(application) {
+    const workspacePath = getAdminTaskWorkspacePath(application, selected);
     const returnParams = new URLSearchParams();
     returnParams.set("id", application.id);
 
     const viewParams = new URLSearchParams();
     viewParams.set("id", application.id);
     viewParams.set("from", "action-panel");
-    viewParams.set("returnTo", `${selected.path}?${returnParams.toString()}`);
+    viewParams.set("returnTo", `${workspacePath}?${returnParams.toString()}`);
 
     return `/admin/applications/${application.id}/view/step-1?${viewParams.toString()}`;
   }
@@ -372,7 +380,7 @@ function ClaimableTaskView({
               label: t("common.action"),
               render: (application) => (
                 <LinkButton
-                  to={`${selected.path}?id=${application.id}`}
+                  to={`${getAdminTaskWorkspacePath(application, selected)}?id=${application.id}`}
                   icon="open_in_new"
                   variant="secondary"
                   className="min-h-8 px-3 py-1 text-xs"
@@ -437,6 +445,26 @@ function getAssignedUnit(department) {
 
 function getProcessIconTitle(unit) {
   return IKL_DEPARTMENTS.has(unit?.department) ? "IKL" : unit?.title || "";
+}
+
+function getAdminTaskWorkspacePath(application, unit) {
+  const status = normalizeStatus(application?.status);
+
+  if (unit?.department === "PT(IKL)") {
+    if (["approved", "payment_submitted"].includes(status)) {
+      return "/admin/e-licenses/payment";
+    }
+
+    if (status === "payment_verified") {
+      return "/admin/e-licenses/license";
+    }
+  }
+
+  if (unit?.department === "KU(IKL)" && status === "bill_pending_ku") {
+    return "/admin/e-licenses/payment";
+  }
+
+  return unit?.path || "/dashboard/admin";
 }
 
 function getTechnicalDepartmentReviews(app) {

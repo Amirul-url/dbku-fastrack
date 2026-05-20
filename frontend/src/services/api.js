@@ -16,6 +16,7 @@ const API_URL = String(RAW_API_URL).replace(/\/+$/, "");
 const LOCAL_FILE_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 const SIDEBAR_SESSION_KEYS = [
   "fastrack_admin_dashboard_menu_open",
+  "fastrack_admin_e_licenses_menu_open",
   "fastrack_admin_applications_menu_open",
 ];
 
