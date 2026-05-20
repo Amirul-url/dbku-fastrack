@@ -104,6 +104,28 @@ function buildAdminNav(taskCounts = {}, user = null) {
       badge: taskCounts.approval || 0,
     },
   ].filter(Boolean);
+  const dashboardBadge = dashboardChildren.reduce(
+    (total, child) => total + Number(child.badge || 0),
+    0
+  );
+  const eLicensePaymentBadge = Number(taskCounts.eLicensePayment || 0);
+  const eLicenseLicenseBadge = Number(taskCounts.eLicenseLicense || 0);
+  const eLicenseChildren = [
+    {
+      labelKey: "nav.approvalBillingReceipts",
+      fallback: "Approval Letter, Bill & Receipt",
+      path: "/admin/e-licenses/payment",
+      badge: eLicensePaymentBadge,
+    },
+    isPtIklUser(user)
+      ? {
+          labelKey: "nav.advertisementLicenseQr",
+          fallback: "Advertisement License / QR",
+          path: "/admin/e-licenses/license",
+          badge: eLicenseLicenseBadge,
+        }
+      : null,
+  ].filter(Boolean);
 
   return [
     {
@@ -111,9 +133,10 @@ function buildAdminNav(taskCounts = {}, user = null) {
       fallback: "Dashboard",
       path: "/dashboard/admin",
       icon: "dashboard",
+      badge: dashboardBadge,
       children: dashboardChildren,
     },
-    isPtIklUser(user)
+    isELicenseWorkflowUser(user)
       ? {
           labelKey: "nav.eLicenses",
           fallback: "E-Licenses",
@@ -121,20 +144,8 @@ function buildAdminNav(taskCounts = {}, user = null) {
           activePathPrefix: "/admin/e-licenses",
           icon: "qr_code_2",
           menuKey: "eLicenses",
-          children: [
-            {
-              labelKey: "nav.approvalBillingReceipts",
-              fallback: "Approval Letter, Bill & Receipt",
-              path: "/admin/e-licenses/payment",
-              badge: taskCounts.eLicensePayment || 0,
-            },
-            {
-              labelKey: "nav.advertisementLicenseQr",
-              fallback: "Advertisement License / QR",
-              path: "/admin/e-licenses/license",
-              badge: taskCounts.eLicenseLicense || 0,
-            },
-          ],
+          badge: eLicensePaymentBadge + eLicenseLicenseBadge,
+          children: eLicenseChildren,
         }
       : null,
     isSupervisor
@@ -218,7 +229,7 @@ function AppShell({ children, role = "admin" }) {
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
-    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, role === "admin")
+    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false)
   );
   const [adminELicensesOpen, setAdminELicensesOpen] = useState(() =>
     readSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false)
@@ -266,8 +277,8 @@ function AppShell({ children, role = "admin" }) {
         setUser(normalizedUser);
 
         if (role === "admin" && !hasSessionBoolean(ADMIN_DASHBOARD_MENU_KEY)) {
-          setAdminDashboardOpen(true);
-          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
+          setAdminDashboardOpen(false);
+          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
         }
       })
       .catch(() => {});
@@ -304,7 +315,9 @@ function AppShell({ children, role = "admin" }) {
     }
 
     setAdminELicensesOpen(true);
+    setAdminDashboardOpen(false);
     writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
+    writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
   }, [location.pathname, role]);
 
   function handleLogout() {
@@ -404,8 +417,8 @@ function AppShell({ children, role = "admin" }) {
                 {hasChildren && (role === "applicant" || adminDashboardItem || adminELicensesItem) ? (
                   <div
                     className={`flex w-full items-center justify-between rounded-md px-3.5 py-2.5 text-left text-sm font-medium ${
-                      active
-                        ? "bg-emerald-50 text-emerald-800"
+                      submenuOpen
+                        ? "bg-slate-100 text-slate-700"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                     }`}
                   >
@@ -414,9 +427,16 @@ function AppShell({ children, role = "admin" }) {
                       onClick={() => {
                         if (role === "applicant") {
                           setApplicantDashboardOpen(true);
+                        } else if (adminDashboardItem) {
+                          setAdminDashboardOpen(true);
+                          setAdminELicensesOpen(false);
+                          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
+                          writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false);
                         } else if (adminELicensesItem) {
                           setAdminELicensesOpen(true);
+                          setAdminDashboardOpen(false);
                           writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
+                          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
                         }
                       }}
                       className="flex min-w-0 flex-1 items-center gap-3"
@@ -424,6 +444,7 @@ function AppShell({ children, role = "admin" }) {
                       <Icon name={item.icon} className="text-[20px]" />
                       <span className="truncate">{t(item.labelKey, item.fallback)}</span>
                     </Link>
+                    <NavBadge count={submenuOpen ? 0 : item.badge} />
                     <button
                       type="button"
                       onClick={() => {
@@ -432,12 +453,20 @@ function AppShell({ children, role = "admin" }) {
                         } else if (adminDashboardItem) {
                           setAdminDashboardOpen((current) => {
                             const next = !current;
+                            if (next) {
+                              setAdminELicensesOpen(false);
+                              writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false);
+                            }
                             writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, next);
                             return next;
                           });
                         } else if (adminELicensesItem) {
                           setAdminELicensesOpen((current) => {
                             const next = !current;
+                            if (next) {
+                              setAdminDashboardOpen(false);
+                              writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
+                            }
                             writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, next);
                             return next;
                           });
@@ -687,6 +716,10 @@ function getAdminTaskCounts(applications, user) {
         counts.eLicensePayment += 1;
       }
 
+      if (department === "KU(IKL)" && isKuELicensePaymentTask(application)) {
+        counts.eLicensePayment += 1;
+      }
+
       if (department === "PT(IKL)" && isELicenseLicenseTask(application)) {
         counts.eLicenseLicense += 1;
       }
@@ -699,6 +732,14 @@ function getAdminTaskCounts(applications, user) {
 
 function isPtIklUser(user) {
   return normalizeDepartmentCode(user?.department) === "PT(IKL)";
+}
+
+function isKuIklUser(user) {
+  return normalizeDepartmentCode(user?.department) === "KU(IKL)";
+}
+
+function isELicenseWorkflowUser(user) {
+  return isPtIklUser(user) || isKuIklUser(user);
 }
 
 function isApprovalWorkflowUser(user) {
@@ -721,6 +762,10 @@ function isELicensePaymentTask(application) {
   return ["approved", "payment_submitted"].includes(
     normalizeWorkflowStatus(application?.status)
   );
+}
+
+function isKuELicensePaymentTask(application) {
+  return normalizeWorkflowStatus(application?.status) === "bill_pending_ku";
 }
 
 function isELicenseLicenseTask(application) {

@@ -242,7 +242,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.APPROVED]: "Approved",
     [WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS]: "Approved with Conditions",
     [WORKFLOW_STATUS.REJECTED]: "Rejected",
-    [WORKFLOW_STATUS.BILL_PENDING_KU]: "Bill Pending KU(IKL) Confirmation",
+    [WORKFLOW_STATUS.BILL_PENDING_KU]: "Pending Bill Confirmation",
     [WORKFLOW_STATUS.INVOICE_GENERATED]: "Invoice Generated",
     [WORKFLOW_STATUS.PAYMENT_SUBMITTED]: "Payment Submitted",
     [WORKFLOW_STATUS.PAYMENT_VERIFIED]: "Payment Verified",
@@ -279,6 +279,10 @@ export function getApplicantDisplayStatus(status) {
     ].includes(normalized)
   ) {
     return WORKFLOW_STATUS.UNDER_REVIEW;
+  }
+
+  if (normalized === WORKFLOW_STATUS.BILL_PENDING_KU) {
+    return WORKFLOW_STATUS.APPROVED;
   }
 
   return normalized;
@@ -365,6 +369,13 @@ export function getApplicationDivision(app) {
 }
 
 export function getInvoiceNo(app) {
+  const referenceDigits = String(app?.reference_no || "")
+    .match(/(\d+)$/)?.[1];
+
+  if (referenceDigits) {
+    return `INV-${String(Number(referenceDigits) || referenceDigits).padStart(5, "0")}`;
+  }
+
   return (
     app?.form_data?.payment?.invoice_no ||
     `INV-${String(app?.id || 0).padStart(5, "0")}`

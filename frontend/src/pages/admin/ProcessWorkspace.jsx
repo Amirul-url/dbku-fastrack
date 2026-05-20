@@ -202,6 +202,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const isApprovalWorkspace = config.key === "approval";
   const isSimpleApprovalWorkspace = isApprovalWorkspace;
   const tableFirstWorkspace = isTableFirstWorkspace(config);
+  const isELicenseWorkspace = isELicenseTableWorkspace(config);
+  const isApprovalViewOnlyWorkspace =
+    isApprovalWorkspace && !isApprovalActionDepartment(userDepartment);
   const isFocusedPersonalWorkspace =
     isIklWorkspace || isDepartmentTechnicalWorkspace;
   const showSiteVisitFields =
@@ -292,8 +295,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
+  const eLicenseRowsHaveActions = useMemo(
+    () =>
+      isELicenseWorkspace &&
+      filtered.some((app) => canOpenWorkspaceRow(config, app, userDepartment)),
+    [config, filtered, isELicenseWorkspace, userDepartment]
+  );
   const showActionPanel =
-    !tableFirstWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction);
+    !isApprovalViewOnlyWorkspace &&
+    (!tableFirstWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction));
   const actionUnavailableMessage = getActionUnavailableMessage(
     config,
     selectedRecord,
@@ -435,7 +445,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   return (
     <AdminDashboardLayout>
-      {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
+      {!isFocusedPersonalWorkspace && !tableFirstWorkspace && (
         <PageHeader
           eyebrow={t(config.eyebrowKey, config.eyebrow)}
           title={t(config.titleKey, config.title)}
@@ -453,10 +463,18 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         />
       )}
 
+      {isELicenseWorkspace && !showActionPanel && (
+        <PageHeader
+          eyebrow={t(config.listEyebrowKey, config.listEyebrow)}
+          title={t(config.listTitleKey, config.listTitle)}
+          description={t(config.listDescriptionKey, config.listDescription)}
+        />
+      )}
+
       <Alert message={error} />
       <Alert type="success" message={success} />
 
-      {!isFocusedPersonalWorkspace && !isSimpleApprovalWorkspace && (
+      {!isFocusedPersonalWorkspace && !tableFirstWorkspace && (
         <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
           {stats.map((item) => (
             <StatCard key={item.labelKey || item.label} {...item} label={t(item.labelKey, item.label)} />
@@ -500,19 +518,28 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 {
                   key: "reference",
                   label: t("common.reference"),
-                  render: (app) => (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        tableFirstWorkspace
-                          ? openSelectedTask(app)
-                          : setSelectedId(String(app.id))
-                      }
-                      className="font-semibold text-emerald-700 hover:underline"
-                    >
+                  render: (app) => {
+                    const canOpenRow =
+                      !isELicenseWorkspace || canOpenWorkspaceRow(config, app, userDepartment);
+
+                    return isApprovalViewOnlyWorkspace || !canOpenRow ? (
+                      <span className="font-semibold text-slate-900">
+                        {getApplicationReference(app)}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          tableFirstWorkspace
+                            ? openSelectedTask(app)
+                            : setSelectedId(String(app.id))
+                        }
+                        className="font-semibold text-emerald-700 hover:underline"
+                      >
                       {getApplicationReference(app)}
-                    </button>
-                  ),
+                      </button>
+                    );
+                  },
                 },
                 { key: "applicant", label: t("common.applicant"), render: getApplicantName },
                 { key: "project", label: t("common.project"), render: getProjectName },
@@ -528,22 +555,23 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   label: t("common.updated"),
                   render: (app) => formatDateTime(app.updated_at),
                 },
-                ...(tableFirstWorkspace
+                ...(eLicenseRowsHaveActions
                   ? [
                       {
                         key: "action",
                         label: t("common.action"),
-                        render: (app) => (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            icon="open_in_new"
-                            className="min-h-8 px-3 py-1 text-xs"
-                            onClick={() => openSelectedTask(app)}
-                          >
-                            {t("common.open", "Open")}
-                          </Button>
-                        ),
+                        render: (app) =>
+                          canOpenWorkspaceRow(config, app, userDepartment) ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              icon="open_in_new"
+                              className="min-h-8 px-3 py-1 text-xs"
+                              onClick={() => openSelectedTask(app)}
+                            >
+                              {t("common.open", "Open")}
+                            </Button>
+                          ) : null,
                       },
                     ]
                   : []),
@@ -852,6 +880,14 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return getApprovalStageLabel(app);
   }
 
+  if (isApprovalWorkspace && isApprovalHistoryRecord(app)) {
+    return t("status.approved", "Approved");
+  }
+
+  if (config?.key === "payment" && status === "bill_pending_ku") {
+    return t("status.bill_pending_ku", "Pending Bill Confirmation");
+  }
+
   return formatWorkflowStatus(status);
 }
 
@@ -962,15 +998,47 @@ function getWorkspaceActions(config, app, department) {
   return canKbVerify || canSupport || canMphlgApprove || canSutApprove ? config.actions || [] : [];
 }
 
+function canOpenWorkspaceRow(config, app, department) {
+  return getWorkspaceActions(config, app, department).length > 0;
+}
+
 function isApprovalTaskForDepartment(app, department) {
   const stage = getApprovalStageKey(app);
 
+  if (isApprovalHistoryRecord(app)) return true;
+  if (!isApprovalActionDepartment(department)) return true;
   if (department === "KB(LES)") return stage === "kb";
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return stage === "support";
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return stage === "mphlg";
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
 
   return false;
+}
+
+function isApprovalHistoryRecord(app) {
+  const status = normalizeStatus(app?.status);
+  return (
+    hasApplicationSection(app, "approval") ||
+    [
+      "approved",
+      "approved_with_conditions",
+      "bill_pending_ku",
+      "invoice_generated",
+      "payment_submitted",
+      "payment_verified",
+      "license_issued",
+      "license_revoked",
+    ].includes(status)
+  );
+}
+
+function isApprovalActionDepartment(department) {
+  return (
+    department === "KB(LES)" ||
+    APPROVAL_SUPPORT_DEPARTMENTS.includes(department) ||
+    MPHLG_REVIEW_DEPARTMENTS.includes(department) ||
+    SUT_APPROVAL_DEPARTMENTS.includes(department)
+  );
 }
 
 function shouldShowApprovalTechnicalReport(department, app) {
@@ -1435,6 +1503,34 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function getBillAmount(app) {
+  const technicalSite = app?.form_data?.technical_site_visit || {};
+  const calculatedAmounts = [
+    technicalSite.license_fee_calculation,
+    technicalSite.deposit_calculation,
+  ]
+    .map(parseCurrencyAmount)
+    .filter((value) => Number.isFinite(value));
+
+  if (calculatedAmounts.length > 0) {
+    return calculatedAmounts.reduce((total, value) => total + value, 0);
+  }
+
+  const existingAmount = parseCurrencyAmount(app?.form_data?.payment?.amount);
+  if (Number.isFinite(existingAmount) && existingAmount !== 250) {
+    return existingAmount;
+  }
+
+  return "";
+}
+
+function parseCurrencyAmount(value) {
+  if (!hasValue(value)) return Number.NaN;
+
+  const numeric = Number(String(value).replace(/[^\d.-]/g, ""));
+  return Number.isFinite(numeric) ? numeric : Number.NaN;
+}
+
 function getCurrentTechnicalSitePhotos(savedPhotos, application) {
   const documents = Array.isArray(application?.supporting_documents)
     ? application.supporting_documents
@@ -1519,6 +1615,10 @@ function isTableFirstWorkspace(config) {
   return ["approval", "payment", "license"].includes(config?.key);
 }
 
+function isELicenseTableWorkspace(config) {
+  return ["payment", "license"].includes(config?.key);
+}
+
 function getWorkspaceStatusScope(config, department) {
   if (config?.key === "screening") {
     return IKL_DEPARTMENT_STATUS_SCOPE[department] || [];
@@ -1526,11 +1626,22 @@ function getWorkspaceStatusScope(config, department) {
 
   if (config?.key === "payment") {
     if (department === "PT(IKL)") {
-      return ["approved", "bill_pending_ku", "payment_submitted", "payment_verified"];
+      return [
+        "approved",
+        "bill_pending_ku",
+        "invoice_generated",
+        "payment_submitted",
+        "payment_verified",
+      ];
     }
 
     if (department === "KU(IKL)") {
-      return ["bill_pending_ku"];
+      return [
+        "bill_pending_ku",
+        "invoice_generated",
+        "payment_submitted",
+        "payment_verified",
+      ];
     }
   }
 
@@ -1740,7 +1851,20 @@ const configs = {
     key: "approval",
     eyebrow: "SUT, KB(LES), and TP/PGH",
     eyebrowKey: "workspace.approval.eyebrow",
-    statuses: ["management_review", "mphlg_processing", "mphlg_decision_received"],
+    statuses: [
+      "management_review",
+      "mphlg_processing",
+      "mphlg_decision_received",
+      "approved",
+      "approved_with_conditions",
+      "rejected",
+      "bill_pending_ku",
+      "invoice_generated",
+      "payment_submitted",
+      "payment_verified",
+      "license_issued",
+      "license_revoked",
+    ],
     title: "Approval",
     titleKey: "workspace.approval.title",
     description: "Record the SUT result, KB(LES) support, and TP(RES)/PGH final approval.",
@@ -1779,6 +1903,12 @@ const configs = {
     key: "payment",
     allowedDepartments: ["PT(IKL)", "KU(IKL)"],
     statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified"],
+    listEyebrow: "E-Licenses",
+    listEyebrowKey: "workspace.payment.listEyebrow",
+    listTitle: "Approval Letter, Bill & Receipt",
+    listTitleKey: "workspace.payment.listTitle",
+    listDescription: "Select an approved application to generate the approval letter and bill, confirm billing, or review payment receipts.",
+    listDescriptionKey: "workspace.payment.listDescription",
     eyebrow: "Payment",
     eyebrowKey: "workspace.payment.eyebrow",
     title: "Invoice and Payment",
@@ -1822,8 +1952,8 @@ const configs = {
             payment: {
               ...(app.form_data?.payment || {}),
               invoice_no: getInvoiceNo(app),
-              amount: app.form_data?.payment?.amount || 250,
-              status: "Pending KU(IKL) Bill Confirmation",
+              amount: getBillAmount(app),
+              status: "Pending Bill Confirmation",
               generated_by: "PT(IKL)",
               generated_at: new Date().toISOString(),
             },
@@ -1844,7 +1974,7 @@ const configs = {
             payment: {
               ...(app.form_data?.payment || {}),
               invoice_no: getInvoiceNo(app),
-              amount: app.form_data?.payment?.amount || 250,
+              amount: getBillAmount(app),
               status: "Bill Confirmed - Awaiting Payment",
               confirmed_by: "KU(IKL)",
               confirmed_at: new Date().toISOString(),
@@ -1907,6 +2037,12 @@ const configs = {
     key: "license",
     allowedDepartments: ["PT(IKL)"],
     statuses: ["payment_verified", "license_issued", "license_revoked"],
+    listEyebrow: "E-Licenses",
+    listEyebrowKey: "workspace.license.listEyebrow",
+    listTitle: "Advertisement License / QR",
+    listTitleKey: "workspace.license.listTitle",
+    listDescription: "Open a verified payment record to generate or manage the advertisement license and QR code.",
+    listDescriptionKey: "workspace.license.listDescription",
     eyebrow: "Completion",
     eyebrowKey: "workspace.license.eyebrow",
     title: "E-License and QR",
@@ -2999,11 +3135,19 @@ function SitePhotoPreview({ photo, applicationId, alt }) {
 function PaymentDetails({ app, t }) {
   const payment = app.form_data?.payment || {};
   const receiptFile = payment.receipt_file;
+  const notGenerated = t("workspace.info.notGenerated");
+  const amount = getBillAmount(app);
   return (
     <div className="grid grid-cols-1 gap-3 text-sm">
-      <Info label={t("common.invoice")} value={payment.invoice_no || getInvoiceNo(app)} />
-      <Info label={t("common.amount")} value={formatCurrency(payment.amount || 250)} />
-      <Info label={t("common.status")} value={payment.status || t("workspace.info.notGenerated")} />
+      <Info label={t("common.invoice")} value={getInvoiceNo(app) || notGenerated} />
+      <Info
+        label={t("common.amount")}
+        value={hasValue(amount) ? formatCurrency(amount) : notGenerated}
+      />
+      <Info
+        label={t("common.status")}
+        value={getPaymentDetailStatus(payment.status, t) || notGenerated}
+      />
       <Info label={t("workspace.info.receipt")} value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")} />
       {(receiptFile?.url || receiptFile?.file_url || receiptFile?.dataUrl) && (
         <a
@@ -3024,6 +3168,17 @@ function PaymentDetails({ app, t }) {
       )}
     </div>
   );
+}
+
+function getPaymentDetailStatus(status, t) {
+  const value = String(status || "").trim();
+  if (!value) return "";
+
+  if (/pending\s+ku\(ikl\)\s+bill\s+confirmation/i.test(value)) {
+    return t("status.bill_pending_ku", "Pending Bill Confirmation");
+  }
+
+  return value;
 }
 
 function LicenseDetails({ app, t }) {

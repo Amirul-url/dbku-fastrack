@@ -31,6 +31,27 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
 ]);
 const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const IKL_HISTORY_STATUSES = [
+  "submitted",
+  "incomplete",
+  "ku_ikl_review",
+  "technical_review",
+  "technical_site_visit",
+  "technical_amendment",
+  "technical_review_completed",
+  "mphlg_decision_received",
+  "management_review",
+  "mphlg_processing",
+  "approved",
+  "approved_with_conditions",
+  "rejected",
+  "bill_pending_ku",
+  "invoice_generated",
+  "payment_submitted",
+  "payment_verified",
+  "license_issued",
+  "license_revoked",
+];
 
 const units = [
   {
@@ -41,6 +62,7 @@ const units = [
     icon: "description",
     color: "bg-cyan-700",
     statuses: ["submitted", "incomplete", "technical_amendment"],
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/auto-screening",
   },
   {
@@ -51,6 +73,7 @@ const units = [
     icon: "verified_user",
     color: "bg-indigo-700",
     statuses: ["ku_ikl_review", "technical_review_completed"],
+    historyStatuses: IKL_HISTORY_STATUSES.filter((status) => status !== "submitted"),
     path: "/admin/auto-screening",
   },
   {
@@ -61,6 +84,9 @@ const units = [
     icon: "engineering",
     color: "bg-cyan-600",
     statuses: ["technical_review", "technical_site_visit"],
+    historyStatuses: IKL_HISTORY_STATUSES.filter((status) =>
+      !["submitted", "incomplete", "ku_ikl_review"].includes(status)
+    ),
     path: "/admin/auto-screening",
   },
   {
@@ -71,6 +97,7 @@ const units = [
     icon: "edit_square",
     color: "bg-emerald-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
+    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
     path: "/admin/technical-review",
   },
   {
@@ -81,6 +108,7 @@ const units = [
     icon: "payments",
     color: "bg-blue-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
+    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
     path: "/admin/technical-review",
   },
   {
@@ -91,6 +119,7 @@ const units = [
     icon: "account_balance",
     color: "bg-sky-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
+    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
     path: "/admin/technical-review",
   },
   {
@@ -102,6 +131,7 @@ const units = [
     color: "bg-yellow-400",
     iconClassName: "text-slate-900",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
+    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
     path: "/admin/technical-review",
   },
   {
@@ -112,6 +142,7 @@ const units = [
     icon: "fact_check",
     color: "bg-green-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
+    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
     path: "/admin/technical-review",
   },
   {
@@ -122,6 +153,7 @@ const units = [
     icon: "engineering",
     color: "bg-teal-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
+    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
     path: "/admin/technical-review",
   },
 ];
@@ -223,19 +255,10 @@ function PersonalTaskDashboard() {
       ...unit,
       locked: Boolean(activeDepartment) && unit.department !== activeDepartment,
       tasks: applications.filter((application) => {
-        const isAssignedDepartment =
-          !activeDepartment || unit.department === activeDepartment;
-        const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
-        const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
-        const isExternalTechnicalTask =
-          isExternalTechnicalUnit &&
-          !hasTechnicalDepartmentReview(application, unit.department);
-
-        return (
-          isAssignedDepartment &&
-          isMatchingStatus &&
-          (!isExternalTechnicalUnit || isExternalTechnicalTask)
-        );
+        return isUnitActionableApplication(application, unit, activeDepartment);
+      }),
+      records: applications.filter((application) => {
+        return isUnitHistoryApplication(application, unit, activeDepartment);
       }),
     }));
   }, [applications, activeDepartment]);
@@ -280,6 +303,11 @@ function ClaimableTaskView({
   onSelectUnit,
   unitTasks,
 }) {
+  const rows = selected.tasks || [];
+  const rowsHaveActions = rows.some((application) =>
+    isUnitActionableApplication(application, selected)
+  );
+
   function getApplicationViewPath(application) {
     const workspacePath = getAdminTaskWorkspacePath(application, selected);
     const returnParams = new URLSearchParams();
@@ -340,7 +368,7 @@ function ClaimableTaskView({
         <DataTable
           loading={loading}
           emptyText={t("admin.dashboard.noTask")}
-          rows={selected.tasks}
+          rows={rows}
           columns={[
             {
               key: "reference",
@@ -368,20 +396,25 @@ function ClaimableTaskView({
               label: t("common.updated"),
               render: (application) => formatDateTime(application.updated_at),
             },
-            {
-              key: "action",
-              label: t("common.action"),
-              render: (application) => (
-                <LinkButton
-                  to={`${getAdminTaskWorkspacePath(application, selected)}?id=${application.id}`}
-                  icon="open_in_new"
-                  variant="secondary"
-                  className="min-h-8 px-3 py-1 text-xs"
-                >
-                  {t("common.open")}
-                </LinkButton>
-              ),
-            },
+            ...(rowsHaveActions
+              ? [
+                  {
+                    key: "action",
+                    label: t("common.action"),
+                    render: (application) =>
+                      isUnitActionableApplication(application, selected) ? (
+                        <LinkButton
+                          to={`${getAdminTaskWorkspacePath(application, selected)}?id=${application.id}`}
+                          icon="open_in_new"
+                          variant="secondary"
+                          className="min-h-8 px-3 py-1 text-xs"
+                        >
+                          {t("common.open")}
+                        </LinkButton>
+                      ) : null,
+                  },
+                ]
+              : []),
           ]}
         />
       </Panel>
@@ -434,6 +467,41 @@ function isMphlgUser(user) {
 function getAssignedUnit(department) {
   if (!department) return null;
   return units.find((unit) => unit.department === department) || null;
+}
+
+function isUnitActionableApplication(application, unit, activeDepartment = "") {
+  const isAssignedDepartment =
+    !activeDepartment || unit.department === activeDepartment;
+  const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
+  const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
+  const isExternalTechnicalTask =
+    isExternalTechnicalUnit &&
+    !hasTechnicalDepartmentReview(application, unit.department);
+
+  return (
+    isAssignedDepartment &&
+    isMatchingStatus &&
+    (!isExternalTechnicalUnit || isExternalTechnicalTask)
+  );
+}
+
+function isUnitHistoryApplication(application, unit, activeDepartment = "") {
+  const isAssignedDepartment =
+    !activeDepartment || unit.department === activeDepartment;
+  const status = normalizeStatus(application.status);
+  const historyStatuses = unit.historyStatuses || unit.statuses;
+  const isMatchingHistoryStatus = historyStatuses.includes(status);
+
+  if (!isAssignedDepartment || !isMatchingHistoryStatus) return false;
+
+  if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department)) {
+    return (
+      isUnitActionableApplication(application, unit, activeDepartment) ||
+      hasTechnicalDepartmentReview(application, unit.department)
+    );
+  }
+
+  return true;
 }
 
 function getProcessIconTitle(unit) {

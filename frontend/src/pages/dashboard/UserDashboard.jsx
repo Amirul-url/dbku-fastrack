@@ -56,9 +56,9 @@ function UserDashboard() {
     ? searchParams.get("tab")
     : "overview";
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
       setApplications(list);
@@ -89,6 +89,21 @@ function UserDashboard() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchApplications();
+  }, [fetchApplications]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(
+      () => fetchApplications({ silent: true }),
+      15000
+    );
+    const handleRefresh = () => fetchApplications({ silent: true });
+
+    window.addEventListener("fastrack:applications-changed", handleRefresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("fastrack:applications-changed", handleRefresh);
+    };
   }, [fetchApplications]);
 
   useEffect(() => {
@@ -204,7 +219,7 @@ function UserDashboard() {
             payment: {
               ...currentPayment,
               invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
-              amount: currentPayment.amount || 250,
+              amount: currentPayment.amount || "",
               status: "Payment Submitted",
               verification_result: null,
               verification_notes: "",
@@ -906,15 +921,16 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen }) {
         {
           key: "action",
           label: t("common.action"),
-          render: (app) => (
-            <button
-              type="button"
-              onClick={() => onOpen(app)}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              {t(getApplicantActionKey(app))}
-            </button>
-          ),
+          render: (app) =>
+            shouldHideApplicantAction(app) ? null : (
+              <button
+                type="button"
+                onClick={() => onOpen(app)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                {t(getApplicantActionKey(app))}
+              </button>
+            ),
         },
       ]}
     />
@@ -1011,14 +1027,16 @@ function isApprovedApplication(app) {
 
 function isELicenseApplication(app) {
   return [
-    "approved",
-    "approved_with_conditions",
     "invoice_generated",
     "payment_submitted",
     "payment_verified",
     "license_issued",
     "license_revoked",
   ].includes(normalizeStatus(app.status));
+}
+
+function shouldHideApplicantAction(app) {
+  return normalizeStatus(app?.status) === "bill_pending_ku";
 }
 
 function isRejectedApplication(app) {
