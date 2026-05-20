@@ -302,6 +302,15 @@ function AppShell({ children, role = "admin" }) {
     };
   }, [role, refreshAdminTaskCounts]);
 
+  useEffect(() => {
+    if (role !== "admin" || !location.pathname.startsWith("/admin/e-licenses")) {
+      return;
+    }
+
+    setAdminELicensesOpen(true);
+    writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
+  }, [location.pathname, role]);
+
   function handleLogout() {
     clearAuthSession();
     navigate("/login/malaysian", { replace: true });
@@ -392,8 +401,7 @@ function AppShell({ children, role = "admin" }) {
               hasChildren &&
               ((role === "applicant" && applicantDashboardOpen) ||
                 (adminDashboardItem && adminDashboardOpen) ||
-                (adminELicensesItem &&
-                  (adminELicensesOpen || location.pathname.startsWith("/admin/e-licenses"))));
+                (adminELicensesItem && adminELicensesOpen));
 
             return (
               <div key={item.path}>
