@@ -7,7 +7,6 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useNotifications } from "../../context/NotificationContext";
 import {
   Alert,
-  PageHeader,
   StatusPill,
 } from "../../components/ui/SystemUI";
 import { isAdminUser, isSuperAdminUser, getStoredUser } from "../../services/api";
@@ -52,6 +51,26 @@ function getLocalized(item, field, language) {
   return item[`${field}En`] || item[field] || "";
 }
 
+function getMemoBodyParts(body) {
+  const text = String(body || "").trim();
+  const remarkMatch = text.match(/^(.*?)(?:\s+Remark:\s*)(.+)$/is);
+
+  if (!remarkMatch) {
+    return {
+      lines: text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      remark: "",
+    };
+  }
+
+  return {
+    lines: remarkMatch[1]
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+    remark: remarkMatch[2].trim(),
+  };
+}
+
 function NotificationsPage() {
   const {
     notifications,
@@ -85,13 +104,11 @@ function NotificationsPage() {
   }, [filter, notifications]);
 
   useEffect(() => {
-    if (filtered.length === 0) {
+    if (
+      selectedNotificationId &&
+      !filtered.some((item) => item.id === selectedNotificationId)
+    ) {
       setSelectedNotificationId("");
-      return;
-    }
-
-    if (!filtered.some((item) => item.id === selectedNotificationId)) {
-      setSelectedNotificationId(filtered[0].id);
     }
   }, [filtered, selectedNotificationId]);
 
@@ -114,7 +131,7 @@ function NotificationsPage() {
   const activeFilterLabel =
     activeFilters.find((item) => item.value === filter) || activeFilters[0];
   const selectedNotification =
-    filtered.find((item) => item.id === selectedNotificationId) || filtered[0] || null;
+    filtered.find((item) => item.id === selectedNotificationId) || null;
 
   function openMemo(item) {
     setSelectedNotificationId(item.id);
@@ -123,16 +140,18 @@ function NotificationsPage() {
     }
   }
 
+  function changeFilter(nextFilter) {
+    setFilter(nextFilter);
+    setSelectedNotificationId("");
+  }
+
   return (
     <Layout>
-      <PageHeader
-        eyebrow={t("notifications.eyebrow", "Live Notification Center")}
-        title={t("notifications.title", "Notifications")}
-        description={t(
-          "notifications.description",
-          "Live alerts generated from application status, workflow decisions, payment, and QR e-license records."
-        )}
-      />
+      <div className="mb-5">
+        <h1 className="text-2xl font-bold text-slate-950">
+          {t("notifications.title", "Notifications")}
+        </h1>
+      </div>
 
       <Alert message={error} />
 
@@ -161,7 +180,7 @@ function NotificationsPage() {
                 <button
                   key={item.value}
                   type="button"
-                  onClick={() => setFilter(item.value)}
+                  onClick={() => changeFilter(item.value)}
                   className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-semibold transition ${
                     filter === item.value
                       ? "bg-emerald-700 text-white"
@@ -187,10 +206,14 @@ function NotificationsPage() {
             <div className="flex flex-col gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-900">
-                  {t(activeFilterLabel.labelKey, activeFilterLabel.fallback)}
+                  {selectedNotification
+                    ? t("notifications.memo", "Memo")
+                    : t(activeFilterLabel.labelKey, activeFilterLabel.fallback)}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {unreadCount} {t("notifications.unread", "Unread")}
+                  {selectedNotification
+                    ? selectedNotification.time
+                    : `${unreadCount} ${t("notifications.unread", "Unread")}`}
                 </p>
               </div>
             </div>
@@ -212,9 +235,16 @@ function NotificationsPage() {
                   </p>
                 </div>
               </div>
+            ) : selectedNotification ? (
+              <NotificationMemo
+                item={selectedNotification}
+                language={language}
+                t={t}
+                onBack={() => setSelectedNotificationId("")}
+                onMarkRead={markAsRead}
+              />
             ) : (
-              <div className="grid min-h-[450px] xl:grid-cols-[minmax(320px,430px)_1fr]">
-                <div className="divide-y divide-slate-200 border-b border-slate-200 xl:border-b-0 xl:border-r">
+              <div className="min-h-[450px] divide-y divide-slate-200">
                 {filtered.map((item) => {
                   const style = typeStyles[item.type] || typeStyles.info;
 
@@ -224,11 +254,9 @@ function NotificationsPage() {
                       type="button"
                       onClick={() => openMemo(item)}
                       className={`group flex w-full gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-slate-50 ${
-                        selectedNotification?.id === item.id
-                          ? "border-l-emerald-700 bg-emerald-50"
-                          : item.read
-                            ? "border-l-transparent bg-white"
-                            : "border-l-emerald-600 bg-emerald-50/40"
+                        item.read
+                          ? "border-l-transparent bg-white"
+                          : "border-l-emerald-600 bg-emerald-50/40"
                       }`}
                     >
                       <span className={`material-symbols-outlined mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[20px] ${style.className}`}>
@@ -268,14 +296,6 @@ function NotificationsPage() {
                     </button>
                   );
                 })}
-                </div>
-
-                <NotificationMemo
-                  item={selectedNotification}
-                  language={language}
-                  t={t}
-                  onMarkRead={markAsRead}
-                />
               </div>
             )}
           </div>
@@ -285,7 +305,7 @@ function NotificationsPage() {
   );
 }
 
-function NotificationMemo({ item, language, t, onMarkRead }) {
+function NotificationMemo({ item, language, t, onBack, onMarkRead }) {
   if (!item) {
     return (
       <div className="flex min-h-[360px] items-center justify-center px-6 text-center">
@@ -306,19 +326,31 @@ function NotificationMemo({ item, language, t, onMarkRead }) {
 
   const subject = item.subject || getLocalized(item, "title", language);
   const body = getLocalized(item, "body", language) || getLocalized(item, "message", language);
-  const bodyLines = String(body || "").split(/\r?\n/).filter((line) => line.trim());
+  const bodyParts = getMemoBodyParts(body);
 
   return (
     <article className="min-w-0 bg-white">
       <div className="border-b border-slate-200 px-5 py-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-              {t("notifications.memo", "Memo")}
-            </p>
-            <h3 className="mt-1 break-words text-lg font-bold leading-7 text-slate-950">
-              {subject}
-            </h3>
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={onBack}
+              className="mb-3 inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                arrow_back
+              </span>
+              {t("notifications.backToInbox", "Back to Inbox")}
+            </button>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                {t("notifications.memo", "Memo")}
+              </p>
+              <h3 className="mt-1 break-words text-lg font-bold leading-7 text-slate-950">
+                {subject}
+              </h3>
+            </div>
           </div>
           <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
         </div>
@@ -335,11 +367,21 @@ function NotificationMemo({ item, language, t, onMarkRead }) {
         </dl>
 
         <div className="min-h-[180px] rounded-md border border-slate-200 bg-white px-4 py-4">
-          {bodyLines.length > 0 ? (
+          {bodyParts.lines.length > 0 || bodyParts.remark ? (
             <div className="space-y-3 text-sm leading-6 text-slate-700">
-              {bodyLines.map((line, index) => (
+              {bodyParts.lines.map((line, index) => (
                 <p key={`${item.id}:line:${index}`}>{line}</p>
               ))}
+              {bodyParts.remark && (
+                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-semibold uppercase text-amber-700">
+                    {t("notifications.memo.remark", "Remark")}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-slate-800">
+                    {bodyParts.remark}
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-sm text-slate-500">

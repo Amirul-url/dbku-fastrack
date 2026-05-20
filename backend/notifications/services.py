@@ -314,7 +314,7 @@ def build_web_metadata(application, title, body, recipient_role):
     display_message = body
 
     if remark:
-        display_message = f"{display_message} Remark: {remark}"
+        display_message = f"{display_message}\n\nRemark: {remark}"
 
     return {
         "category": category,
