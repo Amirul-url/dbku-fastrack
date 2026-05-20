@@ -119,11 +119,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return
 
         editable_statuses = {"draft", "incomplete", "technical_amendment", "rejected"}
+        current_status = str(application.status or "").strip().lower()
+        requested_status = str(self.request.data.get("status", application.status) or "").strip().lower()
         form_data = self.request.data.get("form_data") or {}
         form_keys = set(form_data.keys()) if isinstance(form_data, dict) else set()
         is_payment_only_update = form_keys and form_keys.issubset({"payment"})
+        is_payment_proof_update = (
+            is_payment_only_update
+            and requested_status == "payment_submitted"
+            and current_status in {"invoice_generated", "payment_submitted"}
+        )
 
-        if application.status in editable_statuses or is_payment_only_update:
+        if current_status in editable_statuses or is_payment_proof_update:
             return
 
         if form_keys or "current_step" in self.request.data or "status" in self.request.data:
@@ -147,7 +154,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if (
             request.user.role not in STAFF_ROLES
             and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
-            and title != "Payment Receipt"
+            and not (
+                title == "Payment Receipt"
+                and application.status in {"invoice_generated", "payment_submitted"}
+            )
         ):
             return Response(
                 {
@@ -199,7 +209,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         if (
             request.user.role not in STAFF_ROLES
-            and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
+            and application.status not in {
+                "draft",
+                "incomplete",
+                "technical_amendment",
+                "rejected",
+                "invoice_generated",
+                "payment_submitted",
+            }
         ):
             return Response(
                 {

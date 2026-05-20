@@ -4,6 +4,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
 import {
   apiRequest,
+  fetchAuthenticatedBlob,
   uploadApplicationDocument,
 } from "../../services/api";
 import {
@@ -289,6 +290,30 @@ function UserDashboard() {
     setMessage({ type: "", text: "" });
   }
 
+  async function viewPaymentReceipt() {
+    const source = getPaymentReceiptSource(paymentReceipt);
+    if (!source) return;
+
+    try {
+      const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+      const url = isInlineFile
+        ? source
+        : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+
+      window.open(url, "_blank", "noopener,noreferrer");
+
+      if (!isInlineFile) {
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+    } catch (err) {
+      console.error("Failed to open payment receipt:", err);
+      setMessage({
+        type: "error",
+        text: t("applicant.receiptViewFailed", "Unable to open the receipt. Please try again."),
+      });
+    }
+  }
+
   function downloadELicense() {
     if (!activeApplication || !canViewLicense(activeApplication)) return;
 
@@ -406,6 +431,7 @@ function UserDashboard() {
             licenseCardRef={licenseCardRef}
             onReceiptChange={handlePaymentReceiptChange}
             onReceiptRemove={handlePaymentReceiptRemove}
+            onReceiptView={viewPaymentReceipt}
             onSubmitPayment={submitPayment}
             onDownload={downloadELicense}
             onBack={returnToLicenseList}
@@ -659,6 +685,7 @@ function LicenseSection({
   licenseCardRef,
   onReceiptChange,
   onReceiptRemove,
+  onReceiptView,
   onSubmitPayment,
   onDownload,
   onBack,
@@ -679,68 +706,105 @@ function LicenseSection({
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-950">
-          {t("common.uploadReceipt")}
-        </h3>
-        <p className="mt-1 text-sm text-slate-500">
-          {getPaymentHint(app, t)}
-        </p>
+      <div className="rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-950">
+            {t("common.uploadReceipt")}
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">
+            {getPaymentHint(app, t)}
+          </p>
+        </div>
 
-        <div className="mt-4 space-y-3">
+        <div className="space-y-4 p-4">
           {(payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
               {t("applicant.paymentHintReceiptRejected")}
             </div>
           )}
 
-          <Field label={t("applicant.paymentProofTitle")}>
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 py-5">
-              <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
-                <span className="material-symbols-outlined text-[18px] text-white">
-                  upload_file
-                </span>
-                <span>{t("common.uploadFile", "Upload File")}</span>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  className="hidden"
-                  onChange={(event) => {
-                    onReceiptChange(event.target.files?.[0]);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
-              <p className="mt-3 text-sm font-semibold text-slate-800">
-                {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-slate-900">
+                {t("applicant.paymentProofTitle")}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="text-xs text-slate-500">
                 {t("applicant.receiptUploadHint")}
               </p>
             </div>
-          </Field>
+
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-emerald-700 ring-1 ring-slate-200">
+                    <span className="material-symbols-outlined text-[22px]">
+                      description
+                    </span>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      PDF, JPG, or PNG
+                    </p>
+                  </div>
+                </div>
+
+                <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800">
+                  <span className="material-symbols-outlined text-[18px] text-white">
+                    upload_file
+                  </span>
+                  <span>
+                    {paymentReceipt
+                      ? t("common.replace", "Replace")
+                      : t("common.uploadFile", "Upload File")}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={(event) => {
+                      onReceiptChange(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
 
           {paymentReceipt && (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs">
-              <span className="truncate font-medium text-slate-700">
+            <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="material-symbols-outlined shrink-0 text-[18px] text-slate-500">
+                  attach_file
+                </span>
+                <span className="truncate text-sm font-medium text-slate-700">
                 {paymentReceipt.name}
-              </span>
+                </span>
+              </div>
               <div className="flex shrink-0 items-center gap-2">
-                {(paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl) && (
-                  <a
-                    href={paymentReceipt.url || paymentReceipt.file_url || paymentReceipt.dataUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-semibold text-emerald-700 hover:underline"
+                {getPaymentReceiptSource(paymentReceipt) && (
+                  <button
+                    type="button"
+                    onClick={onReceiptView}
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                   >
+                    <span className="material-symbols-outlined text-[16px]">
+                      visibility
+                    </span>
                     {t("common.view")}
-                  </a>
+                  </button>
                 )}
                 <button
                   type="button"
                   onClick={onReceiptRemove}
-                  className="rounded-md border border-red-200 px-2 py-1 font-semibold text-red-700 hover:bg-red-50"
+                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700 hover:bg-red-50"
                 >
+                  <span className="material-symbols-outlined text-[16px]">
+                    delete
+                  </span>
                   {t("common.remove", "Remove")}
                 </button>
               </div>
@@ -748,11 +812,16 @@ function LicenseSection({
           )}
 
           {canSubmitPaymentProof ? (
-            <>
-              <Button onClick={onSubmitPayment} disabled={saving} icon="upload_file">
+            <div className="flex justify-end">
+              <Button
+                onClick={onSubmitPayment}
+                disabled={saving || !paymentReceipt}
+                icon="upload_file"
+                className="w-full sm:w-auto"
+              >
                 {saving ? t("common.submitting") : t("applicant.submitPayment")}
               </Button>
-            </>
+            </div>
           ) : (
             <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-500">
               {getPaymentHint(app, t)}
@@ -1036,7 +1105,18 @@ function isELicenseApplication(app) {
 }
 
 function shouldHideApplicantAction(app) {
-  return normalizeStatus(app?.status) === "bill_pending_ku";
+  return [
+    "bill_pending_ku",
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+    "license_revoked",
+  ].includes(normalizeStatus(app?.status));
+}
+
+function getPaymentReceiptSource(receipt) {
+  return receipt?.dataUrl || receipt?.url || receipt?.file_url || receipt?.file || "";
 }
 
 function isRejectedApplication(app) {
