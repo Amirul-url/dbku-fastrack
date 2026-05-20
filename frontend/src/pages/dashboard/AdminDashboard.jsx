@@ -144,11 +144,36 @@ function AdminDashboard() {
     };
   }, []);
 
+  if (isMphlgUser(currentUser) && view === "approval") {
+    return <ApprovalPage />;
+  }
+
+  if (isMphlgUser(currentUser)) {
+    return <MphlgDashboard user={currentUser} />;
+  }
+
   if (view === "approval" || isApprovalWorkflowUser(currentUser)) {
     return <ApprovalPage />;
   }
 
   return <PersonalTaskDashboard />;
+}
+
+function MphlgDashboard({ user }) {
+  const { t } = useLanguage();
+  const department = normalizeDepartmentCode(user?.department) || "MPHLG";
+
+  return (
+    <AdminDashboardLayout>
+      <div className="mb-5">
+        <h1 className="text-2xl font-semibold text-slate-950">
+          {t("mphlg.dashboard.title", `${department} Dashboard`)}
+        </h1>
+      </div>
+
+      <section className="min-h-[420px] rounded-md border border-slate-200 bg-white" />
+    </AdminDashboardLayout>
+  );
 }
 
 function PersonalTaskDashboard() {
@@ -376,6 +401,7 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
+  if (department === "SETIAUSAHA TETAP") return "SUT";
   return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
 
@@ -391,6 +417,10 @@ function isApprovalWorkflowUser(user) {
     department === "TP(RES)/PGH" ||
     department === "TP/PGH"
   );
+}
+
+function isMphlgUser(user) {
+  return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
 }
 
 function getAssignedUnit(department) {

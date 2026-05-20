@@ -11,11 +11,13 @@ function buildStepPath(applicationId, step, currentParams) {
 }
 
 function normalizeDepartmentCode(value) {
-  return String(value || "")
+  const department = String(value || "")
     .trim()
     .toUpperCase()
     .replace(/-/g, " ")
     .replace(/\s+/g, " ");
+
+  return department === "SETIAUSAHA TETAP" ? "SUT" : department;
 }
 
 function isApprovalWorkflowUser() {
@@ -30,7 +32,9 @@ function isApprovalWorkflowUser() {
       department === "TP(RES)" ||
       department === "PGH" ||
       department === "TP(RES)/PGH" ||
-      department === "TP/PGH"
+      department === "TP/PGH" ||
+      department === "MPHLG" ||
+      department === "SUT"
     );
   } catch {
     return false;

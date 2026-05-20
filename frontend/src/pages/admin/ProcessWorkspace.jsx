@@ -53,6 +53,8 @@ const TECHNICAL_REVIEW_STATUSES = new Set([
   "technical_review_completed",
 ]);
 const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
+const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
+const SUT_APPROVAL_DEPARTMENTS = ["SUT"];
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -218,10 +220,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       const isInDepartmentScope =
         !isDepartmentTechnicalWorkspace ||
         !hasTechnicalDepartmentReview(app, userDepartment);
+      const isInApprovalScope =
+        !isApprovalWorkspace ||
+        isApprovalTaskForDepartment(app, userDepartment);
 
-      return isInStatusScope && isInDepartmentScope;
+      return isInStatusScope && isInDepartmentScope && isInApprovalScope;
     });
-  }, [applications, config, isDepartmentTechnicalWorkspace, userDepartment]);
+  }, [applications, config, isApprovalWorkspace, isDepartmentTechnicalWorkspace, userDepartment]);
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -808,7 +813,15 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
       return t("workspace.approval.supportAction", "Support verified applications before they proceed to the MPHLG/SUT stage.");
     }
 
-    return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES) verification or TP(RES)/PGH support.");
+    if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
+      return t("workspace.approval.mphlgAction", "Review supported applications before routing them to SUT approval.");
+    }
+
+    if (SUT_APPROVAL_DEPARTMENTS.includes(userDepartment)) {
+      return t("workspace.approval.sutAction", "Record SUT final approval and optional comments.");
+    }
+
+    return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES), TP(RES)/PGH, MPHLG, or SUT action.");
   }
 
   return t(config.actionDescriptionKey, config.actionDescription);
@@ -838,6 +851,18 @@ function getWorkspaceDecisionOptions(config, app, department) {
     ];
   }
 
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "mphlg") {
+    return [
+      { value: "Approve", labelKey: "workspace.decision.approve" },
+    ];
+  }
+
+  if (SUT_APPROVAL_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "sut") {
+    return [
+      { value: "Approve", labelKey: "workspace.decision.approve" },
+    ];
+  }
+
   return config.decisions || [];
 }
 
@@ -855,8 +880,23 @@ function getWorkspaceActions(config, app, department) {
   const canKbVerify = department === "KB(LES)" && stage === "kb";
   const canSupport =
     APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && stage === "support";
+  const canMphlgApprove =
+    MPHLG_REVIEW_DEPARTMENTS.includes(department) && stage === "mphlg";
+  const canSutApprove =
+    SUT_APPROVAL_DEPARTMENTS.includes(department) && stage === "sut";
 
-  return canKbVerify || canSupport ? config.actions || [] : [];
+  return canKbVerify || canSupport || canMphlgApprove || canSutApprove ? config.actions || [] : [];
+}
+
+function isApprovalTaskForDepartment(app, department) {
+  const stage = getApprovalStageKey(app);
+
+  if (department === "KB(LES)") return stage === "kb";
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return stage === "support";
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return stage === "mphlg";
+  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
+
+  return false;
 }
 
 function getActionUnavailableMessage(config, app, department) {
@@ -872,15 +912,23 @@ function getActionUnavailableMessage(config, app, department) {
     return stage === "support" ? "" : "TP(RES)/PGH support is available after KB(LES) verification.";
   }
 
-  return "This queue is view-only for this account. KB(LES) verifies first; TP(RES)/PGH supports after verification.";
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+    return stage === "mphlg" ? "" : "MPHLG approval is available after TP(RES)/PGH support.";
+  }
+
+  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
+    return stage === "sut" ? "" : "SUT approval is available after MPHLG approval.";
+  }
+
+  return "This queue is view-only for this account. KB(LES) verifies first; TP(RES)/PGH supports, then MPHLG and SUT approve.";
 }
 
 function getApprovalStageLabel(app) {
   const stage = getApprovalStageKey(app);
 
   if (stage === "support") return "Pending TP(RES)/PGH Support";
-  if (stage === "mphlg") return "Pending MPHLG/SUT";
-  if (stage === "decision") return "Pending Final Decision";
+  if (stage === "mphlg") return "Pending MPHLG Approval";
+  if (stage === "sut") return "Pending SUT Approval";
   if (stage === "completed") return "Approval Completed";
   return "Pending KB(LES) Verification";
 }
@@ -894,7 +942,7 @@ function getApprovalStageKey(app) {
   }
 
   if (status === "mphlg_processing") return "mphlg";
-  if (status === "mphlg_decision_received") return "decision";
+  if (status === "mphlg_decision_received") return "sut";
   if (hasApplicationSection(app, "approval")) return "completed";
   if (isKbLesVerified(app) && !hasManagementSupport(app)) return "support";
   return "kb";
@@ -1124,6 +1172,60 @@ function buildApprovalWorkflowPayload(app, data) {
     };
   }
 
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+    return {
+      status: decision === "Approve" ? "mphlg_decision_received" : normalizeStatus(app.status),
+      current_step: Math.max(Number(app.current_step || 1), 5),
+      latest_remark: data.comment || app.latest_remark || "",
+      form_data: mergeFormData(app, {
+        mphlg_gateway: {
+          ...(app.form_data?.mphlg_gateway || {}),
+          officer: "MPHLG",
+          status: decision === "Approve" ? "Approved" : app.form_data?.mphlg_gateway?.status || "Pending MPHLG/SUT Processing",
+          decision,
+          remarks: data.comment,
+          reviewed_at: now,
+        },
+        sut_approval: decision === "Approve"
+          ? {
+              ...(app.form_data?.sut_approval || {}),
+              status: "Pending SUT Approval",
+              routed_from: "MPHLG",
+              routed_at: now,
+            }
+          : app.form_data?.sut_approval || null,
+        approval: app.form_data?.approval || null,
+      }),
+    };
+  }
+
+  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
+    return {
+      status: decision === "Approve" ? "approved" : normalizeStatus(app.status),
+      current_step: Math.max(Number(app.current_step || 1), 5),
+      latest_remark: data.comment || app.latest_remark || "",
+      form_data: mergeFormData(app, {
+        sut_approval: {
+          ...(app.form_data?.sut_approval || {}),
+          officer: "SUT",
+          status: decision === "Approve" ? "Approved" : app.form_data?.sut_approval?.status || "Pending SUT Approval",
+          decision,
+          remarks: data.comment,
+          approved_at: now,
+        },
+        approval: decision === "Approve"
+          ? {
+              status: "Approved",
+              final_decision: "Approved",
+              notes: data.comment,
+              decided_by: "SUT",
+              approved_at: now,
+            }
+          : app.form_data?.approval || null,
+      }),
+    };
+  }
+
   return {
     status: normalizeStatus(app.status),
     form_data: app.form_data || {},
@@ -1246,6 +1348,7 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
+  if (department === "SETIAUSAHA TETAP") return "SUT";
   return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
 
@@ -1491,8 +1594,8 @@ const configs = {
     stats: (apps) => [
       { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified", tone: "amber" },
       { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "approval_delegation", tone: "blue" },
-      { label: "MPHLG/SUT", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
-      { label: "Final Decision", value: countBy(apps, (app) => getApprovalStageKey(app) === "decision"), icon: "task_alt" },
+      { label: "MPHLG", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
+      { label: "SUT", value: countBy(apps, (app) => getApprovalStageKey(app) === "sut"), icon: "task_alt" },
     ],
     actions: [
       {

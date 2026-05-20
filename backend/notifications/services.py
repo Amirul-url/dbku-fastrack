@@ -23,6 +23,8 @@ KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
 IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL"}
 APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
 APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
+MPHLG_REVIEW_DEPARTMENTS = {"MPHLG"}
+SUT_APPROVAL_DEPARTMENTS = {"SUT"}
 ADMIN_TECHNICAL_TASK_STATUSES = {
     "technical_review",
     "technical_site_visit",
@@ -87,6 +89,16 @@ STATUS_MESSAGES = {
         "",
         "Application {reference} is ready for KB(LES) verification.",
     ),
+    "mphlg_processing": (
+        "MPHLG approval required",
+        "",
+        "Application {reference} is ready for MPHLG approval.",
+    ),
+    "mphlg_decision_received": (
+        "SUT approval required",
+        "",
+        "Application {reference} is ready for SUT approval.",
+    ),
 }
 
 STATUS_UI = {
@@ -101,6 +113,8 @@ STATUS_UI = {
     "technical_amendment": ("technical", "warning"),
     "technical_review_completed": ("technical", "info"),
     "management_review": ("approval", "warning"),
+    "mphlg_processing": ("approval", "warning"),
+    "mphlg_decision_received": ("approval", "warning"),
 }
 
 APPLICANT_NOTIFICATION_STATUSES = {
@@ -115,6 +129,8 @@ ADMIN_NOTIFICATION_STATUSES = {
     "submitted",
     "ku_ikl_review",
     "management_review",
+    "mphlg_processing",
+    "mphlg_decision_received",
     *ADMIN_TECHNICAL_TASK_STATUSES,
 }
 
@@ -271,6 +287,14 @@ def build_status_messages(application):
 
     if status_key == "management_review":
         title, admin_body = get_management_review_admin_text(application)
+        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+    elif status_key == "mphlg_processing":
+        title = "MPHLG approval required"
+        admin_body = f"Application {application.reference_no} is ready for MPHLG approval."
+        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+    elif status_key == "mphlg_decision_received":
+        title = "SUT approval required"
+        admin_body = f"Application {application.reference_no} is ready for SUT approval."
         subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
 
     applicant_metadata = build_web_metadata(
@@ -542,6 +566,12 @@ def get_admin_task_web_recipients(application):
 
         return []
 
+    if status_key == "mphlg_processing":
+        return [user for user in users if is_mphlg_review_user(user)]
+
+    if status_key == "mphlg_decision_received":
+        return [user for user in users if is_sut_approval_user(user)]
+
     if status_key in ADMIN_TECHNICAL_TASK_STATUSES:
         pending_departments = get_pending_technical_departments(application)
         return [
@@ -596,6 +626,8 @@ def should_use_admin_contact_fallback(status_key):
         "technical_amendment",
         "technical_review_completed",
         "management_review",
+        "mphlg_processing",
+        "mphlg_decision_received",
     }
 
 
@@ -656,6 +688,14 @@ def is_approval_support_user(user):
     return normalize_department(getattr(user, "department", "")) in APPROVAL_SUPPORT_DEPARTMENTS
 
 
+def is_mphlg_review_user(user):
+    return normalize_department(getattr(user, "department", "")) in MPHLG_REVIEW_DEPARTMENTS
+
+
+def is_sut_approval_user(user):
+    return normalize_department(getattr(user, "department", "")) in SUT_APPROVAL_DEPARTMENTS
+
+
 def get_form_section(application, key):
     form_data = getattr(application, "form_data", None) or {}
     section = form_data.get(key) or {}
@@ -692,6 +732,12 @@ def normalize_department(value):
     if department in APPROVAL_SUPPORT_DEPARTMENTS:
         return department
 
+    if department in MPHLG_REVIEW_DEPARTMENTS:
+        return "MPHLG"
+
+    if department in SUT_APPROVAL_DEPARTMENTS or department == "SETIAUSAHA TETAP":
+        return "SUT"
+
     if department == "INP":
         return "LNP"
 
@@ -715,6 +761,12 @@ def should_user_receive_admin_notification(user, application, status_key=None):
         if is_kb_les_verification_pending(application):
             return department == "KB(LES)"
         return department in APPROVAL_SUPPORT_DEPARTMENTS and is_management_support_pending(application)
+
+    if status == "mphlg_processing":
+        return department in MPHLG_REVIEW_DEPARTMENTS
+
+    if status == "mphlg_decision_received":
+        return department in SUT_APPROVAL_DEPARTMENTS
 
     if status == "technical_amendment":
         return department == "PT(IKL)"

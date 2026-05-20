@@ -29,6 +29,8 @@ const applicantNotificationStatuses = new Set([
 ]);
 const technicalDepartments = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+const mphlgReviewDepartments = new Set(["MPHLG"]);
+const sutApprovalDepartments = new Set(["SUT"]);
 const adminTechnicalTaskStatuses = new Set([
   "technical_review",
   "technical_site_visit",
@@ -37,6 +39,8 @@ const adminTechnicalTaskStatuses = new Set([
 ]);
 const adminNotificationStatuses = new Set(["submitted", "ku_ikl_review", ...adminTechnicalTaskStatuses]);
 adminNotificationStatuses.add("management_review");
+adminNotificationStatuses.add("mphlg_processing");
+adminNotificationStatuses.add("mphlg_decision_received");
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
@@ -88,6 +92,7 @@ function normalizeDepartment(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
+  if (department === "SETIAUSAHA TETAP") return "SUT";
   return department;
 }
 
@@ -146,6 +151,11 @@ function getApplicationSection(app, key) {
   return app?.[key] || app?.form_data?.[key] || {};
 }
 
+function hasApplicationSection(app, key) {
+  const section = getApplicationSection(app, key);
+  return Boolean(section && Object.keys(section).length > 0);
+}
+
 function isKbLesVerified(app) {
   const status = String(getApplicationSection(app, "kb_les_verification")?.status || "")
     .trim()
@@ -158,6 +168,17 @@ function hasManagementSupport(app) {
     .trim()
     .toLowerCase();
   return status === "supported" || status === "completed";
+}
+
+function isMphlgReviewPending(app) {
+  const status = String(getApplicationSection(app, "mphlg_gateway")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status !== "approved" && status !== "reviewed";
+}
+
+function isSutApprovalPending(app) {
+  return !hasApplicationSection(app, "approval");
 }
 
 function isApprovalSupportPending(app) {
@@ -205,6 +226,16 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
     if (!app) return department === "KB(LES)" || approvalSupportDepartments.has(department);
     if (!isKbLesVerified(app)) return department === "KB(LES)";
     return approvalSupportDepartments.has(department) && !hasManagementSupport(app);
+  }
+
+  if (normalizedStatus === "mphlg_processing") {
+    if (!app) return mphlgReviewDepartments.has(department);
+    return mphlgReviewDepartments.has(department) && isMphlgReviewPending(app);
+  }
+
+  if (normalizedStatus === "mphlg_decision_received") {
+    if (!app) return sutApprovalDepartments.has(department);
+    return sutApprovalDepartments.has(department) && isSutApprovalPending(app);
   }
 
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
@@ -459,6 +490,38 @@ function buildAdminNotifications(app, user) {
         approvalText.titleMs,
         approvalText.messageEn,
         approvalText.messageMs,
+        user
+      )
+    );
+  }
+
+  if (status === "mphlg_processing" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "approval",
+        "warning",
+        "Application ready for MPHLG approval",
+        "Permohonan sedia untuk kelulusan MPHLG",
+        `${reference} is ready for MPHLG approval.`,
+        `${reference} sedia untuk kelulusan MPHLG.`,
+        user
+      )
+    );
+  }
+
+  if (status === "mphlg_decision_received" && isAdminNotificationAllowedForUser(status, user, app)) {
+    notifications.push(
+      buildBaseNotification(
+        app,
+        "admin",
+        "approval",
+        "warning",
+        "Application ready for SUT approval",
+        "Permohonan sedia untuk kelulusan SUT",
+        `${reference} is ready for SUT approval.`,
+        `${reference} sedia untuk kelulusan SUT.`,
         user
       )
     );

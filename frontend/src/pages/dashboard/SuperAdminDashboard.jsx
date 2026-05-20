@@ -28,7 +28,7 @@ const adminDepartments = [
   "ENG",
 ];
 const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
-const mphlgDepartments = ["MPHLG"];
+const mphlgDepartments = ["MPHLG", "SUT"];
 const recentActivityPageSize = 5;
 const adminCsvHeaders = [
   "full_name",
@@ -381,13 +381,13 @@ function SuperAdminHome() {
     const totalUsers = summary.users ?? accounts.filter((account) => account.role === "applicant").length;
     const dbkuAdmins = accounts.filter((account) => (
       account.role === "admin" &&
-      String(account.department || "").toUpperCase() !== "MPHLG"
+      !isMphlgSectionDepartment(account.department)
     )).length;
     const totalAdmins = accounts.filter((account) => account.role === "admin").length;
     const totalSupervisors = accounts.filter((account) => account.role === "supervisor").length;
     const mphlgAdmins = accounts.filter((account) => (
       account.role === "admin" &&
-      String(account.department || "").toUpperCase() === "MPHLG"
+      isMphlgSectionDepartment(account.department)
     )).length;
     const superAdminAccounts = accounts.filter((account) => account.role === "superadmin").length;
     const activityDateKey = getActivityDateFilterKey(activityDateFilter);
@@ -697,8 +697,8 @@ function SuperAdminAccountManagement({ view }) {
         const agencyMatch =
           !isAdminView ||
           (isMphlgAdminView
-            ? accountDepartment === "MPHLG"
-            : accountDepartment !== "MPHLG");
+            ? isMphlgSectionDepartment(accountDepartment)
+            : !isMphlgSectionDepartment(accountDepartment));
         return nameMatch && departmentMatch && agencyMatch;
       })
       .sort(compareAccounts);
@@ -923,7 +923,7 @@ function SuperAdminAccountManagement({ view }) {
             department: isSuperadminView
               ? ""
               : isMphlgAdminView
-                ? "MPHLG"
+                ? normalizeMphlgDepartmentValue(row.department)
                 : normalizeDepartmentValue(row.department),
             mobile_number: importedMobile,
             role: isSupervisorView
@@ -1890,6 +1890,15 @@ function normalizeImportedRole(value) {
 
 function normalizeDepartmentValue(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function isMphlgSectionDepartment(value) {
+  return mphlgDepartments.includes(normalizeDepartmentValue(value));
+}
+
+function normalizeMphlgDepartmentValue(value) {
+  const department = normalizeDepartmentValue(value);
+  return isMphlgSectionDepartment(department) ? department : "MPHLG";
 }
 
 export default SuperAdminDashboard;

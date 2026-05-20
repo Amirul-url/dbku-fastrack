@@ -196,6 +196,62 @@ class NotificationRoutingTests(TestCase):
         self.assertIn("TP(RES)/PGH support", delivery.metadata["message_en"])
         self.assertNotIn("KB(LES) verification", delivery.metadata["title_en"])
 
+    def test_mphlg_processing_notifies_mphlg_admin(self):
+        mphlg_user = User.objects.create_user(
+            username="mphlg",
+            email="",
+            password="Password123",
+            role="admin",
+            department="MPHLG",
+            is_active=True,
+        )
+        User.objects.create_user(
+            username="sut",
+            email="",
+            password="Password123",
+            role="admin",
+            department="SUT",
+            is_active=True,
+        )
+
+        self.notify_status("mphlg_processing", old_status="management_review")
+
+        deliveries = NotificationDelivery.objects.filter(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="mphlg_processing",
+        )
+        self.assertTrue(deliveries.filter(user=mphlg_user).exists())
+        self.assertEqual(deliveries.count(), 1)
+
+    def test_mphlg_decision_received_notifies_sut_admin(self):
+        sut_user = User.objects.create_user(
+            username="sut",
+            email="",
+            password="Password123",
+            role="admin",
+            department="SUT",
+            is_active=True,
+        )
+        User.objects.create_user(
+            username="mphlg",
+            email="",
+            password="Password123",
+            role="admin",
+            department="MPHLG",
+            is_active=True,
+        )
+
+        self.notify_status("mphlg_decision_received", old_status="mphlg_processing")
+
+        deliveries = NotificationDelivery.objects.filter(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="mphlg_decision_received",
+        )
+        self.assertTrue(deliveries.filter(user=sut_user).exists())
+        self.assertEqual(deliveries.count(), 1)
+
     def test_department_inbox_keeps_old_kb_les_memos(self):
         User.objects.create_user(
             username="kb-les-original",

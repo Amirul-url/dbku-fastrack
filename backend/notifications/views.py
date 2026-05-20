@@ -40,6 +40,10 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
             elif department in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
                 allowed_event_statuses = {"management_review"}
+            elif department == "MPHLG":
+                allowed_event_statuses = {"mphlg_processing"}
+            elif department == "SUT":
+                allowed_event_statuses = {"mphlg_decision_received"}
             else:
                 allowed_event_statuses = set()
             recipient_filter = Q(user=self.request.user) | Q(

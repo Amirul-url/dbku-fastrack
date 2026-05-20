@@ -26,11 +26,13 @@ import {
 const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 
 function normalizeDepartmentCode(value) {
-  return String(value || "")
+  const department = String(value || "")
     .trim()
     .toUpperCase()
     .replace(/-/g, " ")
     .replace(/\s+/g, " ");
+
+  return department === "SETIAUSAHA TETAP" ? "SUT" : department;
 }
 
 function isApprovalWorkflowUser(user) {
@@ -40,7 +42,9 @@ function isApprovalWorkflowUser(user) {
   return (
     role === "supervisor" ||
     department === "KB(LES)" ||
-    APPROVAL_SUPPORT_DEPARTMENTS.has(department)
+    APPROVAL_SUPPORT_DEPARTMENTS.has(department) ||
+    department === "MPHLG" ||
+    department === "SUT"
   );
 }
 

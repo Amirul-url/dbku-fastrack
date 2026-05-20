@@ -55,6 +55,26 @@ function writeSessionBoolean(key, value) {
 }
 
 function buildAdminNav(taskCounts = {}, user = null) {
+  if (isMphlgUser(user)) {
+    return [
+      {
+        labelKey: "nav.dashboard",
+        fallback: "Dashboard",
+        path: "/dashboard/admin?view=personal",
+        view: "personal",
+        icon: "dashboard",
+      },
+      {
+        labelKey: "admin.dashboard.awaitingApproval",
+        fallback: "Awaiting Approval",
+        path: "/dashboard/admin?view=approval",
+        view: "approval",
+        icon: "approval_delegation",
+        badge: taskCounts.approval || 0,
+      },
+    ];
+  }
+
   const isSupervisor = isApprovalWorkflowUser(user);
 
   const dashboardChildren = [
@@ -309,15 +329,20 @@ function AppShell({ children, role = "admin" }) {
               );
             }
 
+            const activeTab = new URLSearchParams(location.search).get("tab");
+            const activeView = new URLSearchParams(location.search).get("view") || "personal";
+            const itemPathname = getPathname(item.path);
             const active =
+              (role === "admin" &&
+                item.view &&
+                location.pathname === itemPathname &&
+                activeView === item.view) ||
               location.pathname === item.path ||
               (role === "applicant" &&
                 item.path === "/user/dashboard" &&
                 location.pathname.startsWith("/applications")) ||
               (item.path !== "/dashboard/admin" &&
                 location.pathname.startsWith(item.path));
-            const activeTab = new URLSearchParams(location.search).get("tab");
-            const activeView = new URLSearchParams(location.search).get("view");
             const hasChildren = Boolean(item.children || item.stepGroup);
             const adminDashboardItem = role === "admin" && item.path === "/dashboard/admin";
             const submenuOpen =
@@ -385,6 +410,7 @@ function AppShell({ children, role = "admin" }) {
                       </span>
                       <span className="truncate">{t(item.labelKey, item.fallback)}</span>
                     </span>
+                    <NavBadge count={item.badge} />
                   </Link>
                 )}
                 {submenuOpen && (
@@ -618,8 +644,13 @@ function isApprovalWorkflowUser(user) {
   return (
     role === "supervisor" ||
     department === "KB(LES)" ||
-    APPROVAL_SUPPORT_DEPARTMENTS.has(department)
+    APPROVAL_SUPPORT_DEPARTMENTS.has(department) ||
+    isMphlgUser(user)
   );
+}
+
+function isMphlgUser(user) {
+  return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
 }
 
 function isPersonalTaskForDepartment(application, department) {
@@ -666,6 +697,14 @@ function isAwaitingApprovalTask(application, department) {
     );
   }
 
+  if (department === "MPHLG") {
+    return status === "mphlg_processing" && !isMphlgReviewComplete(application);
+  }
+
+  if (department === "SUT") {
+    return status === "mphlg_decision_received" && !hasApplicationSection(application, "approval");
+  }
+
   return false;
 }
 
@@ -687,6 +726,7 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
+  if (department === "SETIAUSAHA TETAP") return "SUT";
   return department;
 }
 
@@ -719,6 +759,13 @@ function hasManagementSupport(application) {
     .trim()
     .toLowerCase();
   return status === "supported" || status === "completed";
+}
+
+function isMphlgReviewComplete(application) {
+  const status = String(getApplicationSection(application, "mphlg_gateway")?.status || "")
+    .trim()
+    .toLowerCase();
+  return status === "approved" || status === "reviewed";
 }
 
 function hasTechnicalDepartmentReview(application, department) {
