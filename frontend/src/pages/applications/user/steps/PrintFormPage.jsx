@@ -245,7 +245,9 @@ function PrintFormPage({
 
             .print-page {
               width: 100% !important;
-              min-height: calc(297mm - 26mm) !important;
+              height: 271mm !important;
+              min-height: 271mm !important;
+              max-height: 271mm !important;
               margin: 0 !important;
               padding: 0 !important;
               box-shadow: none !important;
@@ -257,6 +259,14 @@ function PrintFormPage({
               page-break-inside: avoid !important;
               background: #ffffff !important;
               box-sizing: border-box !important;
+            }
+
+            .print-page-body {
+              flex: 1 1 auto !important;
+            }
+
+            .print-page-footer {
+              margin-top: auto !important;
             }
 
             .print-page-preview-hidden {
@@ -661,14 +671,17 @@ function PrintPage({ title, pageNumber, totalPages, isActive = true, children })
         </h1>
       </div>
 
-      <div style={{ flex: "1 1 auto" }}>{children}</div>
+      <div className="print-page-body" style={{ flex: "1 1 auto" }}>
+        {children}
+      </div>
 
       <div
+        className="print-page-footer"
         style={{
           borderTop: "1px solid #d4d4d4",
           color: "#333333",
           fontSize: "11pt",
-          marginTop: "8mm",
+          marginTop: "auto",
           paddingTop: "3mm",
           textAlign: "center",
         }}
