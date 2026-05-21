@@ -187,6 +187,14 @@ function getNotificationSender(role, status, user) {
     return "IKL(TECHNICAL) <ALiS Notification Center>";
   }
 
+  if (
+    role === "admin" &&
+    department === "KU(IKL)" &&
+    normalizedStatus === "technical_review_completed"
+  ) {
+    return "IKL(TECHNICAL) <ALiS Notification Center>";
+  }
+
   return "ALiS Notification Center";
 }
 
@@ -251,6 +259,12 @@ function getMemoSubject(subject, title, reference, options = {}) {
     return cleanReference
       ? `${cleanReference} requires ${department} technical review`
       : `Application requires ${department} technical review`;
+  }
+
+  if (role === "admin" && status === "technical_review_completed" && department === "KU(IKL)") {
+    return cleanReference
+      ? `${cleanReference} requires KU(IKL) final technical check`
+      : "Application requires KU(IKL) final technical check";
   }
 
   if (cleanSubject) return cleanSubject;

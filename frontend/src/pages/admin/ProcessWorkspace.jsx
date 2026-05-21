@@ -76,6 +76,12 @@ const TECHNICAL_FEE_OPTIONS = [
   { value: "yuran_pemprosesan_lesen", label: "Yuran Pemprosesan Lesen (RM10.00)", accountCode: "01031700*01*15" },
   { value: "sewa_pagar", label: "Sewa Pagar (RM15.00)", accountCode: "01080600*01*15" },
 ];
+const KU_TECHNICAL_CHECK_KEYS = [
+  "application",
+  "sitePhoto",
+  "fees",
+  "departments",
+];
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -1392,6 +1398,13 @@ function getTechnicalFeeTotals(items) {
   }, { feeTotal: 0, depositTotal: 0, grandTotal: 0 });
 }
 
+function createKuTechnicalChecks(savedChecks = {}) {
+  return KU_TECHNICAL_CHECK_KEYS.reduce((checks, key) => ({
+    ...checks,
+    [key]: Boolean(savedChecks?.[key]),
+  }), {});
+}
+
 function buildIklScreeningPayload(app, data) {
   const now = new Date().toISOString();
   const checks = buildScreeningChecks(app);
@@ -1483,6 +1496,7 @@ function buildKuTechnicalReviewPayload(app, data) {
         status: amendmentRequired ? "Amendment Required" : "Verified",
         decision: data.decision,
         remarks: data.comment,
+        checks: createKuTechnicalChecks(data.kuChecks),
         reviewed_by: "KU(IKL)",
         reviewed_at: now,
       },
@@ -2510,6 +2524,9 @@ function IklWorkspaceSections({
     config.kuTechnicalReview?.defaultDecision || ""
   );
   const [kuRemarks, setKuRemarks] = useState("");
+  const [kuChecks, setKuChecks] = useState(() =>
+    createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks)
+  );
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
   const screeningDecisionOptions = getIklScreeningDecisionOptions(
     config.decisions,
@@ -2525,6 +2542,16 @@ function IklWorkspaceSections({
       setDecision(screeningDecisionOptions[0].value || screeningDecisionOptions[0]);
     }
   }, [decision, screeningDecisionOptions, setDecision]);
+
+  useEffect(() => {
+    setKuChecks(createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks));
+    setKuRemarks(selectedRecord.form_data?.technical_ku_review?.remarks || "");
+    setKuDecision(config.kuTechnicalReview?.defaultDecision || "");
+  }, [config.kuTechnicalReview?.defaultDecision, selectedRecord.id]);
+
+  function updateKuCheck(key, checked) {
+    setKuChecks((prev) => ({ ...prev, [key]: checked }));
+  }
 
   async function handleSitePhotoUpload(files) {
     const fileList = Array.from(files || []);
@@ -2652,15 +2679,12 @@ function IklWorkspaceSections({
           </div>
 
           <div className="space-y-3">
-            <ApprovalTechnicalReviewSummary
+            <KuTechnicalFurtherReviewPanel
               t={t}
               selectedRecord={selectedRecord}
               technicalSite={reviewTechnicalSite}
-              title={t("workspace.technical.kuReviewReportTitle", "KU(IKL) Final Checking Report")}
-              description={t(
-                "workspace.technical.kuReviewReportDesc",
-                "Review the compiled technical report, site photos, fee calculations, and department findings before sending the application to KB(LES)."
-              )}
+              checks={kuChecks}
+              onCheckChange={updateKuCheck}
             />
 
             <Field label={t("common.decision")}>
@@ -2695,6 +2719,7 @@ function IklWorkspaceSections({
                   submitAction(config.kuTechnicalReview.action, {
                     decision: kuDecision,
                     comment: kuRemarks,
+                    kuChecks,
                     checkDecisionRemark: true,
                   })
                 }
@@ -2791,6 +2816,169 @@ function getIklScreeningCopy(department) {
     submitKey: "workspace.action.submitScreening",
     submitLabel: "Submit PT/KU Decision",
   };
+}
+
+function KuTechnicalFurtherReviewPanel({
+  t,
+  selectedRecord,
+  technicalSite,
+  checks,
+  onCheckChange,
+}) {
+  const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
+  const formData = selectedRecord.form_data || {};
+  const step1 = formData.step_1 || {};
+  const technicalReview = formData.technical_review || {};
+  const completedDepartmentCount = TECHNICAL_DEPARTMENTS.filter(
+    (department) => departmentHasSubmittedReview(selectedRecord, department)
+  ).length;
+  const completedText = t("workspace.technical.completedDepartments", "{count} of {total} completed")
+    .replace("{count}", String(completedDepartmentCount))
+    .replace("{total}", String(TECHNICAL_DEPARTMENTS.length));
+  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
+    (item) => item.item || item.account_code || item.amount
+  );
+  const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
+    ? reviewTechnicalSite.site_photos
+    : [];
+  const checklist = [
+    ["application", t("workspace.technical.checkApplication")],
+    ["sitePhoto", t("workspace.technical.checkSitePhoto")],
+    ["fees", t("workspace.technical.checkFees")],
+    ["departments", t("workspace.technical.checkDepartments")],
+  ];
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
+        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+          {t("workspace.technical.kuFurtherTitle", "KU(IKL) Further Checking")}
+        </h3>
+        <p className="mt-1 text-[14px] leading-5 text-slate-500">
+          {t("workspace.technical.kuFurtherDesc")}
+        </p>
+      </div>
+
+      <div className="space-y-3 p-3">
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+            {t("workspace.technical.iklSubmissionSummary")}
+          </h4>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Info
+              label={t("common.reference")}
+              value={getApplicationReference(selectedRecord)}
+            />
+            <Info
+              label={t("common.project")}
+              value={getProjectName(selectedRecord)}
+            />
+            <Info
+              label={t("workspace.location")}
+              value={getApplicationLocation(selectedRecord)}
+            />
+            <Info
+              label={t("workspace.technical.coordinates", "Coordinates")}
+              value={getApplicationCoordinates(step1)}
+            />
+            <Info
+              label={t("common.decision")}
+              value={technicalReview.final_decision || technicalReview.decision || "-"}
+            />
+            <Info
+              label={t("workspace.technical.departmentFeedbackStatus")}
+              value={completedText}
+            />
+            <Info
+              label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
+              value={formatDateTime(formData.technical_site_visit?.visited_at)}
+            />
+            <Info
+              label={t("workspace.technical.siteRemarks")}
+              value={
+                reviewTechnicalSite.site_remarks ||
+                technicalReview.comment ||
+                technicalReview.remarks ||
+                "-"
+              }
+            />
+          </div>
+        </div>
+
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
+              {t("workspace.technical.feeBreakdown")}
+            </h4>
+            <p className="text-[15px] font-semibold leading-6 text-slate-950">
+              {t("workspace.technical.grandTotal")}: {formatCurrency(getTechnicalFeeTotal(feeItems))}
+            </p>
+          </div>
+          {feeItems.length === 0 ? (
+            <p className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+              {t("workspace.technical.noFeeItems")}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-[14px] leading-5">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-2 py-2">{t("workspace.technical.feeItem")}</th>
+                    <th className="px-2 py-2">{t("workspace.technical.accountCode")}</th>
+                    <th className="px-2 py-2 text-right">{t("workspace.technical.cashChequeAmount")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {feeItems.map((item) => {
+                    const option = getTechnicalFeeOption(item.item);
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-2 py-2">{option?.label || item.item || "-"}</td>
+                        <td className="px-2 py-2">{item.account_code || option?.accountCode || "-"}</td>
+                        <td className="px-2 py-2 text-right">{formatReportAmount(item.amount)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <ReportPhotoGrid
+          t={t}
+          title={t("workspace.technical.siteVisitEvidence")}
+          emptyText={t("workspace.info.notSubmitted", "Not submitted")}
+          applicationId={selectedRecord.id}
+          photos={technicalSitePhotos}
+        />
+
+        <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+            {t("workspace.technical.reviewChecklist")}
+          </h4>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {checklist.map(([key, label]) => (
+              <label
+                key={key}
+                className="flex min-h-11 items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-[14px] leading-5 text-slate-800"
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(checks?.[key])}
+                  onChange={(event) => onCheckChange(key, event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function ApprovalTechnicalReviewSummary({
