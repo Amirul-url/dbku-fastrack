@@ -412,6 +412,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       setSuccess(t(action.successKey, action.success));
       setComment("");
       await fetchApplications();
+      if (isFocusedPersonalWorkspace) {
+        navigate("/dashboard/admin?view=personal");
+        return;
+      }
+
       const refreshed =
         response?.data || (await apiRequest(`/applications/${selectedRecord.id}/`));
       setSelectedDetail(refreshed);
