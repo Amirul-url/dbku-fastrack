@@ -230,7 +230,7 @@ function PrintFormPage({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 100% !important;
+              width: 210mm !important;
               min-height: auto !important;
               margin: 0 !important;
               padding: 0 !important;
@@ -244,12 +244,12 @@ function PrintFormPage({
             }
 
             .print-page {
-              width: 100% !important;
-              height: 271mm !important;
-              min-height: 271mm !important;
-              max-height: 271mm !important;
+              width: 210mm !important;
+              height: 297mm !important;
+              min-height: 297mm !important;
+              max-height: 297mm !important;
               margin: 0 !important;
-              padding: 0 !important;
+              padding: 14mm 14mm 12mm 14mm !important;
               box-shadow: none !important;
               display: flex !important;
               flex-direction: column !important;
@@ -289,7 +289,7 @@ function PrintFormPage({
 
             @page {
               size: A4 portrait;
-              margin: 14mm 14mm 12mm 14mm;
+              margin: 0;
             }
           }
         `}
@@ -370,7 +370,7 @@ function PrintFormPage({
 
             <div className="p-5 border-b border-slate-200 print-hide">
               <div className="bg-[#f7f7f7] border border-slate-200 p-4 text-sm text-slate-600">
-                {tx("reviewGeneratedForm")}
+                {tx("reviewGeneratedForm")} Turn off the browser Headers and footers option if it appears; this form already includes its own page footer.
               </div>
 
               <div className="flex flex-wrap gap-3 mt-4">
