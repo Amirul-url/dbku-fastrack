@@ -10,6 +10,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     recipient_name = serializers.SerializerMethodField()
     recipient_email = serializers.SerializerMethodField()
+    recipient_mobile_number = serializers.SerializerMethodField()
     recipient_department = serializers.SerializerMethodField()
     latest_remark = serializers.SerializerMethodField()
     application_updated_at = serializers.SerializerMethodField()
@@ -42,6 +43,10 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
     def get_recipient_email(self, obj):
         user = getattr(obj, "user", None)
         return getattr(user, "email", "") if user else ""
+
+    def get_recipient_mobile_number(self, obj):
+        user = getattr(obj, "user", None)
+        return getattr(user, "mobile_number", "") if user else ""
 
     def get_recipient_department(self, obj):
         user = getattr(obj, "user", None)
@@ -79,6 +84,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
             "recipient",
             "recipient_name",
             "recipient_email",
+            "recipient_mobile_number",
             "recipient_department",
             "latest_remark",
             "application_updated_at",

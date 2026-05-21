@@ -65,6 +65,7 @@ class NotificationRoutingTests(TestCase):
             username="admin2",
             email="admin@sample.com",
             password="Password123",
+            mobile_number="0168889999",
             role="admin",
             department="PT(IKL)",
             is_active=True,
@@ -105,6 +106,19 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
         self.assertEqual(admin_channels, {"web", "email", "whatsapp"})
+
+    def test_notification_endpoint_includes_registered_pt_ikl_contact(self):
+        self.notify_status("submitted")
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["recipient_email"], "admin@sample.com")
+        self.assertEqual(data[0]["recipient_mobile_number"], "0168889999")
 
     def test_payment_request_notifies_applicant_only(self):
         self.notify_status("invoice_generated", old_status="approved")

@@ -127,20 +127,56 @@ function getUserEmail(user) {
   return String(user?.email || "").trim();
 }
 
+function getUserMobile(user) {
+  return String(user?.mobile_number || user?.phone || user?.phone_number || "").trim();
+}
+
+function formatContactRecipient(email, mobile) {
+  const parts = [email, mobile].map((value) => String(value || "").trim()).filter(Boolean);
+  return parts.length ? parts.join(" / ") : "-";
+}
+
+function getAdminNotificationRecipient(user, delivery = {}) {
+  const userRecipientKey = user?.id ? `user:${user.id}` : "";
+  const deliveryBelongsToCurrentUser = Boolean(userRecipientKey && delivery.recipient === userRecipientKey);
+  const email = deliveryBelongsToCurrentUser
+    ? String(delivery.recipient_email || "").trim() || getUserEmail(user)
+    : getUserEmail(user);
+  const mobile = deliveryBelongsToCurrentUser
+    ? String(delivery.recipient_mobile_number || "").trim() || getUserMobile(user)
+    : getUserMobile(user);
+
+  return formatContactRecipient(email, mobile);
+}
+
 function getNotificationRecipient(role, user) {
   if (role === "applicant") {
     return getUserEmail(user) || getUserDisplayName(user);
   }
 
+  if (role === "admin") {
+    return formatContactRecipient(getUserEmail(user), getUserMobile(user));
+  }
+
   return getUserDisplayName(user);
 }
 
-function getMemoSubject(subject, title, reference) {
+function getMemoSubject(subject, title, reference, options = {}) {
+  const role = options.role || "";
+  const status = normalizeStatus(options.status);
+  const department = getUserDepartment(options.user);
   const cleanSubject = String(subject || "").trim();
-  if (cleanSubject) return cleanSubject;
-
   const cleanTitle = String(title || "").trim();
   const cleanReference = String(reference || "").trim();
+
+  if (role === "admin" && status === "submitted" && department === "PT(IKL)") {
+    return cleanReference
+      ? `${cleanReference} requires PT(IKL) review`
+      : "New application requires PT(IKL) review";
+  }
+
+  if (cleanSubject) return cleanSubject;
+
   return cleanReference ? `ALiS - ${cleanTitle} (${cleanReference})` : `ALiS - ${cleanTitle}`;
 }
 
@@ -363,7 +399,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     bodyMs: messageMs,
     from: "ALiS Notification Center",
     to: getNotificationRecipient(role, user),
-    subject: getMemoSubject("", titleEn, reference),
+    subject: getMemoSubject("", titleEn, reference, { role, status, user }),
     time: formatDateTime(updatedAt),
     timestamp: updatedAt,
     actionUrl: getNotificationUrl(role, app, category, user),
@@ -747,9 +783,15 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       const to =
         role === "applicant"
           ? recipientEmail || getUserEmail(user) || recipientName || getUserDisplayName(user)
-          : recipientName || recipientDepartment || getUserDisplayName(user);
+          : role === "admin"
+            ? getAdminNotificationRecipient(user, delivery)
+            : recipientName || recipientDepartment || getUserDisplayName(user);
       const subject = normalizeApplicantNotificationText(
-        getMemoSubject(delivery.subject, title, delivery.reference_no || metadata.account_username),
+        getMemoSubject(delivery.subject, title, delivery.reference_no || metadata.account_username, {
+          role,
+          status,
+          user,
+        }),
         role,
         status
       );
