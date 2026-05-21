@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models
+import re
 
 
 class Application(models.Model):
@@ -71,8 +72,18 @@ class Application(models.Model):
 
     @classmethod
     def next_reference_no(cls):
-        last_application = cls.objects.order_by("-id").only("id").first()
-        next_number = (last_application.id if last_application else 0) + 1
+        references = cls.objects.exclude(reference_no="").values_list(
+            "reference_no",
+            flat=True,
+        )
+        highest_number = 0
+
+        for reference_no in references:
+            match = re.fullmatch(r"FT-(\d+)", str(reference_no or ""))
+            if match:
+                highest_number = max(highest_number, int(match.group(1)))
+
+        next_number = highest_number + 1
 
         while True:
             reference_no = f"FT-{next_number:05d}"
@@ -82,8 +93,21 @@ class Application(models.Model):
             next_number += 1
 
     def save(self, *args, **kwargs):
-        if not self.reference_no:
-            self.reference_no = self.next_reference_no()
+        should_generate_reference = not self.reference_no
+
+        if should_generate_reference:
+            for _ in range(5):
+                self.reference_no = self.next_reference_no()
+
+                try:
+                    return super().save(*args, **kwargs)
+                except IntegrityError as exc:
+                    if "reference_no" not in str(exc):
+                        raise
+
+                    self.reference_no = ""
+
+            raise IntegrityError("Unable to generate a unique application reference number.")
 
         super().save(*args, **kwargs)
 

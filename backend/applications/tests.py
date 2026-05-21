@@ -31,3 +31,24 @@ class ApplicationReferenceTests(TestCase):
 
         self.assertEqual(second.reference_no, "FT-00002")
         self.assertEqual(draft.reference_no, "FT-00003")
+
+    def test_reference_generation_uses_highest_existing_reference_number(self):
+        User = get_user_model()
+        applicant = User.objects.create_user(
+            username="high-reference-user",
+            password="testpass123",
+            role="applicant",
+        )
+
+        Application.objects.create(
+            applicant=applicant,
+            reference_no="FT-00100",
+            title="Existing imported application",
+        )
+
+        draft = Application.objects.create(
+            applicant=applicant,
+            title="Draft Sitting Application",
+        )
+
+        self.assertEqual(draft.reference_no, "FT-00101")
