@@ -297,16 +297,20 @@ export function getStep(app, stepKey) {
 }
 
 export function getApplicantName(app) {
+  const step1 = getStep(app, "step_1");
   const step2 = getStep(app, "step_2");
   const step3 = getStep(app, "step_3");
+  const username = String(app?.applicant_username || "").trim();
+  const usernameLooksLikeNric = /^\d{12}$/.test(username.replace(/\D/g, ""));
 
   return (
+    step1.applicant ||
     step2.org_name ||
     step2.full_name ||
     step3.org_name ||
     step3.full_name ||
     app?.applicant_full_name ||
-    app?.applicant_username ||
+    (!usernameLooksLikeNric ? username : "") ||
     "Applicant"
   );
 }

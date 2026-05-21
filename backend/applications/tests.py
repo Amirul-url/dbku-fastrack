@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework.test import APIClient
 
 from .models import Application
 
@@ -52,3 +53,34 @@ class ApplicationReferenceTests(TestCase):
         )
 
         self.assertEqual(draft.reference_no, "FT-00101")
+
+    def test_application_list_includes_applicant_full_name(self):
+        User = get_user_model()
+        applicant = User.objects.create_user(
+            username="020215130135",
+            password="testpass123",
+            role="applicant",
+            first_name="ALI",
+            last_name="AHMAD",
+        )
+        staff = User.objects.create_user(
+            username="pt-ikl",
+            password="testpass123",
+            role="admin",
+            department="PT(IKL)",
+            is_staff=True,
+        )
+        Application.objects.create(
+            applicant=applicant,
+            title="LED signage",
+            status="submitted",
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=staff)
+        response = client.get("/api/applications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(data[0]["applicant_username"], "020215130135")
+        self.assertEqual(data[0]["applicant_full_name"], "ALI AHMAD")

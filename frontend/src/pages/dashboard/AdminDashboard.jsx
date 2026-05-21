@@ -13,7 +13,7 @@ import {
   StatusPill,
 } from "../../components/ui/SystemUI";
 import {
-  formatDateTime,
+  formatCompactDateTime,
   formatWorkflowStatus,
   getApplicantName,
   getApplicationReference,
@@ -394,7 +394,11 @@ function ClaimableTaskView({
             {
               key: "updated",
               label: t("common.updated"),
-              render: (application) => formatDateTime(application.updated_at),
+              render: (application) => (
+                <span className="whitespace-nowrap text-[12px] leading-5">
+                  {formatCompactDateTime(application.updated_at)}
+                </span>
+              ),
             },
             ...(rowsHaveActions
               ? [

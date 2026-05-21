@@ -64,6 +64,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         source="applicant.username",
         read_only=True,
     )
+    applicant_full_name = serializers.SerializerMethodField()
     application_type_label = serializers.SerializerMethodField()
     technical_department_reviews = serializers.SerializerMethodField()
     kb_les_verification = serializers.SerializerMethodField()
@@ -78,6 +79,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "reference_no",
             "applicant",
             "applicant_username",
+            "applicant_full_name",
             "application_type",
             "application_type_label",
             "project_location",
@@ -98,9 +100,20 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "reference_no",
             "applicant",
             "applicant_username",
+            "applicant_full_name",
             "created_at",
             "updated_at",
         ]
+
+    def get_applicant_full_name(self, obj):
+        user = getattr(obj, "applicant", None)
+        if not user:
+            return ""
+
+        name = " ".join(
+            part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
+        ).strip()
+        return name or ""
 
     def get_application_type_label(self, obj):
         return obj.get_application_type_display()
@@ -126,6 +139,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         source="applicant.username",
         read_only=True,
     )
+    applicant_full_name = serializers.SerializerMethodField()
 
     supporting_documents = SupportingDocumentSerializer(
         many=True,
@@ -139,6 +153,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "reference_no",
             "applicant",
             "applicant_username",
+            "applicant_full_name",
             "application_type",
             "project_location",
             "title",
@@ -155,11 +170,22 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "reference_no",
             "applicant",
             "applicant_username",
+            "applicant_full_name",
             "project_location",
             "supporting_documents",
             "created_at",
             "updated_at",
         ]
+
+    def get_applicant_full_name(self, obj):
+        user = getattr(obj, "applicant", None)
+        if not user:
+            return ""
+
+        name = " ".join(
+            part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
+        ).strip()
+        return name or ""
 
     def create(self, validated_data):
         instance = Application(**validated_data)

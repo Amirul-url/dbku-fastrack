@@ -24,6 +24,7 @@ import {
   StatusPill,
 } from "../../components/ui/SystemUI";
 import {
+  formatCompactDateTime,
   formatCurrency,
   formatDate,
   formatDateTime,
@@ -569,7 +570,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 {
                   key: "updated",
                   label: t("common.updated"),
-                  render: (app) => formatDateTime(app.updated_at),
+                  render: (app) => (
+                    <span className="whitespace-nowrap text-[12px] leading-5">
+                      {formatCompactDateTime(app.updated_at)}
+                    </span>
+                  ),
                 },
                 ...(eLicenseRowsHaveActions
                   ? [
