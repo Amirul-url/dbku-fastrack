@@ -60,6 +60,22 @@ const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
 const SUT_APPROVAL_DEPARTMENTS = ["SUT"];
 const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
 const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
+const TECHNICAL_FEE_OPTIONS = [
+  { value: "yuran_gegantung", label: "Yuran Gegantung", accountCode: "01080600*01*15" },
+  { value: "yuran_kain_rentang", label: "Yuran Kain Rentang", accountCode: "01080600*01*15" },
+  { value: "yuran_giant_banner", label: "Yuran Giant Banner", accountCode: "01080600*01*15" },
+  { value: "yuran_billboard", label: "Yuran Billboard", accountCode: "01080600*01*15" },
+  { value: "yuran_lesen_iklan_renewal", label: "Yuran Lesen Iklan (RENEWAL)", accountCode: "01080600*01*15" },
+  { value: "yuran_lesen_iklan_prepayment", label: "Yuran Lesen Iklan - Prepayment", accountCode: "45010103*01*15" },
+  { value: "yuran_tandanama_perniagaan", label: "Yuran Tandanama Perniagaan", accountCode: "01080600*01*15" },
+  { value: "yuran_pelekat", label: "Yuran Pelekat (RM2.00 X)", accountCode: "01080600*01*15" },
+  { value: "deposit_gegantung", label: "Deposit Gegantung", accountCode: "71040002*01*AM" },
+  { value: "deposit_kain_rentang", label: "Deposit Kain Rentang", accountCode: "71040002*01*AM" },
+  { value: "deposit_giant_banner", label: "Deposit Giant Banner", accountCode: "71040002*01*AM" },
+  { value: "deposit_billboard", label: "Deposit Billboard", accountCode: "71040002*01*AM" },
+  { value: "yuran_pemprosesan_lesen", label: "Yuran Pemprosesan Lesen (RM10.00)", accountCode: "01031700*01*15" },
+  { value: "sewa_pagar", label: "Sewa Pagar (RM15.00)", accountCode: "01080600*01*15" },
+];
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -98,6 +114,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const [licenseExpiryYears, setLicenseExpiryYears] = useState("1");
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
+    fee_date: "",
+    fee_items: [createTechnicalFeeItem()],
     license_fee_calculation: "",
     deposit_calculation: "",
     site_remarks: "",
@@ -149,10 +167,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         ? [saved.site_photo]
         : [];
     const currentPhotos = getCurrentTechnicalSitePhotos(savedPhotos, selectedDetail);
+    const feeItems = normalizeTechnicalFeeItems(saved.fee_items);
+    const feeTotals = getTechnicalFeeTotals(feeItems);
     setTechnicalSite({
       site_photos: currentPhotos,
-      license_fee_calculation: saved.license_fee_calculation || "",
-      deposit_calculation: saved.deposit_calculation || "",
+      fee_date: saved.fee_date || new Date().toISOString().slice(0, 10),
+      fee_items: feeItems,
+      fee_total: saved.fee_total || feeTotals.grandTotal || "",
+      license_fee_calculation: saved.license_fee_calculation || (feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
+      deposit_calculation: saved.deposit_calculation || (feeTotals.depositTotal ? String(feeTotals.depositTotal) : ""),
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
     });
   }, [selectedDetail?.id, selectedDetail?.updated_at]);
@@ -1312,6 +1335,61 @@ function getLocalizedApplicationType(app, t) {
   return labelMap[normalizedType] ? t(labelMap[normalizedType], type) : type;
 }
 
+function createTechnicalFeeItem(overrides = {}) {
+  return {
+    id: `fee-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    item: "",
+    account_code: "",
+    amount: "",
+    ...overrides,
+  };
+}
+
+function getTechnicalFeeOption(value) {
+  return TECHNICAL_FEE_OPTIONS.find((option) => option.value === value) || null;
+}
+
+function normalizeTechnicalFeeItems(items) {
+  if (!Array.isArray(items) || items.length === 0) return [createTechnicalFeeItem()];
+
+  const normalized = items.map((item) => {
+    const option = getTechnicalFeeOption(item?.item);
+    const nextItem = createTechnicalFeeItem({
+      item: item?.item || "",
+      account_code: item?.account_code || option?.accountCode || "",
+      amount: item?.amount || "",
+    });
+    return item?.id ? { ...nextItem, id: item.id } : nextItem;
+  });
+
+  return normalized.length > 0 ? normalized : [createTechnicalFeeItem()];
+}
+
+function getTechnicalFeeTotal(items) {
+  return getTechnicalFeeTotals(items).grandTotal;
+}
+
+function getTechnicalFeeTotals(items) {
+  return (Array.isArray(items) ? items : []).reduce((totals, item) => {
+    const amount = Number(String(item?.amount || "").replace(/[^\d.-]/g, ""));
+    if (!Number.isFinite(amount)) return totals;
+
+    if (String(item?.item || "").startsWith("deposit_")) {
+      return {
+        ...totals,
+        depositTotal: totals.depositTotal + amount,
+        grandTotal: totals.grandTotal + amount,
+      };
+    }
+
+    return {
+      ...totals,
+      feeTotal: totals.feeTotal + amount,
+      grandTotal: totals.grandTotal + amount,
+    };
+  }, { feeTotal: 0, depositTotal: 0, grandTotal: 0 });
+}
+
 function buildIklScreeningPayload(app, data) {
   const now = new Date().toISOString();
   const checks = buildScreeningChecks(app);
@@ -1353,6 +1431,8 @@ function buildIklScreeningPayload(app, data) {
 
 function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
+  const feeItems = normalizeTechnicalFeeItems(data.technicalSite.fee_items);
+  const feeTotals = getTechnicalFeeTotals(feeItems);
 
   return {
     status: "technical_review_completed",
@@ -1374,8 +1454,11 @@ function buildIklTechnicalDecisionPayload(app, data) {
         ...(app.form_data?.technical_site_visit || {}),
         site_photos: data.technicalSite.site_photos || [],
         site_photo: data.technicalSite.site_photos?.[0] || null,
-        license_fee_calculation: data.technicalSite.license_fee_calculation,
-        deposit_calculation: data.technicalSite.deposit_calculation,
+        fee_date: data.technicalSite.fee_date || new Date().toISOString().slice(0, 10),
+        fee_items: feeItems,
+        fee_total: feeTotals.grandTotal,
+        license_fee_calculation: feeTotals.feeTotal ? String(feeTotals.feeTotal) : data.technicalSite.license_fee_calculation,
+        deposit_calculation: feeTotals.depositTotal ? String(feeTotals.depositTotal) : data.technicalSite.deposit_calculation,
         site_remarks: data.technicalSite.site_remarks || data.comment,
         officer_role: "PT/PO/KP Unit Iklan",
         visited_at: now,
@@ -2641,13 +2724,20 @@ function getReviewTechnicalSite(technicalSite, selectedRecord) {
   const currentPhotos = Array.isArray(technicalSite.site_photos)
     ? technicalSite.site_photos
     : [];
+  const feeItems = normalizeTechnicalFeeItems(
+    technicalSite.fee_items || saved.fee_items
+  );
+  const feeTotals = getTechnicalFeeTotals(feeItems);
 
   return {
     site_photos: currentPhotos.length > 0 ? currentPhotos : savedPhotos,
+    fee_date: technicalSite.fee_date || saved.fee_date || "",
+    fee_items: feeItems,
+    fee_total: feeTotals.grandTotal || saved.fee_total || "",
     license_fee_calculation:
-      technicalSite.license_fee_calculation || saved.license_fee_calculation || "",
+      technicalSite.license_fee_calculation || saved.license_fee_calculation || (feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
     deposit_calculation:
-      technicalSite.deposit_calculation || saved.deposit_calculation || "",
+      technicalSite.deposit_calculation || saved.deposit_calculation || (feeTotals.depositTotal ? String(feeTotals.depositTotal) : ""),
     site_remarks:
       technicalSite.site_remarks ||
       saved.site_remarks ||
@@ -3092,10 +3182,53 @@ function getIklScreeningDecisionOptions(decisions, department) {
 
 function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileChange }) {
   const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
+  const feeItems = normalizeTechnicalFeeItems(value.fee_items);
+  const feeTotal = getTechnicalFeeTotal(feeItems);
   const [deletingIndex, setDeletingIndex] = useState(null);
 
   function updateField(field, nextValue) {
     onChange((prev) => ({ ...prev, [field]: nextValue }));
+  }
+
+  function updateFeeItems(nextItems) {
+    const normalizedItems = normalizeTechnicalFeeItems(nextItems);
+    const totals = getTechnicalFeeTotals(normalizedItems);
+
+    onChange((prev) => ({
+      ...prev,
+      fee_items: normalizedItems,
+      fee_total: totals.grandTotal,
+      license_fee_calculation: totals.feeTotal ? String(totals.feeTotal) : "",
+      deposit_calculation: totals.depositTotal ? String(totals.depositTotal) : "",
+    }));
+  }
+
+  function updateFeeItem(index, updates) {
+    updateFeeItems(
+      feeItems.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...updates } : item
+      )
+    );
+  }
+
+  function handleFeeSelection(index, selectedValue) {
+    const option = getTechnicalFeeOption(selectedValue);
+    updateFeeItem(index, {
+      item: selectedValue,
+      account_code: option?.accountCode || "",
+    });
+  }
+
+  function addFeeItem() {
+    updateFeeItems([...feeItems, createTechnicalFeeItem()]);
+  }
+
+  function removeFeeItem(index) {
+    updateFeeItems(
+      feeItems.length > 1
+        ? feeItems.filter((_, itemIndex) => itemIndex !== index)
+        : [createTechnicalFeeItem()]
+    );
   }
 
   async function removePhoto(photo, index) {
@@ -3183,23 +3316,93 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
         </div>
       )}
 
-      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
-        <Field label={t("workspace.technical.licenseFee")} className="min-w-0">
+      <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+        <Field label={t("workspace.technical.feeDate", "Date")} className="max-w-xs">
           <input
-            value={value.license_fee_calculation}
-            onChange={(event) => updateField("license_fee_calculation", event.target.value)}
+            type="date"
+            value={value.fee_date || ""}
+            onChange={(event) => updateField("fee_date", event.target.value)}
             className="form-input min-h-9"
-            inputMode="decimal"
           />
         </Field>
-        <Field label={t("workspace.technical.deposit")} className="min-w-0">
-          <input
-            value={value.deposit_calculation}
-            onChange={(event) => updateField("deposit_calculation", event.target.value)}
-            className="form-input min-h-9"
-            inputMode="decimal"
-          />
-        </Field>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-[14px] leading-5">
+            <thead>
+              <tr className="border-b border-slate-200 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+                <th className="px-2 py-2">{t("workspace.technical.feeItem", "Item")}</th>
+                <th className="px-2 py-2">{t("workspace.technical.accountCode", "Account Code")}</th>
+                <th className="px-2 py-2">{t("workspace.technical.cashChequeAmount", "Cash/Cheque (RM)")}</th>
+                <th className="w-12 px-2 py-2 text-right">{t("common.action", "Action")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {feeItems.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="px-2 py-2">
+                    <select
+                      value={item.item}
+                      onChange={(event) => handleFeeSelection(index, event.target.value)}
+                      className="form-input min-h-9"
+                    >
+                      <option value="">{t("workspace.technical.selectFeeItem", "-sila pilih-")}</option>
+                      {TECHNICAL_FEE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      value={item.account_code}
+                      readOnly
+                      className="form-input min-h-9 bg-slate-50 text-slate-600"
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      value={item.amount}
+                      onChange={(event) => updateFeeItem(index, { amount: event.target.value })}
+                      className="form-input min-h-9"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => removeFeeItem(index)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      aria-label={t("workspace.technical.removeFeeItem", "Remove item")}
+                    >
+                      <Icon name="remove" className="text-[20px]" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={addFeeItem}
+            className="inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-emerald-700 hover:bg-emerald-50"
+          >
+            <Icon name="add" className="mr-1 text-[18px]" />
+            {t("workspace.technical.addFeeItem", "Add item")}
+          </button>
+          <div className="text-right">
+            <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500">
+              {t("workspace.technical.grandTotal", "Grand Total")}
+            </p>
+            <p className="text-[18px] font-semibold text-slate-950">
+              {formatCurrency(feeTotal)}
+            </p>
+          </div>
+        </div>
       </div>
 
       <Field label={t("workspace.technical.siteRemarks")}>
