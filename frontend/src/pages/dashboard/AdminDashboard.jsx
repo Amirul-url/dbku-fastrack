@@ -4,6 +4,7 @@ import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getStoredUser } from "../../services/api";
+import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
 import {
   Alert,
   DataTable,
@@ -224,7 +225,11 @@ function PersonalTaskDashboard() {
       if (!silent) setLoading(true);
       setError("");
       const data = await apiRequest("/applications/");
-      setApplications(Array.isArray(data) ? data : data?.results || []);
+      const list = Array.isArray(data) ? data : data?.results || [];
+      const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
+        apiRequest(`/applications/${id}/`)
+      );
+      setApplications(enrichedList);
     } catch (err) {
       setError(err.message || "Failed to load admin dashboard tasks.");
     } finally {

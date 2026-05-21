@@ -10,6 +10,7 @@ import {
   getStoredUser,
   uploadApplicationDocument,
 } from "../../services/api";
+import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
 import {
   Alert,
   ApplicationSummary,
@@ -162,7 +163,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       setError("");
       const data = await apiRequest("/applications/");
       const list = Array.isArray(data) ? data : data?.results || [];
-      setApplications(list);
+      const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
+        apiRequest(`/applications/${id}/`)
+      );
+      setApplications(enrichedList);
       if (!isTableFirstWorkspace(config) && !selectedId && list.length > 0) {
         setSelectedId(String(list[0].id));
       }
