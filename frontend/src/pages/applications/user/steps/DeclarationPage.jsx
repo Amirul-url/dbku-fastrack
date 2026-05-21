@@ -82,18 +82,18 @@ function DeclarationPage({
     }
   }
 
-  async function handleSaveAndNext() {
+  async function saveDeclaration({ goNext = false } = {}) {
     if (isReadOnly) return;
 
     if (!applicationId) {
       alert(tx("missingApplication"));
-      return;
+      return false;
     }
 
-    if (!step11.agreed) {
+    if (goNext && !step11.agreed) {
       setError(tx("confirmDeclaration"));
       window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
+      return false;
     }
 
     try {
@@ -105,7 +105,7 @@ function DeclarationPage({
       const updatedStep11 = {
         ...step11,
         title: "Declaration",
-        status: "Saved",
+        status: goNext ? "Saved" : "Draft",
         agreed: step11.agreed,
         submitted: step11.submitted || false,
         submitted_at: step11.submitted_at || "",
@@ -115,7 +115,7 @@ function DeclarationPage({
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: 5,
+          current_step: goNext ? 5 : 4,
           form_data: {
             step_11: updatedStep11,
           },
@@ -123,16 +123,33 @@ function DeclarationPage({
       });
 
       setStep11(updatedStep11);
-      navigate(
-        isAdminReview
-          ? adminStepPath(5)
-          : `/applications/${applicationId}/print-form?id=${applicationId}`
-      );
+
+      if (goNext) {
+        navigate(
+          isAdminReview
+            ? adminStepPath(5)
+            : `/applications/${applicationId}/print-form?id=${applicationId}`
+        );
+      }
+
+      return true;
     } catch (err) {
       console.error("Step 4 save failed:", err);
-      alert(tx("failedSaveDeclaration"));
+      alert(err.message || tx("failedSaveDeclaration"));
+      return false;
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveAndNext() {
+    await saveDeclaration({ goNext: true });
+  }
+
+  async function handleSaveDraftAndBack() {
+    const saved = await saveDeclaration({ goNext: false });
+    if (saved) {
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
     }
   }
 
@@ -216,7 +233,16 @@ function DeclarationPage({
                 language={language}
               />
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDraftAndBack}
+                  disabled={saving}
+                  className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                </button>
+
                 <Link
                   to={
                     isAdminReview
@@ -225,7 +251,7 @@ function DeclarationPage({
                   }
                   className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("back")}
+                  {tx("previous")}
                 </Link>
 
                 {!isReadOnly && (
@@ -292,7 +318,16 @@ function DeclarationPage({
                   className="pt-3"
                 />
               ) : (
-                <div className="flex justify-end gap-2 pt-3">
+                <div className="flex flex-wrap justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveDraftAndBack}
+                    disabled={saving}
+                    className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                  </button>
+
                   <Link
                     to={
                       isAdminReview
@@ -301,7 +336,7 @@ function DeclarationPage({
                     }
                     className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("back")}
+                    {tx("previous")}
                   </Link>
 
                   {!isReadOnly && (

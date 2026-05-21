@@ -182,24 +182,7 @@ function getApplicationStepPath(applicationId, route) {
   return `/applications/${applicationId}/${route}?id=${applicationId}`;
 }
 
-function buildApplicantNav(stepApplicationId, showApplicationSteps) {
-  const getStepPath = (route) => getApplicationStepPath(stepApplicationId, route);
-  const applicationChildren = [];
-
-  if (showApplicationSteps) {
-    applicationChildren.push({
-      labelKey: "steps.applicationSteps",
-      fallback: "Application Steps",
-      children: [
-        { no: 1, route: "edit", labelKey: "steps.sittingApplication", fallback: "Sitting Application", path: getStepPath("edit") },
-        { no: 2, route: "submitting-person", labelKey: "steps.submittingPerson", fallback: "Details of Submitting Person", path: getStepPath("submitting-person") },
-        { no: 3, route: "supporting-document", labelKey: "steps.supportingDocument", fallback: "Supporting Document", path: getStepPath("supporting-document") },
-        { no: 4, route: "declaration", labelKey: "steps.declaration", fallback: "Declaration", path: getStepPath("declaration") },
-        { no: 5, route: "print-form", labelKey: "steps.printForm", fallback: "Print Form", path: getStepPath("print-form") },
-      ],
-    });
-  }
-
+function buildApplicantNav() {
   return [
     {
       labelKey: "nav.dashboard",
@@ -212,7 +195,6 @@ function buildApplicantNav(stepApplicationId, showApplicationSteps) {
           fallback: "Applications",
           path: "/user/dashboard?tab=applications",
           tab: "applications",
-          children: applicationChildren,
         },
         { labelKey: "applicant.tabStatus", fallback: "Status", path: "/user/dashboard?tab=status", tab: "status" },
         { labelKey: "applicant.tabLicense", fallback: "E-Licenses", path: "/user/dashboard?tab=license", tab: "license" },
@@ -240,8 +222,6 @@ function AppShell({ children, role = "admin" }) {
   const [adminTaskCounts, setAdminTaskCounts] = useState({ personal: 0, approval: 0 });
   const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
-  const showApplicationSteps =
-    location.pathname === "/applications/new" || Boolean(currentApplicationId);
   const stepApplicationId = currentApplicationId;
   const nav = useMemo(
     () => {
@@ -249,9 +229,9 @@ function AppShell({ children, role = "admin" }) {
       if (role === "admin") {
         return buildAdminNav(adminTaskCounts, user);
       }
-      return buildApplicantNav(stepApplicationId, showApplicationSteps);
+      return buildApplicantNav();
     },
-    [role, adminTaskCounts, user, stepApplicationId, showApplicationSteps]
+    [role, adminTaskCounts, user]
   );
 
   const refreshAdminTaskCounts = useCallback(async ({ silent = false } = {}) => {

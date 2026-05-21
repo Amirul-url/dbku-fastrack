@@ -131,10 +131,40 @@ function SubmittingPersonPage({
     }
   }
 
-  async function handleSaveStep3() {
+  function buildStep3Payload() {
+    return {
+      org_type: orgType,
+      registration_no: registrationNo,
+      org_name: orgName,
+      branch_name: branchName,
+      postal_address: postalAddress,
+      postcode,
+      address_2: address2,
+      state: stateValue,
+      city,
+      address_3: address3,
+      org_country_code: orgCountryCode,
+      telephone_no: telephoneNo,
+      address_4: address4,
+
+      honorary_title: honoraryTitle,
+      designation,
+      full_name: fullName,
+      mobile_country_code: mobileCountryCode,
+      mobile_no: mobileNo,
+      identity_card_no: identityCardNo,
+      office_country_code: officeCountryCode,
+      office_no: officeNo,
+      email,
+      fax_country_code: faxCountryCode,
+      fax_no: faxNo,
+    };
+  }
+
+  async function saveStep3({ goNext = false } = {}) {
     if (isReadOnly) return;
 
-    if (
+    if (goNext && (
       !orgType.trim() ||
       !orgName.trim() ||
       !postalAddress.trim() ||
@@ -151,61 +181,51 @@ function SubmittingPersonPage({
       !officeCountryCode.trim() ||
       !officeNo.trim() ||
       !email.trim()
-    ) {
+    )) {
       alert(tx("requiredAlert"));
-      return;
+      return false;
     }
 
     if (!applicationId || isNaN(applicationId)) {
       alert(tx("missingApplication"));
-      return;
+      return false;
     }
 
     try {
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          current_step: 2,
+          current_step: goNext ? 3 : 2,
           form_data: {
-            step_3: {
-              org_type: orgType,
-              registration_no: registrationNo,
-              org_name: orgName,
-              branch_name: branchName,
-              postal_address: postalAddress,
-              postcode,
-              address_2: address2,
-              state: stateValue,
-              city,
-              address_3: address3,
-              org_country_code: orgCountryCode,
-              telephone_no: telephoneNo,
-              address_4: address4,
-
-              honorary_title: honoraryTitle,
-              designation,
-              full_name: fullName,
-              mobile_country_code: mobileCountryCode,
-              mobile_no: mobileNo,
-              identity_card_no: identityCardNo,
-              office_country_code: officeCountryCode,
-              office_no: officeNo,
-              email,
-              fax_country_code: faxCountryCode,
-              fax_no: faxNo,
-            },
+            step_3: buildStep3Payload(),
           },
         }),
       });
 
-      navigate(
-        isAdminReview
-          ? adminStepPath(3)
-          : `/applications/${applicationId}/supporting-document?id=${applicationId}`
-      );
+      if (goNext) {
+        navigate(
+          isAdminReview
+            ? adminStepPath(3)
+            : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+        );
+      }
+
+      return true;
     } catch (err) {
       console.error("Step 3 save failed:", err);
-      alert(tx("failedSaveStep2"));
+      alert(err.message || tx("failedSaveStep2"));
+      return false;
+    }
+  }
+
+  async function handleSaveStep3() {
+    await saveStep3({ goNext: true });
+  }
+
+  async function handleSaveDraftAndBack() {
+    const saved = await saveStep3({ goNext: false });
+    if (saved) {
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
     }
   }
 
@@ -244,7 +264,15 @@ function SubmittingPersonPage({
                 language={language}
               />
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDraftAndBack}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                >
+                  {tx("saveDraftBackApplications")}
+                </button>
+
                 <Link
                   to={
                     isAdminReview
@@ -253,7 +281,7 @@ function SubmittingPersonPage({
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("back")}
+                  {tx("previous")}
                 </Link>
 
                 {!isReadOnly && (
@@ -529,7 +557,15 @@ function SubmittingPersonPage({
                   className="pt-2"
                 />
               ) : (
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveDraftAndBack}
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                  >
+                    {tx("saveDraftBackApplications")}
+                  </button>
+
                   <Link
                     to={
                       isAdminReview
@@ -538,7 +574,7 @@ function SubmittingPersonPage({
                     }
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("back")}
+                    {tx("previous")}
                   </Link>
 
                   {!isReadOnly && (

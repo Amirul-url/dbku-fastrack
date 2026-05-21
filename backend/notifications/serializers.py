@@ -9,6 +9,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
     project = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     recipient_name = serializers.SerializerMethodField()
+    recipient_email = serializers.SerializerMethodField()
     recipient_department = serializers.SerializerMethodField()
     latest_remark = serializers.SerializerMethodField()
     application_updated_at = serializers.SerializerMethodField()
@@ -37,6 +38,10 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
             part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
         ).strip()
         return name or getattr(user, "username", "") or ""
+
+    def get_recipient_email(self, obj):
+        user = getattr(obj, "user", None)
+        return getattr(user, "email", "") if user else ""
 
     def get_recipient_department(self, obj):
         user = getattr(obj, "user", None)
@@ -73,6 +78,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
             "status",
             "recipient",
             "recipient_name",
+            "recipient_email",
             "recipient_department",
             "latest_remark",
             "application_updated_at",

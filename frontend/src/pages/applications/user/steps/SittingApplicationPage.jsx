@@ -139,11 +139,11 @@ function SittingApplicationPage({
     }
   }
 
-  async function buildStepOnePayload(titleValue) {
+  async function buildStepOnePayload(titleValue, currentStep = 1) {
     return {
       application_type: "sitting_application",
       title: titleValue,
-      current_step: 1,
+      current_step: currentStep,
       form_data: {
         step_1: {
           status: "Prepare Case",
@@ -256,7 +256,7 @@ function SittingApplicationPage({
     }
 
     try {
-      const payload = await buildStepOnePayload(projectName);
+      const payload = await buildStepOnePayload(projectName, 2);
       const data = await saveApplication(payload);
       const savedData = await uploadPendingSiteImage(data, payload);
 
@@ -273,30 +273,28 @@ function SittingApplicationPage({
 
   async function handleSaveDraftAndBack() {
     if (isReadOnly) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
-      return;
-    }
-
-    const confirmSave = window.confirm(
-      tx("draftConfirm")
-    );
-
-    if (!confirmSave) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
       return;
     }
 
     try {
       const payload = await buildStepOnePayload(
-        projectName || tx("draftSittingApplication")
+        projectName || tx("draftSittingApplication"),
+        1
       );
       const data = await saveApplication(payload);
-      await uploadPendingSiteImage(data, payload);
 
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
+      try {
+        await uploadPendingSiteImage(data, payload);
+      } catch (uploadErr) {
+        console.error("Draft site image upload failed:", uploadErr);
+        alert(tx("draftSavedWithoutUpload"));
+      }
+
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
     } catch (err) {
       console.error("Draft save failed:", err);
-      alert(tx("failedSaveDraft"));
+      alert(err.message || tx("failedSaveDraft"));
     }
   }
 
@@ -335,13 +333,13 @@ function SittingApplicationPage({
                 language={language}
               />
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={handleSaveDraftAndBack}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("back")}
+                  {tx("saveDraftBackApplications")}
                 </button>
 
                 {!isReadOnly && (
@@ -554,13 +552,13 @@ function SittingApplicationPage({
                   className="pt-2"
                 />
               ) : (
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={handleSaveDraftAndBack}
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("back")}
+                    {tx("saveDraftBackApplications")}
                   </button>
 
                   {!isReadOnly && (

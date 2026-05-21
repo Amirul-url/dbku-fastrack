@@ -41,7 +41,7 @@ ADMIN_TECHNICAL_TASK_STATUSES = {
 
 STATUS_MESSAGES = {
     "submitted": (
-        "Application submitted",
+        "New Application Submitted",
         "Your application {reference} has been submitted successfully.",
         "New application {reference} has been submitted and is waiting for review.",
     ),

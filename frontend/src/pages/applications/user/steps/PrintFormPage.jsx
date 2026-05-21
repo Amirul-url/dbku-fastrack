@@ -168,6 +168,15 @@ function PrintFormPage({
     }
   }
 
+  async function handleSaveDraftAndBack() {
+    if (isReadOnly) return;
+
+    const saved = await saveStep9();
+    if (saved) {
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+    }
+  }
+
   const savedRequiredDocuments = Array.isArray(step10.documents) ? step10.documents : [];
   const legacyTitleDocuments = Array.isArray(step10.title_documents)
     ? step10.title_documents
@@ -264,7 +273,16 @@ function PrintFormPage({
                 language={language}
               />
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDraftAndBack}
+                  disabled={saving}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                </button>
+
                 <Link
                   to={
                     isAdminReview
@@ -273,7 +291,7 @@ function PrintFormPage({
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("back")}
+                  {tx("previous")}
                 </Link>
 
                 {!isReadOnly && (
@@ -405,7 +423,16 @@ function PrintFormPage({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 p-5 print-hide">
+            <div className="flex flex-wrap justify-end gap-2 p-5 print-hide">
+              <button
+                type="button"
+                onClick={handleSaveDraftAndBack}
+                disabled={saving}
+                className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+              >
+                {saving ? tx("saving") : tx("saveDraftBackApplications")}
+              </button>
+
               <Link
                 to={
                   isAdminReview
@@ -414,7 +441,7 @@ function PrintFormPage({
                 }
                 className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
               >
-                {tx("back")}
+                {tx("previous")}
               </Link>
 
               {!isReadOnly && (

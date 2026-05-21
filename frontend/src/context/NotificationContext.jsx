@@ -123,6 +123,18 @@ function getUserDisplayName(user) {
   return String(user?.username || user?.email || "").trim() || "Current user";
 }
 
+function getUserEmail(user) {
+  return String(user?.email || "").trim();
+}
+
+function getNotificationRecipient(role, user) {
+  if (role === "applicant") {
+    return getUserEmail(user) || getUserDisplayName(user);
+  }
+
+  return getUserDisplayName(user);
+}
+
 function getMemoSubject(subject, title, reference) {
   const cleanSubject = String(subject || "").trim();
   if (cleanSubject) return cleanSubject;
@@ -350,7 +362,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     bodyEn: messageEn,
     bodyMs: messageMs,
     from: "ALiS Notification Center",
-    to: getUserDisplayName(user),
+    to: getNotificationRecipient(role, user),
     subject: getMemoSubject("", titleEn, reference),
     time: formatDateTime(updatedAt),
     timestamp: updatedAt,
@@ -371,7 +383,7 @@ function buildApplicantNotifications(app, user) {
         "applicant",
         "submission",
         "success",
-        "Application submitted",
+        "New Application Submitted",
         "Permohonan dihantar",
         `${reference} has been submitted successfully.`,
         `${reference} telah berjaya dihantar.`,
@@ -675,6 +687,12 @@ function getNotificationDisplayStatus(role, status, user = null, app = null) {
 }
 
 function normalizeApplicantNotificationText(value, role, status) {
+  if (normalizeStatus(status) === "submitted") {
+    return String(value || "")
+      .replace(/\bApplication submitted\b/g, "New Application Submitted")
+      .replace(/\bapplication submitted\b/g, "new application submitted");
+  }
+
   if (role !== "applicant" || normalizeStatus(status) !== "incomplete") {
     return value;
   }
@@ -724,8 +742,17 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       const messageMs = normalizeApplicantNotificationText(metadata.message_ms || message, role, status);
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
       const recipientName = String(delivery.recipient_name || "").trim();
+      const recipientEmail = String(delivery.recipient_email || "").trim();
       const recipientDepartment = normalizeDepartment(delivery.recipient_department);
-      const to = recipientName || recipientDepartment || getUserDisplayName(user);
+      const to =
+        role === "applicant"
+          ? recipientEmail || getUserEmail(user) || recipientName || getUserDisplayName(user)
+          : recipientName || recipientDepartment || getUserDisplayName(user);
+      const subject = normalizeApplicantNotificationText(
+        getMemoSubject(delivery.subject, title, delivery.reference_no || metadata.account_username),
+        role,
+        status
+      );
 
       return {
         id: `web:${delivery.id}`,
@@ -749,7 +776,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         bodyMs: messageMs,
         from: "ALiS Notification Center",
         to,
-        subject: getMemoSubject(delivery.subject, title, delivery.reference_no || metadata.account_username),
+        subject,
         time: formatDateTime(timestamp),
         timestamp,
         actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category, user),

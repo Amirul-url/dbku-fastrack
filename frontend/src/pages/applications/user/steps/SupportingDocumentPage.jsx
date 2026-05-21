@@ -192,9 +192,9 @@ function SupportingDocumentPage({
       return false;
     }
 
-    const missingDocuments = documents.filter(
-      (document) => document.required && !document.attachment
-    );
+    const missingDocuments = goNext
+      ? documents.filter((document) => document.required && !document.attachment)
+      : [];
 
     if (missingDocuments.length > 0) {
       alert(
@@ -344,6 +344,13 @@ function SupportingDocumentPage({
     await saveStep10({ goNext: true });
   }
 
+  async function handleSaveDraftAndBack() {
+    const saved = await saveStep10({ goNext: false });
+    if (saved) {
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+    }
+  }
+
   const isReadOnly =
     isAdminView ||
     (!isAdminReview &&
@@ -379,7 +386,16 @@ function SupportingDocumentPage({
                 language={language}
               />
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDraftAndBack}
+                  disabled={saving}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+                >
+                  {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                </button>
+
                 <Link
                   to={
                     isAdminReview
@@ -388,7 +404,7 @@ function SupportingDocumentPage({
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("back")}
+                  {tx("previous")}
                 </Link>
 
                 {!isReadOnly && (
@@ -447,7 +463,16 @@ function SupportingDocumentPage({
                   className="border-t border-slate-200 pt-4"
                 />
               ) : (
-                <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleSaveDraftAndBack}
+                    disabled={saving}
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                  </button>
+
                   <Link
                     to={
                       isAdminReview
@@ -456,7 +481,7 @@ function SupportingDocumentPage({
                     }
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("back")}
+                    {tx("previous")}
                   </Link>
 
                   {!isReadOnly && (
