@@ -205,8 +205,8 @@ function PrintFormPage({
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
-              width: 210mm !important;
-              min-height: 297mm !important;
+              width: auto !important;
+              min-height: auto !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
             }
@@ -224,7 +224,7 @@ function PrintFormPage({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 210mm !important;
+              width: 100% !important;
               min-height: auto !important;
               margin: 0 !important;
               padding: 0 !important;
@@ -238,10 +238,10 @@ function PrintFormPage({
             }
 
             .print-page {
-              width: 210mm !important;
-              min-height: 297mm !important;
+              width: 100% !important;
+              min-height: auto !important;
               margin: 0 !important;
-              padding: 12mm 14mm 10mm 14mm !important;
+              padding: 0 !important;
               box-shadow: none !important;
               break-after: page !important;
               page-break-after: always !important;
@@ -267,7 +267,7 @@ function PrintFormPage({
 
             @page {
               size: A4 portrait;
-              margin: 0;
+              margin: 14mm 14mm 12mm 14mm;
             }
           }
         `}
@@ -583,7 +583,9 @@ function PrintPage({ title, children }) {
       style={{
         width: "210mm",
         minHeight: "297mm",
-        padding: "12mm 14mm 10mm 14mm",
+        padding: "14mm 14mm 12mm 14mm",
+        fontSize: "11pt",
+        lineHeight: 1.35,
         background: "#ffffff",
         boxSizing: "border-box",
         boxShadow: "0 1px 4px rgba(15, 23, 42, 0.12)",
@@ -592,7 +594,7 @@ function PrintPage({ title, children }) {
       <div style={{ textAlign: "center", marginBottom: "9mm" }}>
         <h1
           style={{
-            fontSize: "14px",
+            fontSize: "11pt",
             fontWeight: 700,
             textDecoration: "underline",
             margin: 0,
@@ -613,7 +615,7 @@ function PrintSection({ title, children }) {
       <h2
         style={{
           borderBottom: "1px solid #000000",
-          fontSize: "11px",
+          fontSize: "11pt",
           fontWeight: 700,
           margin: "0 0 3mm",
           paddingBottom: "1mm",
@@ -633,7 +635,7 @@ function PrintSubheading({ children }) {
       style={{
         background: "#f2f2f2",
         border: "1px solid #d5d5d5",
-        fontSize: "10px",
+        fontSize: "11pt",
         fontWeight: 700,
         margin: "3mm 0 1.5mm",
         padding: "1.4mm 2mm",
@@ -650,16 +652,16 @@ function PrintLine({ no, label, value }) {
       className="print-avoid-break"
       style={{
         display: "grid",
-        gridTemplateColumns: no ? "8mm 55mm 1fr" : "63mm 1fr",
-        gap: "2mm",
-        fontSize: "10px",
-        lineHeight: 1.45,
-        padding: "0.8mm 0",
+        gridTemplateColumns: no ? "9mm 58mm minmax(0, 1fr)" : "67mm minmax(0, 1fr)",
+        gap: "3mm",
+        fontSize: "11pt",
+        lineHeight: 1.35,
+        padding: "1.1mm 0",
       }}
     >
       {no && <div>{no}</div>}
       <div>{label}</div>
-      <div style={{ borderBottom: "1px dotted #888888", minHeight: "4mm" }}>
+      <div style={{ borderBottom: "1px dotted #666666", minHeight: "5mm" }}>
         {value || "-"}
       </div>
     </div>
@@ -670,7 +672,7 @@ function PrintBlock({ no, label, value }) {
   return (
     <div
       className="print-avoid-break"
-      style={{ fontSize: "10px", lineHeight: 1.45, padding: "1.4mm 0" }}
+      style={{ fontSize: "11pt", lineHeight: 1.35, padding: "2mm 0" }}
     >
       <div style={{ display: "flex", gap: "2mm", fontWeight: 700 }}>
         {no && <span>{no}</span>}
@@ -679,7 +681,7 @@ function PrintBlock({ no, label, value }) {
       <div
         style={{
           border: "1px dotted #aaaaaa",
-          minHeight: "18mm",
+          minHeight: "24mm",
           marginTop: "1mm",
           padding: "2mm",
           whiteSpace: "pre-wrap",
@@ -730,7 +732,7 @@ function DocumentSummary({
   other = false,
 }) {
   return (
-    <div className="print-avoid-break" style={{ marginTop: "3mm", fontSize: "9.5px" }}>
+    <div className="print-avoid-break" style={{ marginTop: "3mm", fontSize: "11pt" }}>
       <div style={{ fontWeight: 700, marginBottom: "1mm" }}>{title}</div>
       {rows.length === 0 ? (
         <div>-</div>
@@ -744,17 +746,17 @@ function DocumentSummary({
         >
           <thead>
             <tr>
-              <PrintTableHead style={{ width: "8mm" }}>#</PrintTableHead>
-              <PrintTableHead style={{ width: other ? "78mm" : "38mm" }}>
+              <PrintTableHead style={{ width: "9mm" }}>#</PrintTableHead>
+              <PrintTableHead style={{ width: other ? "82mm" : "42mm" }}>
                 {other ? stepText(language, "description") : stepText(language, "title")}
               </PrintTableHead>
               {!other && (
                 <PrintTableHead>{stepText(language, "description")}</PrintTableHead>
               )}
-              <PrintTableHead style={{ width: "24mm" }}>
+              <PrintTableHead style={{ width: "27mm" }}>
                 {stepText(language, "format")}
               </PrintTableHead>
-              <PrintTableHead style={{ width: "42mm" }}>
+              <PrintTableHead style={{ width: "45mm" }}>
                 {stepText(language, "attachment")}
               </PrintTableHead>
             </tr>
