@@ -149,7 +149,15 @@ function UserApplicationsPage() {
               label: t("common.status"),
               render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
             },
-            { key: "updated", label: t("common.updated"), render: (app) => formatCompactDateTime(app.updated_at) },
+            {
+              key: "updated",
+              label: t("common.updated"),
+              render: (app) => (
+                <span className="whitespace-nowrap text-[12px] leading-5">
+                  {formatCompactDateTime(app.updated_at)}
+                </span>
+              ),
+            },
             {
               key: "action",
               label: t("common.action"),

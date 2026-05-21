@@ -441,12 +441,16 @@ export function formatCompactDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return date.toLocaleString("en-GB", {
+  const datePart = date.toLocaleDateString("en-GB", {
     day: "2-digit",
-    month: "2-digit",
+    month: "short",
     year: "numeric",
+  });
+  const timePart = date.toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
   });
+
+  return `${datePart}, ${timePart.toUpperCase()}`;
 }

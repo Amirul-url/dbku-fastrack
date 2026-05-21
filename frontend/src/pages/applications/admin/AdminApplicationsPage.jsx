@@ -213,7 +213,15 @@ function AdminApplicationsPage() {
               label: "Status",
               render: (app) => <StatusPill value={formatWorkflowStatus(app.status)} />,
             },
-            { key: "updated", label: "Updated", render: (app) => formatCompactDateTime(app.updated_at) },
+            {
+              key: "updated",
+              label: "Updated",
+              render: (app) => (
+                <span className="whitespace-nowrap text-[12px] leading-5">
+                  {formatCompactDateTime(app.updated_at)}
+                </span>
+              ),
+            },
             {
               key: "action",
               label: "Action",
