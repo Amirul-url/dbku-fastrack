@@ -36,6 +36,42 @@ def merge_dicts(current, updates):
     return merged
 
 
+def get_application_applicant_name(application):
+    form_data = application.form_data or {}
+    sections = [
+        form_data.get("step_1") or {},
+        form_data.get("step_2") or {},
+        form_data.get("step_3") or {},
+    ]
+    form_candidates = []
+
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+
+        form_candidates.extend(
+            [
+                section.get("applicant"),
+                section.get("org_name"),
+                section.get("full_name"),
+            ]
+        )
+
+    for value in form_candidates:
+        name = str(value or "").strip()
+        if name:
+            return name
+
+    user = getattr(application, "applicant", None)
+    if not user:
+        return ""
+
+    name = " ".join(
+        part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
+    ).strip()
+    return name or ""
+
+
 class SupportingDocumentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
 
@@ -106,14 +142,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         ]
 
     def get_applicant_full_name(self, obj):
-        user = getattr(obj, "applicant", None)
-        if not user:
-            return ""
-
-        name = " ".join(
-            part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
-        ).strip()
-        return name or ""
+        return get_application_applicant_name(obj)
 
     def get_application_type_label(self, obj):
         return obj.get_application_type_display()
@@ -178,14 +207,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_applicant_full_name(self, obj):
-        user = getattr(obj, "applicant", None)
-        if not user:
-            return ""
-
-        name = " ".join(
-            part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
-        ).strip()
-        return name or ""
+        return get_application_applicant_name(obj)
 
     def create(self, validated_data):
         instance = Application(**validated_data)

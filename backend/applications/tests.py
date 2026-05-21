@@ -54,14 +54,12 @@ class ApplicationReferenceTests(TestCase):
 
         self.assertEqual(draft.reference_no, "FT-00101")
 
-    def test_application_list_includes_applicant_full_name(self):
+    def test_application_list_includes_form_applicant_name_before_nric_username(self):
         User = get_user_model()
         applicant = User.objects.create_user(
             username="020215130135",
             password="testpass123",
             role="applicant",
-            first_name="ALI",
-            last_name="AHMAD",
         )
         staff = User.objects.create_user(
             username="pt-ikl",
@@ -74,6 +72,11 @@ class ApplicationReferenceTests(TestCase):
             applicant=applicant,
             title="LED signage",
             status="submitted",
+            form_data={
+                "step_1": {
+                    "applicant": "ALI AHMAD",
+                },
+            },
         )
 
         client = APIClient()
