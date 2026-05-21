@@ -828,12 +828,22 @@ function PrintLine({ no, label, value }) {
         gap: "3mm",
         fontSize: "11pt",
         lineHeight: 1.35,
-        padding: "1.1mm 0",
+        padding: "0.8mm 0",
+        alignItems: "start",
       }}
     >
       {no && <div>{no}</div>}
       <div>{label}</div>
-      <div style={{ borderBottom: "1px dotted #666666", minHeight: "5mm" }}>
+      <div
+        style={{
+          borderBottom: "1px solid #9a9a9a",
+          boxSizing: "border-box",
+          lineHeight: 1.35,
+          minHeight: "7mm",
+          paddingBottom: "1.4mm",
+          wordBreak: "normal",
+        }}
+      >
         {value || "-"}
       </div>
     </div>
@@ -853,7 +863,7 @@ function PrintBlock({ no, label, value }) {
       <div
         className="print-block-value"
         style={{
-          border: "1px dotted #aaaaaa",
+          border: "1px solid #d0d0d0",
           minHeight: "24mm",
           marginTop: "1mm",
           padding: "2mm",
