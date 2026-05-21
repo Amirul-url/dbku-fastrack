@@ -136,17 +136,42 @@ function formatContactRecipient(email, mobile) {
   return parts.length ? parts.join(" / ") : "-";
 }
 
+function formatEmailRecipient(email) {
+  return String(email || "").trim() || "-";
+}
+
 function getAdminNotificationRecipient(user, delivery = {}) {
+  const department = getUserDepartment(user);
   const userRecipientKey = user?.id ? `user:${user.id}` : "";
   const deliveryBelongsToCurrentUser = Boolean(userRecipientKey && delivery.recipient === userRecipientKey);
   const email = deliveryBelongsToCurrentUser
     ? String(delivery.recipient_email || "").trim() || getUserEmail(user)
     : getUserEmail(user);
+
+  if (department === "KU(IKL)") {
+    return formatEmailRecipient(email);
+  }
+
   const mobile = deliveryBelongsToCurrentUser
     ? String(delivery.recipient_mobile_number || "").trim() || getUserMobile(user)
     : getUserMobile(user);
 
   return formatContactRecipient(email, mobile);
+}
+
+function getNotificationSender(role, status, user) {
+  const department = getUserDepartment(user);
+  const normalizedStatus = normalizeStatus(status);
+
+  if (
+    role === "admin" &&
+    department === "KU(IKL)" &&
+    ["ku_ikl_review", "bill_pending_ku"].includes(normalizedStatus)
+  ) {
+    return "PT(IKL) <ALiS Notification Center>";
+  }
+
+  return "ALiS Notification Center";
 }
 
 function getNotificationRecipient(role, user) {
@@ -155,6 +180,10 @@ function getNotificationRecipient(role, user) {
   }
 
   if (role === "admin") {
+    if (getUserDepartment(user) === "KU(IKL)") {
+      return formatEmailRecipient(getUserEmail(user));
+    }
+
     return formatContactRecipient(getUserEmail(user), getUserMobile(user));
   }
 
@@ -173,6 +202,18 @@ function getMemoSubject(subject, title, reference, options = {}) {
     return cleanReference
       ? `${cleanReference} requires PT(IKL) review`
       : "New application requires PT(IKL) review";
+  }
+
+  if (role === "admin" && status === "ku_ikl_review" && department === "KU(IKL)") {
+    return cleanReference
+      ? `${cleanReference} requires KU(IKL) review`
+      : "Application requires KU(IKL) review";
+  }
+
+  if (role === "admin" && status === "bill_pending_ku" && department === "KU(IKL)") {
+    return cleanReference
+      ? `${cleanReference} requires KU(IKL) bill confirmation`
+      : "Application requires KU(IKL) bill confirmation";
   }
 
   if (cleanSubject) return cleanSubject;
@@ -397,7 +438,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     body: messageEn,
     bodyEn: messageEn,
     bodyMs: messageMs,
-    from: "ALiS Notification Center",
+    from: getNotificationSender(role, status, user),
     to: getNotificationRecipient(role, user),
     subject: getMemoSubject("", titleEn, reference, { role, status, user }),
     time: formatDateTime(updatedAt),
@@ -816,7 +857,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         body: message,
         bodyEn: message,
         bodyMs: messageMs,
-        from: "ALiS Notification Center",
+        from: getNotificationSender(role, status, user),
         to,
         subject,
         time: formatDateTime(timestamp),
