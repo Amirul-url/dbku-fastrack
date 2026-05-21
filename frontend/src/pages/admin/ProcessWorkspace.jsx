@@ -722,6 +722,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
               {isIklWorkspace ? (
                 <IklWorkspaceSections
+                  key={selectedRecord.id}
                   t={t}
                   config={config}
                   selectedRecord={selectedRecord}
@@ -2543,12 +2544,6 @@ function IklWorkspaceSections({
     }
   }, [decision, screeningDecisionOptions, setDecision]);
 
-  useEffect(() => {
-    setKuChecks(createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks));
-    setKuRemarks(selectedRecord.form_data?.technical_ku_review?.remarks || "");
-    setKuDecision(config.kuTechnicalReview?.defaultDecision || "");
-  }, [config.kuTechnicalReview?.defaultDecision, selectedRecord.id]);
-
   function updateKuCheck(key, checked) {
     setKuChecks((prev) => ({ ...prev, [key]: checked }));
   }
@@ -2830,7 +2825,7 @@ function KuTechnicalFurtherReviewPanel({
   const step1 = formData.step_1 || {};
   const technicalReview = formData.technical_review || {};
   const completedDepartmentCount = TECHNICAL_DEPARTMENTS.filter(
-    (department) => departmentHasSubmittedReview(selectedRecord, department)
+    (department) => hasTechnicalDepartmentReview(selectedRecord, department)
   ).length;
   const completedText = t("workspace.technical.completedDepartments", "{count} of {total} completed")
     .replace("{count}", String(completedDepartmentCount))
