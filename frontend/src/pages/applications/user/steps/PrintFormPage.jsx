@@ -265,10 +265,6 @@ function PrintFormPage({
               flex: 1 1 auto !important;
             }
 
-            .print-page-footer {
-              margin-top: auto !important;
-            }
-
             .print-page-preview-hidden {
               display: flex !important;
             }
@@ -428,8 +424,6 @@ function PrintFormPage({
               >
                 <PrintPage
                   title={tx("generatedFormTitle")}
-                  pageNumber={1}
-                  totalPages={PRINT_FORM_TOTAL_PAGES}
                   isActive={activePrintPage === 1}
                 >
                   <PrintSection title={tx("step1Print")}>
@@ -500,8 +494,6 @@ function PrintFormPage({
 
                 <PrintPage
                   title={tx("generatedFormTitle")}
-                  pageNumber={2}
-                  totalPages={PRINT_FORM_TOTAL_PAGES}
                   isActive={activePrintPage === 2}
                 >
                   <PrintSection title={tx("step2Print")}>
@@ -537,8 +529,6 @@ function PrintFormPage({
 
                 <PrintPage
                   title={tx("generatedFormTitle")}
-                  pageNumber={3}
-                  totalPages={PRINT_FORM_TOTAL_PAGES}
                   isActive={activePrintPage === 3}
                 >
                   <PrintSection title={tx("step3Print")}>
@@ -641,7 +631,7 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function PrintPage({ title, pageNumber, totalPages, isActive = true, children }) {
+function PrintPage({ title, isActive = true, children }) {
   return (
     <div
       className={`print-page${isActive ? "" : " print-page-preview-hidden"}`}
@@ -673,20 +663,6 @@ function PrintPage({ title, pageNumber, totalPages, isActive = true, children })
 
       <div className="print-page-body" style={{ flex: "1 1 auto" }}>
         {children}
-      </div>
-
-      <div
-        className="print-page-footer"
-        style={{
-          borderTop: "1px solid #d4d4d4",
-          color: "#333333",
-          fontSize: "11pt",
-          marginTop: "auto",
-          paddingTop: "3mm",
-          textAlign: "center",
-        }}
-      >
-        Page {pageNumber} of {totalPages}
       </div>
     </div>
   );
