@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -156,52 +155,25 @@ function PrintFormPage({
   }
 
   async function generatePdf() {
-    const printArea = document.getElementById("print-form-area");
-
-    if (!printArea) return;
-
-    let renderRoot = null;
-
     try {
       setSaving(true);
 
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-        compress: true,
+      const pdf = buildPrintFormPdf({
+        title: tx("generatedFormTitle"),
+        language,
+        noAttachmentText: tx("noAttachment"),
+        requiredDocuments,
+        otherDocuments,
+        step1,
+        step3,
+        tx,
       });
-      renderRoot = buildPdfRenderRoot(printArea);
-      document.body.appendChild(renderRoot);
-
-      const pages = Array.from(renderRoot.querySelectorAll(".print-page"));
-
-      for (let index = 0; index < pages.length; index += 1) {
-        const canvas = await html2canvas(pages[index], {
-          backgroundColor: "#ffffff",
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          width: pages[index].offsetWidth,
-          height: pages[index].offsetHeight,
-          windowWidth: pages[index].scrollWidth,
-          windowHeight: pages[index].scrollHeight,
-        });
-        const imageData = canvas.toDataURL("image/png");
-
-        if (index > 0) {
-          pdf.addPage("a4", "portrait");
-        }
-
-        pdf.addImage(imageData, "PNG", 0, 0, 210, 297, undefined, "FAST");
-      }
 
       pdf.save(`${tx("generatedFormTitle").replace(/\s+/g, "_")}.pdf`);
     } catch (err) {
       console.error("Generate PDF failed:", err);
       alert(tx("failedSavePrint"));
     } finally {
-      renderRoot?.remove();
       setSaving(false);
     }
   }
@@ -702,32 +674,442 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function buildPdfRenderRoot(printArea) {
-  const renderRoot = printArea.cloneNode(true);
+const PDF_PAGE = {
+  width: 210,
+  height: 297,
+  marginX: 14,
+  marginTop: 18,
+  footerY: 282,
+  contentWidth: 182,
+  lineHeight: 5.2,
+  fontSize: 11,
+};
 
-  renderRoot.removeAttribute("id");
-  renderRoot.style.position = "fixed";
-  renderRoot.style.left = "-10000px";
-  renderRoot.style.top = "0";
-  renderRoot.style.width = "210mm";
-  renderRoot.style.padding = "0";
-  renderRoot.style.margin = "0";
-  renderRoot.style.display = "block";
-  renderRoot.style.gap = "0";
-  renderRoot.style.background = "#ffffff";
-  renderRoot.style.pointerEvents = "none";
-
-  renderRoot.querySelectorAll(".print-page").forEach((page) => {
-    page.classList.remove("print-page-preview-hidden");
-    page.style.display = "flex";
-    page.style.width = "210mm";
-    page.style.minHeight = "297mm";
-    page.style.height = "297mm";
-    page.style.boxShadow = "none";
-    page.style.margin = "0";
+function buildPrintFormPdf({
+  title,
+  language,
+  noAttachmentText,
+  requiredDocuments,
+  otherDocuments,
+  step1,
+  step3,
+  tx,
+}) {
+  const pdf = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+    compress: true,
   });
 
-  return renderRoot;
+  pdf.setProperties({ title });
+  drawPdfPageOne(pdf, { title, step1, tx, language });
+  pdf.addPage("a4", "portrait");
+  drawPdfPageTwo(pdf, { title, step3, tx, language });
+  pdf.addPage("a4", "portrait");
+  drawPdfPageThree(pdf, {
+    title,
+    language,
+    noAttachmentText,
+    requiredDocuments,
+    otherDocuments,
+    tx,
+  });
+
+  return pdf;
+}
+
+function drawPdfPageOne(pdf, { title, step1, tx, language }) {
+  let y = drawPdfHeader(pdf, title);
+
+  y = drawPdfSectionTitle(pdf, tx("step1Print"), y);
+  y = drawPdfFieldRows(
+    pdf,
+    [
+      {
+        no: "1.",
+        label: tx("typeOfApplication"),
+        value: applicationTypeLabel(
+          language,
+          step1.application_type_label ||
+            step1.application_type ||
+            "Application for Site (New Site)"
+        ),
+      },
+      { no: "2.", label: tx("nameOfProject"), value: step1.project_name },
+      { no: "3.", label: tx("applicant"), value: step1.applicant },
+      {
+        no: "4.",
+        label: `${tx("contactPerson")} / ${tx("telNo")}`,
+        value: `${step1.contact_person || "-"} / ${step1.tel_no || "-"}`,
+      },
+      { no: "5.", label: tx("localityAddress"), value: step1.locality_address },
+      {
+        no: "6.",
+        label: tx("projectAddressSearch"),
+        value: step1.map_address || step1.locality_address,
+      },
+      {
+        no: "7.",
+        label: `${tx("latitude")} / ${tx("longitude")}`,
+        value: formatCoordinates(step1.latitude, step1.longitude),
+      },
+      {
+        no: "8.",
+        label: tx("siteImage"),
+        value: getAttachmentName(step1.site_image) || step1.site_image_name,
+      },
+      { no: "9.", label: tx("areaRequired"), value: step1.area_required },
+      {
+        no: "10.",
+        label: tx("totalSchemeValue"),
+        value: formatRM(step1.total_scheme_value),
+      },
+      {
+        no: "11.",
+        label: `${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`,
+        value: `${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`,
+      },
+      {
+        no: "12.",
+        label: tx("fundAvailableNow"),
+        value: formatRM(step1.amount_fund_available),
+      },
+    ],
+    y
+  );
+
+  y = drawPdfBlock(pdf, {
+    no: "13.",
+    label: tx("projectJustification"),
+    value: stripHtml(step1.project_justification),
+    y,
+  });
+  y = drawPdfBlock(pdf, {
+    no: "14.",
+    label: tx("siteSelectionReason"),
+    value: stripHtml(step1.site_selection_reason),
+    y,
+  });
+  drawPdfFieldRows(
+    pdf,
+    [
+      { no: "15.", label: tx("designation"), value: step1.designation },
+      { no: "16.", label: tx("officerName"), value: step1.officer_name },
+      { no: "17.", label: tx("date"), value: formatDate(step1.application_date) },
+    ],
+    y
+  );
+
+  drawPdfFooter(pdf, 1, PRINT_FORM_TOTAL_PAGES);
+}
+
+function drawPdfPageTwo(pdf, { title, step3, tx, language }) {
+  let y = drawPdfHeader(pdf, title);
+
+  y = drawPdfSectionTitle(pdf, tx("step2Print"), y);
+  y = drawPdfSubheading(pdf, tx("organisation"), y);
+  y = drawPdfFieldRows(
+    pdf,
+    [
+      {
+        label: tx("organisationType"),
+        value: organisationTypeLabel(language, step3.org_type),
+      },
+      { label: tx("registrationNumber"), value: step3.registration_no },
+      { label: tx("organisationName"), value: step3.org_name },
+      { label: tx("branchName"), value: step3.branch_name },
+      { label: tx("postalAddress"), value: step3.postal_address },
+      { label: tx("postcode"), value: step3.postcode },
+      { label: tx("address2"), value: step3.address_2 },
+      { label: tx("state"), value: step3.state },
+      { label: tx("city"), value: step3.city },
+      { label: tx("address3"), value: step3.address_3 },
+      { label: tx("countryCode"), value: step3.org_country_code },
+      {
+        label: tx("telephoneNo"),
+        value: formatPhone(step3.org_country_code, step3.telephone_no),
+      },
+      { label: tx("address4"), value: step3.address_4 },
+    ],
+    y
+  );
+
+  y = drawPdfSubheading(pdf, tx("submittingPerson"), y + 1);
+  drawPdfFieldRows(
+    pdf,
+    [
+      { label: tx("honoraryTitle"), value: step3.honorary_title },
+      { label: tx("designation"), value: step3.designation },
+      { label: tx("fullName"), value: step3.full_name },
+      { label: tx("countryCode"), value: step3.mobile_country_code },
+      {
+        label: tx("mobileNo"),
+        value: formatPhone(step3.mobile_country_code, step3.mobile_no),
+      },
+      { label: tx("identityCardNo"), value: step3.identity_card_no },
+      { label: tx("countryCode"), value: step3.office_country_code },
+      {
+        label: tx("officeNo"),
+        value: formatPhone(step3.office_country_code, step3.office_no),
+      },
+      { label: tx("email"), value: step3.email },
+      { label: tx("countryCode"), value: step3.fax_country_code },
+      {
+        label: tx("faxNo"),
+        value: formatPhone(step3.fax_country_code, step3.fax_no),
+      },
+    ],
+    y
+  );
+
+  drawPdfFooter(pdf, 2, PRINT_FORM_TOTAL_PAGES);
+}
+
+function drawPdfPageThree(pdf, {
+  title,
+  language,
+  noAttachmentText,
+  requiredDocuments,
+  otherDocuments,
+  tx,
+}) {
+  let y = drawPdfHeader(pdf, title);
+
+  y = drawPdfSectionTitle(pdf, tx("step3Print"), y);
+  y = drawPdfDocumentSummary(pdf, {
+    title: tx("requiredSupportingDocuments"),
+    rows: requiredDocuments,
+    language,
+    noAttachmentText,
+    other: false,
+    y,
+  });
+  drawPdfDocumentSummary(pdf, {
+    title: tx("otherSupportingDocuments"),
+    rows: otherDocuments,
+    language,
+    noAttachmentText,
+    other: true,
+    y: y + 4,
+  });
+
+  drawPdfFooter(pdf, 3, PRINT_FORM_TOTAL_PAGES);
+}
+
+function drawPdfHeader(pdf, title) {
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(title, PDF_PAGE.width / 2, PDF_PAGE.marginTop, { align: "center" });
+  const titleWidth = pdf.getTextWidth(title);
+  pdf.setLineWidth(0.25);
+  pdf.line(
+    PDF_PAGE.width / 2 - titleWidth / 2,
+    PDF_PAGE.marginTop + 1,
+    PDF_PAGE.width / 2 + titleWidth / 2,
+    PDF_PAGE.marginTop + 1
+  );
+  return PDF_PAGE.marginTop + 18;
+}
+
+function drawPdfFooter(pdf, pageNumber, totalPages) {
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.text(`${pageNumber}/${totalPages}`, PDF_PAGE.width - PDF_PAGE.marginX, PDF_PAGE.footerY, {
+    align: "right",
+  });
+  resetPdfTextStyle(pdf);
+}
+
+function drawPdfSectionTitle(pdf, title, y) {
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(title, PDF_PAGE.marginX, y);
+  const underlineY = y + 1.2;
+  pdf.setLineWidth(0.3);
+  pdf.line(PDF_PAGE.marginX, underlineY, PDF_PAGE.width - PDF_PAGE.marginX, underlineY);
+  return y + 5;
+}
+
+function drawPdfSubheading(pdf, title, y) {
+  pdf.setFillColor(242, 242, 242);
+  pdf.setDrawColor(205, 205, 205);
+  pdf.rect(PDF_PAGE.marginX, y, PDF_PAGE.contentWidth, 8, "FD");
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(title, PDF_PAGE.marginX + 2, y + 5.5);
+  resetPdfTextStyle(pdf);
+  return y + 10.5;
+}
+
+function drawPdfFieldRows(pdf, rows, y) {
+  const numberX = PDF_PAGE.marginX;
+  const labelX = PDF_PAGE.marginX + (rows.some((row) => row.no) ? 14 : 0);
+  const valueX = PDF_PAGE.marginX + 68;
+  const valueWidth = PDF_PAGE.width - PDF_PAGE.marginX - valueX;
+  const labelWidth = valueX - labelX - 6;
+
+  resetPdfTextStyle(pdf);
+
+  rows.forEach((row) => {
+    const labelLines = splitPdfText(pdf, row.label, labelWidth);
+    const valueLines = splitPdfText(pdf, printableValue(row.value), valueWidth - 1);
+    const rowHeight =
+      Math.max(labelLines.length, valueLines.length) * PDF_PAGE.lineHeight + 2;
+    const baseline = y + 4;
+
+    pdf.setFont("helvetica", "normal");
+    if (row.no) {
+      pdf.text(row.no, numberX, baseline);
+    }
+    pdf.text(labelLines, labelX, baseline);
+    pdf.text(valueLines, valueX, baseline);
+
+    pdf.setDrawColor(160, 160, 160);
+    pdf.setLineWidth(0.18);
+    pdf.line(valueX, y + rowHeight - 0.5, PDF_PAGE.width - PDF_PAGE.marginX, y + rowHeight - 0.5);
+    y += rowHeight;
+  });
+
+  resetPdfTextStyle(pdf);
+  return y + 1;
+}
+
+function drawPdfBlock(pdf, { no, label, value, y }) {
+  const heading = `${no ? `${no} ` : ""}${label}`;
+  const text = printableValue(value);
+  const lines = splitPdfText(pdf, text, PDF_PAGE.contentWidth - 4);
+  const boxHeight = Math.max(18, lines.length * PDF_PAGE.lineHeight + 5);
+
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(heading, PDF_PAGE.marginX, y + 4);
+  y += 6;
+
+  pdf.setDrawColor(210, 210, 210);
+  pdf.setLineWidth(0.2);
+  pdf.rect(PDF_PAGE.marginX, y, PDF_PAGE.contentWidth, boxHeight);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(lines, PDF_PAGE.marginX + 2, y + 5);
+
+  resetPdfTextStyle(pdf);
+  return y + boxHeight + 4;
+}
+
+function drawPdfDocumentSummary(pdf, {
+  title,
+  rows,
+  language,
+  noAttachmentText,
+  other = false,
+  y,
+}) {
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(title, PDF_PAGE.marginX, y);
+  y += 4;
+
+  if (!rows.length) {
+    pdf.setFont("helvetica", "normal");
+    pdf.text("-", PDF_PAGE.marginX, y + 2);
+    resetPdfTextStyle(pdf);
+    return y + 8;
+  }
+
+  const columns = other
+    ? [
+        { key: "index", title: "#", width: 8, align: "center" },
+        { key: "description", title: stepText(language, "description"), width: 102 },
+        { key: "format", title: stepText(language, "format"), width: 30 },
+        { key: "attachment", title: stepText(language, "attachment"), width: 42 },
+      ]
+    : [
+        { key: "index", title: "#", width: 8, align: "center" },
+        { key: "title", title: stepText(language, "title"), width: 36 },
+        { key: "description", title: stepText(language, "description"), width: 74 },
+        { key: "format", title: stepText(language, "format"), width: 28 },
+        { key: "attachment", title: stepText(language, "attachment"), width: 36 },
+      ];
+
+  y = drawPdfTableHeader(pdf, columns, y);
+
+  rows.forEach((row, index) => {
+    const description = other
+      ? row.description
+      : row.title === TITLE_DOCUMENT_NAME
+        ? row.description || stepText(language, "noLandInfo")
+        : documentDescription(language, row.title, row.description);
+    const values = {
+      index: String(index + 1),
+      title: documentTitle(language, row.title),
+      description: description || "-",
+      format: row.format || "-",
+      attachment: formatAttachment(row.attachment, noAttachmentText),
+    };
+    y = drawPdfTableRow(pdf, columns, values, y);
+  });
+
+  resetPdfTextStyle(pdf);
+  return y;
+}
+
+function drawPdfTableHeader(pdf, columns, y) {
+  const headerHeight = 8;
+  let x = PDF_PAGE.marginX;
+
+  pdf.setFontSize(10);
+  pdf.setFont("helvetica", "bold");
+
+  columns.forEach((column) => {
+    pdf.setFillColor(242, 242, 242);
+    pdf.setDrawColor(150, 150, 150);
+    pdf.rect(x, y, column.width, headerHeight, "FD");
+    pdf.text(column.title, x + 1.5, y + 5.5);
+    x += column.width;
+  });
+
+  return y + headerHeight;
+}
+
+function drawPdfTableRow(pdf, columns, values, y) {
+  pdf.setFontSize(10);
+  pdf.setFont("helvetica", "normal");
+
+  const cellLines = columns.map((column) =>
+    splitPdfText(pdf, values[column.key], column.width - 3)
+  );
+  const rowHeight =
+    Math.max(...cellLines.map((lines) => lines.length)) * 4.7 + 4;
+  let x = PDF_PAGE.marginX;
+
+  columns.forEach((column, columnIndex) => {
+    pdf.setDrawColor(185, 185, 185);
+    pdf.rect(x, y, column.width, rowHeight);
+    const textX =
+      column.align === "center" ? x + column.width / 2 : x + 1.5;
+    pdf.text(cellLines[columnIndex], textX, y + 5, {
+      align: column.align === "center" ? "center" : "left",
+    });
+    x += column.width;
+  });
+
+  return y + rowHeight;
+}
+
+function resetPdfTextStyle(pdf) {
+  pdf.setTextColor(0, 0, 0);
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(PDF_PAGE.fontSize);
+  pdf.setLineWidth(0.2);
+}
+
+function splitPdfText(pdf, value, width) {
+  return pdf.splitTextToSize(printableValue(value), width);
+}
+
+function printableValue(value) {
+  return String(value || "-").trim() || "-";
 }
 
 function PrintPage({ title, pageNumber, totalPages, isActive = true, children }) {
