@@ -11,6 +11,7 @@ import {
 import {
   applicationStatusLabel,
   applicationTypeLabel,
+  documentDescription,
   documentTitle,
   organisationTypeLabel,
   readOnlyMessage,
@@ -224,14 +225,40 @@ function PrintFormPage({
               left: 0 !important;
               top: 0 !important;
               width: 210mm !important;
+              min-height: auto !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+              border: none !important;
+              overflow: visible !important;
+              background: transparent !important;
+              box-sizing: border-box !important;
+              display: block !important;
+              gap: 0 !important;
+            }
+
+            .print-page {
+              width: 210mm !important;
               min-height: 297mm !important;
               margin: 0 !important;
               padding: 12mm 14mm 10mm 14mm !important;
               box-shadow: none !important;
-              border: none !important;
-              overflow: visible !important;
+              break-after: page !important;
+              page-break-after: always !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
               background: #ffffff !important;
               box-sizing: border-box !important;
+            }
+
+            .print-page:last-child {
+              break-after: auto !important;
+              page-break-after: auto !important;
+            }
+
+            .print-avoid-break {
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
             }
 
             .print-hide {
@@ -342,84 +369,118 @@ function PrintFormPage({
                 className="mx-auto bg-white text-black shadow-sm"
                 style={{
                   width: "210mm",
-                  minHeight: "297mm",
-                  padding: "12mm 14mm 10mm 14mm",
+                  padding: 0,
                   fontFamily: "Arial, sans-serif",
                   boxSizing: "border-box",
+                  display: "grid",
+                  gap: "10mm",
                 }}
               >
-                <div style={{ textAlign: "center", marginBottom: "9mm" }}>
-                  <h1
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: 700,
-                      textDecoration: "underline",
-                      margin: 0,
-                    }}
-                  >
-                    {tx("generatedFormTitle")}
-                  </h1>
-                </div>
+                <PrintPage title={tx("generatedFormTitle")}>
+                  <PrintSection title={tx("step1Print")}>
+                    <PrintLine
+                      no="1."
+                      label={tx("typeOfApplication")}
+                      value={applicationTypeLabel(
+                        language,
+                        step1.application_type_label ||
+                          step1.application_type ||
+                          "Application for Site (New Site)"
+                      )}
+                    />
+                    <PrintLine no="2." label={tx("nameOfProject")} value={step1.project_name} />
+                    <PrintLine no="3." label={tx("applicant")} value={step1.applicant} />
+                    <PrintLine
+                      no="4."
+                      label={`${tx("contactPerson")} / ${tx("telNo")}`}
+                      value={`${step1.contact_person || "-"} / ${step1.tel_no || "-"}`}
+                    />
+                    <PrintLine no="5." label={tx("localityAddress")} value={step1.locality_address} />
+                    <PrintLine
+                      no="6."
+                      label={tx("projectAddressSearch")}
+                      value={step1.map_address || step1.locality_address}
+                    />
+                    <PrintLine
+                      no="7."
+                      label={`${tx("latitude")} / ${tx("longitude")}`}
+                      value={formatCoordinates(step1.latitude, step1.longitude)}
+                    />
+                    <PrintLine
+                      no="8."
+                      label={tx("siteImage")}
+                      value={getAttachmentName(step1.site_image) || step1.site_image_name}
+                    />
+                    <PrintLine no="9." label={tx("areaRequired")} value={step1.area_required} />
+                    <PrintLine
+                      no="10."
+                      label={tx("totalSchemeValue")}
+                      value={formatRM(step1.total_scheme_value)}
+                    />
+                    <PrintLine
+                      no="11."
+                      label={`${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`}
+                      value={`${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`}
+                    />
+                    <PrintLine
+                      no="12."
+                      label={tx("fundAvailableNow")}
+                      value={formatRM(step1.amount_fund_available)}
+                    />
+                    <PrintBlock
+                      no="13."
+                      label={tx("projectJustification")}
+                      value={stripHtml(step1.project_justification)}
+                    />
+                    <PrintBlock
+                      no="14."
+                      label={tx("siteSelectionReason")}
+                      value={stripHtml(step1.site_selection_reason)}
+                    />
+                    <PrintLine no="15." label={tx("designation")} value={step1.designation} />
+                    <PrintLine no="16." label={tx("officerName")} value={step1.officer_name} />
+                    <PrintLine no="17." label={tx("date")} value={formatDate(step1.application_date)} />
+                  </PrintSection>
+                </PrintPage>
 
-                <PrintSection title={tx("step1Print")}>
-                  <PrintLine no="1." label={tx("nameOfProject")} value={step1.project_name} />
-                  <PrintLine no="2." label={tx("applicant")} value={step1.applicant} />
-                  <PrintLine
-                    no="3."
-                    label={`${tx("contactPerson")} / ${tx("telNo")}`}
-                    value={`${step1.contact_person || "-"} / ${step1.tel_no || "-"}`}
-                  />
-                  <PrintLine no="4." label={tx("localityAddress")} value={step1.locality_address} />
-                  <PrintLine no="5." label={tx("areaRequired")} value={step1.area_required} />
-                  <PrintLine
-                    no="6."
-                    label={tx("totalSchemeValue")}
-                    value={formatRM(step1.total_scheme_value)}
-                  />
-                  <PrintLine
-                    no="7."
-                    label={`${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`}
-                    value={`${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`}
-                  />
-                  <PrintLine
-                    no="8."
-                    label={tx("fundAvailableNow")}
-                    value={formatRM(step1.amount_fund_available)}
-                  />
-                  <PrintBlock
-                    no="9."
-                    label={tx("projectJustification")}
-                    value={stripHtml(step1.project_justification)}
-                  />
-                  <PrintBlock
-                    no="10."
-                    label={tx("siteSelectionReason")}
-                    value={stripHtml(step1.site_selection_reason)}
-                  />
-                  <PrintLine no="11." label={tx("designation")} value={step1.designation} />
-                  <PrintLine no="12." label={tx("officerName")} value={step1.officer_name} />
-                  <PrintLine no="13." label={tx("date")} value={formatDate(step1.application_date)} />
-                </PrintSection>
+                <PrintPage title={tx("generatedFormTitle")}>
+                  <PrintSection title={tx("step2Print")}>
+                    <PrintSubheading>{tx("organisation")}</PrintSubheading>
+                    <PrintLine label={tx("organisationType")} value={organisationTypeLabel(language, step3.org_type)} />
+                    <PrintLine label={tx("registrationNumber")} value={step3.registration_no} />
+                    <PrintLine label={tx("organisationName")} value={step3.org_name} />
+                    <PrintLine label={tx("branchName")} value={step3.branch_name} />
+                    <PrintLine label={tx("postalAddress")} value={step3.postal_address} />
+                    <PrintLine label={tx("postcode")} value={step3.postcode} />
+                    <PrintLine label={tx("address2")} value={step3.address_2} />
+                    <PrintLine label={tx("state")} value={step3.state} />
+                    <PrintLine label={tx("city")} value={step3.city} />
+                    <PrintLine label={tx("address3")} value={step3.address_3} />
+                    <PrintLine label={tx("countryCode")} value={step3.org_country_code} />
+                    <PrintLine label={tx("telephoneNo")} value={formatPhone(step3.org_country_code, step3.telephone_no)} />
+                    <PrintLine label={tx("address4")} value={step3.address_4} />
 
-                <PrintSection title={tx("step2Print")}>
-                  <PrintLine label={tx("organisationType")} value={organisationTypeLabel(language, step3.org_type)} />
-                  <PrintLine label={tx("registrationNumber")} value={step3.registration_no} />
-                  <PrintLine label={tx("organisationName")} value={step3.org_name} />
-                  <PrintLine label={tx("postalAddress")} value={step3.postal_address} />
-                  <PrintLine label={tx("cityState")} value={`${step3.city || "-"} / ${step3.state || "-"}`} />
-                  <PrintLine label={tx("telephoneNo")} value={step3.telephone_no} />
-                  <PrintLine label={tx("submittingPerson")} value={step3.full_name} />
-                  <PrintLine label={tx("designation")} value={step3.designation} />
-                  <PrintLine label={tx("identityCardNo")} value={step3.identity_card_no} />
-                  <PrintLine label={tx("mobileNo")} value={step3.mobile_no} />
-                  <PrintLine label={tx("officeNo")} value={step3.office_no} />
-                  <PrintLine label={tx("email")} value={step3.email} />
-                </PrintSection>
+                    <PrintSubheading>{tx("submittingPerson")}</PrintSubheading>
+                    <PrintLine label={tx("honoraryTitle")} value={step3.honorary_title} />
+                    <PrintLine label={tx("designation")} value={step3.designation} />
+                    <PrintLine label={tx("fullName")} value={step3.full_name} />
+                    <PrintLine label={tx("countryCode")} value={step3.mobile_country_code} />
+                    <PrintLine label={tx("mobileNo")} value={formatPhone(step3.mobile_country_code, step3.mobile_no)} />
+                    <PrintLine label={tx("identityCardNo")} value={step3.identity_card_no} />
+                    <PrintLine label={tx("countryCode")} value={step3.office_country_code} />
+                    <PrintLine label={tx("officeNo")} value={formatPhone(step3.office_country_code, step3.office_no)} />
+                    <PrintLine label={tx("email")} value={step3.email} />
+                    <PrintLine label={tx("countryCode")} value={step3.fax_country_code} />
+                    <PrintLine label={tx("faxNo")} value={formatPhone(step3.fax_country_code, step3.fax_no)} />
+                  </PrintSection>
+                </PrintPage>
 
-                <PrintSection title={tx("step3Print")}>
-                  <DocumentSummary title={tx("requiredSupportingDocuments")} rows={requiredDocuments} language={language} noAttachmentText={tx("noAttachment")} />
-                  <DocumentSummary title={tx("otherSupportingDocuments")} rows={otherDocuments} language={language} noAttachmentText={tx("noAttachment")} other />
-                </PrintSection>
+                <PrintPage title={tx("generatedFormTitle")}>
+                  <PrintSection title={tx("step3Print")}>
+                    <DocumentSummary title={tx("requiredSupportingDocuments")} rows={requiredDocuments} language={language} noAttachmentText={tx("noAttachment")} />
+                    <DocumentSummary title={tx("otherSupportingDocuments")} rows={otherDocuments} language={language} noAttachmentText={tx("noAttachment")} other />
+                  </PrintSection>
+                </PrintPage>
               </div>
             </div>
 
@@ -515,6 +576,37 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
+function PrintPage({ title, children }) {
+  return (
+    <div
+      className="print-page"
+      style={{
+        width: "210mm",
+        minHeight: "297mm",
+        padding: "12mm 14mm 10mm 14mm",
+        background: "#ffffff",
+        boxSizing: "border-box",
+        boxShadow: "0 1px 4px rgba(15, 23, 42, 0.12)",
+      }}
+    >
+      <div style={{ textAlign: "center", marginBottom: "9mm" }}>
+        <h1
+          style={{
+            fontSize: "14px",
+            fontWeight: 700,
+            textDecoration: "underline",
+            margin: 0,
+          }}
+        >
+          {title}
+        </h1>
+      </div>
+
+      {children}
+    </div>
+  );
+}
+
 function PrintSection({ title, children }) {
   return (
     <section style={{ marginTop: "7mm" }}>
@@ -534,9 +626,28 @@ function PrintSection({ title, children }) {
   );
 }
 
+function PrintSubheading({ children }) {
+  return (
+    <div
+      className="print-avoid-break"
+      style={{
+        background: "#f2f2f2",
+        border: "1px solid #d5d5d5",
+        fontSize: "10px",
+        fontWeight: 700,
+        margin: "3mm 0 1.5mm",
+        padding: "1.4mm 2mm",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function PrintLine({ no, label, value }) {
   return (
     <div
+      className="print-avoid-break"
       style={{
         display: "grid",
         gridTemplateColumns: no ? "8mm 55mm 1fr" : "63mm 1fr",
@@ -557,7 +668,10 @@ function PrintLine({ no, label, value }) {
 
 function PrintBlock({ no, label, value }) {
   return (
-    <div style={{ fontSize: "10px", lineHeight: 1.45, padding: "1.4mm 0" }}>
+    <div
+      className="print-avoid-break"
+      style={{ fontSize: "10px", lineHeight: 1.45, padding: "1.4mm 0" }}
+    >
       <div style={{ display: "flex", gap: "2mm", fontWeight: 700 }}>
         {no && <span>{no}</span>}
         <span>{label}</span>
@@ -613,34 +727,100 @@ function DocumentSummary({
   rows,
   language = "en",
   noAttachmentText = "No attachment",
-  land = false,
   other = false,
 }) {
   return (
-    <div style={{ marginTop: "3mm", fontSize: "10px" }}>
+    <div className="print-avoid-break" style={{ marginTop: "3mm", fontSize: "9.5px" }}>
       <div style={{ fontWeight: 700, marginBottom: "1mm" }}>{title}</div>
       {rows.length === 0 ? (
         <div>-</div>
       ) : (
-        rows.map((row, index) => {
-          const label = land
-            ? row.land
-            : other
-              ? row.description
-              : documentTitle(language, row.title);
-          const attachment = row.attachment?.name || noAttachmentText;
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            tableLayout: "fixed",
+          }}
+        >
+          <thead>
+            <tr>
+              <PrintTableHead style={{ width: "8mm" }}>#</PrintTableHead>
+              <PrintTableHead style={{ width: other ? "78mm" : "38mm" }}>
+                {other ? stepText(language, "description") : stepText(language, "title")}
+              </PrintTableHead>
+              {!other && (
+                <PrintTableHead>{stepText(language, "description")}</PrintTableHead>
+              )}
+              <PrintTableHead style={{ width: "24mm" }}>
+                {stepText(language, "format")}
+              </PrintTableHead>
+              <PrintTableHead style={{ width: "42mm" }}>
+                {stepText(language, "attachment")}
+              </PrintTableHead>
+            </tr>
+          </thead>
 
-          return (
-            <div key={`${title}-${index}`} style={{ display: "flex", gap: "2mm" }}>
-              <span>{index + 1}.</span>
-              <span>
-                {label || "-"} ({attachment})
-              </span>
-            </div>
-          );
-        })
+          <tbody>
+            {rows.map((row, index) => {
+              const description = other
+                ? row.description
+                : row.title === TITLE_DOCUMENT_NAME
+                  ? row.description || stepText(language, "noLandInfo")
+                  : documentDescription(language, row.title, row.description);
+
+              return (
+                <tr key={`${title}-${index}`} className="print-avoid-break">
+                  <PrintTableCell center>{index + 1}</PrintTableCell>
+                  <PrintTableCell>
+                    {other ? description || "-" : documentTitle(language, row.title)}
+                  </PrintTableCell>
+                  {!other && <PrintTableCell>{description || "-"}</PrintTableCell>}
+                  <PrintTableCell>{row.format || "-"}</PrintTableCell>
+                  <PrintTableCell>
+                    {formatAttachment(row.attachment, noAttachmentText)}
+                  </PrintTableCell>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </div>
+  );
+}
+
+function PrintTableHead({ children, style = {} }) {
+  return (
+    <th
+      style={{
+        border: "1px solid #999999",
+        background: "#f2f2f2",
+        fontWeight: 700,
+        padding: "1.4mm",
+        textAlign: "left",
+        verticalAlign: "top",
+        ...style,
+      }}
+    >
+      {children}
+    </th>
+  );
+}
+
+function PrintTableCell({ children, center = false }) {
+  return (
+    <td
+      style={{
+        border: "1px solid #b5b5b5",
+        padding: "1.4mm",
+        textAlign: center ? "center" : "left",
+        verticalAlign: "top",
+        wordBreak: "break-word",
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      {children || "-"}
+    </td>
   );
 }
 
@@ -674,6 +854,38 @@ function formatDate(value) {
   if (Number.isNaN(date.getTime())) return value;
 
   return date.toLocaleDateString("en-GB");
+}
+
+function formatCoordinates(latitude, longitude) {
+  if (!latitude && !longitude) return "-";
+  return `${latitude || "-"} / ${longitude || "-"}`;
+}
+
+function formatPhone(countryCode, phoneNumber) {
+  if (!countryCode && !phoneNumber) return "-";
+  return [countryCode, phoneNumber].filter(Boolean).join(" ");
+}
+
+function getAttachmentName(attachment) {
+  if (!attachment) return "";
+  return (
+    attachment.name ||
+    attachment.file?.split("/")?.pop() ||
+    attachment.url?.split("/")?.pop() ||
+    attachment.file_url?.split("/")?.pop() ||
+    ""
+  );
+}
+
+function formatAttachment(attachment, noAttachmentText) {
+  const name = getAttachmentName(attachment);
+  if (!name) return noAttachmentText;
+
+  if (!attachment?.size) {
+    return name;
+  }
+
+  return `${name} (${(Number(attachment.size || 0) / 1024).toFixed(1)} KB)`;
 }
 
 export default PrintFormPage;
