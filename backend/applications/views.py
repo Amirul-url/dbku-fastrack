@@ -68,6 +68,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             old_form_data=old_form_data,
         )
 
+    def perform_destroy(self, instance):
+        documents = list(instance.supporting_documents.all())
+        for document in documents:
+            if document.file:
+                document.file.delete(save=False)
+
+        instance.delete()
+
     def ensure_staff_can_update_workflow(self, application):
         user = self.request.user
         if user.role not in STAFF_ROLES:
