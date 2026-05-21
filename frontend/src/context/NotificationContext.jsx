@@ -148,7 +148,7 @@ function getAdminNotificationRecipient(user, delivery = {}) {
     ? String(delivery.recipient_email || "").trim() || getUserEmail(user)
     : getUserEmail(user);
 
-  if (department === "KU(IKL)") {
+  if (department === "KU(IKL)" || department === "IKL (TECHNICAL)") {
     return formatEmailRecipient(email);
   }
 
@@ -171,6 +171,14 @@ function getNotificationSender(role, status, user) {
     return "PT(IKL) <ALiS Notification Center>";
   }
 
+  if (
+    role === "admin" &&
+    department === "IKL (TECHNICAL)" &&
+    ["technical_review", "technical_site_visit"].includes(normalizedStatus)
+  ) {
+    return "KU(IKL) <ALiS Notification Center>";
+  }
+
   return "ALiS Notification Center";
 }
 
@@ -180,7 +188,7 @@ function getNotificationRecipient(role, user) {
   }
 
   if (role === "admin") {
-    if (getUserDepartment(user) === "KU(IKL)") {
+    if (["KU(IKL)", "IKL (TECHNICAL)"].includes(getUserDepartment(user))) {
       return formatEmailRecipient(getUserEmail(user));
     }
 
@@ -214,6 +222,16 @@ function getMemoSubject(subject, title, reference, options = {}) {
     return cleanReference
       ? `${cleanReference} requires KU(IKL) bill confirmation`
       : "Application requires KU(IKL) bill confirmation";
+  }
+
+  if (
+    role === "admin" &&
+    ["technical_review", "technical_site_visit"].includes(status) &&
+    department === "IKL (TECHNICAL)"
+  ) {
+    return cleanReference
+      ? `${cleanReference} requires IKL (TECHNICAL) review`
+      : "Application requires IKL (TECHNICAL) review";
   }
 
   if (cleanSubject) return cleanSubject;
