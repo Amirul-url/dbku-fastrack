@@ -230,7 +230,7 @@ function PrintFormPage({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 210mm !important;
+              width: 100% !important;
               min-height: auto !important;
               margin: 0 !important;
               padding: 0 !important;
@@ -244,12 +244,12 @@ function PrintFormPage({
             }
 
             .print-page {
-              width: 210mm !important;
-              height: 297mm !important;
-              min-height: 297mm !important;
-              max-height: 297mm !important;
+              width: 100% !important;
+              height: 271mm !important;
+              min-height: 271mm !important;
+              max-height: 271mm !important;
               margin: 0 !important;
-              padding: 14mm 14mm 12mm 14mm !important;
+              padding: 0 !important;
               box-shadow: none !important;
               display: block !important;
               position: relative !important;
@@ -270,8 +270,8 @@ function PrintFormPage({
 
             .print-page-footer {
               position: absolute !important;
-              right: 14mm !important;
-              bottom: 8mm !important;
+              right: 0 !important;
+              bottom: 0 !important;
               margin: 0 !important;
             }
 
@@ -306,7 +306,7 @@ function PrintFormPage({
 
             @page {
               size: A4 portrait;
-              margin: 0;
+              margin: 14mm 14mm 12mm 14mm;
             }
           }
         `}
