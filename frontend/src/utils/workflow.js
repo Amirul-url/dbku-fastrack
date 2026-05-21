@@ -434,3 +434,19 @@ export function formatDateTime(value) {
     hour12: true,
   });
 }
+
+export function formatCompactDateTime(value) {
+  if (!value) return "Not provided";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}

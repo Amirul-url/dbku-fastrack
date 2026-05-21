@@ -20,8 +20,8 @@ import LicenseQrCard from "../../components/license/LicenseQrCard";
 import {
   canSubmitPayment,
   canViewLicense,
+  formatCompactDateTime,
   formatDate,
-  formatDateTime,
   formatWorkflowStatus,
   getApplicantActionKey,
   getApplicantApplicationRoute,
@@ -1016,7 +1016,7 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen, onDelete
           label: t("common.status"),
           render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
         },
-        { key: "updated", label: t("common.updated"), render: (app) => formatDateTime(app.updated_at) },
+        { key: "updated", label: t("common.updated"), render: (app) => formatCompactDateTime(app.updated_at) },
         {
           key: "action",
           label: t("common.action"),
