@@ -69,10 +69,21 @@ class Application(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
+    @classmethod
+    def next_reference_no(cls):
+        last_application = cls.objects.order_by("-id").only("id").first()
+        next_number = (last_application.id if last_application else 0) + 1
+
+        while True:
+            reference_no = f"FT-{next_number:05d}"
+            if not cls.objects.filter(reference_no=reference_no).exists():
+                return reference_no
+
+            next_number += 1
+
     def save(self, *args, **kwargs):
         if not self.reference_no:
-            last_id = Application.objects.count() + 1
-            self.reference_no = f"FT-{last_id:05d}"
+            self.reference_no = self.next_reference_no()
 
         super().save(*args, **kwargs)
 
