@@ -1,13 +1,19 @@
 from unittest.mock import patch
+from datetime import datetime
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
 from applications.models import Application
 
 from .models import NotificationDelivery
-from .services import notify_account_created, notify_application_status_change
+from .services import (
+    notify_account_created,
+    notify_application_status_change,
+    process_license_renewal_reminders,
+)
 from .services import send_brevo_email, send_webhook_whatsapp
 
 
@@ -430,3 +436,107 @@ class SuperAdminAccountNotificationTests(TestCase):
         self.assertEqual(data[0]["application_id"], None)
         self.assertEqual(data[0]["metadata"]["event_status"], "account_created")
         self.assertEqual(data[0]["metadata"]["action_url"], "/superadmin/admins")
+
+
+@override_settings(
+    NOTIFICATION_EMAIL_ENABLED=False,
+    WHATSAPP_ENABLED=False,
+)
+class LicenseRenewalWorkflowTests(TestCase):
+    def setUp(self):
+        self.applicant = User.objects.create_user(
+            username="license-applicant",
+            email="applicant@sample.com",
+            password="Password123",
+            mobile_number="0175151829",
+            role="applicant",
+        )
+        self.pt_ikl = User.objects.create_user(
+            username="pt-ikl-renewal",
+            email="pt@example.com",
+            password="Password123",
+            role="admin",
+            department="PT(IKL)",
+            is_active=True,
+        )
+        self.supervisor = User.objects.create_user(
+            username="supervisor-renewal",
+            email="supervisor@example.com",
+            password="Password123",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        self.application = Application.objects.create(
+            applicant=self.applicant,
+            title="Renewal signage",
+            status="license_issued",
+            form_data={
+                "step_1": {"project_name": "Renewal signage"},
+                "license": {
+                    "license_id": "ALIS202600001",
+                    "status": "Active",
+                    "issue_date": "2026-05-21T08:30:00+08:00",
+                    "expiry_date": "2027-05-21T08:30:00+08:00",
+                },
+            },
+        )
+
+    def test_detects_three_month_renewal_reminder(self):
+        process_license_renewal_reminders(now=self.local_time(2027, 2, 21, 8, 30))
+
+        self.application.refresh_from_db()
+        reminder = self.application.form_data["license_renewal"]["reminders"]["3"]
+        self.assertEqual(reminder["status"], "pending_pt_letter")
+        self.assertEqual(reminder["months_before_expiry"], 3)
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.pt_ikl,
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.supervisor,
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
+
+    def test_reminder_letter_progresses_to_applicant_release(self):
+        process_license_renewal_reminders(now=self.local_time(2027, 2, 21, 8, 30))
+
+        client = APIClient()
+        client.force_authenticate(user=self.pt_ikl)
+        response = client.post(
+            f"/api/applications/{self.application.id}/license-renewal-action/",
+            {"action": "generate_reminder_letter", "months": 3},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        client.force_authenticate(user=self.supervisor)
+        response = client.post(
+            f"/api/applications/{self.application.id}/license-renewal-action/",
+            {"action": "confirm_reminder_letter", "months": 3},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.application.refresh_from_db()
+        reminder = self.application.form_data["license_renewal"]["reminders"]["3"]
+        self.assertEqual(reminder["status"], "released_to_applicant")
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.applicant,
+                metadata__event_status="license_renewal_released",
+            ).exists()
+        )
+
+    def local_time(self, year, month, day, hour, minute):
+        return timezone.make_aware(
+            datetime(year, month, day, hour, minute),
+            timezone.get_current_timezone(),
+        )

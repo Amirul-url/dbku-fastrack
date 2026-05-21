@@ -56,6 +56,8 @@ const TECHNICAL_REVIEW_STATUSES = new Set([
 const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
 const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
 const SUT_APPROVAL_DEPARTMENTS = ["SUT"];
+const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
+const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
@@ -91,6 +93,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const [success, setSuccess] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
   const [comment, setComment] = useState("");
+  const [licenseExpiryYears, setLicenseExpiryYears] = useState("1");
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     license_fee_calculation: "",
@@ -295,6 +298,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
+  const canChooseLicenseExpiry =
+    config.key === "license" &&
+    normalizeStatus(selectedRecord?.status) === "payment_verified" &&
+    workspaceActions.some((action) => action.key === "issue_license");
   const eLicenseRowsHaveActions = useMemo(
     () =>
       isELicenseWorkspace &&
@@ -318,6 +325,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   useEffect(() => {
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
     if (nextDecision) setDecision(nextDecision);
+    setLicenseExpiryYears("1");
   }, [approvalStageKey, config, selectedRecord?.id, userDepartment]);
 
   function submitApprovalSupport(decisionValue) {
@@ -382,17 +390,25 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         comment: cleanedComment,
         technicalSite,
         department: userDepartment,
+        licenseExpiryYears: Number(licenseExpiryYears) || 1,
       });
 
-      await apiRequest(`/applications/${selectedRecord.id}/`, {
-        method: "PATCH",
+      const requestPath =
+        action.endpoint === "license-renewal-action"
+          ? `/applications/${selectedRecord.id}/license-renewal-action/`
+          : `/applications/${selectedRecord.id}/`;
+      const requestMethod = action.endpoint === "license-renewal-action" ? "POST" : "PATCH";
+
+      const response = await apiRequest(requestPath, {
+        method: requestMethod,
         body: JSON.stringify(body),
       });
 
       setSuccess(t(action.successKey, action.success));
       setComment("");
       await fetchApplications();
-      const refreshed = await apiRequest(`/applications/${selectedRecord.id}/`);
+      const refreshed =
+        response?.data || (await apiRequest(`/applications/${selectedRecord.id}/`));
       setSelectedDetail(refreshed);
     } catch (err) {
       setError(err.message || action.error || "Action failed.");
@@ -736,7 +752,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   {detailLoading ? (
                     <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                   ) : (
-                    config.details && <config.details app={selectedRecord} t={t} />
+                    config.details && (
+                      <config.details
+                        app={selectedRecord}
+                        t={t}
+                        canChooseLicenseExpiry={canChooseLicenseExpiry}
+                        licenseExpiryYears={licenseExpiryYears}
+                        setLicenseExpiryYears={setLicenseExpiryYears}
+                      />
+                    )
                   )}
 
                   {actionUnavailableMessage && (
@@ -1119,11 +1143,97 @@ function getLicenseActionUnavailableMessage(app, department) {
     return "";
   }
 
-  if (department === "PT(IKL)" && status === "license_issued") {
+  if (
+    status === "license_issued" &&
+    (
+      department === "PT(IKL)" ||
+      isSupervisorWorkflowDepartment(department) ||
+      department === "KB(LES)"
+    )
+  ) {
     return "";
   }
 
-  return "PT(IKL) can generate the advertisement license after payment proof is verified.";
+  return "PT(IKL) generates the license after payment verification. Renewal actions appear when a reminder or cancellation task is detected.";
+}
+
+function getLicenseRenewal(app) {
+  const renewal = app?.form_data?.license_renewal || {};
+  return renewal && typeof renewal === "object" ? renewal : {};
+}
+
+function getLicenseRenewalReminders(app) {
+  const reminders = getLicenseRenewal(app).reminders || {};
+  return reminders && typeof reminders === "object" ? reminders : {};
+}
+
+function getReminderStatus(app, months) {
+  return String(getLicenseRenewalReminders(app)?.[String(months)]?.status || "")
+    .trim()
+    .toLowerCase();
+}
+
+function getPendingReminderConfirmationMonth(app) {
+  return [3, 2, 1].find(
+    (months) => getReminderStatus(app, months) === "pending_supervisor_confirmation"
+  );
+}
+
+function getCancellationStatus(app) {
+  const cancellation = getLicenseRenewal(app).cancellation || {};
+  return String(cancellation?.status || "").trim().toLowerCase();
+}
+
+function isSupervisorWorkflowDepartment(department) {
+  return [
+    "KB(LES)",
+    "TP(RES)",
+    "PGH",
+    "TP(RES)/PGH",
+    "TP/PGH",
+    "MPHLG",
+    "SUT",
+  ].includes(department);
+}
+
+function canGenerateRenewalReminder(app, department, months) {
+  return (
+    department === "PT(IKL)" &&
+    normalizeStatus(app?.status) === "license_issued" &&
+    getReminderStatus(app, months) === "pending_pt_letter"
+  );
+}
+
+function canConfirmRenewalReminder(app, department) {
+  return (
+    isSupervisorWorkflowDepartment(department) &&
+    normalizeStatus(app?.status) === "license_issued" &&
+    Boolean(getPendingReminderConfirmationMonth(app))
+  );
+}
+
+function canGenerateCancellationNotice(app, department) {
+  return (
+    department === "PT(IKL)" &&
+    normalizeStatus(app?.status) === "license_issued" &&
+    getCancellationStatus(app) === "pending_pt_notice"
+  );
+}
+
+function canConfirmCancellationNotice(app, department) {
+  return (
+    isSupervisorWorkflowDepartment(department) &&
+    normalizeStatus(app?.status) === "license_issued" &&
+    getCancellationStatus(app) === "pending_supervisor_confirmation"
+  );
+}
+
+function canSupportCancellationNotice(app, department) {
+  return (
+    department === "KB(LES)" &&
+    normalizeStatus(app?.status) === "license_issued" &&
+    getCancellationStatus(app) === "pending_kb_les_support"
+  );
 }
 
 function getApprovalStageLabel(app) {
@@ -2035,7 +2145,7 @@ const configs = {
   },
   license: {
     key: "license",
-    allowedDepartments: ["PT(IKL)"],
+    allowedDepartments: ["PT(IKL)", "KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH", "MPHLG", "SUT"],
     statuses: ["payment_verified", "license_issued", "license_revoked"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.license.listEyebrow",
@@ -2062,6 +2172,7 @@ const configs = {
     ],
     actions: [
       {
+        key: "issue_license",
         label: "Issue License",
         labelKey: "workspace.action.issueLicense",
         icon: "qr_code_2",
@@ -2069,10 +2180,10 @@ const configs = {
         successKey: "workspace.message.licenseIssued",
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_verified",
-        buildPayload: (app) => {
+        buildPayload: (app, data) => {
           const today = new Date();
-          const expiry = new Date(today);
-          expiry.setFullYear(today.getFullYear() + 1);
+          const validityYears = Number(data?.licenseExpiryYears) || 1;
+          const expiry = addCalendarYears(today, validityYears);
           const licenseId = getLicenseId(app);
           return {
             status: "license_issued",
@@ -2085,7 +2196,8 @@ const configs = {
                 location: getApplicationLocation(app),
                 issue_date: today.toISOString(),
                 expiry_date: expiry.toISOString(),
-                verification_url: `${window.location.origin}/license/verify/${licenseId}`,
+                validity_years: validityYears,
+                verification_url: getLicenseVerificationUrl(licenseId),
                 issued_at: new Date().toISOString(),
                 renewal_reminders: [
                   { months_before_expiry: 3, status: "Scheduled" },
@@ -2115,6 +2227,90 @@ const configs = {
               revoked_at: new Date().toISOString(),
             },
           }),
+        }),
+      },
+      {
+        label: "Generate 3-Month Reminder",
+        icon: "description",
+        endpoint: "license-renewal-action",
+        success: "3-month renewal reminder letter generated for supervisor confirmation.",
+        isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 3),
+        buildPayload: (app, data) => ({
+          action: "generate_reminder_letter",
+          months: 3,
+          note: data.comment,
+        }),
+      },
+      {
+        label: "Generate 2-Month Reminder",
+        icon: "description",
+        endpoint: "license-renewal-action",
+        success: "2-month renewal reminder letter generated for supervisor confirmation.",
+        isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 2),
+        buildPayload: (app, data) => ({
+          action: "generate_reminder_letter",
+          months: 2,
+          note: data.comment,
+        }),
+      },
+      {
+        label: "Generate 1-Month Reminder",
+        icon: "description",
+        endpoint: "license-renewal-action",
+        success: "Final renewal reminder letter generated for supervisor confirmation.",
+        isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 1),
+        buildPayload: (app, data) => ({
+          action: "generate_reminder_letter",
+          months: 1,
+          note: data.comment,
+        }),
+      },
+      {
+        label: "Confirm Reminder Letter",
+        icon: "verified",
+        endpoint: "license-renewal-action",
+        success: "Renewal reminder released to the applicant.",
+        isAvailable: (app, department) => canConfirmRenewalReminder(app, department),
+        buildPayload: (app, data) => ({
+          action: "confirm_reminder_letter",
+          months: getPendingReminderConfirmationMonth(app),
+          note: data.comment,
+        }),
+      },
+      {
+        label: "Generate Cancellation Notice",
+        icon: "gavel",
+        endpoint: "license-renewal-action",
+        variant: "danger",
+        success: "Cancellation and enforcement notice generated for supervisor confirmation.",
+        isAvailable: canGenerateCancellationNotice,
+        buildPayload: (app, data) => ({
+          action: "generate_cancellation_notice",
+          note: data.comment,
+        }),
+      },
+      {
+        label: "Confirm Cancellation Notice",
+        icon: "fact_check",
+        endpoint: "license-renewal-action",
+        variant: "danger",
+        success: "Cancellation notice confirmed and sent to KB(LES) for support.",
+        isAvailable: canConfirmCancellationNotice,
+        buildPayload: (app, data) => ({
+          action: "confirm_cancellation_notice",
+          note: data.comment,
+        }),
+      },
+      {
+        label: "Support Cancellation Notice",
+        icon: "verified_user",
+        endpoint: "license-renewal-action",
+        variant: "danger",
+        success: "Cancellation notice released to the applicant and license revoked.",
+        isAvailable: canSupportCancellationNotice,
+        buildPayload: (app, data) => ({
+          action: "support_cancellation_notice",
+          note: data.comment,
         }),
       },
     ],
@@ -3213,14 +3409,113 @@ function getPaymentReceiptSource(receiptFile) {
   );
 }
 
-function LicenseDetails({ app, t }) {
+function LicenseDetails({
+  app,
+  t,
+  canChooseLicenseExpiry,
+  licenseExpiryYears,
+  setLicenseExpiryYears,
+}) {
   const license = app.form_data?.license || {};
+  const renewal = getLicenseRenewal(app);
+  const reminders = getLicenseRenewalReminders(app);
+  const cancellation = renewal.cancellation || {};
+  const previewExpiryDate = getLicenseExpiryPreviewDate(licenseExpiryYears);
+
   return (
-    <div className="grid grid-cols-1 gap-3 text-sm">
-      <Info label={t("workspace.info.licenseId")} value={license.license_id || getLicenseId(app)} />
-      <Info label={t("common.status")} value={license.status || t("workspace.info.pendingIssuance")} />
-      <Info label={t("workspace.info.expiry")} value={formatDate(license.expiry_date)} />
-      <Info label={t("workspace.info.verificationUrl")} value={license.verification_url || t("workspace.info.notGenerated")} />
+    <div className="space-y-4 text-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[220px_220px_360px_minmax(0,1fr)]">
+        <Info label={t("workspace.info.licenseId")} value={license.license_id || getLicenseId(app)} />
+        <Info label={t("common.status")} value={license.status || t("workspace.info.pendingIssuance")} />
+        {canChooseLicenseExpiry ? (
+          <div>
+            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+              {t("workspace.info.expiry", "Expiry")}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <select
+                value={licenseExpiryYears}
+                onChange={(event) => setLicenseExpiryYears(event.target.value)}
+                className="form-input h-10 !w-28 text-[14px]"
+              >
+                {LICENSE_EXPIRY_YEAR_OPTIONS.map((years) => (
+                  <option key={years} value={years}>
+                    {t(
+                      `workspace.license.validity.${years}`,
+                      `${years} ${years === 1 ? "year" : "years"}`
+                    )}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[14px] font-medium leading-5 text-slate-800">
+                {t("workspace.license.expiresOn", "Expires on")} {formatDateTime(previewExpiryDate)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <Info label={t("workspace.info.expiry")} value={formatDateTime(license.expiry_date)} />
+        )}
+        <LicenseUrlInfo
+          label={t("workspace.info.verificationUrl")}
+          value={license.verification_url || t("workspace.info.notGenerated")}
+        />
+      </div>
+
+      {Object.keys(renewal).length > 0 && (
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+            Renewal workflow
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {[3, 2, 1].map((months) => (
+              <Info
+                key={months}
+                label={`${months}-month reminder`}
+                value={formatWorkflowStatus(reminders[String(months)]?.status || "Not detected")}
+              />
+            ))}
+            <Info
+              label="Cancellation"
+              value={formatWorkflowStatus(cancellation.status || "Not triggered")}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getLicenseExpiryPreviewDate(years) {
+  const issueDate = new Date();
+  return addCalendarYears(issueDate, Number(years) || 1).toISOString();
+}
+
+function addCalendarYears(value, years) {
+  const next = new Date(value);
+  const targetYear = value.getFullYear() + years;
+  const targetMonth = value.getMonth();
+  const lastDayOfTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  next.setFullYear(targetYear, targetMonth, Math.min(value.getDate(), lastDayOfTargetMonth));
+  return next;
+}
+
+function getLicenseVerificationUrl(licenseId) {
+  const fallbackOrigin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const origin = PUBLIC_FRONTEND_URL || fallbackOrigin;
+
+  return `${origin}/license/verify/${licenseId}`;
+}
+
+function LicenseUrlInfo({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 max-w-full break-all text-[14px] font-medium leading-5 text-slate-800">
+        {value || "-"}
+      </p>
     </div>
   );
 }

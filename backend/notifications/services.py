@@ -3,11 +3,15 @@ import logging
 import re
 import urllib.error
 import urllib.request
+from calendar import monthrange
+from copy import deepcopy
+from datetime import datetime, time
 from hashlib import sha1
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
+from django.utils.dateparse import parse_datetime, parse_date
 from django.utils import timezone
 
 from .models import NotificationDelivery
@@ -165,6 +169,17 @@ ADMIN_NOTIFICATION_STATUSES = {
 }
 
 SUPERADMIN_NOTIFICATION_STATUSES = {"account_created"}
+LICENSE_RENEWAL_NOTIFICATION_STATUSES = {
+    "license_renewal_3m",
+    "license_renewal_2m",
+    "license_renewal_1m",
+    "license_renewal_supervisor_confirmation",
+    "license_renewal_released",
+    "license_cancellation_pending",
+    "license_cancellation_supervisor_confirmation",
+    "license_cancellation_kb_support",
+    "license_cancellation_released",
+}
 
 NOTIFIABLE_STATUSES = APPLICANT_NOTIFICATION_STATUSES | ADMIN_NOTIFICATION_STATUSES
 
@@ -233,6 +248,199 @@ def notify_account_created(account, created_by=None):
         )
 
 
+def process_license_renewal_reminders(now=None):
+    from applications.models import Application
+
+    current_time = now or timezone.now()
+    processed = {
+        "reminders": 0,
+        "cancellations": 0,
+    }
+
+    applications = Application.objects.select_related("applicant").filter(status="license_issued")
+
+    for application in applications:
+        changed = False
+        form_data = deepcopy(application.form_data or {})
+        license_data = get_form_data_section(form_data, "license")
+        expiry = parse_license_datetime(license_data.get("expiry_date"))
+
+        if not expiry or normalize_status_value(license_data.get("status")) != "active":
+            continue
+
+        renewal = get_form_data_section(form_data, "license_renewal")
+        reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+
+        for months in (3, 2, 1):
+            key = str(months)
+            if reminders.get(key):
+                continue
+
+            if current_time >= subtract_calendar_months(expiry, months):
+                reminders[key] = build_renewal_reminder_record(months, expiry, current_time)
+                notify_license_renewal_detected(application, months, expiry)
+                processed["reminders"] += 1
+                changed = True
+
+        renewal["reminders"] = reminders
+
+        if current_time > expiry and not has_verified_renewal_payment(renewal):
+            cancellation = renewal.get("cancellation") if isinstance(renewal.get("cancellation"), dict) else {}
+            if not cancellation:
+                renewal["cancellation"] = {
+                    "status": "pending_pt_notice",
+                    "detected_at": current_time.isoformat(),
+                    "expiry_date": expiry.isoformat(),
+                }
+                notify_license_cancellation_task(application, "license_cancellation_pending")
+                processed["cancellations"] += 1
+                changed = True
+
+        if changed:
+            form_data["license_renewal"] = renewal
+            application.form_data = form_data
+            application.save(update_fields=["form_data"])
+
+    return processed
+
+
+def apply_license_renewal_action(application, action, user, months=None, note=""):
+    action = str(action or "").strip().lower()
+    form_data = deepcopy(application.form_data or {})
+    renewal = get_form_data_section(form_data, "license_renewal")
+
+    if action in {"generate_reminder_letter", "confirm_reminder_letter"}:
+        if months not in {1, 2, 3}:
+            raise ValueError("Reminder month must be 1, 2, or 3.")
+
+        result = apply_license_reminder_action(application, renewal, action, user, months, note)
+    elif action in {
+        "generate_cancellation_notice",
+        "confirm_cancellation_notice",
+        "support_cancellation_notice",
+    }:
+        result = apply_license_cancellation_action(application, form_data, renewal, action, user, note)
+    else:
+        raise ValueError("Unsupported license renewal action.")
+
+    form_data["license_renewal"] = renewal
+    application.form_data = form_data
+    update_fields = ["form_data"]
+
+    if result.get("status"):
+        application.status = result["status"]
+        update_fields.append("status")
+
+    application.save(update_fields=update_fields)
+    return application
+
+
+def apply_license_reminder_action(application, renewal, action, user, months, note):
+    reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+    key = str(months)
+    reminder = reminders.get(key)
+    if not isinstance(reminder, dict):
+        raise ValueError(f"The {months}-month renewal reminder has not been detected yet.")
+
+    if action == "generate_reminder_letter":
+        if not is_pt_ikl_user(user):
+            raise PermissionError("Only PT(IKL) can generate renewal reminder letters.")
+
+        reminder["status"] = "pending_supervisor_confirmation"
+        reminder["letter"] = {
+            "type": "renewal_reminder",
+            "months_before_expiry": months,
+            "generated_at": timezone.now().isoformat(),
+            "generated_by": get_web_recipient(user),
+            "note": clean_remark(note),
+            "content": build_renewal_letter_text(application, months),
+        }
+        reminders[key] = reminder
+        renewal["reminders"] = reminders
+        notify_license_renewal_supervisor_task(application, months)
+        return {}
+
+    if action == "confirm_reminder_letter":
+        if not is_supervisor_user(user):
+            raise PermissionError("Only a supervisor can confirm renewal reminder letters.")
+
+        if reminder.get("status") != "pending_supervisor_confirmation":
+            raise ValueError("The reminder letter is not waiting for supervisor confirmation.")
+
+        reminder["status"] = "released_to_applicant"
+        reminder["confirmed_at"] = timezone.now().isoformat()
+        reminder["confirmed_by"] = get_web_recipient(user)
+        reminder["confirmation_note"] = clean_remark(note)
+        reminders[key] = reminder
+        renewal["reminders"] = reminders
+        notify_license_renewal_released(application, months)
+        return {}
+
+    raise ValueError("Unsupported reminder action.")
+
+
+def apply_license_cancellation_action(application, form_data, renewal, action, user, note):
+    cancellation = renewal.get("cancellation") if isinstance(renewal.get("cancellation"), dict) else {}
+
+    if action == "generate_cancellation_notice":
+        if not is_pt_ikl_user(user):
+            raise PermissionError("Only PT(IKL) can generate cancellation notices.")
+
+        cancellation.update({
+            "status": "pending_supervisor_confirmation",
+            "generated_at": timezone.now().isoformat(),
+            "generated_by": get_web_recipient(user),
+            "note": clean_remark(note),
+            "content": build_cancellation_notice_text(application),
+        })
+        renewal["cancellation"] = cancellation
+        notify_license_cancellation_task(application, "license_cancellation_supervisor_confirmation")
+        return {}
+
+    if action == "confirm_cancellation_notice":
+        if not is_supervisor_user(user):
+            raise PermissionError("Only a supervisor can confirm cancellation notices.")
+
+        if cancellation.get("status") != "pending_supervisor_confirmation":
+            raise ValueError("The cancellation notice is not waiting for supervisor confirmation.")
+
+        cancellation.update({
+            "status": "pending_kb_les_support",
+            "confirmed_at": timezone.now().isoformat(),
+            "confirmed_by": get_web_recipient(user),
+            "confirmation_note": clean_remark(note),
+        })
+        renewal["cancellation"] = cancellation
+        notify_license_cancellation_task(application, "license_cancellation_kb_support")
+        return {}
+
+    if action == "support_cancellation_notice":
+        if not is_kb_les_user(user):
+            raise PermissionError("Only KB(LES) can support cancellation notices.")
+
+        if cancellation.get("status") != "pending_kb_les_support":
+            raise ValueError("The cancellation notice is not waiting for KB(LES) support.")
+
+        cancellation.update({
+            "status": "released_to_applicant",
+            "supported_at": timezone.now().isoformat(),
+            "supported_by": get_web_recipient(user),
+            "support_note": clean_remark(note),
+        })
+        renewal["cancellation"] = cancellation
+        license_data = get_form_data_section(form_data, "license")
+        license_data.update({
+            "status": "Revoked",
+            "revoked_at": timezone.now().isoformat(),
+            "revocation_reason": "No renewal payment after expiry.",
+        })
+        form_data["license"] = license_data
+        notify_license_cancellation_released(application)
+        return {"status": "license_revoked"}
+
+    raise ValueError("Unsupported cancellation action.")
+
+
 def build_account_created_message(account, created_by=None):
     role = normalize_account_role(getattr(account, "role", ""))
     account_name = normalize_account_name(account)
@@ -279,6 +487,234 @@ def build_account_created_message(account, created_by=None):
     }
 
     return subject, "\n".join(lines), metadata
+
+
+def build_renewal_reminder_record(months, expiry, current_time):
+    return {
+        "months_before_expiry": months,
+        "status": "pending_pt_letter",
+        "detected_at": current_time.isoformat(),
+        "expiry_date": expiry.isoformat(),
+    }
+
+
+def notify_license_renewal_detected(application, months, expiry):
+    title = f"{months}-month license renewal reminder"
+    body = (
+        f"License {get_license_id(application)} for application {application.reference_no} "
+        f"will expire on {format_notification_datetime(expiry)}. PT(IKL) must generate "
+        "the renewal reminder letter and a supervisor must confirm it before release."
+    )
+    event_status = f"license_renewal_{months}m"
+    send_license_workflow_notification(
+        application=application,
+        event_status=event_status,
+        title=title,
+        body=body,
+        recipients=get_pt_ikl_and_supervisor_recipients(),
+        recipient_role="admin",
+        action_url=f"/admin/e-licenses/license?id={application.id}",
+    )
+
+
+def notify_license_renewal_supervisor_task(application, months):
+    title = f"{months}-month renewal letter awaiting supervisor confirmation"
+    body = (
+        f"PT(IKL) has generated the {months}-month renewal reminder letter for "
+        f"application {application.reference_no}. Please verify and confirm the letter."
+    )
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_renewal_supervisor_confirmation",
+        title=title,
+        body=body,
+        recipients=get_supervisor_recipients(),
+        recipient_role="supervisor",
+        action_url=f"/admin/e-licenses/license?id={application.id}",
+        extra_metadata={"months_before_expiry": months},
+    )
+
+
+def notify_license_renewal_released(application, months):
+    title = f"{months}-month license renewal reminder released"
+    body = (
+        f"Your advertisement license for application {application.reference_no} "
+        f"is due to expire. Please complete the renewal process before the expiry date."
+    )
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_renewal_released",
+        title=title,
+        body=body,
+        recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
+        recipient_role="applicant",
+        action_url="/user/dashboard?tab=license",
+        extra_metadata={"months_before_expiry": months},
+        include_external=True,
+    )
+
+
+def notify_license_cancellation_task(application, event_status):
+    copy = {
+        "license_cancellation_pending": (
+            "Cancellation notice required",
+            f"License {get_license_id(application)} has expired without verified renewal payment. PT(IKL) must generate the cancellation and enforcement notice.",
+            get_pt_ikl_recipients(),
+            "admin",
+        ),
+        "license_cancellation_supervisor_confirmation": (
+            "Cancellation notice awaiting supervisor confirmation",
+            f"PT(IKL) has generated the cancellation and enforcement notice for application {application.reference_no}. Please verify and confirm the notice.",
+            get_supervisor_recipients(),
+            "supervisor",
+        ),
+        "license_cancellation_kb_support": (
+            "Cancellation notice awaiting KB(LES) support",
+            f"The cancellation and enforcement notice for application {application.reference_no} has been confirmed by a supervisor. KB(LES) support is required before release.",
+            get_kb_les_recipients(),
+            "supervisor",
+        ),
+    }
+    title, body, recipients, recipient_role = copy[event_status]
+    send_license_workflow_notification(
+        application=application,
+        event_status=event_status,
+        title=title,
+        body=body,
+        recipients=recipients,
+        recipient_role=recipient_role,
+        action_url=f"/admin/e-licenses/license?id={application.id}",
+    )
+
+
+def notify_license_cancellation_released(application):
+    title = "License cancellation notice released"
+    body = (
+        f"Your advertisement license for application {application.reference_no} "
+        "has been cancelled and enforcement action may proceed because renewal payment was not completed after expiry."
+    )
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_cancellation_released",
+        title=title,
+        body=body,
+        recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
+        recipient_role="applicant",
+        action_url="/user/dashboard?tab=license",
+        include_external=True,
+    )
+
+
+def send_license_workflow_notification(
+    application,
+    event_status,
+    title,
+    body,
+    recipients,
+    recipient_role,
+    action_url,
+    extra_metadata=None,
+    include_external=False,
+):
+    subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+    message = format_license_workflow_message(title, body, application)
+    metadata = {
+        "category": "license",
+        "type": "warning" if "cancellation" not in event_status else "error",
+        "title": title,
+        "title_en": title,
+        "message": body,
+        "message_en": body,
+        "recipient_role": recipient_role,
+        "event_status": event_status,
+        "action_url": action_url,
+        **(extra_metadata or {}),
+    }
+    event_key = f"application:{application.id}:{event_status}"
+    if extra_metadata and extra_metadata.get("months_before_expiry"):
+        event_key = f"{event_key}:{extra_metadata['months_before_expiry']}"
+
+    for user in recipients:
+        if not user:
+            continue
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=user,
+            recipient_role=recipient_role,
+            channel="web",
+            recipient=get_web_recipient(user),
+            subject=subject,
+            message=message,
+            metadata=metadata,
+        )
+
+    if include_external and recipient_role == "applicant":
+        for email in get_applicant_emails(application):
+            create_and_send_delivery(
+                application=application,
+                event_key=event_key,
+                user=application.applicant,
+                recipient_role=recipient_role,
+                channel="email",
+                recipient=email,
+                subject=subject,
+                message=message,
+                metadata=metadata,
+            )
+        for phone in get_applicant_whatsapp_numbers(application):
+            create_and_send_delivery(
+                application=application,
+                event_key=event_key,
+                user=application.applicant,
+                recipient_role=recipient_role,
+                channel="whatsapp",
+                recipient=phone,
+                subject=subject,
+                message=message,
+                metadata=metadata,
+            )
+        return
+
+    for user in recipients:
+        email = normalize_email(getattr(user, "email", ""))
+        if email:
+            create_and_send_delivery(
+                application=application,
+                event_key=event_key,
+                user=user,
+                recipient_role=recipient_role,
+                channel="email",
+                recipient=email,
+                subject=subject,
+                message=message,
+                metadata=metadata,
+            )
+        phone = normalize_phone(getattr(user, "mobile_number", ""))
+        if phone:
+            create_and_send_delivery(
+                application=application,
+                event_key=event_key,
+                user=user,
+                recipient_role=recipient_role,
+                channel="whatsapp",
+                recipient=phone,
+                subject=subject,
+                message=message,
+                metadata=metadata,
+            )
+
+
+def format_license_workflow_message(title, body, application):
+    return "\n".join([
+        APP_BRAND_NAME,
+        "",
+        title,
+        f"Reference: {application.reference_no}",
+        f"License ID: {get_license_id(application)}",
+        "",
+        body,
+    ])
 
 
 def get_account_management_url(role):
@@ -762,6 +1198,10 @@ def is_kb_les_user(user):
     return normalize_department(getattr(user, "department", "")) == "KB(LES)"
 
 
+def is_supervisor_user(user):
+    return str(getattr(user, "role", "") or "").strip().lower() == "supervisor"
+
+
 def is_approval_support_user(user):
     return normalize_department(getattr(user, "department", "")) in APPROVAL_SUPPORT_DEPARTMENTS
 
@@ -898,6 +1338,36 @@ def get_notification_sender_phone():
 def get_admin_web_recipients():
     User = get_user_model()
     return list(User.objects.filter(role__in=["admin", "supervisor", "staff"]))
+
+
+def get_pt_ikl_recipients():
+    User = get_user_model()
+    return [user for user in User.objects.filter(role__in=["admin", "staff"], is_active=True) if is_pt_ikl_user(user)]
+
+
+def get_supervisor_recipients():
+    User = get_user_model()
+    return list(User.objects.filter(role="supervisor", is_active=True))
+
+
+def get_kb_les_recipients():
+    User = get_user_model()
+    return [user for user in User.objects.filter(role__in=["admin", "supervisor", "staff"], is_active=True) if is_kb_les_user(user)]
+
+
+def get_pt_ikl_and_supervisor_recipients():
+    return dedupe_users([*get_pt_ikl_recipients(), *get_supervisor_recipients()])
+
+
+def dedupe_users(users):
+    seen = set()
+    result = []
+    for user in users:
+        if not getattr(user, "id", None) or user.id in seen:
+            continue
+        seen.add(user.id)
+        result.append(user)
+    return result
 
 
 def get_superadmin_web_recipients():
@@ -1193,6 +1663,71 @@ def get_nested(data, *keys):
             return ""
         current = current.get(key, "")
     return str(current or "").strip()
+
+
+def parse_license_datetime(value):
+    if not value:
+        return None
+
+    parsed = parse_datetime(str(value))
+    if parsed is None:
+        parsed_date = parse_date(str(value))
+        if parsed_date is None:
+            return None
+        parsed = datetime.combine(parsed_date, time.min)
+
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+
+    return parsed
+
+
+def subtract_calendar_months(value, months):
+    month_index = value.month - months
+    year = value.year
+    while month_index <= 0:
+        month_index += 12
+        year -= 1
+
+    day = min(value.day, monthrange(year, month_index)[1])
+    return value.replace(year=year, month=month_index, day=day)
+
+
+def has_verified_renewal_payment(renewal):
+    payment = renewal.get("payment") if isinstance(renewal, dict) else {}
+    if not isinstance(payment, dict):
+        return False
+
+    return normalize_status_value(payment.get("status")) in {"payment verified", "verified", "paid"}
+
+
+def get_license_id(application):
+    license_data = get_form_section(application, "license")
+    return str(license_data.get("license_id") or "").strip() or "-"
+
+
+def format_notification_datetime(value):
+    if not value:
+        return "-"
+
+    local_value = timezone.localtime(value)
+    return local_value.strftime("%d %b %Y, %I:%M %p")
+
+
+def build_renewal_letter_text(application, months):
+    return (
+        f"Renewal Reminder {months}: Advertisement license {get_license_id(application)} "
+        f"for application {application.reference_no} is approaching expiry. "
+        "Please renew the license before the expiry date to avoid cancellation or enforcement action."
+    )
+
+
+def build_cancellation_notice_text(application):
+    return (
+        f"Cancellation and Enforcement Notice: Advertisement license {get_license_id(application)} "
+        f"for application {application.reference_no} has expired and renewal payment has not been completed. "
+        "The license will be cancelled and enforcement action may proceed."
+    )
 
 
 def join_phone(country_code, number):

@@ -26,6 +26,8 @@ const applicantNotificationStatuses = new Set([
   "rejected",
   "invoice_generated",
   "license_issued",
+  "license_renewal_released",
+  "license_cancellation_released",
 ]);
 const technicalDepartments = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
@@ -45,6 +47,13 @@ adminNotificationStatuses.add("approved");
 adminNotificationStatuses.add("bill_pending_ku");
 adminNotificationStatuses.add("payment_submitted");
 adminNotificationStatuses.add("payment_verified");
+adminNotificationStatuses.add("license_renewal_3m");
+adminNotificationStatuses.add("license_renewal_2m");
+adminNotificationStatuses.add("license_renewal_1m");
+adminNotificationStatuses.add("license_renewal_supervisor_confirmation");
+adminNotificationStatuses.add("license_cancellation_pending");
+adminNotificationStatuses.add("license_cancellation_supervisor_confirmation");
+adminNotificationStatuses.add("license_cancellation_kb_support");
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {

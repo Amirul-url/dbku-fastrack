@@ -14,7 +14,11 @@ from .serializers import (
     ApplicationDetailSerializer,
     SupportingDocumentSerializer,
 )
-from notifications.services import normalize_department, notify_application_status_change
+from notifications.services import (
+    apply_license_renewal_action,
+    normalize_department,
+    notify_application_status_change,
+)
 
 STAFF_ROLES = ["admin", "supervisor", "staff"]
 
@@ -331,6 +335,37 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "message": "Application approved successfully.",
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
+            }
+        )
+
+    @action(detail=True, methods=["post"], url_path="license-renewal-action")
+    def license_renewal_action(self, request, pk=None):
+        application = self.get_object()
+        action_name = request.data.get("action")
+        note = request.data.get("note", "")
+        months = request.data.get("months")
+
+        try:
+            months = int(months) if months is not None else None
+            application = apply_license_renewal_action(
+                application=application,
+                action=action_name,
+                user=request.user,
+                months=months,
+                note=note,
+            )
+        except PermissionError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except (TypeError, ValueError) as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            {
+                "message": "License renewal workflow updated.",
                 "data": ApplicationDetailSerializer(
                     application,
                     context={"request": request},

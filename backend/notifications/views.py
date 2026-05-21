@@ -10,6 +10,7 @@ from .services import (
     APPLICANT_NOTIFICATION_STATUSES,
     SUPERADMIN_NOTIFICATION_STATUSES,
     ADMIN_TECHNICAL_TASK_STATUSES,
+    LICENSE_RENEWAL_NOTIFICATION_STATUSES,
     normalize_department,
 )
 
@@ -34,6 +35,10 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                     "approved",
                     "payment_submitted",
                     "payment_verified",
+                    "license_renewal_3m",
+                    "license_renewal_2m",
+                    "license_renewal_1m",
+                    "license_cancellation_pending",
                 }
             elif department == "KU(IKL)":
                 allowed_event_statuses = {
@@ -50,17 +55,38 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
             elif department in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
                 allowed_event_statuses = {"management_review"}
+                if department == "KB(LES)":
+                    allowed_event_statuses = {
+                        "management_review",
+                        "license_cancellation_kb_support",
+                        "license_renewal_3m",
+                        "license_renewal_2m",
+                        "license_renewal_1m",
+                        "license_renewal_supervisor_confirmation",
+                        "license_cancellation_supervisor_confirmation",
+                    }
             elif department == "MPHLG":
                 allowed_event_statuses = {"mphlg_processing"}
             elif department == "SUT":
                 allowed_event_statuses = {"mphlg_decision_received"}
             else:
                 allowed_event_statuses = set()
+            if self.request.user.role == "supervisor":
+                allowed_event_statuses = set(allowed_event_statuses) | {
+                    "license_renewal_3m",
+                    "license_renewal_2m",
+                    "license_renewal_1m",
+                    "license_renewal_supervisor_confirmation",
+                    "license_cancellation_supervisor_confirmation",
+                }
             recipient_filter = Q(user=self.request.user) | Q(
                 user__role__in=["admin", "supervisor", "staff"],
             )
         else:
-            allowed_event_statuses = APPLICANT_NOTIFICATION_STATUSES
+            allowed_event_statuses = APPLICANT_NOTIFICATION_STATUSES | {
+                "license_renewal_released",
+                "license_cancellation_released",
+            }
             recipient_filter = Q(user=self.request.user)
 
         queryset = (
