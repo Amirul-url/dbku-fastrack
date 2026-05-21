@@ -230,7 +230,7 @@ function PrintFormPage({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 100% !important;
+              width: 210mm !important;
               min-height: auto !important;
               margin: 0 !important;
               padding: 0 !important;
@@ -244,12 +244,12 @@ function PrintFormPage({
             }
 
             .print-page {
-              width: 100% !important;
-              height: 271mm !important;
-              min-height: 271mm !important;
-              max-height: 271mm !important;
+              width: 210mm !important;
+              height: 297mm !important;
+              min-height: 297mm !important;
+              max-height: 297mm !important;
               margin: 0 !important;
-              padding: 0 !important;
+              padding: 14mm 14mm 12mm 14mm !important;
               box-shadow: none !important;
               display: flex !important;
               flex-direction: column !important;
@@ -263,6 +263,10 @@ function PrintFormPage({
 
             .print-page-body {
               flex: 1 1 auto !important;
+            }
+
+            .print-page-footer {
+              margin-top: auto !important;
             }
 
             .print-page-preview-hidden {
@@ -285,7 +289,7 @@ function PrintFormPage({
 
             @page {
               size: A4 portrait;
-              margin: 14mm 14mm 12mm 14mm;
+              margin: 0;
             }
           }
         `}
@@ -424,6 +428,8 @@ function PrintFormPage({
               >
                 <PrintPage
                   title={tx("generatedFormTitle")}
+                  pageNumber={1}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
                   isActive={activePrintPage === 1}
                 >
                   <PrintSection title={tx("step1Print")}>
@@ -494,6 +500,8 @@ function PrintFormPage({
 
                 <PrintPage
                   title={tx("generatedFormTitle")}
+                  pageNumber={2}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
                   isActive={activePrintPage === 2}
                 >
                   <PrintSection title={tx("step2Print")}>
@@ -529,6 +537,8 @@ function PrintFormPage({
 
                 <PrintPage
                   title={tx("generatedFormTitle")}
+                  pageNumber={3}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
                   isActive={activePrintPage === 3}
                 >
                   <PrintSection title={tx("step3Print")}>
@@ -631,7 +641,7 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function PrintPage({ title, isActive = true, children }) {
+function PrintPage({ title, pageNumber, totalPages, isActive = true, children }) {
   return (
     <div
       className={`print-page${isActive ? "" : " print-page-preview-hidden"}`}
@@ -663,6 +673,18 @@ function PrintPage({ title, isActive = true, children }) {
 
       <div className="print-page-body" style={{ flex: "1 1 auto" }}>
         {children}
+      </div>
+
+      <div
+        className="print-page-footer"
+        style={{
+          color: "#111111",
+          fontSize: "9pt",
+          marginTop: "auto",
+          textAlign: "right",
+        }}
+      >
+        {pageNumber}/{totalPages}
       </div>
     </div>
   );
