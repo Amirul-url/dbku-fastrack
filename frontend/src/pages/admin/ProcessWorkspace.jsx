@@ -2230,6 +2230,25 @@ const configs = {
         }),
       },
       {
+        label: "Reinstate",
+        icon: "restart_alt",
+        success: "License reinstated.",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_revoked",
+        buildPayload: (app) => ({
+          status: "license_issued",
+          form_data: mergeFormData(app, {
+            license: {
+              ...(app.form_data?.license || {}),
+              status: "Active",
+              reinstated_at: new Date().toISOString(),
+              revoked_at: "",
+              revocation_reason: "",
+            },
+          }),
+        }),
+      },
+      {
         label: "Generate 3-Month Reminder",
         icon: "description",
         endpoint: "license-renewal-action",
