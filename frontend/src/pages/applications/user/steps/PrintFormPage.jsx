@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
@@ -150,16 +152,58 @@ function PrintFormPage({
       if (!saved) return;
     }
 
-    const previousTitle = document.title;
-    document.title = tx("generatedFormTitle");
+    await generatePdf();
+  }
 
-    setTimeout(() => {
-      window.print();
+  async function generatePdf() {
+    const printArea = document.getElementById("print-form-area");
 
-      setTimeout(() => {
-        document.title = previousTitle || tx("generatedFormTitle");
-      }, 500);
-    }, 100);
+    if (!printArea) return;
+
+    let renderRoot = null;
+
+    try {
+      setSaving(true);
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+      renderRoot = buildPdfRenderRoot(printArea);
+      document.body.appendChild(renderRoot);
+
+      const pages = Array.from(renderRoot.querySelectorAll(".print-page"));
+
+      for (let index = 0; index < pages.length; index += 1) {
+        const canvas = await html2canvas(pages[index], {
+          backgroundColor: "#ffffff",
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          width: pages[index].offsetWidth,
+          height: pages[index].offsetHeight,
+          windowWidth: pages[index].scrollWidth,
+          windowHeight: pages[index].scrollHeight,
+        });
+        const imageData = canvas.toDataURL("image/png");
+
+        if (index > 0) {
+          pdf.addPage("a4", "portrait");
+        }
+
+        pdf.addImage(imageData, "PNG", 0, 0, 210, 297, undefined, "FAST");
+      }
+
+      pdf.save(`${tx("generatedFormTitle").replace(/\s+/g, "_")}.pdf`);
+    } catch (err) {
+      console.error("Generate PDF failed:", err);
+      alert(tx("failedSavePrint"));
+    } finally {
+      renderRoot?.remove();
+      setSaving(false);
+    }
   }
 
   async function handleSubmitApplication() {
@@ -656,6 +700,34 @@ function ReadOnlyNotice({ language, status }) {
       {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(displayStatus)))}
     </div>
   );
+}
+
+function buildPdfRenderRoot(printArea) {
+  const renderRoot = printArea.cloneNode(true);
+
+  renderRoot.removeAttribute("id");
+  renderRoot.style.position = "fixed";
+  renderRoot.style.left = "-10000px";
+  renderRoot.style.top = "0";
+  renderRoot.style.width = "210mm";
+  renderRoot.style.padding = "0";
+  renderRoot.style.margin = "0";
+  renderRoot.style.display = "block";
+  renderRoot.style.gap = "0";
+  renderRoot.style.background = "#ffffff";
+  renderRoot.style.pointerEvents = "none";
+
+  renderRoot.querySelectorAll(".print-page").forEach((page) => {
+    page.classList.remove("print-page-preview-hidden");
+    page.style.display = "flex";
+    page.style.width = "210mm";
+    page.style.minHeight = "297mm";
+    page.style.height = "297mm";
+    page.style.boxShadow = "none";
+    page.style.margin = "0";
+  });
+
+  return renderRoot;
 }
 
 function PrintPage({ title, pageNumber, totalPages, isActive = true, children }) {
