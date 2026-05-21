@@ -148,7 +148,7 @@ function getAdminNotificationRecipient(user, delivery = {}) {
     ? String(delivery.recipient_email || "").trim() || getUserEmail(user)
     : getUserEmail(user);
 
-  if (department === "KU(IKL)" || department === "IKL (TECHNICAL)") {
+  if (department === "KU(IKL)" || department === "IKL (TECHNICAL)" || technicalDepartments.has(department)) {
     return formatEmailRecipient(email);
   }
 
@@ -179,6 +179,14 @@ function getNotificationSender(role, status, user) {
     return "KU(IKL) <ALiS Notification Center>";
   }
 
+  if (
+    role === "admin" &&
+    technicalDepartments.has(department) &&
+    ["technical_review", "technical_site_visit"].includes(normalizedStatus)
+  ) {
+    return "IKL(TECHNICAL) <ALiS Notification Center>";
+  }
+
   return "ALiS Notification Center";
 }
 
@@ -188,7 +196,8 @@ function getNotificationRecipient(role, user) {
   }
 
   if (role === "admin") {
-    if (["KU(IKL)", "IKL (TECHNICAL)"].includes(getUserDepartment(user))) {
+    const department = getUserDepartment(user);
+    if (["KU(IKL)", "IKL (TECHNICAL)"].includes(department) || technicalDepartments.has(department)) {
       return formatEmailRecipient(getUserEmail(user));
     }
 
@@ -232,6 +241,16 @@ function getMemoSubject(subject, title, reference, options = {}) {
     return cleanReference
       ? `${cleanReference} requires IKL (TECHNICAL) review`
       : "Application requires IKL (TECHNICAL) review";
+  }
+
+  if (
+    role === "admin" &&
+    ["technical_review", "technical_site_visit"].includes(status) &&
+    technicalDepartments.has(department)
+  ) {
+    return cleanReference
+      ? `${cleanReference} requires ${department} technical review`
+      : `Application requires ${department} technical review`;
   }
 
   if (cleanSubject) return cleanSubject;
