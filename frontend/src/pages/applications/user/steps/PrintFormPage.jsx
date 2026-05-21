@@ -21,6 +21,7 @@ import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
 
 const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
+const PRINT_FORM_TOTAL_PAGES = 3;
 
 function PrintFormPage({
   LayoutComponent = UserDashboardLayout,
@@ -55,6 +56,7 @@ function PrintFormPage({
   });
   const [saving, setSaving] = useState(false);
   const [applicationRecord, setApplicationRecord] = useState(null);
+  const [activePrintPage, setActivePrintPage] = useState(1);
 
   useEffect(() => {
     document.title = tx("generatedFormTitle");
@@ -199,6 +201,10 @@ function PrintFormPage({
     <Layout>
       <style>
         {`
+          .print-page-preview-hidden {
+            display: none;
+          }
+
           @media print {
             html,
             body {
@@ -239,16 +245,22 @@ function PrintFormPage({
 
             .print-page {
               width: 100% !important;
-              min-height: auto !important;
+              min-height: calc(297mm - 26mm) !important;
               margin: 0 !important;
               padding: 0 !important;
               box-shadow: none !important;
+              display: flex !important;
+              flex-direction: column !important;
               break-after: page !important;
               page-break-after: always !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
               background: #ffffff !important;
               box-sizing: border-box !important;
+            }
+
+            .print-page-preview-hidden {
+              display: flex !important;
             }
 
             .print-page:last-child {
@@ -360,6 +372,34 @@ function PrintFormPage({
                 >
                   {saving ? tx("saving") : tx("printSavePdf")}
                 </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActivePrintPage((page) => Math.max(1, page - 1))}
+                    disabled={activePrintPage === 1}
+                    className="h-9 w-9 border border-slate-300 rounded text-base font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Previous print page"
+                  >
+                    {"<"}
+                  </button>
+                  <span className="text-sm font-semibold text-slate-700">
+                    Page {activePrintPage} of {PRINT_FORM_TOTAL_PAGES}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setActivePrintPage((page) =>
+                        Math.min(PRINT_FORM_TOTAL_PAGES, page + 1)
+                      )
+                    }
+                    disabled={activePrintPage === PRINT_FORM_TOTAL_PAGES}
+                    className="h-9 w-9 border border-slate-300 rounded text-base font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Next print page"
+                  >
+                    {">"}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -376,7 +416,12 @@ function PrintFormPage({
                   gap: "10mm",
                 }}
               >
-                <PrintPage title={tx("generatedFormTitle")}>
+                <PrintPage
+                  title={tx("generatedFormTitle")}
+                  pageNumber={1}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
+                  isActive={activePrintPage === 1}
+                >
                   <PrintSection title={tx("step1Print")}>
                     <PrintLine
                       no="1."
@@ -443,7 +488,12 @@ function PrintFormPage({
                   </PrintSection>
                 </PrintPage>
 
-                <PrintPage title={tx("generatedFormTitle")}>
+                <PrintPage
+                  title={tx("generatedFormTitle")}
+                  pageNumber={2}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
+                  isActive={activePrintPage === 2}
+                >
                   <PrintSection title={tx("step2Print")}>
                     <PrintSubheading>{tx("organisation")}</PrintSubheading>
                     <PrintLine label={tx("organisationType")} value={organisationTypeLabel(language, step3.org_type)} />
@@ -475,7 +525,12 @@ function PrintFormPage({
                   </PrintSection>
                 </PrintPage>
 
-                <PrintPage title={tx("generatedFormTitle")}>
+                <PrintPage
+                  title={tx("generatedFormTitle")}
+                  pageNumber={3}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
+                  isActive={activePrintPage === 3}
+                >
                   <PrintSection title={tx("step3Print")}>
                     <DocumentSummary title={tx("requiredSupportingDocuments")} rows={requiredDocuments} language={language} noAttachmentText={tx("noAttachment")} />
                     <DocumentSummary title={tx("otherSupportingDocuments")} rows={otherDocuments} language={language} noAttachmentText={tx("noAttachment")} other />
@@ -576,10 +631,10 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function PrintPage({ title, children }) {
+function PrintPage({ title, pageNumber, totalPages, isActive = true, children }) {
   return (
     <div
-      className="print-page"
+      className={`print-page${isActive ? "" : " print-page-preview-hidden"}`}
       style={{
         width: "210mm",
         minHeight: "297mm",
@@ -589,6 +644,8 @@ function PrintPage({ title, children }) {
         background: "#ffffff",
         boxSizing: "border-box",
         boxShadow: "0 1px 4px rgba(15, 23, 42, 0.12)",
+        ...(isActive ? { display: "flex" } : {}),
+        flexDirection: "column",
       }}
     >
       <div style={{ textAlign: "center", marginBottom: "9mm" }}>
@@ -604,7 +661,20 @@ function PrintPage({ title, children }) {
         </h1>
       </div>
 
-      {children}
+      <div style={{ flex: "1 1 auto" }}>{children}</div>
+
+      <div
+        style={{
+          borderTop: "1px solid #d4d4d4",
+          color: "#333333",
+          fontSize: "11pt",
+          marginTop: "8mm",
+          paddingTop: "3mm",
+          textAlign: "center",
+        }}
+      >
+        Page {pageNumber} of {totalPages}
+      </div>
     </div>
   );
 }
