@@ -50,7 +50,8 @@ function UserViewStepControls({ applicationId, currentStep, language, className 
       {nextStep <= TOTAL_STEPS ? (
         <Link
           to={buildStepPath(applicationId, nextStep)}
-          className="rounded bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224]"
+          className="rounded bg-[#006d32] px-3 py-1.5 text-xs font-semibold !text-white hover:bg-[#005224]"
+          style={{ color: "#fff" }}
         >
           {stepText(language, "next")}
         </Link>

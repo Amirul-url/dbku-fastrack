@@ -424,27 +424,40 @@ function PrintFormPage({
             </div>
 
             <div className="flex flex-wrap justify-end gap-2 p-5 print-hide">
-              <button
-                type="button"
-                onClick={handleSaveDraftAndBack}
-                disabled={saving}
-                className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
-              >
-                {saving ? tx("saving") : tx("saveDraftBackApplications")}
-              </button>
+              {isAdminView ? (
+                <AdminViewStepControls
+                  applicationId={applicationId}
+                  currentStep={5}
+                  language={language}
+                />
+              ) : isReadOnly ? (
+                <UserViewStepControls
+                  applicationId={applicationId}
+                  currentStep={5}
+                  language={language}
+                />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveDraftAndBack}
+                    disabled={saving}
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                  </button>
 
-              <Link
-                to={
-                  isAdminReview
-                    ? adminStepPath(4)
-                    : `/applications/${applicationId}/declaration?id=${applicationId}`
-                }
-                className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-              >
-                {tx("previous")}
-              </Link>
+                  <Link
+                    to={
+                      isAdminReview
+                        ? adminStepPath(4)
+                        : `/applications/${applicationId}/declaration?id=${applicationId}`
+                    }
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                  >
+                    {tx("previous")}
+                  </Link>
 
-              {!isReadOnly && (
                 <button
                   type="button"
                   onClick={handleSubmitApplication}
@@ -453,6 +466,7 @@ function PrintFormPage({
                 >
                   {saving ? tx("submitting") : tx("saveSubmit")}
                 </button>
+                </>
               )}
             </div>
           </section>
