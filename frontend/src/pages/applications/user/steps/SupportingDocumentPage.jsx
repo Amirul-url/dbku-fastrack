@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
+  fetchAuthenticatedBlob,
   uploadApplicationDocument,
 } from "../../../../services/api";
 import {
@@ -775,6 +776,35 @@ function FileAction({
 }) {
   const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
   const tx = (key) => stepText(language, key);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!attachmentUrl || downloading) return;
+
+    try {
+      setDownloading(true);
+
+      const blob =
+        attachmentUrl.startsWith("blob:") || attachmentUrl.startsWith("data:")
+          ? await fetch(attachmentUrl).then((response) => response.blob())
+          : await fetchAuthenticatedBlob(attachmentUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = objectUrl;
+      link.download = attachment?.name || "attachment";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch (error) {
+      console.error("Failed to download attachment:", error);
+      alert(tx("failedDownload"));
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (readOnly) {
     return (
@@ -784,17 +814,21 @@ function FileAction({
         </span>
 
         {attachment ? (
-          <a
-            href={attachmentUrl}
-            download={attachment.name}
-            className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={!attachmentUrl || downloading}
+            className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
             title={tx("download")}
             aria-label={tx("download")}
           >
-            <span className="material-symbols-outlined text-[17px] leading-none">
+            <span
+              className="material-symbols-outlined leading-none"
+              style={{ fontSize: "17px" }}
+            >
               file_download
             </span>
-          </a>
+          </button>
         ) : (
           <span className="h-8 w-8" />
         )}
@@ -831,16 +865,21 @@ function FileAction({
 
         {attachment ? (
           <>
-            <a
-              href={attachmentUrl}
-              download={attachment.name}
-              className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={!attachmentUrl || downloading}
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
               title={tx("download")}
+              aria-label={tx("download")}
             >
-              <span className="material-symbols-outlined text-[18px] leading-none">
+              <span
+                className="material-symbols-outlined leading-none"
+                style={{ fontSize: "18px" }}
+              >
                 file_download
               </span>
-            </a>
+            </button>
 
             <button
               type="button"
