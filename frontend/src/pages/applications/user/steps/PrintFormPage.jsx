@@ -251,8 +251,8 @@ function PrintFormPage({
               margin: 0 !important;
               padding: 14mm 14mm 12mm 14mm !important;
               box-shadow: none !important;
-              display: flex !important;
-              flex-direction: column !important;
+              display: block !important;
+              position: relative !important;
               break-after: page !important;
               page-break-after: always !important;
               break-inside: avoid !important;
@@ -262,11 +262,28 @@ function PrintFormPage({
             }
 
             .print-page-body {
-              flex: 1 1 auto !important;
+              display: block !important;
+              width: 100% !important;
+              padding-bottom: 12mm !important;
+              box-sizing: border-box !important;
             }
 
             .print-page-footer {
-              margin-top: auto !important;
+              position: absolute !important;
+              right: 14mm !important;
+              bottom: 8mm !important;
+              margin: 0 !important;
+            }
+
+            .print-section,
+            .print-section-body,
+            .print-line,
+            .print-block,
+            .print-block-value,
+            .print-subheading,
+            .document-summary {
+              width: 100% !important;
+              box-sizing: border-box !important;
             }
 
             .print-page-preview-hidden {
@@ -692,7 +709,7 @@ function PrintPage({ title, pageNumber, totalPages, isActive = true, children })
 
 function PrintSection({ title, children }) {
   return (
-    <section style={{ marginTop: "7mm" }}>
+    <section className="print-section" style={{ marginTop: "7mm", width: "100%" }}>
       <h2
         style={{
           borderBottom: "1px solid #000000",
@@ -704,7 +721,9 @@ function PrintSection({ title, children }) {
       >
         {title}
       </h2>
-      <div>{children}</div>
+      <div className="print-section-body" style={{ width: "100%" }}>
+        {children}
+      </div>
     </section>
   );
 }
@@ -712,7 +731,7 @@ function PrintSection({ title, children }) {
 function PrintSubheading({ children }) {
   return (
     <div
-      className="print-avoid-break"
+      className="print-avoid-break print-subheading"
       style={{
         background: "#f2f2f2",
         border: "1px solid #d5d5d5",
@@ -730,7 +749,7 @@ function PrintSubheading({ children }) {
 function PrintLine({ no, label, value }) {
   return (
     <div
-      className="print-avoid-break"
+      className="print-avoid-break print-line"
       style={{
         display: "grid",
         gridTemplateColumns: no ? "9mm 58mm minmax(0, 1fr)" : "67mm minmax(0, 1fr)",
@@ -752,14 +771,15 @@ function PrintLine({ no, label, value }) {
 function PrintBlock({ no, label, value }) {
   return (
     <div
-      className="print-avoid-break"
-      style={{ fontSize: "11pt", lineHeight: 1.35, padding: "2mm 0" }}
+      className="print-avoid-break print-block"
+      style={{ fontSize: "11pt", lineHeight: 1.35, padding: "2mm 0", width: "100%" }}
     >
       <div style={{ display: "flex", gap: "2mm", fontWeight: 700 }}>
         {no && <span>{no}</span>}
         <span>{label}</span>
       </div>
       <div
+        className="print-block-value"
         style={{
           border: "1px dotted #aaaaaa",
           minHeight: "24mm",
@@ -813,7 +833,10 @@ function DocumentSummary({
   other = false,
 }) {
   return (
-    <div className="print-avoid-break" style={{ marginTop: "3mm", fontSize: "11pt" }}>
+    <div
+      className="print-avoid-break document-summary"
+      style={{ marginTop: "3mm", fontSize: "11pt", width: "100%" }}
+    >
       <div style={{ fontWeight: 700, marginBottom: "1mm" }}>{title}</div>
       {rows.length === 0 ? (
         <div>-</div>
