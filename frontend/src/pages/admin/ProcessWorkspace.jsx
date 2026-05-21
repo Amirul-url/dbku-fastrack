@@ -241,11 +241,13 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const showSiteVisitFields =
     config.showTechnicalSiteVisit && !isDepartmentTechnicalWorkspace;
   const showBottomFormButton = !isFocusedPersonalWorkspace && !tableFirstWorkspace;
-  const actionGridClass = isFocusedPersonalWorkspace || isDepartmentTechnicalWorkspace
-    ? "grid grid-cols-1 gap-2 pt-1"
-    : tableFirstWorkspace
+  const actionGridClass = isDepartmentTechnicalWorkspace
+    ? "flex justify-end gap-2 pt-1"
+    : isFocusedPersonalWorkspace
+      ? "grid grid-cols-1 gap-2 pt-1"
+      : tableFirstWorkspace
       ? "flex justify-end gap-2 pt-1"
-    : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
+      : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
 
   const statusScopedApplications = useMemo(() => {
     const statusScope = getWorkspaceStatusScope(config, userDepartment);
@@ -737,7 +739,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                       <select
                         value={decision}
                         onChange={(event) => setDecision(event.target.value)}
-                        className={`form-input ${tableFirstWorkspace ? "max-w-xs" : ""}`}
+                        className={`form-input ${tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "max-w-xs" : ""}`}
                       >
                         {decisionOptions.map((item) => (
                           <option key={item.value || item} value={item.value || item}>
@@ -866,7 +868,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           disabled={saving}
                           variant={action.variant || "primary"}
                           icon={action.icon}
-                          className={tableFirstWorkspace ? "min-w-56" : "w-full"}
+                          className={tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "min-w-40" : "w-full"}
                         >
                           {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
                         </Button>
