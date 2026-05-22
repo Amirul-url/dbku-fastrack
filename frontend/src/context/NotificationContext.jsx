@@ -90,6 +90,21 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function shouldShowNotificationRemark(status) {
+  return ["incomplete", "rejected", "technical_amendment"].includes(normalizeStatus(status));
+}
+
+function appendNotificationRemark(message, remark, status) {
+  const cleanMessage = String(message || "").trim();
+  const clean = cleanRemark(remark);
+
+  if (!clean || !shouldShowNotificationRemark(status) || /\bRemark\s*:/i.test(cleanMessage)) {
+    return message || "";
+  }
+
+  return cleanMessage ? `${cleanMessage}\n\nRemark: ${clean}` : `Remark: ${clean}`;
+}
+
 function getAdminApplicationViewUrl(app) {
   if (!app?.id) return "/admin/applications";
   return `/admin/applications/${app.id}/view/step-1?id=${app.id}`;
@@ -475,6 +490,8 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
   const updatedAt = app.updated_at || app.created_at || new Date().toISOString();
   const remark = getLatestRemark(app);
   const remarkKey = remark ? `:${remark}` : "";
+  const memoMessageEn = appendNotificationRemark(messageEn, remark, status);
+  const memoMessageMs = appendNotificationRemark(messageMs, remark, status);
 
   return {
     id: `${role}:${app.id}:${status}:${category}:${updatedAt}${remarkKey}`,
@@ -489,12 +506,12 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     title: titleEn,
     titleEn,
     titleMs,
-    message: messageEn,
-    messageEn,
-    messageMs,
-    body: messageEn,
-    bodyEn: messageEn,
-    bodyMs: messageMs,
+    message: memoMessageEn,
+    messageEn: memoMessageEn,
+    messageMs: memoMessageMs,
+    body: memoMessageEn,
+    bodyEn: memoMessageEn,
+    bodyMs: memoMessageMs,
     from: getNotificationSender(role, status, user),
     to: getNotificationRecipient(role, user),
     subject: getMemoSubject("", titleEn, reference, { role, status, user }),
@@ -874,6 +891,8 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       );
       const titleMs = normalizeApplicantNotificationText(metadata.title_ms || title, role, status);
       const messageMs = normalizeApplicantNotificationText(metadata.message_ms || message, role, status);
+      const memoMessage = appendNotificationRemark(message, delivery.latest_remark, status);
+      const memoMessageMs = appendNotificationRemark(messageMs, delivery.latest_remark, status);
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
       const recipientName = String(delivery.recipient_name || "").trim();
       const recipientEmail = String(delivery.recipient_email || "").trim();
@@ -907,13 +926,13 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         type,
         title,
         titleEn: title,
-        message,
-        messageEn: message,
+        message: memoMessage,
+        messageEn: memoMessage,
         titleMs,
-        messageMs,
-        body: message,
-        bodyEn: message,
-        bodyMs: messageMs,
+        messageMs: memoMessageMs,
+        body: memoMessage,
+        bodyEn: memoMessage,
+        bodyMs: memoMessageMs,
         from: getNotificationSender(role, status, user),
         to,
         subject,

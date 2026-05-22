@@ -183,17 +183,18 @@ class NotificationRoutingTests(TestCase):
             department="IKL (TECHNICAL)",
             is_active=True,
         )
-        self.application.latest_remark = "Please revise the technical fee calculation."
+        amendment_remark = "Please revise the technical fee calculation."
+        self.application.latest_remark = ""
         self.application.form_data = {
             **self.application.form_data,
             "technical_ku_review": {
                 "decision": "KU(IKL) Request Technical Amendment",
-                "remarks": "Please revise the technical fee calculation.",
+                "remarks": amendment_remark,
             },
             "correction_request": {
                 "source": "KU(IKL)",
                 "target": "IKL(TECHNICAL)",
-                "remarks": "Please revise the technical fee calculation.",
+                "remarks": amendment_remark,
             },
         }
         self.application.save(update_fields=["latest_remark", "form_data"])
@@ -206,8 +207,15 @@ class NotificationRoutingTests(TestCase):
             metadata__event_status="technical_amendment",
         )
         self.assertEqual(delivery.user, ikl_technical_user)
-        self.assertIn("Remark: Please revise the technical fee calculation.", delivery.message)
-        self.assertIn("Remark: Please revise the technical fee calculation.", delivery.metadata["message_en"])
+        self.assertIn(f"Remark: {amendment_remark}", delivery.message)
+        self.assertIn(f"Remark: {amendment_remark}", delivery.metadata["message_en"])
+
+        client = APIClient()
+        client.force_authenticate(user=ikl_technical_user)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(data[0]["latest_remark"], amendment_remark)
 
     def test_management_review_notifies_kb_les_with_fallback_contacts(self):
         kb_user = User.objects.create_user(

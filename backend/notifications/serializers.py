@@ -53,7 +53,32 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
         return getattr(user, "department", "") if user else ""
 
     def get_latest_remark(self, obj):
-        return getattr(obj.application, "latest_remark", None)
+        application = getattr(obj, "application", None)
+        remark = str(getattr(application, "latest_remark", "") or "").strip()
+        if remark and remark not in {"-", "[]"}:
+            return remark
+
+        form_data = getattr(application, "form_data", None) or {}
+
+        def section(name):
+            value = form_data.get(name) or {}
+            return value if isinstance(value, dict) else {}
+
+        candidates = [
+            section("correction_request").get("remarks"),
+            section("technical_ku_review").get("remarks"),
+            section("technical_ku_review").get("comment"),
+            section("auto_screening").get("remarks"),
+            section("technical_review").get("comment"),
+            section("technical_review").get("remarks"),
+        ]
+
+        for value in candidates:
+            remark = str(value or "").strip()
+            if remark and remark not in {"-", "[]"}:
+                return remark
+
+        return ""
 
     def get_application_updated_at(self, obj):
         return getattr(obj.application, "updated_at", None)
