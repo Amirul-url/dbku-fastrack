@@ -92,7 +92,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         if requested_status == "management_review" and current_status == "management_review":
             if department != "KB(LES)":
-                raise PermissionDenied("Only KB(LES) can support the application at this stage.")
+                raise PermissionDenied("Only KB(LES) can verify the application at this stage.")
+            return
+
+        if requested_status == "technical_review_completed" and current_status == "management_review":
+            if department != "KB(LES)":
+                raise PermissionDenied("Only KB(LES) can return the application to KU(IKL) at this stage.")
             return
 
         if requested_status == "approved" and current_status == "management_review":
@@ -101,8 +106,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return
 
         if requested_status == "rejected" and current_status == "management_review":
-            if department not in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
-                raise PermissionDenied("Only KB(LES) or TP(RES)/PGH can reject at this approval stage.")
+            if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+                raise PermissionDenied("Only TP(RES)/PGH can reject at this approval stage.")
             return
 
         if requested_status == "bill_pending_ku":

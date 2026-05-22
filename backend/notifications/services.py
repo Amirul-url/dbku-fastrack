@@ -790,6 +790,16 @@ def build_status_messages(application):
     if status_key == "management_review":
         title, admin_body = get_management_review_admin_text(application)
         subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+    elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+        title = "KU(IKL) amendment required"
+        admin_body = (
+            f"Application {application.reference_no} was returned by KB(LES) and requires "
+            "KU(IKL) amendment before verification can continue."
+        )
+        remark = get_latest_remark(application)
+        if remark:
+            admin_body = f"{admin_body}\n\nRemark: {remark}"
+        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     elif status_key == "mphlg_processing":
         title = "MPHLG approval required"
         admin_body = f"Application {application.reference_no} is ready for MPHLG approval."
@@ -842,7 +852,7 @@ def build_web_metadata(application, title, body, recipient_role):
     if remark:
         display_message = f"{display_message}\n\nRemark: {remark}"
 
-    return {
+    metadata = {
         "category": category,
         "type": notification_type,
         "title": title,
@@ -852,6 +862,30 @@ def build_web_metadata(application, title, body, recipient_role):
         "recipient_role": recipient_role,
         "event_status": status_key,
     }
+    sender = get_web_metadata_sender(application, recipient_role)
+    if sender:
+        metadata["from"] = sender
+        metadata["sender"] = sender
+
+    return metadata
+
+
+def get_web_metadata_sender(application, recipient_role):
+    if recipient_role == "admin" and is_kb_les_returned_to_ku(application):
+        return "KB(LES) <ALiS Notification Center>"
+
+    return ""
+
+
+def is_kb_les_returned_to_ku(application):
+    if str(getattr(application, "status", "") or "").strip().lower() != "technical_review_completed":
+        return False
+
+    correction = get_form_section(application, "correction_request")
+    return (
+        normalize_department(correction.get("source")) == "KB(LES)"
+        and normalize_department(correction.get("target")) == "KU(IKL)"
+    )
 
 
 def format_notification_message(title, body, application, recipient_role):

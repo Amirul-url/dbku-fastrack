@@ -296,6 +296,12 @@ function getMemoSubject(subject, title, reference, options = {}) {
   }
 
   if (role === "admin" && status === "technical_review_completed" && department === "KU(IKL)") {
+    if (/amendment/i.test(cleanTitle)) {
+      return cleanReference
+        ? `${cleanReference} requires KU(IKL) amendment`
+        : "Application requires KU(IKL) amendment";
+    }
+
     return cleanReference
       ? `${cleanReference} requires KU(IKL) final technical check`
       : "Application requires KU(IKL) final technical check";
@@ -952,7 +958,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         body: memoMessage,
         bodyEn: memoMessage,
         bodyMs: memoMessageMs,
-        from: getNotificationSender(role, status, user),
+        from: metadata.from || metadata.sender || getNotificationSender(role, status, user),
         to,
         subject,
         time: formatDateTime(timestamp),

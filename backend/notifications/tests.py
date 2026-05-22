@@ -336,6 +336,44 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
 
+    def test_kb_les_rejection_notifies_ku_ikl_for_amendment(self):
+        ku_user = User.objects.create_user(
+            username="ku-ikl-return",
+            email="ku-return@example.com",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {
+                "status": "Rejected",
+                "decision": "Reject",
+                "remarks": "Please amend the recommendation.",
+            },
+            "correction_request": {
+                "source": "KB(LES)",
+                "target": "KU(IKL)",
+                "remarks": "Please amend the recommendation.",
+            },
+            "management_recommendation": None,
+            "approval": None,
+        }
+        self.application.latest_remark = "Please amend the recommendation."
+        self.application.save(update_fields=["form_data", "latest_remark"])
+
+        self.notify_status("technical_review_completed", old_status="management_review")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=ku_user,
+            metadata__event_status="technical_review_completed",
+        )
+        self.assertIn("KU(IKL) amendment required", delivery.metadata["title_en"])
+        self.assertIn("returned by KB(LES)", delivery.metadata["message_en"])
+        self.assertEqual(delivery.metadata["from"], "KB(LES) <ALiS Notification Center>")
+
     def test_mphlg_processing_notifies_mphlg_admin(self):
         mphlg_user = User.objects.create_user(
             username="mphlg",

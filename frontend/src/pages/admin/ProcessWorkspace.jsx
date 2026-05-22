@@ -1534,7 +1534,7 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (department === "KB(LES)") {
     return {
-      status: rejected ? "rejected" : "management_review",
+      status: rejected ? "technical_review_completed" : "management_review",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: data.comment || app.latest_remark || "",
       form_data: mergeFormData(app, {
@@ -1547,22 +1547,22 @@ function buildApprovalWorkflowPayload(app, data) {
           verified_at: now,
         },
         management_recommendation: rejected
-          ? app.form_data?.management_recommendation || null
+          ? null
           : {
               ...(app.form_data?.management_recommendation || {}),
               status: "Pending TP(RES)/PGH Approval",
               routed_from: "KB(LES)",
               routed_at: now,
             },
-        approval: rejected
+        correction_request: rejected
           ? {
-              status: "Rejected",
-              final_decision: "Rejected",
-              notes: data.comment,
-              decided_by: "KB(LES)",
-              approved_at: now,
+              source: "KB(LES)",
+              target: "KU(IKL)",
+              remarks: data.comment,
+              requested_at: now,
             }
-          : app.form_data?.approval || null,
+          : app.form_data?.correction_request || null,
+        approval: null,
       }),
     };
   }
