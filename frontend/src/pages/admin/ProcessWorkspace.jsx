@@ -3236,25 +3236,30 @@ function IklWorkspaceSections({
           )}
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {config.technicalActions.map((action) => (
-              <Button
-                key={action.label}
-                onClick={() => {
-                  if (action.disabled) return;
+            {config.technicalActions.map((action) => {
+              const mustWaitForDepartmentFeedback =
+                !allDepartmentReviewsComplete && action.decision !== "Not Supported";
 
-                  submitAction(action, {
-                    comment: technicalSite.site_remarks,
-                    checkDecisionRemark: true,
-                  });
-                }}
-                disabled={saving || !allDepartmentReviewsComplete || action.disabled}
-                variant={action.variant || "primary"}
-                icon={action.icon}
-                className="w-full"
-              >
-                {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-              </Button>
-            ))}
+              return (
+                <Button
+                  key={action.label}
+                  onClick={() => {
+                    if (action.disabled || mustWaitForDepartmentFeedback) return;
+
+                    submitAction(action, {
+                      comment: technicalSite.site_remarks,
+                      checkDecisionRemark: true,
+                    });
+                  }}
+                  disabled={saving || mustWaitForDepartmentFeedback || action.disabled}
+                  variant={action.variant || "primary"}
+                  icon={action.icon}
+                  className="w-full"
+                >
+                  {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+                </Button>
+              );
+            })}
           </div>
         </section>
       )}
