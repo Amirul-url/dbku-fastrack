@@ -969,11 +969,11 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
 
   if (config?.key === "approval") {
     if (userDepartment === "KB(LES)") {
-      return t("workspace.approval.kbAction", "Support applications after KU(IKL) final checking before sending them to TP(RES)/PGH.");
+      return t("workspace.approval.kbAction", "Verify applications after KU(IKL) final checking before sending them to TP(RES)/PGH.");
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.supportAction", "Make the final approval decision after KB(LES) support.");
+      return t("workspace.approval.supportAction", "Make the final approval decision after KB(LES) verification.");
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
@@ -1016,7 +1016,7 @@ function getWorkspaceDecisionOptions(config, app, department) {
 
   if (department === "KB(LES)" && getApprovalStageKey(app) === "kb") {
     return [
-      { value: "Support", labelKey: "workspace.decision.support" },
+      { value: "Verify", labelKey: "workspace.decision.verify" },
       { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
   }
@@ -1146,7 +1146,7 @@ function getActionUnavailableMessage(config, app, department) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
-    return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) support.";
+    return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) verification.";
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
@@ -1157,7 +1157,7 @@ function getActionUnavailableMessage(config, app, department) {
     return stage === "sut" ? "" : "SUT approval is available after MPHLG approval.";
   }
 
-  return "This queue is view-only for this account. SUT records the result first, KB(LES) supports it, then TP(RES)/PGH makes the final approval.";
+  return "This queue is view-only for this account. SUT records the result first, KB(LES) verifies it, then TP(RES)/PGH makes the final approval.";
 }
 
 function getPaymentActionUnavailableMessage(app, department) {
@@ -1289,7 +1289,7 @@ function getApprovalStageLabel(app) {
   if (stage === "mphlg") return "Pending MPHLG Approval";
   if (stage === "sut") return "Pending SUT Approval";
   if (stage === "completed") return "Approval Completed";
-  return "Pending KB(LES) Support";
+  return "Pending KB(LES) Verification";
 }
 
 function getApprovalStageKey(app) {
@@ -1512,7 +1512,7 @@ function buildKuTechnicalReviewPayload(app, data) {
       kb_les_verification: amendmentRequired
         ? null
         : {
-            status: "Pending KB(LES) Support",
+            status: "Pending KB(LES) Verification",
             routed_from: "KU(IKL)",
             routed_at: now,
           },
@@ -1541,10 +1541,10 @@ function buildApprovalWorkflowPayload(app, data) {
         kb_les_verification: {
           ...(app.form_data?.kb_les_verification || {}),
           officer: "KB(LES)",
-          status: rejected ? "Rejected" : "Supported",
+          status: rejected ? "Rejected" : "Verified",
           decision,
           remarks: data.comment,
-          supported_at: now,
+          verified_at: now,
         },
         management_recommendation: rejected
           ? app.form_data?.management_recommendation || null
@@ -1645,7 +1645,7 @@ function buildApprovalWorkflowPayload(app, data) {
         },
         kb_les_verification: decision === "Approve"
           ? {
-              status: "Pending KB(LES) Support",
+              status: "Pending KB(LES) Verification",
               routed_from: "SUT",
               routed_at: now,
             }
@@ -2086,7 +2086,7 @@ const configs = {
     ],
     title: "Approval",
     titleKey: "workspace.approval.title",
-    description: "Record the SUT result, KB(LES) support, and TP(RES)/PGH final approval.",
+    description: "Record the SUT result, KB(LES) verification, and TP(RES)/PGH final approval.",
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",

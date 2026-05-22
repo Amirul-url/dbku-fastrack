@@ -246,6 +246,7 @@ class NotificationRoutingTests(TestCase):
         self.assertTrue(deliveries.filter(channel="web", user=kb_user).exists())
         web_delivery = deliveries.get(channel="web", user=kb_user)
         self.assertIn("KU(IKL) final checking", web_delivery.metadata["message_en"])
+        self.assertIn("KB(LES) verification", web_delivery.metadata["message_en"])
         self.assertNotIn("SUT approval recorded", web_delivery.metadata["message_en"])
         self.assertTrue(
             deliveries.filter(
@@ -431,7 +432,7 @@ class NotificationRoutingTests(TestCase):
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["metadata"]["event_status"], "management_review")
-        self.assertIn("KB(LES) support", data[0]["metadata"]["title_en"])
+        self.assertIn("KB(LES) verification", data[0]["metadata"]["title_en"])
 
 
 class SuperAdminAccountNotificationTests(TestCase):

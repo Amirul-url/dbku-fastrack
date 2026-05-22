@@ -303,8 +303,8 @@ function getMemoSubject(subject, title, reference, options = {}) {
 
   if (role === "admin" && status === "management_review" && department === "KB(LES)") {
     return cleanReference
-      ? `${cleanReference} requires KB(LES) support`
-      : "Application requires KB(LES) support";
+      ? `${cleanReference} requires KB(LES) verification`
+      : "Application requires KB(LES) verification";
   }
 
   if (cleanSubject) return cleanSubject;
@@ -396,10 +396,10 @@ function getApprovalStageNotificationText(app, user) {
 
   return {
     displayStatus: "management_review",
-    titleEn: "Application ready for KB(LES) support",
-    titleMs: "Permohonan sedia untuk sokongan KB(LES)",
-    messageEn: `${reference} has completed KU(IKL) final checking and is ready for KB(LES) support.`,
-    messageMs: `${reference} telah selesai semakan akhir KU(IKL) dan sedia untuk sokongan KB(LES).`,
+    titleEn: "Application ready for KB(LES) verification",
+    titleMs: "Permohonan sedia untuk pengesahan KB(LES)",
+    messageEn: `${reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.`,
+    messageMs: `${reference} telah selesai semakan akhir KU(IKL) dan sedia untuk pengesahan KB(LES).`,
   };
 }
 

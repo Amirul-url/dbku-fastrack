@@ -111,9 +111,9 @@ STATUS_MESSAGES = {
         "Application {reference} has completed technical department feedback and is ready for KU(IKL) review.",
     ),
     "management_review": (
-        "KB(LES) support required",
+        "KB(LES) verification required",
         "",
-        "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) support.",
+        "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
     ),
     "mphlg_processing": (
         "MPHLG approval required",
@@ -1158,8 +1158,8 @@ def get_management_review_admin_text(application):
         )
 
     return (
-        "KB(LES) support required",
-        f"Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) support.",
+        "KB(LES) verification required",
+        f"Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
     )
 
 
