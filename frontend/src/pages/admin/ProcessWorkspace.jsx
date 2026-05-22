@@ -2817,6 +2817,7 @@ function KuTechnicalFurtherReviewPanel({
   technicalSite,
   checks,
   onCheckChange,
+  readOnly = false,
 }) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
   const formData = selectedRecord.form_data || {};
@@ -2866,7 +2867,7 @@ function KuTechnicalFurtherReviewPanel({
           />
           <Info
             label={t("common.decision")}
-            value={technicalReview.final_decision || technicalReview.decision || "-"}
+            value={formatDecisionValue(technicalReview.final_decision || technicalReview.decision, t)}
           />
           <Info
             label={t("workspace.technical.departmentFeedbackStatus")}
@@ -2951,7 +2952,11 @@ function KuTechnicalFurtherReviewPanel({
               <input
                 type="checkbox"
                 checked={Boolean(checks?.[key])}
-                onChange={(event) => onCheckChange(key, event.target.checked)}
+                disabled={readOnly}
+                onChange={(event) => {
+                  if (readOnly) return;
+                  onCheckChange?.(key, event.target.checked);
+                }}
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
               />
               <span>{label}</span>
@@ -2981,11 +2986,6 @@ function ApprovalTechnicalReviewSummary({
   const isKbVerificationReport =
     normalizeDepartmentCode(userDepartment) === "KB(LES)" &&
     getApprovalStageKey(selectedRecord) === "kb";
-  const applicantSitePhotos = getApplicantSitePhotos(selectedRecord);
-  const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
-    ? reviewTechnicalSite.site_photos
-    : [];
-  const coordinates = getApplicationCoordinates(step1);
   const reportStatus =
     kuReview.status ||
     kuReview.decision ||
@@ -2993,6 +2993,45 @@ function ApprovalTechnicalReviewSummary({
     technicalReview.decision ||
     selectedRecord.latest_remark ||
     "-";
+
+  if (isKbVerificationReport) {
+    return (
+      <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                {t("workspace.approval.recommendationReport", "Verification Report")}
+              </p>
+              <h3 className="mt-1 text-[16px] font-semibold leading-6 text-slate-950">
+                {t("workspace.approval.technicalSummaryTitle", "KU(IKL) Final Checking")}
+              </h3>
+              <p className="mt-1 text-[14px] leading-5 text-slate-500">
+                {t("workspace.approval.technicalSummaryDesc", "Review KU(IKL)'s final technical check before verifying this application.")}
+              </p>
+            </div>
+            <StatusPill value={formatDecisionValue(reportStatus, t)} />
+          </div>
+        </div>
+
+        <div className="p-3">
+          <KuTechnicalFurtherReviewPanel
+            t={t}
+            selectedRecord={selectedRecord}
+            technicalSite={reviewTechnicalSite}
+            checks={createKuTechnicalChecks(kuReview.checks)}
+            readOnly
+          />
+        </div>
+      </section>
+    );
+  }
+
+  const applicantSitePhotos = getApplicantSitePhotos(selectedRecord);
+  const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
+    ? reviewTechnicalSite.site_photos
+    : [];
+  const coordinates = getApplicationCoordinates(step1);
 
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
