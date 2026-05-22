@@ -877,6 +877,12 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["memo_template"] = "pt_ikl_to_ku_ikl"
         metadata["from"] = "PT(IKL)"
         metadata["sender"] = "PT(IKL)"
+    elif memo_html and status_key == "technical_review":
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "ku_ikl_to_technical"
+        metadata["from"] = "KU(IKL)"
+        metadata["sender"] = "KU(IKL)"
+        metadata["to"] = "IKL(TECHNICAL)"
 
     return metadata
 
@@ -903,11 +909,20 @@ def get_pt_ikl_to_ku_memo_html(application):
     return str(memo_html or "").strip()
 
 
+def get_ku_ikl_to_technical_memo_html(application):
+    section = get_form_section(application, "technical_referral")
+    memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
+
+
 def get_admin_memo_html(application):
     status_key = str(getattr(application, "status", "") or "").strip().lower()
 
     if status_key == "ku_ikl_review":
         return get_pt_ikl_to_ku_memo_html(application)
+
+    if status_key == "technical_review":
+        return get_ku_ikl_to_technical_memo_html(application)
 
     return get_kb_les_memo_html(application)
 

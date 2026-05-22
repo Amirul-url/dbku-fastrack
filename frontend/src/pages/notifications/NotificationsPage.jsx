@@ -224,6 +224,56 @@ function localizePtIklToKuMemoHtml(html, language) {
   return document.body.innerHTML;
 }
 
+function localizeKuIklToTechnicalMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/APPLICATION FOR TECHNICAL REVIEW/gi, "PERMOHONAN UNTUK SEMAKAN TEKNIKAL"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/Application (FT-\d+) has been reviewed by KU\(IKL\) and forwarded to IKL\(TECHNICAL\) for technical review\./gi, "Permohonan $1 telah disemak oleh KU(IKL) dan dikemukakan kepada IKL(TECHNICAL) untuk semakan teknikal."],
+        [/Applicant/gi, "Pemohon"],
+        [/Application Type/gi, "Jenis Permohonan"],
+        [/Project/gi, "Projek"],
+        [/Location/gi, "Lokasi"],
+        [/Application for Site \(New Site\)/gi, "Permohonan Tapak (Tapak Baharu)"],
+        [/Please proceed with IKL\(TECHNICAL\) technical review and further action\./gi, "Mohon pihak IKL(TECHNICAL) membuat semakan teknikal dan tindakan selanjutnya."],
+        [/Thank you\./gi, "Sekian, terima kasih."],
+      ]
+    : [
+        [/PERMOHONAN UNTUK SEMAKAN TEKNIKAL/gi, "APPLICATION FOR TECHNICAL REVIEW"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/Permohonan (FT-\d+) telah disemak oleh KU\(IKL\) dan dikemukakan kepada IKL\(TECHNICAL\) untuk semakan teknikal\./gi, "Application $1 has been reviewed by KU(IKL) and forwarded to IKL(TECHNICAL) for technical review."],
+        [/Pemohon/gi, "Applicant"],
+        [/Jenis Permohonan/gi, "Application Type"],
+        [/Projek/gi, "Project"],
+        [/Lokasi/gi, "Location"],
+        [/Permohonan Tapak \(Tapak Baharu\)/gi, "Application for Site (New Site)"],
+        [/Mohon pihak IKL\(TECHNICAL\) membuat semakan teknikal dan tindakan selanjutnya\./gi, "Please proceed with IKL(TECHNICAL) technical review and further action."],
+        [/Sekian, terima kasih\./gi, "Thank you."],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
 function cleanMemoSender(value) {
   return String(value || "")
     .replace(/\s*<\s*ALiS Notification Center\s*>\s*/gi, "")
@@ -602,12 +652,14 @@ function NotificationBody({ item, bodyParts, memoHtml, t }) {
 }
 
 function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }) {
-  const recipient = "PT(IKL)";
+  const recipient = getFormalMemoRecipient(item);
   const sender = cleanMemoSender(item.from) || "ALiS Notification Center";
   const memoDate = item.time || formatDateTime(item.timestamp);
   const memoContentHtml =
     item.memoTemplate === "pt_ikl_to_ku_ikl"
       ? localizePtIklToKuMemoHtml(memoHtml, language)
+      : item.memoTemplate === "ku_ikl_to_technical"
+        ? localizeKuIklToTechnicalMemoHtml(memoHtml, language)
       : memoHtml
         ? getMemoContentHtml(memoHtml)
         : "";
@@ -674,6 +726,17 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
       </div>
     </section>
   );
+}
+
+function getFormalMemoRecipient(item) {
+  const metadataRecipient = cleanMemoSender(item.memoTo);
+  if (metadataRecipient) return metadataRecipient;
+
+  if (item.memoTemplate === "ku_ikl_to_technical") {
+    return "IKL(TECHNICAL)";
+  }
+
+  return "PT(IKL)";
 }
 
 function getFormalMemoCopy(item, subject, bodyParts, language) {

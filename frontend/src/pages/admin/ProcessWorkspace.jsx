@@ -411,6 +411,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     );
   }
 
+  function isKuIklApproveToTechnicalAction(action, actionDecision) {
+    return (
+      config.key === "screening" &&
+      userDepartment === "KU(IKL)" &&
+      action?.buildPayload === buildIklScreeningPayload &&
+      actionDecision === "KU(IKL) Confirm - Send to Technical Units"
+    );
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -464,8 +473,27 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       return false;
     }
 
+    if (isKuIklApproveToTechnicalAction(action, actionDecision) && !overrides.memoHtml) {
+      setError("");
+      setSuccess("");
+      setMemoDraft(createKuIklToTechnicalMemoTemplate(selectedRecord));
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision },
+        titleKey: "workspace.memo.kuToTechnicalTitle",
+        title: "Memo to IKL(TECHNICAL)",
+        descriptionKey: "workspace.memo.kuToTechnicalDescription",
+        description: "Complete the memo before sending this application to IKL(TECHNICAL).",
+      });
+      return false;
+    }
+
     if (
-      (isKbLesVerifyAction(action, actionDecision) || isPtIklApproveToKuAction(action, actionDecision)) &&
+      (
+        isKbLesVerifyAction(action, actionDecision) ||
+        isPtIklApproveToKuAction(action, actionDecision) ||
+        isKuIklApproveToTechnicalAction(action, actionDecision)
+      ) &&
       !getHtmlPlainText(overrides.memoHtml)
     ) {
       setError(t("workspace.memo.required", "Please complete the memo before sending."));
@@ -1152,6 +1180,77 @@ function createPtIklToKuMemoTemplate(app) {
   `;
 }
 
+function createKuIklToTechnicalMemoTemplate(app) {
+  const now = new Date();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">IKL(TECHNICAL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>PERMOHONAN UNTUK SEMAKAN TEKNIKAL</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah disemak oleh KU(IKL) dan dikemukakan kepada IKL(TECHNICAL) untuk semakan teknikal.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak IKL(TECHNICAL) membuat semakan teknikal dan tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
 function createKbLesMemoTemplate(app, technicalSite) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
   const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
@@ -1766,6 +1865,7 @@ function buildIklScreeningPayload(app, data) {
   const technicalAmendment = data.decision === "Technical Amendment Required";
   const sendTechnical = data.decision === "KU(IKL) Confirm - Send to Technical Units";
   const correctionRequired = reject || technicalAmendment;
+  const previousAutoScreening = app.form_data?.auto_screening || {};
 
   return {
     status: reject
@@ -1782,10 +1882,22 @@ function buildIklScreeningPayload(app, data) {
         status: "Screened",
         result: correctionRequired ? "Rejected to Applicant" : data.decision,
         remarks: data.comment,
-        memo_html: data.memoHtml || app.form_data?.auto_screening?.memo_html || "",
+        memo_html:
+          data.decision === "PT(IKL) Send to KU(IKL)"
+            ? data.memoHtml || previousAutoScreening.memo_html || ""
+            : previousAutoScreening.memo_html || "",
         checks,
         checked_at: now,
       },
+      technical_referral: sendTechnical
+        ? {
+            status: "Referred",
+            source: "KU(IKL)",
+            target: "IKL(TECHNICAL)",
+            memo_html: data.memoHtml || app.form_data?.technical_referral?.memo_html || "",
+            referred_at: now,
+          }
+        : app.form_data?.technical_referral || null,
       correction_request: correctionRequired
         ? {
             source: data.decision.includes("KU") ? "KU(IKL)" : "PT(IKL)",

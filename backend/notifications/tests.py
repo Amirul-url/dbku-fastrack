@@ -191,6 +191,67 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_template"], "pt_ikl_to_ku_ikl")
         self.assertEqual(delivery.metadata["from"], "PT(IKL)")
 
+    def test_ku_ikl_approval_memo_is_sent_to_ikl_technical_notification(self):
+        technical_user = User.objects.create_user(
+            username="ikl-technical-memo",
+            email="technical@example.com",
+            password="Password123",
+            role="admin",
+            department="IKL (TECHNICAL)",
+            is_active=True,
+        )
+        memo_html = "<p>KU(IKL) memo for IKL(TECHNICAL)</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_referral": {
+                "status": "Referred",
+                "source": "KU(IKL)",
+                "target": "IKL(TECHNICAL)",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("technical_review", old_status="ku_ikl_review")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="technical_review",
+            user=technical_user,
+        )
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_to_technical")
+        self.assertEqual(delivery.metadata["from"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
+
+    def test_ku_ikl_rejection_notifies_applicant_all_channels(self):
+        self.application.latest_remark = "Rejected by KU(IKL). Please update the site details."
+        self.application.form_data = {
+            **self.application.form_data,
+            "correction_request": {
+                "source": "KU(IKL)",
+                "remarks": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("incomplete", old_status="ku_ikl_review")
+
+        applicant_channels = set(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                metadata__event_status="incomplete",
+            ).values_list("channel", flat=True)
+        )
+        self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
+        web_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="applicant",
+            metadata__event_status="incomplete",
+        )
+        self.assertIn("Rejected by KU(IKL)", web_delivery.message)
+
     def test_payment_verified_notifies_pt_ikl_for_license_generation(self):
         self.notify_status("payment_verified", old_status="payment_submitted")
 

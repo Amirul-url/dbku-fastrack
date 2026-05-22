@@ -1026,6 +1026,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         bodyMs: memoMessageMs,
         memoHtml: metadata.memo_html || "",
         memoTemplate: metadata.memo_template || "",
+        memoTo: metadata.to || "",
         from: metadata.from || metadata.sender || getNotificationSender(role, status, user),
         to,
         subject,
