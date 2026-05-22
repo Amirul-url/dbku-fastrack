@@ -174,6 +174,41 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.user, ku_user)
         self.assertIn("Bill confirmation", delivery.metadata["title_en"])
 
+    def test_technical_amendment_notification_includes_ku_remark_for_ikl_technical(self):
+        ikl_technical_user = User.objects.create_user(
+            username="ikl-technical",
+            email="",
+            password="Password123",
+            role="admin",
+            department="IKL (TECHNICAL)",
+            is_active=True,
+        )
+        self.application.latest_remark = "Please revise the technical fee calculation."
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_ku_review": {
+                "decision": "KU(IKL) Request Technical Amendment",
+                "remarks": "Please revise the technical fee calculation.",
+            },
+            "correction_request": {
+                "source": "KU(IKL)",
+                "target": "IKL(TECHNICAL)",
+                "remarks": "Please revise the technical fee calculation.",
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("technical_amendment", old_status="technical_review_completed")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="technical_amendment",
+        )
+        self.assertEqual(delivery.user, ikl_technical_user)
+        self.assertIn("Remark: Please revise the technical fee calculation.", delivery.message)
+        self.assertIn("Remark: Please revise the technical fee calculation.", delivery.metadata["message_en"])
+
     def test_management_review_notifies_kb_les_with_fallback_contacts(self):
         kb_user = User.objects.create_user(
             username="kb-les",

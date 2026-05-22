@@ -186,6 +186,7 @@ NOTIFIABLE_STATUSES = APPLICANT_NOTIFICATION_STATUSES | ADMIN_NOTIFICATION_STATU
 REMARK_REPEAT_STATUSES = {
     "incomplete",
     "rejected",
+    "technical_amendment",
 }
 
 
@@ -904,6 +905,8 @@ def get_latest_remark(application):
     candidates = [
         section("correction_request").get("remarks"),
         section("auto_screening").get("remarks"),
+        section("technical_ku_review").get("remarks"),
+        section("technical_ku_review").get("comment"),
         section("technical_review").get("comment"),
         section("technical_review").get("remarks"),
         section("approval").get("notes"),
