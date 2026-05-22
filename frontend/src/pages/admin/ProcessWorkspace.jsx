@@ -423,7 +423,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   function isIklTechnicalSupportToKuAction(action, actionDecision) {
     return (
-      config.key === "technical" &&
+      config.key === "screening" &&
       userDepartment === "IKL (TECHNICAL)" &&
       action?.buildPayload === buildIklTechnicalDecisionPayload &&
       ["Supported", "Supported with Conditions"].includes(actionDecision)
