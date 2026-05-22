@@ -406,6 +406,106 @@ function localizeKuIklFinalReviewMemoHtml(html, language) {
   return document.body.innerHTML;
 }
 
+function localizeKbLesToTpMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/APPLICATION FOR APPROVAL OF BUSINESS SIGNAGE \/ ADVERTISEMENT LICENSE/gi, "PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN / IKLAN"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/For your information, the Licensing Division has received two \(2\) new Business Signage\/Advertisement License applications\./gi, "Untuk makluman, Bahagian Pelesenan telah menerima dua (2) permohonan baru Lesen Tandanama Perniagaan/Iklan."],
+        [/Enclosed herewith are business signage\/advertisement applications that have complied with all requirements for your approval as follows:-/gi, "Bersama ini disertakan permohonan tandanama perniagaan/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-"],
+        [/ITEM/gi, "PERKARA"],
+        [/REVENUE/gi, "HASIL"],
+        [/Two \(2\) Business Signage\/Advertisement Licenses/gi, "Dua (2) Lesen Tandanama Perniagaan/Iklan"],
+        [/Grand Total/gi, "Jumlah Keseluruhan"],
+        [/Please approve the above matter\./gi, "Mohon kelulusan puan dalam perkara tersebut di atas."],
+        [/Thank you\./gi, "Sekian. Terima kasih."],
+        [/Head of Division/gi, "Ketua Bahagian"],
+        [/Licensing Division/gi, "Bahagian Pelesenan"],
+      ]
+    : [
+        [/PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN \/ IKLAN/gi, "APPLICATION FOR APPROVAL OF BUSINESS SIGNAGE / ADVERTISEMENT LICENSE"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/Untuk makluman, Bahagian Pelesenan telah menerima dua \(2\) permohonan baru Lesen Tandanama Perniagaan\/Iklan\./gi, "For your information, the Licensing Division has received two (2) new Business Signage/Advertisement License applications."],
+        [/Bersama ini disertakan permohonan tandanama perniagaan\/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-/gi, "Enclosed herewith are business signage/advertisement applications that have complied with all requirements for your approval as follows:-"],
+        [/PERKARA/gi, "ITEM"],
+        [/HASIL/gi, "REVENUE"],
+        [/Dua \(2\) Lesen Tandanama Perniagaan\/Iklan/gi, "Two (2) Business Signage/Advertisement Licenses"],
+        [/Jumlah Keseluruhan/gi, "Grand Total"],
+        [/Mohon kelulusan puan dalam perkara tersebut di atas\./gi, "Please approve the above matter."],
+        [/Sekian\. Terima kasih\./gi, "Thank you."],
+        [/Ketua Bahagian/gi, "Head of Division"],
+        [/Bahagian Pelesenan/gi, "Licensing Division"],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
+function localizeKbLesToKuMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/KU\(IKL\) REVIEW AMENDMENT REQUIRED/gi, "PINDAAN SEMAKAN KU(IKL) DIPERLUKAN"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/Application (FT-\d+) has been reviewed by KB\(LES\) and returned to KU\(IKL\) for amendment before verification can continue\./gi, "Permohonan $1 telah disemak oleh KB(LES) dan dikembalikan kepada KU(IKL) untuk pindaan sebelum pengesahan boleh diteruskan."],
+        [/Applicant/gi, "Pemohon"],
+        [/Application Type/gi, "Jenis Permohonan"],
+        [/Project/gi, "Projek"],
+        [/Location/gi, "Lokasi"],
+        [/Remarks/gi, "Catatan"],
+        [/Please complete the amendment and further action\./gi, "Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya."],
+        [/Thank you\./gi, "Sekian, terima kasih."],
+      ]
+    : [
+        [/PINDAAN SEMAKAN KU\(IKL\) DIPERLUKAN/gi, "KU(IKL) REVIEW AMENDMENT REQUIRED"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/Permohonan (FT-\d+) telah disemak oleh KB\(LES\) dan dikembalikan kepada KU\(IKL\) untuk pindaan sebelum pengesahan boleh diteruskan\./gi, "Application $1 has been reviewed by KB(LES) and returned to KU(IKL) for amendment before verification can continue."],
+        [/Pemohon/gi, "Applicant"],
+        [/Jenis Permohonan/gi, "Application Type"],
+        [/Projek/gi, "Project"],
+        [/Lokasi/gi, "Location"],
+        [/Catatan/gi, "Remarks"],
+        [/Mohon pihak KU\(IKL\) membuat pindaan dan tindakan selanjutnya\./gi, "Please complete the amendment and further action."],
+        [/Sekian, terima kasih\./gi, "Thank you."],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
 function cleanMemoSender(value) {
   return String(value || "")
     .replace(/\s*<\s*ALiS Notification Center\s*>\s*/gi, "")
@@ -801,6 +901,10 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
         ? localizeKuIklToTechnicalMemoHtml(memoHtml, language)
         : item.memoTemplate === "technical_to_ku_ikl"
           ? localizeIklTechnicalToKuMemoHtml(memoHtml, language)
+          : item.memoTemplate === "kb_les_to_tp_pgh"
+            ? localizeKbLesToTpMemoHtml(memoHtml, language)
+            : item.memoTemplate === "kb_les_to_ku_ikl"
+              ? localizeKbLesToKuMemoHtml(memoHtml, language)
           : isKuFinalReviewMemo
             ? localizeKuIklFinalReviewMemoHtml(memoHtml, language)
       : memoHtml
@@ -880,6 +984,14 @@ function getFormalMemoRecipient(item) {
   }
 
   if (item.memoTemplate === "technical_to_ku_ikl") {
+    return "KU(IKL)";
+  }
+
+  if (item.memoTemplate === "kb_les_to_tp_pgh") {
+    return "TP(RES)";
+  }
+
+  if (item.memoTemplate === "kb_les_to_ku_ikl") {
     return "KU(IKL)";
   }
 

@@ -879,6 +879,7 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["memo_template"] = "kb_les_to_tp_pgh"
         metadata["from"] = "KB(LES) <ALiS Notification Center>"
         metadata["sender"] = "KB(LES) <ALiS Notification Center>"
+        metadata["to"] = "TP(RES)"
     elif memo_html and status_key == "ku_ikl_review":
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "pt_ikl_to_ku_ikl"
@@ -890,6 +891,12 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = KU_TECHNICAL_MEMO_RECIPIENT
+    elif memo_html and status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "kb_les_to_ku_ikl"
+        metadata["from"] = "KB(LES)"
+        metadata["sender"] = "KB(LES)"
+        metadata["to"] = "KU(IKL)"
     elif memo_html and status_key == "technical_review_completed":
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "technical_to_ku_ikl"
@@ -920,6 +927,13 @@ def get_web_metadata_sender(application, recipient_role):
 def get_kb_les_memo_html(application):
     section = get_form_section(application, "kb_les_verification")
     memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
+
+
+def get_kb_les_return_to_ku_memo_html(application):
+    correction = get_form_section(application, "correction_request")
+    kb_les_verification = get_form_section(application, "kb_les_verification")
+    memo_html = correction.get("memo_html") or kb_les_verification.get("memo_html")
     return str(memo_html or "").strip()
 
 
@@ -963,6 +977,9 @@ def get_admin_memo_html(application):
 
     if status_key == "technical_review":
         return get_ku_ikl_to_technical_memo_html(application)
+
+    if status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+        return get_kb_les_return_to_ku_memo_html(application)
 
     if status_key == "technical_review_completed":
         return get_ikl_technical_to_ku_memo_html(application)

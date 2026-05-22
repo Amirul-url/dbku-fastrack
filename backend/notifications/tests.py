@@ -581,11 +581,13 @@ class NotificationRoutingTests(TestCase):
                 "status": "Rejected",
                 "decision": "Reject",
                 "remarks": "Please amend the recommendation.",
+                "memo_html": "<p>KB(LES) return memo</p>",
             },
             "correction_request": {
                 "source": "KB(LES)",
                 "target": "KU(IKL)",
                 "remarks": "Please amend the recommendation.",
+                "memo_html": "<p>KB(LES) return memo</p>",
             },
             "management_recommendation": None,
             "approval": None,
@@ -602,7 +604,10 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertIn("KU(IKL) amendment required", delivery.metadata["title_en"])
         self.assertIn("returned by KB(LES)", delivery.metadata["message_en"])
-        self.assertEqual(delivery.metadata["from"], "KB(LES) <ALiS Notification Center>")
+        self.assertEqual(delivery.metadata["from"], "KB(LES)")
+        self.assertEqual(delivery.metadata["to"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["memo_html"], "<p>KB(LES) return memo</p>")
+        self.assertEqual(delivery.metadata["memo_template"], "kb_les_to_ku_ikl")
 
     def test_mphlg_processing_notifies_mphlg_admin(self):
         mphlg_user = User.objects.create_user(
@@ -749,6 +754,7 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["sender"], "KB(LES) <ALiS Notification Center>")
+        self.assertEqual(delivery.metadata["to"], "TP(RES)")
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
 
 

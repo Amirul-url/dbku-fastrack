@@ -382,27 +382,16 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     const [action] = workspaceActions;
     if (!action) return;
 
-    if (decisionValue === "Reject") {
-      setError("");
-      setSuccess(
-        t(
-          "workspace.message.rejectRoutingPending",
-          "Reject routing to DBKU is not configured yet. No changes were saved."
-        )
-      );
-      return;
-    }
-
-    submitAction(action, { decision: decisionValue, checkDecisionRemark: false });
+    submitAction(action, { decision: decisionValue, checkDecisionRemark: true });
   }
 
-  function isKbLesVerifyAction(action, actionDecision) {
+  function isKbLesDecisionAction(action, actionDecision) {
     return (
       config.key === "approval" &&
       userDepartment === "KB(LES)" &&
       getApprovalStageKey(selectedRecord) === "kb" &&
       action?.buildPayload === buildApprovalWorkflowPayload &&
-      actionDecision === "Verify"
+      ["Verify", "Reject"].includes(actionDecision)
     );
   }
 
@@ -472,13 +461,25 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       return;
     }
 
-    if (isKbLesVerifyAction(action, actionDecision) && !overrides.memoHtml) {
+    if (isKbLesDecisionAction(action, actionDecision) && !overrides.memoHtml) {
+      const rejected = actionDecision === "Reject";
+
       setError("");
       setSuccess("");
-      setMemoDraft(createKbLesMemoTemplate(selectedRecord, technicalSite));
+      setMemoDraft(
+        rejected
+          ? createKbLesToKuAmendmentMemoTemplate(selectedRecord, cleanedComment)
+          : createKbLesMemoTemplate(selectedRecord, technicalSite)
+      );
       setPendingMemoSubmission({
         action,
-        overrides: { ...overrides, decision: actionDecision },
+        overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
+        titleKey: rejected ? "workspace.memo.kbToKuTitle" : "workspace.memo.title",
+        title: rejected ? "Memo to KU(IKL)" : "Memo to TP(RES)",
+        descriptionKey: rejected ? "workspace.memo.kbToKuDescription" : "workspace.memo.description",
+        description: rejected
+          ? "Complete the memo before returning this application to KU(IKL)."
+          : "Complete the memo template. This exact memo will appear in TP(RES) notifications.",
       });
       return false;
     }
@@ -553,7 +554,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
     if (
       (
-        isKbLesVerifyAction(action, actionDecision) ||
+        isKbLesDecisionAction(action, actionDecision) ||
         isPtIklApproveToKuAction(action, actionDecision) ||
         isKuIklApproveToTechnicalAction(action, actionDecision) ||
         isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
@@ -1604,6 +1605,81 @@ function createKbLesMemoTemplate(app, technicalSite) {
   `;
 }
 
+function createKbLesToKuAmendmentMemoTemplate(app, comment) {
+  const now = new Date();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KB(LES)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>PINDAAN SEMAKAN KU(IKL) DIPERLUKAN</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah disemak oleh KB(LES) dan dikembalikan kepada KU(IKL) untuk pindaan sebelum pengesahan boleh diteruskan.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(comment)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
 function formatMemoAmount(value) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-US", {
@@ -2300,7 +2376,7 @@ function buildApprovalWorkflowPayload(app, data) {
           status: rejected ? "Rejected" : "Verified",
           decision,
           remarks: data.comment,
-          memo_html: rejected ? "" : data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
+          memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
           verified_at: now,
         },
         management_recommendation: rejected
@@ -2316,6 +2392,7 @@ function buildApprovalWorkflowPayload(app, data) {
               source: "KB(LES)",
               target: "KU(IKL)",
               remarks: data.comment,
+              memo_html: data.memoHtml || "",
               requested_at: now,
             }
           : app.form_data?.correction_request || null,
