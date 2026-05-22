@@ -2101,6 +2101,8 @@ const configs = {
     ],
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
+    commentPlaceholder: "Enter notes if needed. Required when rejecting.",
+    commentPlaceholderKey: "workspace.comment.approvalPlaceholder",
     stats: (apps) => [
       { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
       { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "check_circle", tone: "blue" },
@@ -2972,7 +2974,7 @@ function ApprovalTechnicalReviewSummary({
   const step1 = formData.step_1 || {};
   const technicalReview = selectedRecord.form_data?.technical_review || {};
   const kuReview = selectedRecord.form_data?.technical_ku_review || {};
-  const kuDecision = kuReview.decision || kuReview.status || "-";
+  const kuDecision = formatDecisionValue(kuReview.decision || kuReview.status, t);
   const kuRemarks = kuReview.remarks || kuReview.comment || "-";
   const applicantSitePhotos = getApplicantSitePhotos(selectedRecord);
   const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
@@ -2980,10 +2982,10 @@ function ApprovalTechnicalReviewSummary({
     : [];
   const coordinates = getApplicationCoordinates(step1);
   const reportStatus =
+    kuReview.status ||
+    kuReview.decision ||
     technicalReview.final_decision ||
     technicalReview.decision ||
-    kuReview.decision ||
-    kuReview.status ||
     selectedRecord.latest_remark ||
     "-";
 
@@ -3006,7 +3008,7 @@ function ApprovalTechnicalReviewSummary({
                 )}
             </p>
           </div>
-          <StatusPill value={reportStatus} />
+          <StatusPill value={formatDecisionValue(reportStatus, t)} />
         </div>
       </div>
 
@@ -3047,7 +3049,7 @@ function ApprovalTechnicalReviewSummary({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <Info
               label={t("common.decision")}
-              value={technicalReview.final_decision || technicalReview.decision || "-"}
+              value={formatDecisionValue(technicalReview.final_decision || technicalReview.decision, t)}
             />
             <Info
               label={t("workspace.technical.kuDecision", "KU(IKL) Decision")}
@@ -3297,13 +3299,27 @@ function TechnicalDepartmentRemarks({ app, t }) {
 
 function getDecisionLabelKey(value) {
   const map = {
+    Verify: "workspace.decision.verify",
+    Verified: "workspace.decision.verified",
+    Reject: "workspace.decision.reject",
+    Rejected: "workspace.decision.rejected",
     Supported: "workspace.decision.supported",
     "Supported with Conditions": "workspace.decision.supportedConditions",
     "Not Supported": "workspace.decision.notSupported",
     "Requires Amendment": "workspace.decision.requiresAmendment",
+    "KU(IKL) Confirm - Send to KB(LES)": "workspace.decision.kuVerifiedToKb",
+    "KU(IKL) Request Technical Amendment": "workspace.decision.kuRequestTechnicalAmendment",
   };
 
   return map[value] || value;
+}
+
+function formatDecisionValue(value, t) {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue || cleanValue === "-") return "-";
+
+  const labelKey = getDecisionLabelKey(cleanValue);
+  return labelKey === cleanValue ? cleanValue : t(labelKey, cleanValue);
 }
 
 function getIklScreeningDecisionLabel(item, department, t) {

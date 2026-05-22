@@ -411,12 +411,12 @@ export function formatCurrency(value) {
 }
 
 export function formatDate(value) {
-  if (!value) return "Not provided";
+  if (!value) return getMissingDateText();
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return date.toLocaleDateString("en-GB", {
+  return date.toLocaleDateString(getActiveLocale(), {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -424,12 +424,12 @@ export function formatDate(value) {
 }
 
 export function formatDateTime(value) {
-  if (!value) return "Not provided";
+  if (!value) return getMissingDateText();
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  return date.toLocaleString("en-GB", {
+  return date.toLocaleString(getActiveLocale(), {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -440,21 +440,33 @@ export function formatDateTime(value) {
 }
 
 export function formatCompactDateTime(value) {
-  if (!value) return "Not provided";
+  if (!value) return getMissingDateText();
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
-  const datePart = date.toLocaleDateString("en-GB", {
+  const datePart = date.toLocaleDateString(getActiveLocale(), {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
-  const timePart = date.toLocaleTimeString("en-GB", {
+  const timePart = date.toLocaleTimeString(getActiveLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
   });
 
   return `${datePart}, ${timePart.toUpperCase()}`;
+}
+
+function getActiveLocale() {
+  if (typeof document !== "undefined" && document.documentElement.lang?.startsWith("ms")) {
+    return "ms-MY";
+  }
+
+  return "en-GB";
+}
+
+function getMissingDateText() {
+  return getActiveLocale() === "ms-MY" ? "Tidak disediakan" : "Not provided";
 }
