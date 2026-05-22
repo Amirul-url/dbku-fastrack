@@ -593,6 +593,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
     setPendingMemoSubmission(null);
     setMemoDraft("");
+    if (isFocusedPersonalWorkspace) {
+      returnToPersonalTask();
+      return;
+    }
+
     returnToTaskList();
   }
 
