@@ -402,6 +402,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     );
   }
 
+  function isPtIklApproveToKuAction(action, actionDecision) {
+    return (
+      config.key === "screening" &&
+      userDepartment === "PT(IKL)" &&
+      action?.buildPayload === buildIklScreeningPayload &&
+      actionDecision === "PT(IKL) Send to KU(IKL)"
+    );
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -433,11 +442,32 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       setError("");
       setSuccess("");
       setMemoDraft(createKbLesMemoTemplate(selectedRecord, technicalSite));
-      setPendingMemoSubmission({ action, overrides: { ...overrides, decision: actionDecision } });
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision },
+      });
       return false;
     }
 
-    if (isKbLesVerifyAction(action, actionDecision) && !getHtmlPlainText(overrides.memoHtml)) {
+    if (isPtIklApproveToKuAction(action, actionDecision) && !overrides.memoHtml) {
+      setError("");
+      setSuccess("");
+      setMemoDraft(createPtIklToKuMemoTemplate(selectedRecord));
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision },
+        titleKey: "workspace.memo.ptToKuTitle",
+        title: "Memo to KU(IKL)",
+        descriptionKey: "workspace.memo.ptToKuDescription",
+        description: "Complete the memo before sending this application to KU(IKL).",
+      });
+      return false;
+    }
+
+    if (
+      (isKbLesVerifyAction(action, actionDecision) || isPtIklApproveToKuAction(action, actionDecision)) &&
+      !getHtmlPlainText(overrides.memoHtml)
+    ) {
       setError(t("workspace.memo.required", "Please complete the memo before sending."));
       return false;
     }
@@ -968,6 +998,10 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       {pendingMemoSubmission && (
         <KbLesMemoModal
           t={t}
+          titleKey={pendingMemoSubmission.titleKey}
+          title={pendingMemoSubmission.title}
+          descriptionKey={pendingMemoSubmission.descriptionKey}
+          description={pendingMemoSubmission.description}
           value={memoDraft}
           saving={saving}
           onChange={setMemoDraft}
@@ -979,7 +1013,18 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   );
 }
 
-function KbLesMemoModal({ t, value, saving, onChange, onCancel, onSend }) {
+function KbLesMemoModal({
+  t,
+  titleKey = "workspace.memo.title",
+  title = "Memo to TP(RES)/PGH",
+  descriptionKey = "workspace.memo.description",
+  description = "Complete the memo template. This exact memo will appear in TP(RES)/PGH notifications.",
+  value,
+  saving,
+  onChange,
+  onCancel,
+  onSend,
+}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <div
@@ -990,13 +1035,10 @@ function KbLesMemoModal({ t, value, saving, onChange, onCancel, onSend }) {
       >
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 id="kb-les-memo-title" className="text-[17px] font-semibold leading-6 text-slate-950">
-            {t("workspace.memo.title", "Memo to TP(RES)/PGH")}
+            {t(titleKey, title)}
           </h2>
           <p className="mt-1 text-[14px] leading-5 text-slate-500">
-            {t(
-              "workspace.memo.description",
-              "Complete the memo template. This exact memo will appear in TP(RES)/PGH notifications."
-            )}
+            {t(descriptionKey, description)}
           </p>
         </div>
 
@@ -1037,6 +1079,77 @@ function mergeFormData(app, next) {
     ...(app.form_data || {}),
     ...next,
   };
+}
+
+function createPtIklToKuMemoTemplate(app) {
+  const now = new Date();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">PT(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>PERMOHONAN UNTUK SEMAKAN KU(IKL)</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah disemak oleh PT(IKL) dan dikemukakan kepada KU(IKL) untuk semakan lanjut.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak KU(IKL) membuat semakan dan tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
 }
 
 function createKbLesMemoTemplate(app, technicalSite) {
@@ -1669,6 +1782,7 @@ function buildIklScreeningPayload(app, data) {
         status: "Screened",
         result: correctionRequired ? "Rejected to Applicant" : data.decision,
         remarks: data.comment,
+        memo_html: data.memoHtml || app.form_data?.auto_screening?.memo_html || "",
         checks,
         checked_at: now,
       },

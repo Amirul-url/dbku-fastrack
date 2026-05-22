@@ -132,6 +132,65 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
         self.assertFalse(NotificationDelivery.objects.filter(recipient_role="admin").exists())
 
+    def test_pt_ikl_rejection_notifies_applicant_all_channels(self):
+        self.application.latest_remark = "Please correct the applicant details."
+        self.application.form_data = {
+            **self.application.form_data,
+            "correction_request": {
+                "source": "PT(IKL)",
+                "remarks": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("incomplete", old_status="submitted")
+
+        applicant_channels = set(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                metadata__event_status="incomplete",
+            ).values_list("channel", flat=True)
+        )
+        self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
+        web_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="applicant",
+            metadata__event_status="incomplete",
+        )
+        self.assertIn("Please correct the applicant details.", web_delivery.message)
+
+    def test_pt_ikl_approval_memo_is_sent_to_ku_ikl_notification(self):
+        ku_user = User.objects.create_user(
+            username="ku-memo",
+            email="ku@example.com",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        memo_html = "<p>PT(IKL) memo for KU(IKL)</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "auto_screening": {
+                "status": "Screened",
+                "result": "PT(IKL) Send to KU(IKL)",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("ku_ikl_review", old_status="submitted")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="ku_ikl_review",
+        )
+        self.assertEqual(delivery.user, ku_user)
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "pt_ikl_to_ku_ikl")
+        self.assertEqual(delivery.metadata["from"], "PT(IKL)")
+
     def test_payment_verified_notifies_pt_ikl_for_license_generation(self):
         self.notify_status("payment_verified", old_status="payment_submitted")
 

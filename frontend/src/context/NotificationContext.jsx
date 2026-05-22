@@ -188,7 +188,7 @@ function getNotificationSender(role, status, user) {
     department === "KU(IKL)" &&
     ["ku_ikl_review", "bill_pending_ku"].includes(normalizedStatus)
   ) {
-    return "PT(IKL) <ALiS Notification Center>";
+    return "PT(IKL)";
   }
 
   if (
@@ -196,7 +196,7 @@ function getNotificationSender(role, status, user) {
     department === "IKL (TECHNICAL)" &&
     ["technical_review", "technical_site_visit", "technical_amendment"].includes(normalizedStatus)
   ) {
-    return "KU(IKL) <ALiS Notification Center>";
+    return "KU(IKL)";
   }
 
   if (
@@ -204,7 +204,7 @@ function getNotificationSender(role, status, user) {
     technicalDepartments.has(department) &&
     ["technical_review", "technical_site_visit"].includes(normalizedStatus)
   ) {
-    return "IKL(TECHNICAL) <ALiS Notification Center>";
+    return "IKL(TECHNICAL)";
   }
 
   if (
@@ -212,7 +212,7 @@ function getNotificationSender(role, status, user) {
     department === "KU(IKL)" &&
     normalizedStatus === "technical_review_completed"
   ) {
-    return "IKL(TECHNICAL) <ALiS Notification Center>";
+    return "IKL(TECHNICAL)";
   }
 
   if (
@@ -220,7 +220,7 @@ function getNotificationSender(role, status, user) {
     department === "KB(LES)" &&
     normalizedStatus === "management_review"
   ) {
-    return "KU(IKL) <ALiS Notification Center>";
+    return "KU(IKL)";
   }
 
   return "ALiS Notification Center";
@@ -1025,6 +1025,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         bodyEn: memoMessage,
         bodyMs: memoMessageMs,
         memoHtml: metadata.memo_html || "",
+        memoTemplate: metadata.memo_template || "",
         from: metadata.from || metadata.sender || getNotificationSender(role, status, user),
         to,
         subject,

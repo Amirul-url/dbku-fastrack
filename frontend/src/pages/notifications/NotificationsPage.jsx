@@ -143,6 +143,93 @@ function sanitizeMemoHtml(html) {
   return document.body.innerHTML;
 }
 
+function getMemoContentHtml(html) {
+  const source = sanitizeMemoHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const firstHeading = document.body.querySelector("h1, h2, h3");
+  const headingText = String(firstHeading?.textContent || "").replace(/\s+/g, " ").trim().toUpperCase();
+
+  if (headingText.includes("DEWAN BANDARAYA KUCHING UTARA") && headingText.includes("MEMORANDUM")) {
+    firstHeading.remove();
+  }
+
+  const firstMemoTable = Array.from(document.body.querySelectorAll("figure, table")).find((element) => {
+    const text = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    return text.includes("kepada") && text.includes("daripada") && text.includes("ruj.");
+  });
+
+  if (firstMemoTable) {
+    firstMemoTable.remove();
+  }
+
+  document.body.querySelectorAll("p").forEach((paragraph) => {
+    if (!String(paragraph.textContent || "").trim() && paragraph.children.length === 0) {
+      paragraph.remove();
+    }
+  });
+
+  return document.body.innerHTML;
+}
+
+function localizePtIklToKuMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/APPLICATION FOR KU\(IKL\) REVIEW/gi, "PERMOHONAN UNTUK SEMAKAN KU(IKL)"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/Application (FT-\d+) has been reviewed by PT\(IKL\) and forwarded to KU\(IKL\) for further review\./gi, "Permohonan $1 telah disemak oleh PT(IKL) dan dikemukakan kepada KU(IKL) untuk semakan lanjut."],
+        [/Applicant/gi, "Pemohon"],
+        [/Application Type/gi, "Jenis Permohonan"],
+        [/Project/gi, "Projek"],
+        [/Location/gi, "Lokasi"],
+        [/Application for Site \(New Site\)/gi, "Permohonan Tapak (Tapak Baharu)"],
+        [/Please proceed with KU\(IKL\) review and further action\./gi, "Mohon pihak KU(IKL) membuat semakan dan tindakan selanjutnya."],
+        [/Thank you\./gi, "Sekian, terima kasih."],
+      ]
+    : [
+        [/PERMOHONAN UNTUK SEMAKAN KU\(IKL\)/gi, "APPLICATION FOR KU(IKL) REVIEW"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/Permohonan (FT-\d+) telah disemak oleh PT\(IKL\) dan dikemukakan kepada KU\(IKL\) untuk semakan lanjut\./gi, "Application $1 has been reviewed by PT(IKL) and forwarded to KU(IKL) for further review."],
+        [/Pemohon/gi, "Applicant"],
+        [/Jenis Permohonan/gi, "Application Type"],
+        [/Projek/gi, "Project"],
+        [/Lokasi/gi, "Location"],
+        [/Permohonan Tapak \(Tapak Baharu\)/gi, "Application for Site (New Site)"],
+        [/Mohon pihak KU\(IKL\) membuat semakan dan tindakan selanjutnya\./gi, "Please proceed with KU(IKL) review and further action."],
+        [/Sekian, terima kasih\./gi, "Thank you."],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
+function cleanMemoSender(value) {
+  return String(value || "")
+    .replace(/\s*<\s*ALiS Notification Center\s*>\s*/gi, "")
+    .trim();
+}
+
 function NotificationsPage() {
   const {
     notifications,
@@ -453,6 +540,7 @@ function NotificationMemo({
             copy={formalCopy}
             bodyParts={bodyParts}
             memoHtml={memoHtml}
+            language={language}
             t={t}
           />
         ) : (
@@ -513,10 +601,16 @@ function NotificationBody({ item, bodyParts, memoHtml, t }) {
   );
 }
 
-function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, t }) {
+function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }) {
   const recipient = "PT(IKL)";
-  const sender = item.from || "ALiS Notification Center";
+  const sender = cleanMemoSender(item.from) || "ALiS Notification Center";
   const memoDate = item.time || formatDateTime(item.timestamp);
+  const memoContentHtml =
+    item.memoTemplate === "pt_ikl_to_ku_ikl"
+      ? localizePtIklToKuMemoHtml(memoHtml, language)
+      : memoHtml
+        ? getMemoContentHtml(memoHtml)
+        : "";
 
   return (
     <section className="w-full text-slate-950">
@@ -540,20 +634,18 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, t }) {
           </div>
         </div>
 
-        <h4 className="mt-7 break-words font-bold uppercase leading-6 underline decoration-slate-800 underline-offset-2">
-          {copy.subject}
-        </h4>
-
         <div className="mt-4 space-y-4 leading-6 text-slate-950">
-          <p>{copy.opening}</p>
-
-          {memoHtml ? (
+          {memoContentHtml ? (
             <div
               className="memo-template [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
-              dangerouslySetInnerHTML={{ __html: memoHtml }}
+              dangerouslySetInnerHTML={{ __html: memoContentHtml }}
             />
           ) : copy.lines.length > 0 || bodyParts.remark ? (
             <>
+              <h4 className="break-words font-bold uppercase leading-6 underline decoration-slate-800 underline-offset-2">
+                {copy.subject}
+              </h4>
+              <p>{copy.opening}</p>
               {copy.lines.map((line, index) => (
                 <p key={`${item.id}:formal-line:${index}`}>{line}</p>
               ))}
@@ -563,22 +655,21 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, t }) {
                   <p>{bodyParts.remark}</p>
                 </div>
               )}
+              <p>{copy.closing}</p>
+              <div className="pt-1 font-semibold uppercase leading-5">
+                <p>"AN HONOUR TO SERVE"</p>
+                <p>"TOGETHER WE CARE"</p>
+              </div>
+              <div className="pt-6 leading-5">
+                <p className="font-bold">ALiS Notification Center</p>
+                <p>{copy.systemName}</p>
+              </div>
             </>
           ) : (
             <p className="text-slate-500">
               {t("notifications.memo.emptyBody", "No memo message was provided.")}
             </p>
           )}
-
-          <p>{copy.closing}</p>
-          <div className="pt-1 font-semibold uppercase leading-5">
-            <p>"AN HONOUR TO SERVE"</p>
-            <p>"TOGETHER WE CARE"</p>
-          </div>
-          <div className="pt-6 leading-5">
-            <p className="font-bold">ALiS Notification Center</p>
-            <p>{copy.systemName}</p>
-          </div>
         </div>
       </div>
     </section>
