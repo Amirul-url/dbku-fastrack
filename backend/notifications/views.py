@@ -11,6 +11,7 @@ from .services import (
     SUPERADMIN_NOTIFICATION_STATUSES,
     ADMIN_TECHNICAL_TASK_STATUSES,
     LICENSE_RENEWAL_NOTIFICATION_STATUSES,
+    ensure_user_pending_web_notifications,
     normalize_department,
 )
 
@@ -21,6 +22,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         use_department_inbox = False
+        ensure_user_pending_web_notifications(self.request.user)
 
         if self.request.user.role == "superadmin":
             allowed_event_statuses = SUPERADMIN_NOTIFICATION_STATUSES
