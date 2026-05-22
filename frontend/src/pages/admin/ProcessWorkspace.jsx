@@ -43,9 +43,9 @@ import {
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
-  "PT(IKL)": ["submitted", "incomplete", "technical_amendment"],
+  "PT(IKL)": ["submitted", "incomplete"],
   "KU(IKL)": ["ku_ikl_review", "technical_review_completed"],
-  "IKL (TECHNICAL)": ["technical_review", "technical_site_visit"],
+  "IKL (TECHNICAL)": ["technical_review", "technical_site_visit", "technical_amendment"],
 };
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
@@ -1504,7 +1504,7 @@ function buildKuTechnicalReviewPayload(app, data) {
       correction_request: amendmentRequired
         ? {
             source: "KU(IKL)",
-            target: "PT(IKL)",
+            target: "IKL(TECHNICAL)",
             remarks: data.comment,
             requested_at: now,
           }
@@ -2666,7 +2666,7 @@ function IklWorkspaceSections({
         <section className="rounded-md border border-slate-200 bg-white p-3">
           <div className="mb-3">
             <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-              {t("workspace.technical.kuReviewTitle")}
+              {t("workspace.technical.kuFurtherTitle", "KU(IKL) Further Checking")}
             </h3>
             <p className="mt-1 text-[14px] leading-5 text-slate-500">
               {t("workspace.technical.kuReviewDesc")}
@@ -2844,61 +2844,51 @@ function KuTechnicalFurtherReviewPanel({
   ];
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
-        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-          {t("workspace.technical.kuFurtherTitle", "KU(IKL) Further Checking")}
-        </h3>
-        <p className="mt-1 text-[14px] leading-5 text-slate-500">
-          {t("workspace.technical.kuFurtherDesc")}
-        </p>
-      </div>
-
-      <div className="space-y-3 p-3">
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-            {t("workspace.technical.iklSubmissionSummary")}
-          </h4>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Info
-              label={t("common.reference")}
-              value={getApplicationReference(selectedRecord)}
-            />
-            <Info
-              label={t("common.project")}
-              value={getProjectName(selectedRecord)}
-            />
-            <Info
-              label={t("workspace.location")}
-              value={getApplicationLocation(selectedRecord)}
-            />
-            <Info
-              label={t("workspace.technical.coordinates", "Coordinates")}
-              value={getApplicationCoordinates(step1)}
-            />
-            <Info
-              label={t("common.decision")}
-              value={technicalReview.final_decision || technicalReview.decision || "-"}
-            />
-            <Info
-              label={t("workspace.technical.departmentFeedbackStatus")}
-              value={completedText}
-            />
-            <Info
-              label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
-              value={formatDateTime(formData.technical_site_visit?.visited_at)}
-            />
-            <Info
-              label={t("workspace.technical.siteRemarks")}
-              value={
-                reviewTechnicalSite.site_remarks ||
-                technicalReview.comment ||
-                technicalReview.remarks ||
-                "-"
-              }
-            />
-          </div>
+    <div className="space-y-3">
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+          {t("workspace.technical.iklSubmissionSummary")}
+        </h4>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <Info
+            label={t("common.reference")}
+            value={getApplicationReference(selectedRecord)}
+          />
+          <Info
+            label={t("common.project")}
+            value={getProjectName(selectedRecord)}
+          />
+          <Info
+            label={t("workspace.location")}
+            value={getApplicationLocation(selectedRecord)}
+          />
+          <Info
+            label={t("workspace.technical.coordinates", "Coordinates")}
+            value={getApplicationCoordinates(step1)}
+          />
+          <Info
+            label={t("common.decision")}
+            value={technicalReview.final_decision || technicalReview.decision || "-"}
+          />
+          <Info
+            label={t("workspace.technical.departmentFeedbackStatus")}
+            value={completedText}
+          />
+          <Info
+            label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
+            value={formatDateTime(formData.technical_site_visit?.visited_at)}
+          />
+          <Info
+            label={t("workspace.technical.siteRemarks")}
+            value={
+              reviewTechnicalSite.site_remarks ||
+              technicalReview.comment ||
+              technicalReview.remarks ||
+              "-"
+            }
+          />
         </div>
+      </div>
 
         <div className="rounded-md border border-slate-200 bg-white p-3">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2950,29 +2940,28 @@ function KuTechnicalFurtherReviewPanel({
 
         <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
 
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-            {t("workspace.technical.reviewChecklist")}
-          </h4>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {checklist.map(([key, label]) => (
-              <label
-                key={key}
-                className="flex min-h-11 items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-[14px] leading-5 text-slate-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={Boolean(checks?.[key])}
-                  onChange={(event) => onCheckChange(key, event.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
-                />
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+          {t("workspace.technical.reviewChecklist")}
+        </h4>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {checklist.map(([key, label]) => (
+            <label
+              key={key}
+              className="flex min-h-11 items-start gap-2 rounded-md border border-slate-200 px-3 py-2 text-[14px] leading-5 text-slate-800"
+            >
+              <input
+                type="checkbox"
+                checked={Boolean(checks?.[key])}
+                onChange={(event) => onCheckChange(key, event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+              />
+              <span>{label}</span>
+            </label>
+          ))}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 

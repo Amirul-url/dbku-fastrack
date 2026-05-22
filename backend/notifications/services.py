@@ -103,7 +103,7 @@ STATUS_MESSAGES = {
     "technical_amendment": (
         "Technical amendment required",
         "",
-        "Application {reference} requires PT(IKL) amendment before KU(IKL) can continue.",
+        "Application {reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue.",
     ),
     "technical_review_completed": (
         "KU(IKL) technical review required",
@@ -1065,7 +1065,7 @@ def get_admin_task_web_recipients(application):
         return [user for user in users if is_ku_ikl_user(user)]
 
     if status_key == "technical_amendment":
-        return [user for user in users if is_pt_ikl_user(user)]
+        return [user for user in users if is_ikl_technical_user(user)]
 
     if status_key == "management_review":
         if is_kb_les_verification_pending(application):
@@ -1304,7 +1304,7 @@ def should_user_receive_admin_notification(user, application, status_key=None):
         return department in SUT_APPROVAL_DEPARTMENTS
 
     if status == "technical_amendment":
-        return department == "PT(IKL)"
+        return department == "IKL (TECHNICAL)"
 
     if status in {"technical_review", "technical_site_visit", "technical_amendment"} and department == "IKL (TECHNICAL)":
         return True

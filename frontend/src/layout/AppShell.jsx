@@ -11,7 +11,6 @@ const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
 const PT_IKL_TASK_STATUSES = new Set([
   "submitted",
   "incomplete",
-  "technical_amendment",
 ]);
 const KU_IKL_TASK_STATUSES = new Set([
   "ku_ikl_review",
@@ -20,6 +19,7 @@ const KU_IKL_TASK_STATUSES = new Set([
 const IKL_TECHNICAL_TASK_STATUSES = new Set([
   "technical_review",
   "technical_site_visit",
+  "technical_amendment",
 ]);
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
   "technical_review",

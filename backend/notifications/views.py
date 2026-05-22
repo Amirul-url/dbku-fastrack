@@ -31,7 +31,6 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
             if department == "PT(IKL)":
                 allowed_event_statuses = {
                     "submitted",
-                    "technical_amendment",
                     "approved",
                     "payment_submitted",
                     "payment_verified",
@@ -50,6 +49,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 allowed_event_statuses = {
                     "technical_review",
                     "technical_site_visit",
+                    "technical_amendment",
                 }
             elif department in {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}:
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES

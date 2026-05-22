@@ -174,7 +174,7 @@ function getNotificationSender(role, status, user) {
   if (
     role === "admin" &&
     department === "IKL (TECHNICAL)" &&
-    ["technical_review", "technical_site_visit"].includes(normalizedStatus)
+    ["technical_review", "technical_site_visit", "technical_amendment"].includes(normalizedStatus)
   ) {
     return "KU(IKL) <ALiS Notification Center>";
   }
@@ -243,9 +243,15 @@ function getMemoSubject(subject, title, reference, options = {}) {
 
   if (
     role === "admin" &&
-    ["technical_review", "technical_site_visit"].includes(status) &&
+    ["technical_review", "technical_site_visit", "technical_amendment"].includes(status) &&
     department === "IKL (TECHNICAL)"
   ) {
+    if (status === "technical_amendment") {
+      return cleanReference
+        ? `${cleanReference} requires IKL (TECHNICAL) amendment`
+        : "Application requires IKL (TECHNICAL) amendment";
+    }
+
     return cleanReference
       ? `${cleanReference} requires IKL (TECHNICAL) review`
       : "Application requires IKL (TECHNICAL) review";
@@ -405,7 +411,7 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
 
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
     if (normalizedStatus === "technical_amendment") {
-      return department === "PT(IKL)";
+      return department === "IKL (TECHNICAL)";
     }
 
     if (normalizedStatus === "technical_review_completed") {
@@ -413,7 +419,7 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
     }
 
     if (department === "IKL (TECHNICAL)") {
-      return ["technical_review", "technical_site_visit"].includes(normalizedStatus);
+      return ["technical_review", "technical_site_visit", "technical_amendment"].includes(normalizedStatus);
     }
 
     if (!technicalDepartments.has(department)) return false;
@@ -636,13 +642,13 @@ function buildAdminNotifications(app, user) {
         "admin",
         "technical",
         "warning",
-        amendmentTask ? "PT(IKL) amendment required" : `${department} technical task assigned`,
-        amendmentTask ? "Pindaan PT(IKL) diperlukan" : `Tugasan teknikal ${department} diberikan`,
+        amendmentTask ? "IKL(TECHNICAL) amendment required" : `${department} technical task assigned`,
+        amendmentTask ? "Pindaan IKL(TECHNICAL) diperlukan" : `Tugasan teknikal ${department} diberikan`,
         amendmentTask
-          ? `${reference} requires PT(IKL) amendment before KU(IKL) can continue.`
+          ? `${reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue.`
           : `${reference} is ready for ${department} site review.`,
         amendmentTask
-          ? `${reference} memerlukan pindaan PT(IKL) sebelum KU(IKL) boleh meneruskan.`
+          ? `${reference} memerlukan pindaan IKL(TECHNICAL) sebelum KU(IKL) boleh meneruskan.`
           : `${reference} sedia untuk semakan tapak ${department}.`,
         user
       )

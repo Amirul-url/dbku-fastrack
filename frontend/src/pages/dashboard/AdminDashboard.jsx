@@ -62,7 +62,7 @@ const units = [
     descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete", "technical_amendment"],
+    statuses: ["submitted", "incomplete"],
     historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/auto-screening",
   },
@@ -84,7 +84,7 @@ const units = [
     descriptionKey: "admin.unit.iklTechnical.desc",
     icon: "engineering",
     color: "bg-cyan-600",
-    statuses: ["technical_review", "technical_site_visit"],
+    statuses: ["technical_review", "technical_site_visit", "technical_amendment"],
     historyStatuses: IKL_HISTORY_STATUSES.filter((status) =>
       !["submitted", "incomplete", "ku_ikl_review"].includes(status)
     ),
