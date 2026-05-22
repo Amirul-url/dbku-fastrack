@@ -370,17 +370,20 @@ class NotificationRoutingTests(TestCase):
             is_active=True,
         )
         amendment_remark = "Please revise the technical fee calculation."
+        memo_html = "<p>KU(IKL) amendment memo</p>"
         self.application.latest_remark = ""
         self.application.form_data = {
             **self.application.form_data,
             "technical_ku_review": {
                 "decision": "KU(IKL) Request Technical Amendment",
                 "remarks": amendment_remark,
+                "memo_html": memo_html,
             },
             "correction_request": {
                 "source": "KU(IKL)",
                 "target": "IKL(TECHNICAL)",
                 "remarks": amendment_remark,
+                "memo_html": memo_html,
             },
         }
         self.application.save(update_fields=["latest_remark", "form_data"])
@@ -397,6 +400,7 @@ class NotificationRoutingTests(TestCase):
         self.assertIn(f"Remark: {amendment_remark}", delivery.metadata["message_en"])
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
 
         client = APIClient()
         client.force_authenticate(user=ikl_technical_user)
@@ -404,6 +408,42 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(data[0]["latest_remark"], amendment_remark)
+
+    def test_ku_ikl_final_approval_memo_is_sent_to_kb_les_notification(self):
+        kb_user = User.objects.create_user(
+            username="kb-les-ku-final",
+            email="",
+            password="Password123",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        memo_html = "<p>KU(IKL) final review memo</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_ku_review": {
+                "decision": "KU(IKL) Confirm - Send to KB(LES)",
+                "memo_html": memo_html,
+            },
+            "kb_les_verification": {
+                "status": "Pending KB(LES) Verification",
+                "routed_from": "KU(IKL)",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("management_review", old_status="technical_review_completed")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="management_review",
+            user=kb_user,
+        )
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["from"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["to"], "KB(LES)")
 
     def test_management_review_notifies_kb_les_with_fallback_contacts(self):
         kb_user = User.objects.create_user(

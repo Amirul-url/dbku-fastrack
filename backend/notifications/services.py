@@ -868,7 +868,12 @@ def build_web_metadata(application, title, body, recipient_role):
     if sender:
         metadata["from"] = sender
         metadata["sender"] = sender
-    if memo_html and is_management_support_pending(application):
+    if memo_html and status_key == "management_review" and is_kb_les_verification_pending(application):
+        metadata["memo_html"] = memo_html
+        metadata["from"] = "KU(IKL)"
+        metadata["sender"] = "KU(IKL)"
+        metadata["to"] = "KB(LES)"
+    elif memo_html and is_management_support_pending(application):
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "kb_les_to_tp_pgh"
         metadata["from"] = "KB(LES) <ALiS Notification Center>"
@@ -891,6 +896,8 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["sender"] = "IKL(TECHNICAL)"
         metadata["to"] = "KU(IKL)"
     elif status_key == "technical_amendment":
+        if memo_html:
+            metadata["memo_html"] = memo_html
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = "IKL(TECHNICAL)"
@@ -932,6 +939,20 @@ def get_ikl_technical_to_ku_memo_html(application):
     return str(memo_html or "").strip()
 
 
+def get_ku_final_review_memo_html(application):
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
+    if status_key == "technical_amendment":
+        correction = get_form_section(application, "correction_request")
+        technical_ku_review = get_form_section(application, "technical_ku_review")
+        memo_html = correction.get("memo_html") or technical_ku_review.get("memo_html")
+        return str(memo_html or "").strip()
+
+    kb_les_verification = get_form_section(application, "kb_les_verification")
+    technical_ku_review = get_form_section(application, "technical_ku_review")
+    memo_html = kb_les_verification.get("memo_html") or technical_ku_review.get("memo_html")
+    return str(memo_html or "").strip()
+
+
 def get_admin_memo_html(application):
     status_key = str(getattr(application, "status", "") or "").strip().lower()
 
@@ -943,6 +964,11 @@ def get_admin_memo_html(application):
 
     if status_key == "technical_review_completed":
         return get_ikl_technical_to_ku_memo_html(application)
+
+    if status_key in {"management_review", "technical_amendment"}:
+        ku_final_memo = get_ku_final_review_memo_html(application)
+        if ku_final_memo:
+            return ku_final_memo
 
     return get_kb_les_memo_html(application)
 

@@ -424,6 +424,18 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     );
   }
 
+  function isKuIklFinalTechnicalDecisionAction(action, actionDecision) {
+    return (
+      config.key === "screening" &&
+      userDepartment === "KU(IKL)" &&
+      action?.buildPayload === buildKuTechnicalReviewPayload &&
+      [
+        "KU(IKL) Confirm - Send to KB(LES)",
+        "KU(IKL) Request Technical Amendment",
+      ].includes(actionDecision)
+    );
+  }
+
   function isIklTechnicalSupportToKuAction(action, actionDecision) {
     return (
       config.key === "screening" &&
@@ -501,6 +513,29 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       return false;
     }
 
+    if (isKuIklFinalTechnicalDecisionAction(action, actionDecision) && !overrides.memoHtml) {
+      const amendmentRequired = actionDecision === "KU(IKL) Request Technical Amendment";
+
+      setError("");
+      setSuccess("");
+      setMemoDraft(createKuIklFinalReviewMemoTemplate(selectedRecord, technicalSite, actionDecision, cleanedComment));
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
+        titleKey: amendmentRequired
+          ? "workspace.memo.kuAmendTechnicalTitle"
+          : "workspace.memo.kuToKbTitle",
+        title: amendmentRequired ? "Memo to IKL(TECHNICAL)" : "Memo to KB(LES)",
+        descriptionKey: amendmentRequired
+          ? "workspace.memo.kuAmendTechnicalDescription"
+          : "workspace.memo.kuToKbDescription",
+        description: amendmentRequired
+          ? "Complete the memo before returning this application to IKL(TECHNICAL)."
+          : "Complete the memo before sending this application to KB(LES).",
+      });
+      return false;
+    }
+
     if (isIklTechnicalSupportToKuAction(action, actionDecision) && !overrides.memoHtml) {
       setError("");
       setSuccess("");
@@ -521,6 +556,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         isKbLesVerifyAction(action, actionDecision) ||
         isPtIklApproveToKuAction(action, actionDecision) ||
         isKuIklApproveToTechnicalAction(action, actionDecision) ||
+        isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
         isIklTechnicalSupportToKuAction(action, actionDecision)
       ) &&
       !getHtmlPlainText(overrides.memoHtml)
@@ -1281,6 +1317,114 @@ function createKuIklToTechnicalMemoTemplate(app) {
       </tbody>
     </table></figure>
     <p>Mohon pihak IKL(TECHNICAL) membuat semakan teknikal dan tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
+function createKuIklFinalReviewMemoTemplate(app, technicalSite, decision, comment) {
+  const now = new Date();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  const amendmentRequired = decision === "KU(IKL) Request Technical Amendment";
+  const recipient = amendmentRequired ? "IKL(TECHNICAL)" : "KB(LES)";
+  const subject = amendmentRequired
+    ? "PINDAAN SEMAKAN TEKNIKAL DIPERLUKAN"
+    : "SEMAKAN AKHIR TEKNIKAL KU(IKL)";
+  const bodyLine = amendmentRequired
+    ? "KU(IKL) memohon pindaan teknikal dibuat sebelum semakan boleh diteruskan."
+    : "KU(IKL) telah membuat semakan akhir teknikal dan mengemukakan permohonan ini untuk pengesahan KB(LES).";
+  const closingLine = amendmentRequired
+    ? "Mohon pihak IKL(TECHNICAL) membuat pindaan dan tindakan selanjutnya."
+    : "Mohon pihak KB(LES) membuat pengesahan dan tindakan selanjutnya.";
+  const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
+  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
+    (item) => item.item || item.account_code || item.amount
+  );
+  const feeTotals = getTechnicalFeeTotals(feeItems);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+  const remarks = comment || "";
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(recipient)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>${escapeHtml(subject)}</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>${escapeHtml(bodyLine)}</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Keputusan KU(IKL)</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(decision)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Yuran Lesen</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.feeTotal || 0))}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Deposit</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.depositTotal || 0))}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jumlah Perlu Dibayar</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.grandTotal || 0))}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(remarks)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>${escapeHtml(closingLine)}</p>
     <p>Sekian, terima kasih.</p>
   `;
 }
@@ -2107,6 +2251,7 @@ function buildKuTechnicalReviewPayload(app, data) {
         decision: data.decision,
         remarks: data.comment,
         checks: createKuTechnicalChecks(data.kuChecks),
+        memo_html: data.memoHtml || app.form_data?.technical_ku_review?.memo_html || "",
         reviewed_by: "KU(IKL)",
         reviewed_at: now,
       },
@@ -2115,6 +2260,7 @@ function buildKuTechnicalReviewPayload(app, data) {
             source: "KU(IKL)",
             target: "IKL(TECHNICAL)",
             remarks: data.comment,
+            memo_html: data.memoHtml || "",
             requested_at: now,
           }
         : null,
@@ -2124,6 +2270,7 @@ function buildKuTechnicalReviewPayload(app, data) {
             status: "Pending KB(LES) Verification",
             routed_from: "KU(IKL)",
             routed_at: now,
+            memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
           },
       management_recommendation: null,
       mphlg_gateway: null,
