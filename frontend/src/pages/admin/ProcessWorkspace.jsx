@@ -1489,7 +1489,7 @@ function buildKuTechnicalReviewPayload(app, data) {
   const amendmentRequired = data.decision === "KU(IKL) Request Technical Amendment";
 
   return {
-    status: amendmentRequired ? "technical_amendment" : "mphlg_decision_received",
+    status: amendmentRequired ? "technical_amendment" : "management_review",
     current_step: Math.max(Number(app.current_step || 1), 5),
     latest_remark: data.comment || app.latest_remark || "",
     form_data: mergeFormData(app, {
@@ -1512,7 +1512,7 @@ function buildKuTechnicalReviewPayload(app, data) {
       kb_les_verification: amendmentRequired
         ? null
         : {
-            status: "Waiting for SUT Result",
+            status: "Pending KB(LES) Support",
             routed_from: "KU(IKL)",
             routed_at: now,
           },
@@ -1520,12 +1520,7 @@ function buildKuTechnicalReviewPayload(app, data) {
       mphlg_gateway: null,
       sut_approval: amendmentRequired
         ? app.form_data?.sut_approval || null
-        : {
-            ...(app.form_data?.sut_approval || {}),
-            status: "Pending SUT Approval",
-            routed_from: "KU(IKL)",
-            routed_at: now,
-          },
+        : app.form_data?.sut_approval || null,
       approval: null,
     }),
   };
