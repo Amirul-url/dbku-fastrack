@@ -717,6 +717,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   t={t}
                   selectedRecord={selectedRecord}
                   technicalSite={technicalSite}
+                  userDepartment={userDepartment}
                 />
               )}
 
@@ -2968,6 +2969,7 @@ function ApprovalTechnicalReviewSummary({
   technicalSite,
   title,
   description,
+  userDepartment,
 }) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
   const formData = selectedRecord.form_data || {};
@@ -2976,6 +2978,9 @@ function ApprovalTechnicalReviewSummary({
   const kuReview = selectedRecord.form_data?.technical_ku_review || {};
   const kuDecision = formatDecisionValue(kuReview.decision || kuReview.status, t);
   const kuRemarks = kuReview.remarks || kuReview.comment || "-";
+  const isKbVerificationReport =
+    normalizeDepartmentCode(userDepartment) === "KB(LES)" &&
+    getApprovalStageKey(selectedRecord) === "kb";
   const applicantSitePhotos = getApplicantSitePhotos(selectedRecord);
   const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
     ? reviewTechnicalSite.site_photos
@@ -3013,42 +3018,46 @@ function ApprovalTechnicalReviewSummary({
       </div>
 
       <div className="space-y-3 p-3">
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-            {t("workspace.approval.applicationFacts", "Application Facts")}
-          </h4>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
-            <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
-            <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t)} />
-            <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
-            <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
-            <Info
-              label={t("workspace.applicationDate", "Application Date")}
-              value={formatDate(step1.application_date)}
-            />
-            <Info
-              label={t("workspace.technical.coordinates", "Coordinates")}
-              value={coordinates}
-            />
-            <Info
-              label={t("workspace.created")}
-              value={formatDateTime(selectedRecord.created_at)}
-            />
-            <Info
-              label={t("common.updated")}
-              value={formatDateTime(selectedRecord.updated_at)}
-            />
+        {!isKbVerificationReport && (
+          <div className="rounded-md border border-slate-200 bg-white p-3">
+            <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+              {t("workspace.approval.applicationFacts", "Application Facts")}
+            </h4>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
+              <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
+              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t)} />
+              <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
+              <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
+              <Info
+                label={t("workspace.applicationDate", "Application Date")}
+                value={formatDate(step1.application_date)}
+              />
+              <Info
+                label={t("workspace.technical.coordinates", "Coordinates")}
+                value={coordinates}
+              />
+              <Info
+                label={t("workspace.created")}
+                value={formatDateTime(selectedRecord.created_at)}
+              />
+              <Info
+                label={t("common.updated")}
+                value={formatDateTime(selectedRecord.updated_at)}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
           <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-            {t("workspace.approval.technicalRecommendation", "Technical Recommendation")}
+            {isKbVerificationReport
+              ? t("workspace.approval.kuFinalCheck", "KU(IKL) Final Checking Result")
+              : t("workspace.approval.technicalRecommendation", "Technical Recommendation")}
           </h4>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             <Info
-              label={t("common.decision")}
+              label={t("workspace.approval.finalTechnicalDecision", "Final Technical Decision")}
               value={formatDecisionValue(technicalReview.final_decision || technicalReview.decision, t)}
             />
             <Info
@@ -3064,20 +3073,22 @@ function ApprovalTechnicalReviewSummary({
               value={formatDateTime(kuReview.reviewed_at)}
             />
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Info
-              label={t("workspace.technical.licenseFee")}
-              value={formatReportAmount(reviewTechnicalSite.license_fee_calculation)}
-            />
-            <Info
-              label={t("workspace.technical.deposit")}
-              value={formatReportAmount(reviewTechnicalSite.deposit_calculation)}
-            />
-            <Info
-              label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
-              value={formatDateTime(formData.technical_site_visit?.visited_at)}
-            />
-          </div>
+          {!isKbVerificationReport && (
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <Info
+                label={t("workspace.technical.licenseFee")}
+                value={formatReportAmount(reviewTechnicalSite.license_fee_calculation)}
+              />
+              <Info
+                label={t("workspace.technical.deposit")}
+                value={formatReportAmount(reviewTechnicalSite.deposit_calculation)}
+              />
+              <Info
+                label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
+                value={formatDateTime(formData.technical_site_visit?.visited_at)}
+              />
+            </div>
+          )}
           <div className="mt-3">
             <Info
               label={t("workspace.comment.remarks", "Remarks")}
@@ -3097,23 +3108,27 @@ function ApprovalTechnicalReviewSummary({
           </div>
         </div>
 
-        <ReportPhotoGrid
-          t={t}
-          title={t("workspace.siteImage", "Applicant Site Image")}
-          emptyText={t("workspace.info.notSubmitted", "Not submitted")}
-          applicationId={selectedRecord.id}
-          photos={applicantSitePhotos}
-        />
+        {!isKbVerificationReport && (
+          <>
+            <ReportPhotoGrid
+              t={t}
+              title={t("workspace.siteImage", "Applicant Site Image")}
+              emptyText={t("workspace.info.notSubmitted", "Not submitted")}
+              applicationId={selectedRecord.id}
+              photos={applicantSitePhotos}
+            />
 
-        <ReportPhotoGrid
-          t={t}
-          title={t("workspace.technical.sitePhoto")}
-          emptyText={t("workspace.info.notSubmitted", "Not submitted")}
-          applicationId={selectedRecord.id}
-          photos={technicalSitePhotos}
-        />
+            <ReportPhotoGrid
+              t={t}
+              title={t("workspace.technical.sitePhoto")}
+              emptyText={t("workspace.info.notSubmitted", "Not submitted")}
+              applicationId={selectedRecord.id}
+              photos={technicalSitePhotos}
+            />
 
-        <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+            <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+          </>
+        )}
       </div>
     </section>
   );
@@ -3308,6 +3323,7 @@ function getDecisionLabelKey(value) {
     "Not Supported": "workspace.decision.notSupported",
     "Requires Amendment": "workspace.decision.requiresAmendment",
     "KU(IKL) Confirm - Send to KB(LES)": "workspace.decision.kuVerifiedToKb",
+    "Verified - Sent to KB(LES)": "workspace.decision.kuVerifiedToKb",
     "KU(IKL) Request Technical Amendment": "workspace.decision.kuRequestTechnicalAmendment",
   };
 
