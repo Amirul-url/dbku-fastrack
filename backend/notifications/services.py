@@ -848,6 +848,7 @@ def build_web_metadata(application, title, body, recipient_role):
     category, notification_type = STATUS_UI.get(status_key, ("progress", "info"))
     remark = get_message_remark(application)
     display_message = body
+    memo_html = get_kb_les_memo_html(application) if recipient_role == "admin" else ""
 
     if remark:
         display_message = f"{display_message}\n\nRemark: {remark}"
@@ -866,15 +867,29 @@ def build_web_metadata(application, title, body, recipient_role):
     if sender:
         metadata["from"] = sender
         metadata["sender"] = sender
+    if memo_html and is_management_support_pending(application):
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "kb_les_to_tp_pgh"
+        metadata["from"] = "KB(LES) <ALiS Notification Center>"
+        metadata["sender"] = "KB(LES) <ALiS Notification Center>"
 
     return metadata
 
 
 def get_web_metadata_sender(application, recipient_role):
+    if recipient_role == "admin" and is_management_support_pending(application):
+        return "KB(LES) <ALiS Notification Center>"
+
     if recipient_role == "admin" and is_kb_les_returned_to_ku(application):
         return "KB(LES) <ALiS Notification Center>"
 
     return ""
+
+
+def get_kb_les_memo_html(application):
+    section = get_form_section(application, "kb_les_verification")
+    memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
 
 
 def is_kb_les_returned_to_ku(application):

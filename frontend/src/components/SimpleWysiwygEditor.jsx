@@ -16,6 +16,8 @@ import {
   List,
   Paragraph,
   PasteFromOffice,
+  Table,
+  TableToolbar,
   Underline,
   Undo,
 } from "ckeditor5";
@@ -46,6 +48,8 @@ function SimpleWysiwygEditor({ label, value = "", onChange, max = 3000, readOnly
         List,
         Link,
         BlockQuote,
+        Table,
+        TableToolbar,
         Autoformat,
         PasteFromOffice,
         Undo,
@@ -77,9 +81,14 @@ function SimpleWysiwygEditor({ label, value = "", onChange, max = 3000, readOnly
           "alignment:justify",
           "|",
           "link",
+          "insertTable",
           "blockQuote",
         ],
         shouldNotGroupWhenFull: true,
+      },
+
+      table: {
+        contentToolbar: ["tableColumn", "tableRow", "mergeTableCells"],
       },
 
       heading: {

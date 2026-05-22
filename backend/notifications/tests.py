@@ -472,6 +472,55 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(data[0]["metadata"]["event_status"], "management_review")
         self.assertIn("KB(LES) verification", data[0]["metadata"]["title_en"])
 
+    def test_kb_les_verified_memo_is_sent_to_tp_pgh_notification(self):
+        tp_user = User.objects.create_user(
+            username="tp-res",
+            email="tp@example.com",
+            password="Password123",
+            role="admin",
+            department="TP(RES)",
+            is_active=True,
+        )
+        User.objects.create_user(
+            username="kb-les",
+            email="kb@example.com",
+            password="Password123",
+            role="admin",
+            department="KB(LES)",
+            is_active=True,
+        )
+        old_form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Pending KB(LES) Verification"},
+        }
+        memo_html = "<h2>DEWAN BANDARAYA KUCHING UTARA</h2><p>Memo kelulusan</p>"
+        self.application.status = "management_review"
+        self.application.form_data = {
+            **old_form_data,
+            "kb_les_verification": {
+                "status": "Verified",
+                "memo_html": memo_html,
+            },
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        notify_application_status_change(
+            self.application,
+            old_status="management_review",
+            old_form_data=old_form_data,
+        )
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="management_review",
+            user=tp_user,
+        )
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["sender"], "KB(LES) <ALiS Notification Center>")
+        self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
+
 
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):

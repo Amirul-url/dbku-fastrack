@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
+import SimpleWysiwygEditor from "../../components/SimpleWysiwygEditor";
 import {
   apiRequest,
   deleteApplicationDocument,
@@ -118,6 +119,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const [decision, setDecision] = useState(config.defaultDecision || "");
   const [comment, setComment] = useState("");
   const [licenseExpiryYears, setLicenseExpiryYears] = useState("1");
+  const [memoDraft, setMemoDraft] = useState("");
+  const [pendingMemoSubmission, setPendingMemoSubmission] = useState(null);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     fee_date: "",
@@ -389,6 +392,16 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     submitAction(action, { decision: decisionValue, checkDecisionRemark: false });
   }
 
+  function isKbLesVerifyAction(action, actionDecision) {
+    return (
+      config.key === "approval" &&
+      userDepartment === "KB(LES)" &&
+      getApprovalStageKey(selectedRecord) === "kb" &&
+      action?.buildPayload === buildApprovalWorkflowPayload &&
+      actionDecision === "Verify"
+    );
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -416,6 +429,19 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       return;
     }
 
+    if (isKbLesVerifyAction(action, actionDecision) && !overrides.memoHtml) {
+      setError("");
+      setSuccess("");
+      setMemoDraft(createKbLesMemoTemplate(selectedRecord, technicalSite));
+      setPendingMemoSubmission({ action, overrides: { ...overrides, decision: actionDecision } });
+      return false;
+    }
+
+    if (isKbLesVerifyAction(action, actionDecision) && !getHtmlPlainText(overrides.memoHtml)) {
+      setError(t("workspace.memo.required", "Please complete the memo before sending."));
+      return false;
+    }
+
     try {
       setSaving(true);
       setError("");
@@ -427,6 +453,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         technicalSite,
         department: userDepartment,
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
+        memoHtml: overrides.memoHtml || "",
       });
 
       const requestPath =
@@ -445,17 +472,43 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       await fetchApplications();
       if (isFocusedPersonalWorkspace) {
         navigate("/dashboard/admin?view=personal");
-        return;
+        return true;
       }
 
       const refreshed =
         response?.data || (await apiRequest(`/applications/${selectedRecord.id}/`));
       setSelectedDetail(refreshed);
+      return true;
     } catch (err) {
       setError(err.message || action.error || "Action failed.");
+      return false;
     } finally {
       setSaving(false);
     }
+  }
+
+  function closeMemoModal() {
+    if (saving) return;
+    setPendingMemoSubmission(null);
+    setMemoDraft("");
+  }
+
+  async function sendMemoSubmission() {
+    if (!pendingMemoSubmission) return;
+    if (!getHtmlPlainText(memoDraft)) {
+      setError(t("workspace.memo.required", "Please complete the memo before sending."));
+      return;
+    }
+
+    const { action, overrides } = pendingMemoSubmission;
+    const submitted = await submitAction(action, {
+      ...overrides,
+      memoHtml: memoDraft,
+    });
+    if (!submitted) return;
+
+    setPendingMemoSubmission(null);
+    setMemoDraft("");
   }
 
   function openSelectedTask(app) {
@@ -910,7 +963,71 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
           )}
         </Panel>
       )}
+
+      {pendingMemoSubmission && (
+        <KbLesMemoModal
+          t={t}
+          value={memoDraft}
+          saving={saving}
+          onChange={setMemoDraft}
+          onCancel={closeMemoModal}
+          onSend={sendMemoSubmission}
+        />
+      )}
     </AdminDashboardLayout>
+  );
+}
+
+function KbLesMemoModal({ t, value, saving, onChange, onCancel, onSend }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="kb-les-memo-title"
+        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl"
+      >
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 id="kb-les-memo-title" className="text-[17px] font-semibold leading-6 text-slate-950">
+            {t("workspace.memo.title", "Memo to TP(RES)/PGH")}
+          </h2>
+          <p className="mt-1 text-[14px] leading-5 text-slate-500">
+            {t(
+              "workspace.memo.description",
+              "Complete the memo template. This exact memo will appear in TP(RES)/PGH notifications."
+            )}
+          </p>
+        </div>
+
+        <div className="overflow-y-auto px-4 py-4">
+          <SimpleWysiwygEditor
+            label={t("workspace.memo.editorLabel", "Memo Content")}
+            value={value}
+            onChange={onChange}
+            max={12000}
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            {t("common.cancel", "Cancel")}
+          </Button>
+          <Button
+            type="button"
+            icon="send"
+            onClick={onSend}
+            disabled={saving}
+          >
+            {saving ? t("workspace.saving") : t("workspace.memo.send", "Send")}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -919,6 +1036,72 @@ function mergeFormData(app, next) {
     ...(app.form_data || {}),
     ...next,
   };
+}
+
+function createKbLesMemoTemplate(app, technicalSite) {
+  const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
+  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
+    (item) => item.item || item.account_code || item.amount
+  );
+  const total = getTechnicalFeeTotal(feeItems);
+  const totalText = total ? formatCurrency(total) : "0.00";
+  const year = new Date().getFullYear();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+  const project = getProjectName(app);
+  const reference = getApplicationReference(app);
+
+  return `
+    <h2 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h2>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr><td style="width:16%;border-top:1px solid #000;border-bottom:1px solid #000;padding:6px;"><strong>Kepada :</strong></td><td colspan="3" style="border-top:1px solid #000;border-bottom:1px solid #000;padding:6px;">Timbalan Pengarah (Jabatan Perkhidmatan Kawal Selia)</td></tr>
+        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Melalui :</strong></td><td colspan="3" style="border-bottom:1px solid #000;padding:6px;">&nbsp;</td></tr>
+        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Daripada :</strong></td><td colspan="3" style="border-bottom:1px solid #000;padding:6px;">Ketua Bahagian (Pelesenan)</td></tr>
+        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Ruj. Kami :</strong></td><td style="border-bottom:1px solid #000;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td><td style="border-bottom:1px solid #000;padding:6px;"><strong>Tarikh:</strong></td><td style="border-bottom:1px solid #000;padding:6px;">${escapeHtml(memoDate)}</td></tr>
+        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Ruj. Tuan :</strong></td><td style="border-bottom:1px solid #000;padding:6px;">${escapeHtml(reference)}</td><td style="border-bottom:1px solid #000;padding:6px;"><strong>Tarikh:</strong></td><td style="border-bottom:1px solid #000;padding:6px;">&nbsp;</td></tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN / IKLAN</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Untuk makluman, Bahagian Pelesenan telah menerima permohonan baru Lesen Tandanama Perniagaan/Iklan seperti berikut:</p>
+    <p>... Bersama ini disertakan permohonan tandanama perniagaan/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr><th style="width:10%;border:1px solid #000;padding:6px;">BIL.</th><th style="border:1px solid #000;padding:6px;">PERKARA</th><th style="width:22%;border:1px solid #000;padding:6px;">HASIL<br>(RM)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td style="border:1px solid #000;padding:6px;">1.</td><td style="border:1px solid #000;padding:6px;">${escapeHtml(project)}<br>(${escapeHtml(reference)})</td><td style="border:1px solid #000;padding:6px;text-align:right;">${escapeHtml(totalText.replace(/^RM\s*/, ""))}</td></tr>
+        <tr><td colspan="2" style="border:1px solid #000;padding:6px;text-align:right;"><strong>Jumlah Keseluruhan</strong></td><td style="border:1px solid #000;padding:6px;text-align:right;"><strong>${escapeHtml(totalText.replace(/^RM\s*/, ""))}</strong></td></tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon kelulusan puan dalam perkara tersebut di atas.</p>
+    <p>Sekian. Terima kasih.</p>
+    <p><strong><em>"AN HONOUR TO SERVE"</em></strong><br><strong><em>"TOGETHER WE CARE"</em></strong></p>
+    <p><br><strong>(........................................)</strong><br>Ketua Bahagian<br>Bahagian Pelesenan</p>
+  `;
+}
+
+function getHtmlPlainText(html) {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
@@ -1545,6 +1728,7 @@ function buildApprovalWorkflowPayload(app, data) {
           status: rejected ? "Rejected" : "Verified",
           decision,
           remarks: data.comment,
+          memo_html: rejected ? "" : data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
           verified_at: now,
         },
         management_recommendation: rejected

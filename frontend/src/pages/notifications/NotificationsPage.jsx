@@ -71,6 +71,75 @@ function getMemoBodyParts(body) {
   };
 }
 
+function sanitizeMemoHtml(html) {
+  const source = String(html || "").trim();
+  if (!source || typeof window === "undefined" || !window.DOMParser) return "";
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const allowedTags = new Set([
+    "A", "B", "BLOCKQUOTE", "BR", "DIV", "EM", "FIGURE", "H1", "H2", "H3",
+    "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH",
+    "THEAD", "TR", "U", "UL",
+  ]);
+  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class"]);
+  const allowedStyleProperties = new Set([
+    "border",
+    "border-bottom",
+    "border-collapse",
+    "border-top",
+    "font-size",
+    "padding",
+    "text-align",
+    "width",
+  ]);
+
+  document.body.querySelectorAll("*").forEach((element) => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value || "";
+
+      if (!allowedAttributes.has(name) || /^on/i.test(name) || /javascript:/i.test(value)) {
+        element.removeAttribute(attribute.name);
+      }
+    });
+
+    if (element.hasAttribute("style")) {
+      const safeStyle = String(element.getAttribute("style") || "")
+        .split(";")
+        .map((rule) => rule.trim())
+        .filter((rule) => {
+          const [property, ...valueParts] = rule.split(":");
+          const value = valueParts.join(":").trim();
+          return (
+            allowedStyleProperties.has(String(property || "").trim().toLowerCase()) &&
+            value &&
+            !/url|expression|javascript/i.test(value)
+          );
+        })
+        .join("; ");
+
+      if (safeStyle) {
+        element.setAttribute("style", safeStyle);
+      } else {
+        element.removeAttribute("style");
+      }
+    }
+
+    if (element.tagName === "A") {
+      element.setAttribute("target", "_blank");
+      element.setAttribute("rel", "noreferrer");
+    }
+  });
+
+  return document.body.innerHTML;
+}
+
 function NotificationsPage() {
   const {
     notifications,
@@ -317,6 +386,7 @@ function NotificationMemo({ item, language, t, onBack }) {
   const subject = item.subject || getLocalized(item, "title", language);
   const body = getLocalized(item, "body", language) || getLocalized(item, "message", language);
   const bodyParts = getMemoBodyParts(body);
+  const memoHtml = sanitizeMemoHtml(item.memoHtml);
 
   return (
     <article className="min-w-0 bg-white">
@@ -369,7 +439,12 @@ function NotificationMemo({ item, language, t, onBack }) {
         </dl>
 
         <div className="min-h-[180px] rounded-md border border-slate-200 bg-white px-4 py-4">
-          {bodyParts.lines.length > 0 || bodyParts.remark ? (
+          {memoHtml ? (
+            <div
+              className="memo-template text-sm leading-6 text-slate-900 [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
+              dangerouslySetInnerHTML={{ __html: memoHtml }}
+            />
+          ) : bodyParts.lines.length > 0 || bodyParts.remark ? (
             <div className="space-y-3 text-sm leading-6 text-slate-700">
               {bodyParts.lines.map((line, index) => (
                 <p key={`${item.id}:line:${index}`}>{line}</p>
