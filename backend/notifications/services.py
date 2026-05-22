@@ -19,6 +19,7 @@ from .models import NotificationDelivery
 logger = logging.getLogger(__name__)
 
 APP_BRAND_NAME = "ALiS"
+KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG"
 
 
 TECHNICAL_DEPARTMENTS = {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}
@@ -882,7 +883,13 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["memo_template"] = "ku_ikl_to_technical"
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
-        metadata["to"] = "IKL(TECHNICAL)"
+        metadata["to"] = KU_TECHNICAL_MEMO_RECIPIENT
+    elif memo_html and status_key == "technical_review_completed":
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "technical_to_ku_ikl"
+        metadata["from"] = "IKL(TECHNICAL)"
+        metadata["sender"] = "IKL(TECHNICAL)"
+        metadata["to"] = "KU(IKL)"
 
     return metadata
 
@@ -915,6 +922,12 @@ def get_ku_ikl_to_technical_memo_html(application):
     return str(memo_html or "").strip()
 
 
+def get_ikl_technical_to_ku_memo_html(application):
+    section = get_form_section(application, "technical_review")
+    memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
+
+
 def get_admin_memo_html(application):
     status_key = str(getattr(application, "status", "") or "").strip().lower()
 
@@ -923,6 +936,9 @@ def get_admin_memo_html(application):
 
     if status_key == "technical_review":
         return get_ku_ikl_to_technical_memo_html(application)
+
+    if status_key == "technical_review_completed":
+        return get_ikl_technical_to_ku_memo_html(application)
 
     return get_kb_les_memo_html(application)
 

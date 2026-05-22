@@ -274,6 +274,66 @@ function localizeKuIklToTechnicalMemoHtml(html, language) {
   return document.body.innerHTML;
 }
 
+function localizeIklTechnicalToKuMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/TECHNICAL REVIEW DECISION FOR KU\(IKL\)/gi, "KEPUTUSAN SEMAKAN TEKNIKAL UNTUK KU(IKL)"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/Technical review for application (FT-\d+) has been completed and forwarded to KU\(IKL\) for further review\./gi, "Semakan teknikal bagi permohonan $1 telah selesai dan dikemukakan kepada KU(IKL) untuk semakan lanjut."],
+        [/Applicant/gi, "Pemohon"],
+        [/Application Type/gi, "Jenis Permohonan"],
+        [/Project/gi, "Projek"],
+        [/Location/gi, "Lokasi"],
+        [/Decision/gi, "Keputusan"],
+        [/License Fee/gi, "Yuran Lesen"],
+        [/Deposit/gi, "Deposit"],
+        [/Grand Total/gi, "Jumlah Keseluruhan"],
+        [/Remarks/gi, "Catatan"],
+        [/Application for Site \(New Site\)/gi, "Permohonan Tapak (Tapak Baharu)"],
+        [/Please proceed with KU\(IKL\) review and further action\./gi, "Mohon pihak KU(IKL) membuat semakan dan tindakan selanjutnya."],
+        [/Thank you\./gi, "Sekian, terima kasih."],
+      ]
+    : [
+        [/KEPUTUSAN SEMAKAN TEKNIKAL UNTUK KU\(IKL\)/gi, "TECHNICAL REVIEW DECISION FOR KU(IKL)"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/Semakan teknikal bagi permohonan (FT-\d+) telah selesai dan dikemukakan kepada KU\(IKL\) untuk semakan lanjut\./gi, "Technical review for application $1 has been completed and forwarded to KU(IKL) for further review."],
+        [/Pemohon/gi, "Applicant"],
+        [/Jenis Permohonan/gi, "Application Type"],
+        [/Projek/gi, "Project"],
+        [/Lokasi/gi, "Location"],
+        [/Keputusan/gi, "Decision"],
+        [/Yuran Lesen/gi, "License Fee"],
+        [/Deposit/gi, "Deposit"],
+        [/Jumlah Keseluruhan/gi, "Grand Total"],
+        [/Catatan/gi, "Remarks"],
+        [/Permohonan Tapak \(Tapak Baharu\)/gi, "Application for Site (New Site)"],
+        [/Mohon pihak KU\(IKL\) membuat semakan dan tindakan selanjutnya\./gi, "Please proceed with KU(IKL) review and further action."],
+        [/Sekian, terima kasih\./gi, "Thank you."],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
 function cleanMemoSender(value) {
   return String(value || "")
     .replace(/\s*<\s*ALiS Notification Center\s*>\s*/gi, "")
@@ -660,6 +720,8 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
       ? localizePtIklToKuMemoHtml(memoHtml, language)
       : item.memoTemplate === "ku_ikl_to_technical"
         ? localizeKuIklToTechnicalMemoHtml(memoHtml, language)
+        : item.memoTemplate === "technical_to_ku_ikl"
+          ? localizeIklTechnicalToKuMemoHtml(memoHtml, language)
       : memoHtml
         ? getMemoContentHtml(memoHtml)
         : "";
@@ -733,7 +795,11 @@ function getFormalMemoRecipient(item) {
   if (metadataRecipient) return metadataRecipient;
 
   if (item.memoTemplate === "ku_ikl_to_technical") {
-    return "IKL(TECHNICAL)";
+    return "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG";
+  }
+
+  if (item.memoTemplate === "technical_to_ku_ikl") {
+    return "KU(IKL)";
   }
 
   return "PT(IKL)";

@@ -42,6 +42,7 @@ import {
 } from "../../utils/workflow";
 
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG";
 const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
   "PT(IKL)": ["submitted", "incomplete"],
@@ -420,6 +421,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     );
   }
 
+  function isIklTechnicalSupportToKuAction(action, actionDecision) {
+    return (
+      config.key === "technical" &&
+      userDepartment === "IKL (TECHNICAL)" &&
+      action?.buildPayload === buildIklTechnicalDecisionPayload &&
+      ["Supported", "Supported with Conditions"].includes(actionDecision)
+    );
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -488,11 +498,27 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       return false;
     }
 
+    if (isIklTechnicalSupportToKuAction(action, actionDecision) && !overrides.memoHtml) {
+      setError("");
+      setSuccess("");
+      setMemoDraft(createIklTechnicalToKuMemoTemplate(selectedRecord, technicalSite, actionDecision, cleanedComment));
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
+        titleKey: "workspace.memo.technicalToKuTitle",
+        title: "Memo to KU(IKL)",
+        descriptionKey: "workspace.memo.technicalToKuDescription",
+        description: "Complete the memo before sending this technical decision to KU(IKL).",
+      });
+      return false;
+    }
+
     if (
       (
         isKbLesVerifyAction(action, actionDecision) ||
         isPtIklApproveToKuAction(action, actionDecision) ||
-        isKuIklApproveToTechnicalAction(action, actionDecision)
+        isKuIklApproveToTechnicalAction(action, actionDecision) ||
+        isIklTechnicalSupportToKuAction(action, actionDecision)
       ) &&
       !getHtmlPlainText(overrides.memoHtml)
     ) {
@@ -1199,7 +1225,7 @@ function createKuIklToTechnicalMemoTemplate(app) {
       <tbody>
         <tr>
           <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">IKL(TECHNICAL)</td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(KU_TECHNICAL_MEMO_RECIPIENT)}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
@@ -1247,6 +1273,103 @@ function createKuIklToTechnicalMemoTemplate(app) {
       </tbody>
     </table></figure>
     <p>Mohon pihak IKL(TECHNICAL) membuat semakan teknikal dan tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
+function createIklTechnicalToKuMemoTemplate(app, technicalSite, decision, comment) {
+  const now = new Date();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+  const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
+  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
+    (item) => item.item || item.account_code || item.amount
+  );
+  const feeTotals = getTechnicalFeeTotals(feeItems);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+  const remarks = comment || reviewTechnicalSite.site_remarks || "";
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">IKL(TECHNICAL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>KEPUTUSAN SEMAKAN TEKNIKAL UNTUK KU(IKL)</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Semakan teknikal bagi permohonan ${escapeHtml(reference)} telah selesai dan dikemukakan kepada KU(IKL) untuk semakan lanjut.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Keputusan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(decision)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Yuran Lesen</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.feeTotal || 0))}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Deposit</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.depositTotal || 0))}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jumlah Keseluruhan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.grandTotal || 0))}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(remarks)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak KU(IKL) membuat semakan dan tindakan selanjutnya.</p>
     <p>Sekian, terima kasih.</p>
   `;
 }
@@ -1893,7 +2016,7 @@ function buildIklScreeningPayload(app, data) {
         ? {
             status: "Referred",
             source: "KU(IKL)",
-            target: "IKL(TECHNICAL)",
+            target: KU_TECHNICAL_MEMO_RECIPIENT,
             memo_html: data.memoHtml || app.form_data?.technical_referral?.memo_html || "",
             referred_at: now,
           }
@@ -1913,15 +2036,16 @@ function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
   const feeItems = normalizeTechnicalFeeItems(data.technicalSite.fee_items);
   const feeTotals = getTechnicalFeeTotals(feeItems);
+  const notSupported = data.decision === "Not Supported";
 
   return {
-    status: "technical_review_completed",
+    status: notSupported ? "incomplete" : "technical_review_completed",
     current_step: Math.max(Number(app.current_step || 1), 5),
     latest_remark: data.comment || app.latest_remark || "",
     form_data: mergeFormData(app, {
       technical_review: {
         ...(app.form_data?.technical_review || {}),
-        status: "Completed",
+        status: notSupported ? "Not Supported" : "Completed",
         final_decision: data.decision,
         decision: data.decision,
         comment: data.comment,
@@ -1929,6 +2053,7 @@ function buildIklTechnicalDecisionPayload(app, data) {
         reviewed_by: "PT/PO/KP Unit Iklan",
         reviewed_at: now,
         department_reviews: getTechnicalDepartmentReviews(app),
+        memo_html: notSupported ? "" : data.memoHtml || app.form_data?.technical_review?.memo_html || "",
       },
       technical_site_visit: {
         ...(app.form_data?.technical_site_visit || {}),
@@ -1943,7 +2068,14 @@ function buildIklTechnicalDecisionPayload(app, data) {
         officer_role: "PT/PO/KP Unit Iklan",
         visited_at: now,
       },
-      correction_request: null,
+      correction_request: notSupported
+        ? {
+            source: "IKL(TECHNICAL)",
+            target: "Applicant",
+            remarks: data.comment,
+            requested_at: now,
+          }
+        : null,
     }),
   };
 }
@@ -2443,7 +2575,7 @@ const configs = {
         labelKey: "workspace.decision.supported",
         icon: "check_circle",
         decision: "Supported",
-        requiresComment: true,
+        requiresComment: false,
         success: "Technical review saved.",
         successKey: "workspace.message.technicalSaved",
         buildPayload: buildIklTechnicalDecisionPayload,
@@ -2465,7 +2597,10 @@ const configs = {
         icon: "cancel",
         variant: "danger",
         decision: "Not Supported",
-        disabled: true,
+        requiresComment: true,
+        success: "Technical review saved.",
+        successKey: "workspace.message.technicalSaved",
+        buildPayload: buildIklTechnicalDecisionPayload,
       },
     ],
     kuTechnicalReview: {

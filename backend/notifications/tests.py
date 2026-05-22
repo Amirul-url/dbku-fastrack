@@ -223,7 +223,7 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_to_technical")
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
-        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
+        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG")
 
     def test_ku_ikl_rejection_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Rejected by KU(IKL). Please update the site details."
@@ -251,6 +251,72 @@ class NotificationRoutingTests(TestCase):
             metadata__event_status="incomplete",
         )
         self.assertIn("Rejected by KU(IKL)", web_delivery.message)
+
+    def test_ikl_technical_support_memo_is_sent_to_ku_ikl_notification(self):
+        ku_user = User.objects.create_user(
+            username="ku-technical-memo",
+            email="ku-technical@example.com",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        memo_html = "<p>IKL(TECHNICAL) memo for KU(IKL)</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_review": {
+                "status": "Completed",
+                "decision": "Supported",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("technical_review_completed", old_status="technical_review")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="technical_review_completed",
+            user=ku_user,
+        )
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "technical_to_ku_ikl")
+        self.assertEqual(delivery.metadata["from"], "IKL(TECHNICAL)")
+        self.assertEqual(delivery.metadata["to"], "KU(IKL)")
+
+    def test_ikl_technical_not_supported_notifies_applicant_all_channels(self):
+        self.application.latest_remark = "Technical review not supported due to site clearance issue."
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_review": {
+                "status": "Not Supported",
+                "decision": "Not Supported",
+                "comment": self.application.latest_remark,
+            },
+            "correction_request": {
+                "source": "IKL(TECHNICAL)",
+                "target": "Applicant",
+                "remarks": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("incomplete", old_status="technical_review")
+
+        applicant_channels = set(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                metadata__event_status="incomplete",
+            ).values_list("channel", flat=True)
+        )
+        self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
+        web_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="applicant",
+            metadata__event_status="incomplete",
+        )
+        self.assertIn("Technical review not supported", web_delivery.message)
 
     def test_payment_verified_notifies_pt_ikl_for_license_generation(self):
         self.notify_status("payment_verified", old_status="payment_submitted")
