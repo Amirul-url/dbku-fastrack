@@ -223,6 +223,14 @@ function getNotificationSender(role, status, user) {
     return "KU(IKL) <ALiS Notification Center>";
   }
 
+  if (
+    role === "admin" &&
+    approvalSupportDepartments.has(department) &&
+    normalizedStatus === "management_review"
+  ) {
+    return "KB(LES) <ALiS Notification Center>";
+  }
+
   return "ALiS Notification Center";
 }
 
@@ -313,6 +321,12 @@ function getMemoSubject(subject, title, reference, options = {}) {
       : "Application requires KB(LES) verification";
   }
 
+  if (role === "admin" && status === "management_review" && approvalSupportDepartments.has(department)) {
+    return cleanReference
+      ? `${cleanReference} requires TP(RES)/PGH approval`
+      : "Application requires TP(RES)/PGH approval";
+  }
+
   if (cleanSubject) return cleanSubject;
 
   return cleanReference ? `ALiS - ${cleanTitle} (${cleanReference})` : `ALiS - ${cleanTitle}`;
@@ -382,6 +396,11 @@ function isSutApprovalPending(app) {
 
 function isApprovalSupportPending(app) {
   return isKbLesVerified(app) && !hasManagementSupport(app);
+}
+
+function getKbLesMemoHtml(app) {
+  const section = getApplicationSection(app, "kb_les_verification") || {};
+  return String(section.memo_html || section.memoHtml || "").trim();
 }
 
 function getApprovalStageNotificationText(app, user) {
@@ -537,6 +556,9 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     body: memoMessageEn,
     bodyEn: memoMessageEn,
     bodyMs: memoMessageMs,
+    memoHtml: status === "management_review" && isApprovalSupportPending(app)
+      ? getKbLesMemoHtml(app)
+      : "",
     from: getNotificationSender(role, status, user),
     to: getNotificationRecipient(role, user),
     subject: getMemoSubject("", titleEn, reference, { role, status, user }),
@@ -971,6 +993,23 @@ function buildNotificationsFromDeliveries(deliveries, user) {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 }
 
+function mergeNotificationSources(deliveryNotifications, applicationNotifications) {
+  const merged = [...deliveryNotifications];
+  const existingKeys = new Set(
+    merged.map((item) => `${item.appId || ""}:${item.eventStatus || ""}:${item.category || ""}`)
+  );
+
+  applicationNotifications.forEach((item) => {
+    const key = `${item.appId || ""}:${item.eventStatus || ""}:${item.category || ""}`;
+    if (existingKeys.has(key)) return;
+
+    existingKeys.add(key);
+    merged.push(item);
+  });
+
+  return merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
 export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [readIds, setReadIds] = useState(readStoredIds);
@@ -995,14 +1034,19 @@ export function NotificationProvider({ children }) {
       const data = await apiRequest("/notifications/");
       const list = Array.isArray(data) ? data : data?.results || [];
       const deliveryNotifications = buildNotificationsFromDeliveries(list, user);
-      if (deliveryNotifications.length > 0 || isSuperAdminUser(user)) {
+      if (isSuperAdminUser(user)) {
         setNotifications(deliveryNotifications);
       } else {
         const fallbackData = await apiRequest("/applications/");
         const fallbackList = Array.isArray(fallbackData)
           ? fallbackData
           : fallbackData?.results || [];
-        setNotifications(buildNotifications(fallbackList, user));
+        setNotifications(
+          mergeNotificationSources(
+            deliveryNotifications,
+            buildNotifications(fallbackList, user)
+          )
+        );
       }
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {

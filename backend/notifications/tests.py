@@ -521,6 +521,14 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["sender"], "KB(LES) <ALiS Notification Center>")
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
 
+        client = APIClient()
+        client.force_authenticate(user=tp_user)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["metadata"]["memo_html"], memo_html)
+
 
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):
