@@ -91,8 +91,19 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return
 
         if requested_status == "management_review" and current_status == "management_review":
-            if department != "KB(LES)":
-                raise PermissionDenied("Only KB(LES) can verify the application at this stage.")
+            if department == "KB(LES)":
+                return
+
+            form_data = self.request.data.get("form_data") or {}
+            correction = form_data.get("correction_request") if isinstance(form_data, dict) else {}
+            if (
+                department in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
+                and isinstance(correction, dict)
+                and normalize_department(correction.get("target")) == "KB(LES)"
+            ):
+                return
+
+            raise PermissionDenied("Only KB(LES) can verify the application at this stage.")
             return
 
         if requested_status == "technical_review_completed" and current_status == "management_review":
