@@ -883,6 +883,66 @@ function normalizeApplicantNotificationText(value, role, status) {
     .replace(/\bIncomplete\b/g, "Rejected");
 }
 
+function getDeliveryLocalizedCopy(status, reference) {
+  const safeReference = reference && reference !== "-" ? reference : "permohonan";
+  const copy = {
+    submitted: {
+      titleMs: "Permohonan baharu dihantar",
+      messageMs: `Permohonan baharu ${safeReference} telah dihantar dan sedang menunggu semakan.`,
+    },
+    ku_ikl_review: {
+      titleMs: "Semakan KU(IKL) diperlukan",
+      messageMs: `Permohonan ${safeReference} sedia untuk pengesahan KU(IKL).`,
+    },
+    technical_review: {
+      titleMs: "Tugasan teknikal diberikan",
+      messageMs: `Permohonan ${safeReference} sedia untuk semakan teknikal jabatan.`,
+    },
+    technical_site_visit: {
+      titleMs: "Lawatan tapak teknikal diberikan",
+      messageMs: `Permohonan ${safeReference} sedia untuk semakan lawatan tapak jabatan.`,
+    },
+    technical_amendment: {
+      titleMs: "Pindaan teknikal diperlukan",
+      messageMs: `Permohonan ${safeReference} memerlukan pindaan IKL(TECHNICAL) sebelum KU(IKL) boleh meneruskan.`,
+    },
+    technical_review_completed: {
+      titleMs: "Semakan teknikal KU(IKL) diperlukan",
+      messageMs: `Permohonan ${safeReference} telah selesai maklum balas jabatan teknikal dan sedia untuk semakan KU(IKL).`,
+    },
+    management_review: {
+      titleMs: "Pengesahan KB(LES) diperlukan",
+      messageMs: `Permohonan ${safeReference} telah selesai semakan akhir KU(IKL) dan sedia untuk pengesahan KB(LES).`,
+    },
+    approved: {
+      titleMs: "Kelulusan akhir diterima",
+      messageMs: `Permohonan ${safeReference} telah menerima kelulusan akhir TP(RES)/PGH. Sila jana surat kelulusan dan bil.`,
+    },
+    bill_pending_ku: {
+      titleMs: "Pengesahan bil diperlukan",
+      messageMs: `Permohonan ${safeReference} mempunyai bil yang dijana dan sedang menunggu pengesahan KU(IKL).`,
+    },
+    payment_submitted: {
+      titleMs: "Bukti bayaran dihantar",
+      messageMs: `Pemohon telah memuat naik bukti bayaran untuk permohonan ${safeReference}. Sila sahkan resit tersebut.`,
+    },
+    payment_verified: {
+      titleMs: "Penjanaan lesen diperlukan",
+      messageMs: `Bayaran untuk permohonan ${safeReference} telah disahkan. Sila jana lesen iklan dan kod QR.`,
+    },
+    mphlg_processing: {
+      titleMs: "Kelulusan MPHLG diperlukan",
+      messageMs: `Permohonan ${safeReference} sedia untuk kelulusan MPHLG.`,
+    },
+    mphlg_decision_received: {
+      titleMs: "Kelulusan SUT diperlukan",
+      messageMs: `Permohonan ${safeReference} sedia untuk kelulusan SUT.`,
+    },
+  };
+
+  return copy[normalizeStatus(status)] || {};
+}
+
 function buildNotificationsFromDeliveries(deliveries, user) {
   const role = getNormalizedRole(user);
   const allowedStatuses =
@@ -914,8 +974,14 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         role,
         status
       );
-      const titleMs = normalizeApplicantNotificationText(metadata.title_ms || title, role, status);
-      const messageMs = normalizeApplicantNotificationText(metadata.message_ms || message, role, status);
+      const reference = delivery.reference_no || metadata.account_username || "-";
+      const localizedCopy = getDeliveryLocalizedCopy(status, reference);
+      const titleMs = normalizeApplicantNotificationText(metadata.title_ms || localizedCopy.titleMs || title, role, status);
+      const messageMs = normalizeApplicantNotificationText(
+        metadata.message_ms || localizedCopy.messageMs || message,
+        role,
+        status
+      );
       const memoMessage = appendNotificationRemark(message, delivery.latest_remark, status);
       const memoMessageMs = appendNotificationRemark(messageMs, delivery.latest_remark, status);
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
@@ -942,7 +1008,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         id: `web:${delivery.id}`,
         serverId: delivery.id,
         appId: delivery.application_id,
-        reference: delivery.reference_no || metadata.account_username || "-",
+        reference,
         project: delivery.project || metadata.account_name || "-",
         status: displayStatus,
         eventStatus: status,
@@ -964,7 +1030,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         subject,
         time: formatDateTime(timestamp),
         timestamp,
-        actionUrl: metadata.action_url || getNotificationUrl(role, { id: delivery.application_id }, category, user),
+        actionUrl: metadata.action_url || "",
         read: Boolean(delivery.read_at),
       };
     })

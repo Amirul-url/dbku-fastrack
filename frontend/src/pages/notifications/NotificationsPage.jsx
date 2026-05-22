@@ -161,6 +161,7 @@ function NotificationsPage() {
     : isAdminUser(storedUser)
       ? AdminDashboardLayout
       : UserDashboardLayout;
+  const useFormalMemoTemplate = isAdminUser(storedUser) && !isSuperAdminUser(storedUser);
 
   const activeFilters = useMemo(() => {
     const categories = new Set(notifications.map((item) => item.category));
@@ -303,6 +304,8 @@ function NotificationsPage() {
                 item={selectedNotification}
                 language={language}
                 t={t}
+                showActionButton={!useFormalMemoTemplate && (isAdminUser(storedUser) || isSuperAdminUser(storedUser))}
+                useFormalTemplate={useFormalMemoTemplate}
                 onBack={() => setSelectedNotificationId("")}
               />
             ) : (
@@ -367,7 +370,14 @@ function NotificationsPage() {
   );
 }
 
-function NotificationMemo({ item, language, t, onBack }) {
+function NotificationMemo({
+  item,
+  language,
+  t,
+  onBack,
+  showActionButton = true,
+  useFormalTemplate = false,
+}) {
   if (!item) {
     return (
       <div className="flex min-h-[360px] items-center justify-center px-6 text-center">
@@ -386,10 +396,15 @@ function NotificationMemo({ item, language, t, onBack }) {
     );
   }
 
-  const subject = item.subject || getLocalized(item, "title", language);
+  const localizedTitle = getLocalized(item, "title", language);
+  const subject = useFormalTemplate ? localizedTitle || item.subject : item.subject || localizedTitle;
   const body = getLocalized(item, "body", language) || getLocalized(item, "message", language);
   const bodyParts = getMemoBodyParts(body);
   const memoHtml = sanitizeMemoHtml(item.memoHtml);
+  const formalCopy = useFormalTemplate
+    ? getFormalMemoCopy(item, subject, bodyParts, language)
+    : null;
+  const displaySubject = formalCopy?.subject || subject;
 
   return (
     <article className="min-w-0 bg-white">
@@ -411,12 +426,12 @@ function NotificationMemo({ item, language, t, onBack }) {
                 {t("notifications.memo", "Memo")}
               </p>
               <h3 className="mt-1 break-words text-lg font-bold leading-7 text-slate-950">
-                {subject}
+                {displaySubject}
               </h3>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {item.actionUrl && (
+            {showActionButton && item.actionUrl && (
               <LinkButton
                 to={item.actionUrl}
                 icon="open_in_new"
@@ -432,46 +447,321 @@ function NotificationMemo({ item, language, t, onBack }) {
       </div>
 
       <div className="space-y-5 px-5 py-5">
-        <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm md:grid-cols-[88px_1fr]">
-          <dt className="font-semibold text-slate-500">{t("notifications.memo.from", "From")}:</dt>
-          <dd className="min-w-0 break-words text-slate-900">{item.from || "ALiS Notification Center"}</dd>
-          <dt className="font-semibold text-slate-500">{t("notifications.memo.to", "To")}:</dt>
-          <dd className="min-w-0 break-words text-slate-900">{item.to || "-"}</dd>
-          <dt className="font-semibold text-slate-500">{t("notifications.memo.subject", "Subject")}:</dt>
-          <dd className="min-w-0 break-words text-slate-900">{subject}</dd>
-        </dl>
+        {useFormalTemplate ? (
+          <FormalNotificationMemo
+            item={item}
+            copy={formalCopy}
+            bodyParts={bodyParts}
+            memoHtml={memoHtml}
+            t={t}
+          />
+        ) : (
+          <>
+            <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm md:grid-cols-[88px_1fr]">
+              <dt className="font-semibold text-slate-500">{t("notifications.memo.from", "From")}:</dt>
+              <dd className="min-w-0 break-words text-slate-900">{item.from || "ALiS Notification Center"}</dd>
+              <dt className="font-semibold text-slate-500">{t("notifications.memo.to", "To")}:</dt>
+              <dd className="min-w-0 break-words text-slate-900">{item.to || "-"}</dd>
+              <dt className="font-semibold text-slate-500">{t("notifications.memo.subject", "Subject")}:</dt>
+              <dd className="min-w-0 break-words text-slate-900">{subject}</dd>
+            </dl>
 
-        <div className="min-h-[180px] rounded-md border border-slate-200 bg-white px-4 py-4">
-          {memoHtml ? (
-            <div
-              className="memo-template text-sm leading-6 text-slate-900 [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
-              dangerouslySetInnerHTML={{ __html: memoHtml }}
+            <NotificationBody
+              item={item}
+              bodyParts={bodyParts}
+              memoHtml={memoHtml}
+              t={t}
             />
-          ) : bodyParts.lines.length > 0 || bodyParts.remark ? (
-            <div className="space-y-3 text-sm leading-6 text-slate-700">
-              {bodyParts.lines.map((line, index) => (
-                <p key={`${item.id}:line:${index}`}>{line}</p>
-              ))}
-              {bodyParts.remark && (
-                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-xs font-semibold uppercase text-amber-700">
-                    {t("notifications.memo.remark", "Remark")}
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-800">
-                    {bodyParts.remark}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">
-              {t("notifications.memo.emptyBody", "No memo message was provided.")}
-            </p>
-          )}
-        </div>
+          </>
+        )}
 
       </div>
     </article>
+  );
+}
+
+function NotificationBody({ item, bodyParts, memoHtml, t }) {
+  return (
+    <div className="min-h-[180px] rounded-md border border-slate-200 bg-white px-4 py-4">
+      {memoHtml ? (
+        <div
+          className="memo-template text-sm leading-6 text-slate-900 [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
+          dangerouslySetInnerHTML={{ __html: memoHtml }}
+        />
+      ) : bodyParts.lines.length > 0 || bodyParts.remark ? (
+        <div className="space-y-3 text-sm leading-6 text-slate-700">
+          {bodyParts.lines.map((line, index) => (
+            <p key={`${item.id}:line:${index}`}>{line}</p>
+          ))}
+          {bodyParts.remark && (
+            <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs font-semibold uppercase text-amber-700">
+                {t("notifications.memo.remark", "Remark")}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-800">
+                {bodyParts.remark}
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">
+          {t("notifications.memo.emptyBody", "No memo message was provided.")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, t }) {
+  const recipient = "PT(IKL)";
+  const sender = item.from || "ALiS Notification Center";
+  const memoDate = item.time || formatDateTime(item.timestamp);
+
+  return (
+    <section className="w-full text-slate-950">
+      <div className="rounded-md border border-slate-300 bg-white px-5 py-6 text-sm leading-6 sm:px-7 sm:py-7">
+        <div className="text-center font-serif text-xl font-bold uppercase leading-6 text-slate-950">
+          <p>DEWAN BANDARAYA KUCHING UTARA</p>
+          <p>MEMORANDUM</p>
+        </div>
+
+        <div className="mt-6 divide-y divide-slate-400 border-y border-slate-500">
+          <MemoRow label={copy.labels.to} value={recipient} />
+          <MemoRow label={copy.labels.through} value="" />
+          <MemoRow label={copy.labels.from} value={sender} />
+          <div className="grid divide-y divide-slate-500 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <MemoRow label={copy.labels.ourRef} value="" compact />
+            <MemoRow label={copy.labels.date} value={memoDate} compact />
+          </div>
+          <div className="grid divide-y divide-slate-500 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <MemoRow label={copy.labels.yourRef} value="" compact />
+            <MemoRow label={copy.labels.date} value="" compact />
+          </div>
+        </div>
+
+        <h4 className="mt-7 break-words font-bold uppercase leading-6 underline decoration-slate-800 underline-offset-2">
+          {copy.subject}
+        </h4>
+
+        <div className="mt-4 space-y-4 leading-6 text-slate-950">
+          <p>{copy.opening}</p>
+
+          {memoHtml ? (
+            <div
+              className="memo-template [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
+              dangerouslySetInnerHTML={{ __html: memoHtml }}
+            />
+          ) : copy.lines.length > 0 || bodyParts.remark ? (
+            <>
+              {copy.lines.map((line, index) => (
+                <p key={`${item.id}:formal-line:${index}`}>{line}</p>
+              ))}
+              {bodyParts.remark && (
+                <div className="border border-slate-400 px-3 py-2">
+                  <p className="font-bold">{t("notifications.memo.remark", "Remark")}:</p>
+                  <p>{bodyParts.remark}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-slate-500">
+              {t("notifications.memo.emptyBody", "No memo message was provided.")}
+            </p>
+          )}
+
+          <p>{copy.closing}</p>
+          <div className="pt-1 font-semibold uppercase leading-5">
+            <p>"AN HONOUR TO SERVE"</p>
+            <p>"TOGETHER WE CARE"</p>
+          </div>
+          <div className="pt-6 leading-5">
+            <p className="font-bold">ALiS Notification Center</p>
+            <p>{copy.systemName}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function getFormalMemoCopy(item, subject, bodyParts, language) {
+  const isMalay = language === "ms";
+  const reference = item.reference && item.reference !== "-" ? item.reference : item.appId || "permohonan";
+  const status = item.eventStatus || item.status;
+  const statusCopy = getWorkflowMemoCopy(status, reference, isMalay);
+
+  return {
+    labels: isMalay
+      ? {
+          to: "Kepada",
+          through: "Melalui",
+          from: "Daripada",
+          ourRef: "Ruj. Kami",
+          yourRef: "Ruj. Tuan",
+          date: "Tarikh",
+        }
+      : {
+          to: "To",
+          through: "Through",
+          from: "From",
+          ourRef: "Our Ref.",
+          yourRef: "Your Ref.",
+          date: "Date",
+        },
+    subject: statusCopy.subject || subject || "-",
+    lines: statusCopy.lines.length > 0 ? statusCopy.lines : bodyParts.lines,
+    opening: isMalay
+      ? "Dengan segala hormatnya perkara di atas dirujuk."
+      : "With due respect, the above matter is referred.",
+    closing: isMalay ? "Sekian, terima kasih." : "Thank you.",
+    systemName: isMalay ? "Permohonan Lesen Iklan" : "Advertisement License Application",
+  };
+}
+
+function getWorkflowMemoCopy(status, reference, isMalay) {
+  const copy = {
+    submitted: {
+      en: {
+        subject: `${reference} requires PT(IKL) review`,
+        lines: [`New application ${reference} has been submitted and is waiting for review.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan semakan PT(IKL)`,
+        lines: [`Permohonan baharu ${reference} telah dihantar dan sedang menunggu semakan.`],
+      },
+    },
+    ku_ikl_review: {
+      en: {
+        subject: `${reference} requires KU(IKL) review`,
+        lines: [`Application ${reference} is ready for KU(IKL) verification.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan semakan KU(IKL)`,
+        lines: [`Permohonan ${reference} sedia untuk pengesahan KU(IKL).`],
+      },
+    },
+    technical_review: {
+      en: {
+        subject: `${reference} requires technical review`,
+        lines: [`Application ${reference} is ready for department technical review.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan semakan teknikal`,
+        lines: [`Permohonan ${reference} sedia untuk semakan teknikal jabatan.`],
+      },
+    },
+    technical_site_visit: {
+      en: {
+        subject: `${reference} requires technical site visit review`,
+        lines: [`Application ${reference} is ready for department site visit review.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan semakan lawatan tapak teknikal`,
+        lines: [`Permohonan ${reference} sedia untuk semakan lawatan tapak jabatan.`],
+      },
+    },
+    technical_amendment: {
+      en: {
+        subject: `${reference} requires IKL (TECHNICAL) amendment`,
+        lines: [`Application ${reference} requires IKL (TECHNICAL) amendment before KU(IKL) can continue.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan pindaan IKL (TECHNICAL)`,
+        lines: [`Permohonan ${reference} memerlukan pindaan IKL (TECHNICAL) sebelum KU(IKL) boleh meneruskan semakan.`],
+      },
+    },
+    technical_review_completed: {
+      en: {
+        subject: `${reference} requires KU(IKL) final technical check`,
+        lines: [`Application ${reference} has completed technical department feedback and is ready for KU(IKL) review.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan semakan teknikal akhir KU(IKL)`,
+        lines: [`Permohonan ${reference} telah selesai maklum balas jabatan teknikal dan sedia untuk semakan KU(IKL).`],
+      },
+    },
+    management_review: {
+      en: {
+        subject: `${reference} requires KB(LES) verification`,
+        lines: [`Application ${reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan pengesahan KB(LES)`,
+        lines: [`Permohonan ${reference} telah selesai semakan akhir KU(IKL) dan sedia untuk pengesahan KB(LES).`],
+      },
+    },
+    approved: {
+      en: {
+        subject: "Final approval received",
+        lines: [`Application ${reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill.`],
+      },
+      ms: {
+        subject: "Kelulusan akhir diterima",
+        lines: [`Permohonan ${reference} telah menerima kelulusan akhir TP(RES)/PGH. Sila jana surat kelulusan dan bil.`],
+      },
+    },
+    bill_pending_ku: {
+      en: {
+        subject: `${reference} requires KU(IKL) bill confirmation`,
+        lines: [`Application ${reference} has a generated bill waiting for KU(IKL) confirmation.`],
+      },
+      ms: {
+        subject: `${reference} memerlukan pengesahan bil KU(IKL)`,
+        lines: [`Permohonan ${reference} mempunyai bil yang dijana dan sedang menunggu pengesahan KU(IKL).`],
+      },
+    },
+    payment_submitted: {
+      en: {
+        subject: "Payment proof submitted",
+        lines: [`Applicant has uploaded payment proof for application ${reference}. Please verify the receipt.`],
+      },
+      ms: {
+        subject: "Bukti bayaran dihantar",
+        lines: [`Pemohon telah memuat naik bukti bayaran untuk permohonan ${reference}. Sila sahkan resit tersebut.`],
+      },
+    },
+    payment_verified: {
+      en: {
+        subject: "License issuance required",
+        lines: [`Payment for application ${reference} has been verified. Please generate the advertisement license and QR code.`],
+      },
+      ms: {
+        subject: "Penjanaan lesen diperlukan",
+        lines: [`Bayaran untuk permohonan ${reference} telah disahkan. Sila jana lesen iklan dan kod QR.`],
+      },
+    },
+    mphlg_processing: {
+      en: {
+        subject: "MPHLG approval required",
+        lines: [`Application ${reference} is ready for MPHLG approval.`],
+      },
+      ms: {
+        subject: "Kelulusan MPHLG diperlukan",
+        lines: [`Permohonan ${reference} sedia untuk kelulusan MPHLG.`],
+      },
+    },
+    mphlg_decision_received: {
+      en: {
+        subject: "SUT approval required",
+        lines: [`Application ${reference} is ready for SUT approval.`],
+      },
+      ms: {
+        subject: "Kelulusan SUT diperlukan",
+        lines: [`Permohonan ${reference} sedia untuk kelulusan SUT.`],
+      },
+    },
+  };
+
+  return copy[status]?.[isMalay ? "ms" : "en"] || { subject: "", lines: [] };
+}
+
+function MemoRow({ label, value, compact = false }) {
+  return (
+    <div className={`grid grid-cols-[96px_1fr] items-start gap-2 px-2 ${compact ? "py-1.5" : "py-2"}`}>
+      <span className="font-bold">{label} :</span>
+      <span className="min-w-0 break-words">{value ?? ""}</span>
+    </div>
   );
 }
 
