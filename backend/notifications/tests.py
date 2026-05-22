@@ -521,53 +521,6 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["sender"], "KB(LES) <ALiS Notification Center>")
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
 
-        client = APIClient()
-        client.force_authenticate(user=tp_user)
-        response = client.get("/api/notifications/")
-        self.assertEqual(response.status_code, 200)
-        data = response.data if isinstance(response.data, list) else response.data["results"]
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["metadata"]["memo_html"], memo_html)
-
-    def test_tp_pgh_notification_endpoint_repairs_missing_kb_memo_delivery(self):
-        tp_user = User.objects.create_user(
-            username="tp-res-repair",
-            email="tp-repair@example.com",
-            password="Password123",
-            role="admin",
-            department="TP(RES)",
-            is_active=True,
-        )
-        memo_html = "<h2>DEWAN BANDARAYA KUCHING UTARA</h2><p>Memo repair</p>"
-        self.application.status = "management_review"
-        self.application.form_data = {
-            **self.application.form_data,
-            "kb_les_verification": {
-                "status": "Verified",
-                "memo_html": memo_html,
-            },
-            "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
-        }
-        self.application.save(update_fields=["status", "form_data"])
-        NotificationDelivery.objects.all().delete()
-
-        client = APIClient()
-        client.force_authenticate(user=tp_user)
-        response = client.get("/api/notifications/")
-
-        self.assertEqual(response.status_code, 200)
-        data = response.data if isinstance(response.data, list) else response.data["results"]
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["metadata"]["memo_html"], memo_html)
-        self.assertTrue(
-            NotificationDelivery.objects.filter(
-                channel="web",
-                user=tp_user,
-                metadata__event_status="management_review",
-                metadata__memo_html=memo_html,
-            ).exists()
-        )
-
 
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):

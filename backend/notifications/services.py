@@ -228,32 +228,6 @@ def notify_application_status_change(
         )
 
 
-def ensure_user_pending_web_notifications(user):
-    role = str(getattr(user, "role", "") or "").strip().lower()
-    if role not in {"admin", "supervisor", "staff"}:
-        return
-
-    from applications.models import Application
-
-    applications = Application.objects.filter(status__in=ADMIN_NOTIFICATION_STATUSES)
-    for application in applications:
-        if not should_user_receive_admin_notification(user, application):
-            continue
-
-        messages = build_status_messages(application)
-        create_and_send_delivery(
-            application=application,
-            event_key=build_event_key(application, str(application.status or "").strip().lower()),
-            user=user,
-            recipient_role="admin",
-            channel="web",
-            recipient=get_web_recipient(user),
-            subject=messages["subject"],
-            message=messages["admin_message"],
-            metadata=messages["admin_metadata"],
-        )
-
-
 def notify_account_created(account, created_by=None):
     if not getattr(account, "pk", None):
         return

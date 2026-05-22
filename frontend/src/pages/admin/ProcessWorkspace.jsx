@@ -1807,52 +1807,36 @@ function buildApprovalWorkflowPayload(app, data) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
-    if (rejected) {
-      return {
-        status: "management_review",
-        current_step: Math.max(Number(app.current_step || 1), 5),
-        latest_remark: data.comment || app.latest_remark || "",
-        form_data: mergeFormData(app, {
-          kb_les_verification: {
-            ...(app.form_data?.kb_les_verification || {}),
-            status: "Returned by TP(RES)/PGH",
-            returned_by: department,
-            returned_at: now,
-          },
-          management_recommendation: null,
-          correction_request: {
-            source: department,
-            target: "KB(LES)",
-            remarks: data.comment,
-            requested_at: now,
-          },
-          approval: null,
-        }),
-      };
-    }
-
     return {
-      status: "approved",
+      status: rejected ? "rejected" : "approved",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: data.comment || app.latest_remark || "",
       form_data: mergeFormData(app, {
         management_recommendation: {
           ...(app.form_data?.management_recommendation || {}),
           officer: department,
-          status: "Approved",
+          status: rejected ? "Rejected" : "Approved",
           decision,
           remarks: data.comment,
           decided_at: now,
         },
         mphlg_gateway: app.form_data?.mphlg_gateway || null,
-        approval: {
-          ...(app.form_data?.approval || {}),
-          status: "Approved",
-          final_decision: "Approved",
-          notes: data.comment,
-          decided_by: department,
-          approved_at: now,
-        },
+        approval: rejected
+          ? {
+              status: "Rejected",
+              final_decision: "Rejected",
+              notes: data.comment,
+              decided_by: department,
+              decided_at: now,
+            }
+          : {
+              ...(app.form_data?.approval || {}),
+              status: "Approved",
+              final_decision: "Approved",
+              notes: data.comment,
+              decided_by: department,
+              approved_at: now,
+            },
       }),
     };
   }
