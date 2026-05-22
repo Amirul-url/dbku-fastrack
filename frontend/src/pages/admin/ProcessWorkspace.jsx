@@ -509,6 +509,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
     setPendingMemoSubmission(null);
     setMemoDraft("");
+    returnToTaskList();
   }
 
   function openSelectedTask(app) {
@@ -1305,12 +1306,21 @@ function isApprovalTaskForDepartment(app, department) {
 
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
-  if (department === "KB(LES)") return stage === "kb";
+  if (department === "KB(LES)") return stage === "kb" || isKbLesMonitoredRecord(app);
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return stage === "support";
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return stage === "mphlg";
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
 
   return false;
+}
+
+function isKbLesMonitoredRecord(app) {
+  const kbVerification = app?.form_data?.kb_les_verification || {};
+  const verifiedByKb = ["verified", "supported", "completed"].includes(
+    String(kbVerification.status || "").trim().toLowerCase()
+  );
+
+  return verifiedByKb && getApprovalStageKey(app) === "support";
 }
 
 function isApprovalHistoryRecord(app) {
