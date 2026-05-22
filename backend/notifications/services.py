@@ -890,6 +890,10 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "IKL(TECHNICAL)"
         metadata["sender"] = "IKL(TECHNICAL)"
         metadata["to"] = "KU(IKL)"
+    elif status_key == "technical_amendment":
+        metadata["from"] = "KU(IKL)"
+        metadata["sender"] = "KU(IKL)"
+        metadata["to"] = "IKL(TECHNICAL)"
 
     return metadata
 

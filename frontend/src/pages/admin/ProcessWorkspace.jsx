@@ -126,6 +126,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     site_photos: [],
     fee_date: "",
     fee_items: [createTechnicalFeeItem()],
+    fee_total: "",
+    payable_total: "",
     license_fee_calculation: "",
     deposit_calculation: "",
     site_remarks: "",
@@ -183,7 +185,8 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       site_photos: currentPhotos,
       fee_date: saved.fee_date || new Date().toISOString().slice(0, 10),
       fee_items: feeItems,
-      fee_total: saved.fee_total || feeTotals.grandTotal || "",
+      fee_total: saved.fee_total || feeTotals.feeTotal || "",
+      payable_total: saved.payable_total || feeTotals.grandTotal || "",
       license_fee_calculation: saved.license_fee_calculation || (feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
       deposit_calculation: saved.deposit_calculation || (feeTotals.depositTotal ? String(feeTotals.depositTotal) : ""),
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
@@ -1365,7 +1368,7 @@ function createIklTechnicalToKuMemoTemplate(app, technicalSite, decision, commen
           <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.depositTotal || 0))}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jumlah Keseluruhan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jumlah Perlu Dibayar</strong></td>
           <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.grandTotal || 0))}</td>
         </tr>
         <tr>
@@ -1953,6 +1956,10 @@ function normalizeTechnicalFeeItems(items) {
 }
 
 function getTechnicalFeeTotal(items) {
+  return getTechnicalFeeTotals(items).feeTotal;
+}
+
+function getTechnicalPayableTotal(items) {
   return getTechnicalFeeTotals(items).grandTotal;
 }
 
@@ -2066,7 +2073,8 @@ function buildIklTechnicalDecisionPayload(app, data) {
         site_photo: data.technicalSite.site_photos?.[0] || null,
         fee_date: data.technicalSite.fee_date || new Date().toISOString().slice(0, 10),
         fee_items: feeItems,
-        fee_total: feeTotals.grandTotal,
+        fee_total: feeTotals.feeTotal,
+        payable_total: feeTotals.grandTotal,
         license_fee_calculation: feeTotals.feeTotal ? String(feeTotals.feeTotal) : data.technicalSite.license_fee_calculation,
         deposit_calculation: feeTotals.depositTotal ? String(feeTotals.depositTotal) : data.technicalSite.deposit_calculation,
         site_remarks: data.technicalSite.site_remarks || data.comment,
@@ -3362,7 +3370,8 @@ function getReviewTechnicalSite(technicalSite, selectedRecord) {
     site_photos: currentPhotos.length > 0 ? currentPhotos : savedPhotos,
     fee_date: technicalSite.fee_date || saved.fee_date || "",
     fee_items: feeItems,
-    fee_total: feeTotals.grandTotal || saved.fee_total || "",
+    fee_total: feeTotals.feeTotal || saved.fee_total || "",
+    payable_total: feeTotals.grandTotal || saved.payable_total || "",
     license_fee_calculation:
       technicalSite.license_fee_calculation || saved.license_fee_calculation || (feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
     deposit_calculation:
@@ -3504,7 +3513,7 @@ function KuTechnicalFurtherReviewPanel({
               {t("workspace.technical.feeBreakdown")}
             </h4>
             <p className="text-[15px] font-semibold leading-6 text-slate-950">
-              {t("workspace.technical.grandTotal")}: {formatCurrency(getTechnicalFeeTotal(feeItems))}
+              {t("workspace.technical.grandTotal")}: {formatCurrency(getTechnicalPayableTotal(feeItems))}
             </p>
           </div>
           {feeItems.length === 0 ? (
@@ -4032,7 +4041,7 @@ function getIklScreeningDecisionOptions(decisions, department) {
 function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileChange }) {
   const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
   const feeItems = normalizeTechnicalFeeItems(value.fee_items);
-  const feeTotal = getTechnicalFeeTotal(feeItems);
+  const payableTotal = getTechnicalPayableTotal(feeItems);
   const [deletingIndex, setDeletingIndex] = useState(null);
 
   function updateField(field, nextValue) {
@@ -4046,7 +4055,8 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
     onChange((prev) => ({
       ...prev,
       fee_items: normalizedItems,
-      fee_total: totals.grandTotal,
+      fee_total: totals.feeTotal,
+      payable_total: totals.grandTotal,
       license_fee_calculation: totals.feeTotal ? String(totals.feeTotal) : "",
       deposit_calculation: totals.depositTotal ? String(totals.depositTotal) : "",
     }));
@@ -4245,10 +4255,10 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
           </button>
           <div className="text-right">
             <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-              {t("workspace.technical.grandTotal", "Grand Total")}
+              {t("workspace.technical.grandTotal", "Total Payable")}
             </p>
             <p className="text-[18px] font-semibold text-slate-950">
-              {formatCurrency(feeTotal)}
+              {formatCurrency(payableTotal)}
             </p>
           </div>
         </div>

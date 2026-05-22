@@ -293,6 +293,7 @@ function localizeIklTechnicalToKuMemoHtml(html, language) {
         [/Decision/gi, "Keputusan"],
         [/License Fee/gi, "Yuran Lesen"],
         [/Deposit/gi, "Deposit"],
+        [/Fee Total/gi, "Jumlah Yuran"],
         [/Grand Total/gi, "Jumlah Keseluruhan"],
         [/Remarks/gi, "Catatan"],
         [/Application for Site \(New Site\)/gi, "Permohonan Tapak (Tapak Baharu)"],
@@ -310,6 +311,7 @@ function localizeIklTechnicalToKuMemoHtml(html, language) {
         [/Keputusan/gi, "Decision"],
         [/Yuran Lesen/gi, "License Fee"],
         [/Deposit/gi, "Deposit"],
+        [/Jumlah Yuran/gi, "Fee Total"],
         [/Jumlah Keseluruhan/gi, "Grand Total"],
         [/Catatan/gi, "Remarks"],
         [/Permohonan Tapak \(Tapak Baharu\)/gi, "Application for Site (New Site)"],
@@ -800,6 +802,10 @@ function getFormalMemoRecipient(item) {
 
   if (item.memoTemplate === "technical_to_ku_ikl") {
     return "KU(IKL)";
+  }
+
+  if ((item.eventStatus || item.status) === "technical_amendment") {
+    return "IKL(TECHNICAL)";
   }
 
   return "PT(IKL)";

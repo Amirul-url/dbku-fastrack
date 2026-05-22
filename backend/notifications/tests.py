@@ -395,6 +395,8 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.user, ikl_technical_user)
         self.assertIn(f"Remark: {amendment_remark}", delivery.message)
         self.assertIn(f"Remark: {amendment_remark}", delivery.metadata["message_en"])
+        self.assertEqual(delivery.metadata["from"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
 
         client = APIClient()
         client.force_authenticate(user=ikl_technical_user)
