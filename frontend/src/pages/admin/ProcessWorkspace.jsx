@@ -1043,46 +1043,90 @@ function createKbLesMemoTemplate(app, technicalSite) {
   const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
     (item) => item.item || item.account_code || item.amount
   );
-  const total = getTechnicalFeeTotal(feeItems);
-  const totalText = total ? formatCurrency(total) : "0.00";
+  const total =
+    getTechnicalFeeTotal(feeItems) ||
+    parseMemoAmount(reviewTechnicalSite.license_fee_calculation) ||
+    parseMemoAmount(reviewTechnicalSite.fee_total);
+  const totalText = formatMemoAmount(total);
   const year = new Date().getFullYear();
   const memoDate = new Intl.DateTimeFormat("ms-MY", {
     day: "2-digit",
     month: "long",
     year: "numeric",
   }).format(new Date());
-  const project = getProjectName(app);
   const reference = getApplicationReference(app);
 
   return `
-    <h2 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h2>
-    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:480px;border-collapse:collapse;margin-left:auto;margin-right:auto;">
       <tbody>
-        <tr><td style="width:16%;border-top:1px solid #000;border-bottom:1px solid #000;padding:6px;"><strong>Kepada :</strong></td><td colspan="3" style="border-top:1px solid #000;border-bottom:1px solid #000;padding:6px;">Timbalan Pengarah (Jabatan Perkhidmatan Kawal Selia)</td></tr>
-        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Melalui :</strong></td><td colspan="3" style="border-bottom:1px solid #000;padding:6px;">&nbsp;</td></tr>
-        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Daripada :</strong></td><td colspan="3" style="border-bottom:1px solid #000;padding:6px;">Ketua Bahagian (Pelesenan)</td></tr>
-        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Ruj. Kami :</strong></td><td style="border-bottom:1px solid #000;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td><td style="border-bottom:1px solid #000;padding:6px;"><strong>Tarikh:</strong></td><td style="border-bottom:1px solid #000;padding:6px;">${escapeHtml(memoDate)}</td></tr>
-        <tr><td style="border-bottom:1px solid #000;padding:6px;"><strong>Ruj. Tuan :</strong></td><td style="border-bottom:1px solid #000;padding:6px;">${escapeHtml(reference)}</td><td style="border-bottom:1px solid #000;padding:6px;"><strong>Tarikh:</strong></td><td style="border-bottom:1px solid #000;padding:6px;">&nbsp;</td></tr>
+        <tr>
+          <td style="width:90px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">Timbalan Pengarah (Jabatan Perkhidmatan Kawal Selia)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">Ketua Bahagian (Pelesenan)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="width:220px;border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:70px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:110px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
       </tbody>
     </table></figure>
-    <p><strong><u>PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN / IKLAN</u></strong></p>
-    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
-    <p>Untuk makluman, Bahagian Pelesenan telah menerima permohonan baru Lesen Tandanama Perniagaan/Iklan seperti berikut:</p>
-    <p>... Bersama ini disertakan permohonan tandanama perniagaan/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-</p>
-    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+    <p><strong><u>PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN / IKLAN</u></strong><br>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>&nbsp;</p>
+    <p>Untuk makluman, Bahagian Pelesenan telah menerima dua (2) permohonan baru Lesen Tandanama Perniagaan/Iklan.</p>
+    <p>Bersama ini disertakan permohonan tandanama perniagaan/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-</p>
+    <figure class="table"><table style="width:650px;border-collapse:collapse;margin-left:auto;margin-right:auto;">
       <thead>
-        <tr><th style="width:10%;border:1px solid #000;padding:6px;">BIL.</th><th style="border:1px solid #000;padding:6px;">PERKARA</th><th style="width:22%;border:1px solid #000;padding:6px;">HASIL<br>(RM)</th></tr>
+        <tr>
+          <th style="width:40px;border:1px solid #bfbfbf;background-color:#f1f1f1;padding:8px;text-align:center;"><strong>BIL.</strong></th>
+          <th style="border:1px solid #bfbfbf;background-color:#f1f1f1;padding:8px;text-align:center;"><strong>PERKARA</strong></th>
+          <th style="width:75px;border:1px solid #bfbfbf;background-color:#f1f1f1;padding:8px;text-align:center;"><strong>HASIL<br>(RM)</strong></th>
+        </tr>
       </thead>
       <tbody>
-        <tr><td style="border:1px solid #000;padding:6px;">1.</td><td style="border:1px solid #000;padding:6px;">${escapeHtml(project)}<br>(${escapeHtml(reference)})</td><td style="border:1px solid #000;padding:6px;text-align:right;">${escapeHtml(totalText.replace(/^RM\s*/, ""))}</td></tr>
-        <tr><td colspan="2" style="border:1px solid #000;padding:6px;text-align:right;"><strong>Jumlah Keseluruhan</strong></td><td style="border:1px solid #000;padding:6px;text-align:right;"><strong>${escapeHtml(totalText.replace(/^RM\s*/, ""))}</strong></td></tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:8px;">1.</td>
+          <td style="border:1px solid #bfbfbf;padding:8px;">Dua (2) Lesen Tandanama Perniagaan/Iklan<br>(${escapeHtml(reference)})</td>
+          <td style="border:1px solid #bfbfbf;padding:8px;text-align:right;">${escapeHtml(totalText)}</td>
+        </tr>
+        <tr>
+          <td colspan="2" style="border:1px solid #bfbfbf;padding:8px;text-align:right;"><strong>Jumlah Keseluruhan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:8px;text-align:right;"><strong>${escapeHtml(totalText)}</strong></td>
+        </tr>
       </tbody>
     </table></figure>
-    <p>Mohon kelulusan puan dalam perkara tersebut di atas.</p>
-    <p>Sekian. Terima kasih.</p>
-    <p><strong><em>"AN HONOUR TO SERVE"</em></strong><br><strong><em>"TOGETHER WE CARE"</em></strong></p>
-    <p><br><strong>(........................................)</strong><br>Ketua Bahagian<br>Bahagian Pelesenan</p>
+    <p>Mohon kelulusan puan dalam perkara tersebut di atas.<br>Sekian. Terima kasih.<br><strong><em>"AN HONOUR TO SERVE"</em></strong><br><strong><em>"TOGETHER WE CARE"</em></strong></p>
+    <p>&nbsp;</p>
+    <p><strong>(........................................)</strong><br>Ketua Bahagian<br>Bahagian Pelesenan</p>
   `;
+}
+
+function formatMemoAmount(value) {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function parseMemoAmount(value) {
+  const numeric = Number(String(value || "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function getHtmlPlainText(html) {
