@@ -401,6 +401,7 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_final_review")
 
         client = APIClient()
         client.force_authenticate(user=ikl_technical_user)
@@ -442,6 +443,7 @@ class NotificationRoutingTests(TestCase):
             user=kb_user,
         )
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_final_review")
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "KB(LES)")
 

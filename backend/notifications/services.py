@@ -870,6 +870,7 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["sender"] = sender
     if memo_html and status_key == "management_review" and is_kb_les_verification_pending(application):
         metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "ku_ikl_final_review"
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = "KB(LES)"
@@ -898,6 +899,7 @@ def build_web_metadata(application, title, body, recipient_role):
     elif status_key == "technical_amendment":
         if memo_html:
             metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "ku_ikl_final_review"
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = "IKL(TECHNICAL)"

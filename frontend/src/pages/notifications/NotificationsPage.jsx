@@ -336,6 +336,76 @@ function localizeIklTechnicalToKuMemoHtml(html, language) {
   return document.body.innerHTML;
 }
 
+function localizeKuIklFinalReviewMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/KU\(IKL\) FINAL TECHNICAL REVIEW/gi, "SEMAKAN AKHIR TEKNIKAL KU(IKL)"],
+        [/TECHNICAL REVIEW AMENDMENT REQUIRED/gi, "PINDAAN SEMAKAN TEKNIKAL DIPERLUKAN"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/KU\(IKL\) has completed the final technical review and forwarded this application for KB\(LES\) verification\./gi, "KU(IKL) telah membuat semakan akhir teknikal dan mengemukakan permohonan ini untuk pengesahan KB(LES)."],
+        [/KU\(IKL\) requests technical amendments before the review can continue\./gi, "KU(IKL) memohon pindaan teknikal dibuat sebelum semakan boleh diteruskan."],
+        [/Applicant/gi, "Pemohon"],
+        [/Application Type/gi, "Jenis Permohonan"],
+        [/Project/gi, "Projek"],
+        [/Location/gi, "Lokasi"],
+        [/KU\(IKL\) Decision/gi, "Keputusan KU(IKL)"],
+        [/License Fee/gi, "Yuran Lesen"],
+        [/Deposit/gi, "Deposit"],
+        [/Total Payable/gi, "Jumlah Perlu Dibayar"],
+        [/Remarks/gi, "Catatan"],
+        [/Application for Site \(New Site\)/gi, "Permohonan Tapak (Tapak Baharu)"],
+        [/KU\(IKL\) Confirm - Send to KB\(LES\)/gi, "KU(IKL) Sahkan - Hantar kepada KB(LES)"],
+        [/KU\(IKL\) Request Technical Amendment/gi, "KU(IKL) Mohon Pindaan Teknikal"],
+        [/Please proceed with KB\(LES\) verification and further action\./gi, "Mohon pihak KB(LES) membuat pengesahan dan tindakan selanjutnya."],
+        [/Please complete the amendment and further action\./gi, "Mohon pihak IKL(TECHNICAL) membuat pindaan dan tindakan selanjutnya."],
+        [/Thank you\./gi, "Sekian, terima kasih."],
+      ]
+    : [
+        [/SEMAKAN AKHIR TEKNIKAL KU\(IKL\)/gi, "KU(IKL) FINAL TECHNICAL REVIEW"],
+        [/PINDAAN SEMAKAN TEKNIKAL DIPERLUKAN/gi, "TECHNICAL REVIEW AMENDMENT REQUIRED"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/KU\(IKL\) telah membuat semakan akhir teknikal dan mengemukakan permohonan ini untuk pengesahan KB\(LES\)\./gi, "KU(IKL) has completed the final technical review and forwarded this application for KB(LES) verification."],
+        [/KU\(IKL\) memohon pindaan teknikal dibuat sebelum semakan boleh diteruskan\./gi, "KU(IKL) requests technical amendments before the review can continue."],
+        [/Pemohon/gi, "Applicant"],
+        [/Jenis Permohonan/gi, "Application Type"],
+        [/Projek/gi, "Project"],
+        [/Lokasi/gi, "Location"],
+        [/Keputusan KU\(IKL\)/gi, "KU(IKL) Decision"],
+        [/Yuran Lesen/gi, "License Fee"],
+        [/Deposit/gi, "Deposit"],
+        [/Jumlah Perlu Dibayar/gi, "Total Payable"],
+        [/Catatan/gi, "Remarks"],
+        [/Permohonan Tapak \(Tapak Baharu\)/gi, "Application for Site (New Site)"],
+        [/KU\(IKL\) Sahkan - Hantar kepada KB\(LES\)/gi, "KU(IKL) Confirm - Send to KB(LES)"],
+        [/KU\(IKL\) Mohon Pindaan Teknikal/gi, "KU(IKL) Request Technical Amendment"],
+        [/Mohon pihak KB\(LES\) membuat pengesahan dan tindakan selanjutnya\./gi, "Please proceed with KB(LES) verification and further action."],
+        [/Mohon pihak IKL\(TECHNICAL\) membuat pindaan dan tindakan selanjutnya\./gi, "Please complete the amendment and further action."],
+        [/Sekian, terima kasih\./gi, "Thank you."],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode);
+  }
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
 function cleanMemoSender(value) {
   return String(value || "")
     .replace(/\s*<\s*ALiS Notification Center\s*>\s*/gi, "")
@@ -717,6 +787,13 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
   const recipient = getFormalMemoRecipient(item);
   const sender = cleanMemoSender(item.from) || "ALiS Notification Center";
   const memoDate = item.time || formatDateTime(item.timestamp);
+  const isKuFinalReviewMemo =
+    item.memoTemplate === "ku_ikl_final_review" ||
+    (
+      cleanMemoSender(item.from) === "KU(IKL)" &&
+      ["KB(LES)", "IKL(TECHNICAL)"].includes(cleanMemoSender(item.memoTo)) &&
+      ["management_review", "technical_amendment"].includes(item.eventStatus || item.status)
+    );
   const memoContentHtml =
     item.memoTemplate === "pt_ikl_to_ku_ikl"
       ? localizePtIklToKuMemoHtml(memoHtml, language)
@@ -724,6 +801,8 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
         ? localizeKuIklToTechnicalMemoHtml(memoHtml, language)
         : item.memoTemplate === "technical_to_ku_ikl"
           ? localizeIklTechnicalToKuMemoHtml(memoHtml, language)
+          : isKuFinalReviewMemo
+            ? localizeKuIklFinalReviewMemoHtml(memoHtml, language)
       : memoHtml
         ? getMemoContentHtml(memoHtml)
         : "";
