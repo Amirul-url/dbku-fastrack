@@ -6,6 +6,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useNotifications } from "../../context/NotificationContext";
 import {
   Alert,
+  LinkButton,
   StatusPill,
 } from "../../components/ui/SystemUI";
 import { isAdminUser, isSuperAdminUser, getStoredUser } from "../../services/api";
@@ -341,7 +342,19 @@ function NotificationMemo({ item, language, t, onBack }) {
               </h3>
             </div>
           </div>
-          <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {item.actionUrl && (
+              <LinkButton
+                to={item.actionUrl}
+                icon="open_in_new"
+                variant="secondary"
+                className="min-h-8 px-3 py-1 text-xs"
+              >
+                {t("notifications.openTask", "Open Task")}
+              </LinkButton>
+            )}
+            <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
+          </div>
         </div>
       </div>
 

@@ -379,8 +379,8 @@ function getApprovalStageNotificationText(app, user) {
     displayStatus: "management_review",
     titleEn: "Application ready for KB(LES) support",
     titleMs: "Permohonan sedia untuk sokongan KB(LES)",
-    messageEn: `${reference} has SUT approval recorded and is ready for KB(LES) support.`,
-    messageMs: `${reference} telah menerima keputusan SUT dan sedia untuk sokongan KB(LES).`,
+    messageEn: `${reference} has completed KU(IKL) final checking and is ready for KB(LES) support.`,
+    messageMs: `${reference} telah selesai semakan akhir KU(IKL) dan sedia untuk sokongan KB(LES).`,
   };
 }
 

@@ -113,7 +113,7 @@ STATUS_MESSAGES = {
     "management_review": (
         "KB(LES) support required",
         "",
-        "Application {reference} has SUT approval recorded and is ready for KB(LES) support.",
+        "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) support.",
     ),
     "mphlg_processing": (
         "MPHLG approval required",
@@ -1159,7 +1159,7 @@ def get_management_review_admin_text(application):
 
     return (
         "KB(LES) support required",
-        f"Application {reference} has SUT approval recorded and is ready for KB(LES) support.",
+        f"Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) support.",
     )
 
 

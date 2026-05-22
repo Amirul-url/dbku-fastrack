@@ -338,11 +338,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     config.key === "license" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified" &&
     workspaceActions.some((action) => action.key === "issue_license");
-  const eLicenseRowsHaveActions = useMemo(
+  const tableRowsHaveActions = useMemo(
     () =>
-      isELicenseWorkspace &&
+      tableFirstWorkspace &&
       filtered.some((app) => canOpenWorkspaceRow(config, app, userDepartment)),
-    [config, filtered, isELicenseWorkspace, userDepartment]
+    [config, filtered, tableFirstWorkspace, userDepartment]
   );
   const showActionPanel =
     !isApprovalViewOnlyWorkspace &&
@@ -616,7 +616,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                     </span>
                   ),
                 },
-                ...(eLicenseRowsHaveActions
+                ...(tableRowsHaveActions
                   ? [
                       {
                         key: "action",
@@ -969,7 +969,7 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
 
   if (config?.key === "approval") {
     if (userDepartment === "KB(LES)") {
-      return t("workspace.approval.kbAction", "Support applications after SUT approval before sending them to TP(RES)/PGH.");
+      return t("workspace.approval.kbAction", "Support applications after KU(IKL) final checking before sending them to TP(RES)/PGH.");
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {

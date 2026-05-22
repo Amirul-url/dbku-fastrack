@@ -244,6 +244,9 @@ class NotificationRoutingTests(TestCase):
             {"web", "email", "whatsapp"},
         )
         self.assertTrue(deliveries.filter(channel="web", user=kb_user).exists())
+        web_delivery = deliveries.get(channel="web", user=kb_user)
+        self.assertIn("KU(IKL) final checking", web_delivery.metadata["message_en"])
+        self.assertNotIn("SUT approval recorded", web_delivery.metadata["message_en"])
         self.assertTrue(
             deliveries.filter(
                 channel="email",
