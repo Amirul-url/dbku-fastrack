@@ -925,6 +925,12 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = str(sender).strip() or "TP(RES)/PGH"
         metadata["sender"] = metadata["from"]
         metadata["to"] = "MPHLG"
+    elif memo_html and status_key == "mphlg_decision_received":
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "mphlg_to_sut"
+        metadata["from"] = "MPHLG"
+        metadata["sender"] = "MPHLG"
+        metadata["to"] = "SUT"
 
     return metadata
 
@@ -947,6 +953,12 @@ def get_kb_les_memo_html(application):
 
 def get_mphlg_gateway_memo_html(application):
     section = get_form_section(application, "mphlg_gateway")
+    memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
+
+
+def get_sut_approval_memo_html(application):
+    section = get_form_section(application, "sut_approval")
     memo_html = section.get("memo_html")
     return str(memo_html or "").strip()
 
@@ -1012,6 +1024,9 @@ def get_admin_memo_html(application):
 
     if status_key == "mphlg_processing":
         return get_mphlg_gateway_memo_html(application)
+
+    if status_key == "mphlg_decision_received":
+        return get_sut_approval_memo_html(application)
 
     return get_kb_les_memo_html(application)
 

@@ -683,6 +683,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     );
   }
 
+  function isMphlgApproveToSutAction(action, actionDecision) {
+    return (
+      config.key === "approval" &&
+      userDepartment === "MPHLG" &&
+      getApprovalStageKey(selectedRecord) === "mphlg" &&
+      action?.buildPayload === buildApprovalWorkflowPayload &&
+      actionDecision === "Approve"
+    );
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -816,6 +826,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return false;
     }
 
+    if (isMphlgApproveToSutAction(action, actionDecision) && !overrides.memoHtml) {
+      setError("");
+      setSuccess("");
+      setMemoDraft(createMphlgToSutMemoTemplate(selectedRecord));
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
+        titleKey: "workspace.memo.mphlgToSutTitle",
+        title: "Memo to SUT",
+        descriptionKey: "workspace.memo.mphlgToSutDescription",
+        description: "Complete the memo before sending this approval to SUT.",
+      });
+      return false;
+    }
+
     if (
       (
         isKbLesDecisionAction(action, actionDecision) ||
@@ -823,7 +848,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         isKuIklApproveToTechnicalAction(action, actionDecision) ||
         isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
         isIklTechnicalSupportToKuAction(action, actionDecision) ||
-        isMphlgRejectToKuAction(action, actionDecision)
+        isMphlgRejectToKuAction(action, actionDecision) ||
+        isMphlgApproveToSutAction(action, actionDecision)
       ) &&
       !getHtmlPlainText(overrides.memoHtml)
     ) {
@@ -2315,6 +2341,118 @@ function createMphlgToKuAmendmentMemoTemplate(app) {
   `;
 }
 
+function createMphlgToSutMemoTemplate(app) {
+  const forwardedMemoHtml = String(
+    getApplicationSection(app, "mphlg_gateway")?.memo_html || ""
+  ).trim();
+  if (forwardedMemoHtml) return normalizeMphlgToSutForwardedMemoHtml(forwardedMemoHtml);
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(now);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">SUT</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">MPHLG</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>KELULUSAN MPHLG UNTUK TINDAKAN SUT</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah diluluskan oleh MPHLG dan dikemukakan kepada SUT untuk tindakan kelulusan seterusnya.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan MPHLG</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">Sila nyatakan catatan kelulusan di sini.</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak SUT membuat tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
+function normalizeMphlgToSutForwardedMemoHtml(html) {
+  const source = String(html || "").trim();
+  if (!source) return "";
+
+  if (typeof window === "undefined" || !window.DOMParser) {
+    return source
+      .replace(/(<strong>\s*Kepada\s*:\s*<\/strong>\s*<\/td>\s*<td[^>]*>)[^<]*/i, "$1SUT")
+      .replace(/(<strong>\s*Daripada\s*:\s*<\/strong>\s*<\/td>\s*<td[^>]*>)[^<]*/i, "$1MPHLG");
+  }
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  document.querySelectorAll("tr").forEach((row) => {
+    const cells = Array.from(row.querySelectorAll("td"));
+    if (cells.length < 2) return;
+
+    const label = cells[0].textContent.replace(/\s+/g, " ").trim().toLowerCase();
+    if (label.startsWith("kepada")) {
+      cells[1].textContent = "SUT";
+    }
+    if (label.startsWith("daripada")) {
+      cells[1].textContent = "MPHLG";
+    }
+  });
+
+  return document.body.innerHTML;
+}
+
 function createTpResToMphlgMemoTemplate(app) {
   const now = new Date();
   const year = now.getFullYear();
@@ -3631,6 +3769,7 @@ function buildApprovalWorkflowPayload(app, data) {
               status: "Pending SUT Approval",
               routed_from: "MPHLG",
               routed_at: now,
+              memo_html: data.memoHtml || app.form_data?.sut_approval?.memo_html || "",
             }
           : null,
         approval: app.form_data?.approval || null,

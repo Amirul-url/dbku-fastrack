@@ -715,6 +715,16 @@ class NotificationRoutingTests(TestCase):
             department="MPHLG",
             is_active=True,
         )
+        memo_html = "<p>MPHLG memo for SUT approval</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "sut_approval": {
+                "status": "Pending SUT Approval",
+                "routed_from": "MPHLG",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
 
         self.notify_status("mphlg_decision_received", old_status="mphlg_processing")
 
@@ -725,6 +735,11 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertTrue(deliveries.filter(user=sut_user).exists())
         self.assertEqual(deliveries.count(), 1)
+        delivery = deliveries.get(user=sut_user)
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "mphlg_to_sut")
+        self.assertEqual(delivery.metadata["from"], "MPHLG")
+        self.assertEqual(delivery.metadata["to"], "SUT")
 
     def test_department_inbox_keeps_old_kb_les_memos(self):
         User.objects.create_user(
