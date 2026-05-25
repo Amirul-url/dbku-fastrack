@@ -125,6 +125,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [memoDraft, setMemoDraft] = useState("");
   const [pendingMemoSubmission, setPendingMemoSubmission] = useState(null);
   const [approvalDecisionDraft, setApprovalDecisionDraft] = useState("");
+  const [savedApprovalDecisionDraft, setSavedApprovalDecisionDraft] = useState("");
+  const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [showVerificationReport, setShowVerificationReport] = useState(false);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
@@ -362,6 +364,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
+  const canViewSelectedWorkspace =
+    tableFirstWorkspace &&
+    Boolean(selectedRecord) &&
+    canViewWorkspaceRow(config, selectedRecord, userDepartment);
+  const isReadOnlyActionPanel =
+    tableFirstWorkspace && canViewSelectedWorkspace && !canSubmitWorkspaceAction;
   const canChooseLicenseExpiry =
     config.key === "license" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified" &&
@@ -369,26 +377,38 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const tableRowsHaveActions = useMemo(
     () =>
       tableFirstWorkspace &&
-      filtered.some((app) => canOpenWorkspaceRow(config, app, userDepartment)),
+      filtered.some((app) => canViewWorkspaceRow(config, app, userDepartment)),
     [config, filtered, tableFirstWorkspace, userDepartment]
   );
   const showActionPanel =
-    !isApprovalViewOnlyWorkspace &&
-    (!tableFirstWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction));
+    tableFirstWorkspace
+      ? Boolean(selectedRecord) && (canSubmitWorkspaceAction || canViewSelectedWorkspace)
+      : !isApprovalViewOnlyWorkspace && canSubmitWorkspaceAction;
   const showApprovalTechnicalReport =
     isSimpleApprovalWorkspace &&
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
-  const actionUnavailableMessage = getActionUnavailableMessage(
-    config,
-    selectedRecord,
-    userDepartment
-  );
+  const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const approvalOfficerName = getRegisteredUserFullName(currentUser, userDepartment);
   const savedApprovalDecisionHtml =
     selectedRecord?.form_data?.approval?.approval_note_html ||
     selectedRecord?.form_data?.management_recommendation?.approval_note_html ||
+    selectedRecord?.approval?.approval_note_html ||
+    selectedRecord?.management_recommendation?.approval_note_html ||
     "";
-  const approvalMemoHtml = isApprovalSupportWorkspace
+  const canSendSavedApprovalMemoToMphlg =
+    isApprovalWorkspace &&
+    APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment) &&
+    Boolean(savedApprovalDecisionHtml) &&
+    !approvalDecisionEditable &&
+    approvalStageKey === "support";
+  const actionUnavailableMessage = canSendSavedApprovalMemoToMphlg
+    ? ""
+    : getActionUnavailableMessage(config, selectedRecord, userDepartment);
+  const showSavedApprovalDecisionMemo =
+    isApprovalWorkspace && Boolean(savedApprovalDecisionHtml) && !isApprovalSupportWorkspace;
+  const showApprovalSupportReadOnly =
+    isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
+  const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
 
@@ -401,20 +421,29 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const syncApprovalDecisionId = window.setTimeout(() => {
       if (!isApprovalSupportWorkspace || !selectedRecord?.id) {
         setApprovalDecisionDraft("");
+        setSavedApprovalDecisionDraft("");
+        setApprovalDecisionEditable(false);
         return;
       }
 
       if (!decision) {
         setApprovalDecisionDraft("");
+        setSavedApprovalDecisionDraft("");
+        setApprovalDecisionEditable(false);
         return;
       }
 
-      setApprovalDecisionDraft(
+      const nextDraft =
         savedApprovalDecisionHtml ||
           (decision === "Reject"
             ? createTpResToKuAmendmentMemoTemplate(selectedRecord)
-            : createTpResApprovalDecisionTemplate(approvalOfficerName))
+            : createTpResApprovalDecisionTemplate(approvalOfficerName));
+
+      setApprovalDecisionDraft(nextDraft);
+      setSavedApprovalDecisionDraft(
+        decision === "Approve" && savedApprovalDecisionHtml ? savedApprovalDecisionHtml : ""
       );
+      setApprovalDecisionEditable(decision === "Approve" ? !savedApprovalDecisionHtml : true);
     }, 0);
 
     return () => window.clearTimeout(syncApprovalDecisionId);
@@ -433,7 +462,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     if (isApprovalSupportWorkspace) {
-      setDecision("");
+      setDecision(savedApprovalDecisionHtml ? "Approve" : "");
       setLicenseExpiryYears("1");
       return;
     }
@@ -441,28 +470,40 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
     if (nextDecision) setDecision(nextDecision);
     setLicenseExpiryYears("1");
-  }, [approvalStageKey, config, isApprovalSupportWorkspace, selectedRecord?.id, userDepartment]);
+  }, [
+    approvalStageKey,
+    config,
+    isApprovalSupportWorkspace,
+    savedApprovalDecisionHtml,
+    selectedRecord?.id,
+    userDepartment,
+  ]);
 
   function handleApprovalSupportDecisionChange(nextDecision) {
     setDecision(nextDecision);
     if (!nextDecision) {
       setApprovalDecisionDraft("");
+      setSavedApprovalDecisionDraft("");
+      setApprovalDecisionEditable(false);
       return;
     }
 
-    setApprovalDecisionDraft(
+    const nextDraft =
       savedApprovalDecisionHtml ||
         (nextDecision === "Reject"
           ? createTpResToKuAmendmentMemoTemplate(selectedRecord)
-          : createTpResApprovalDecisionTemplate(approvalOfficerName))
+          : createTpResApprovalDecisionTemplate(approvalOfficerName));
+
+    setApprovalDecisionDraft(nextDraft);
+    setSavedApprovalDecisionDraft(
+      nextDecision === "Approve" && savedApprovalDecisionHtml ? savedApprovalDecisionHtml : ""
     );
+    setApprovalDecisionEditable(nextDecision === "Approve" ? !savedApprovalDecisionHtml : true);
   }
 
-  function submitApprovalSupport(decisionValue) {
-    const [action] = workspaceActions;
-    if (!action) return;
-    if (!decisionValue) {
-      setError(t("workspace.decision.required", "Please select a decision."));
+  async function saveApprovalDecisionMemo() {
+    if (!selectedRecord?.id) {
+      setError(t("workspace.selectApplication", "Please select an application first."));
       return;
     }
 
@@ -471,20 +512,91 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const now = new Date().toISOString();
+      const body = {
+        status: normalizeStatus(selectedRecord.status) || "management_review",
+        form_data: mergeFormData(selectedRecord, {
+          management_recommendation: {
+            ...(selectedRecord.form_data?.management_recommendation || {}),
+            officer: userDepartment,
+            status: "Pending TP(RES)/PGH Approval",
+            decision: "Draft",
+            approval_note_html: approvalDecisionDraft,
+            approval_note_saved_at: now,
+            approval_note_saved_by: userDepartment,
+          },
+        }),
+      };
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+
+      setSavedApprovalDecisionDraft(approvalDecisionDraft);
+      setApprovalDecisionEditable(false);
+      setSuccess(t("workspace.memo.saved", "Memo saved."));
+      await fetchApplications({ silent: true });
+      setSelectedDetail(response?.data || response || selectedRecord);
+    } catch (err) {
+      setError(err.message || t("workspace.memo.saveFailed", "Memo could not be saved."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function submitApprovalSupport(decisionValue) {
+    const [availableAction] = workspaceActions;
+    const action = availableAction || (canSendSavedApprovalMemoToMphlg ? config.actions?.[0] : null);
+    if (!action) return;
+    if (!decisionValue) {
+      setError(t("workspace.decision.required", "Please select a decision."));
+      return;
+    }
+
+    const savedApprovalMemoHtml = savedApprovalDecisionDraft || savedApprovalDecisionHtml;
+
+    if (decisionValue === "Approve" && (!savedApprovalMemoHtml || approvalDecisionEditable)) {
+      setError(t("workspace.memo.saveBeforeSubmit", "Please save the memo before submitting."));
+      return;
+    }
+
+    const approvalDecisionHtml =
+      decisionValue === "Approve" ? savedApprovalMemoHtml : approvalDecisionDraft;
+
+    if (!getHtmlPlainText(approvalDecisionHtml)) {
+      setError(t("workspace.memo.required", "Please complete the memo before sending."));
+      return;
+    }
+
     if (decisionValue === "Approve") {
-      setError(
-        t(
-          "workspace.approval.approvePendingSetup",
-          "Approve submission is not configured yet."
-        )
-      );
+      setError("");
+      setSuccess("");
+      setMemoDraft(createTpResToMphlgMemoTemplate(selectedRecord, approvalDecisionHtml));
+      setPendingMemoSubmission({
+        action,
+        overrides: {
+          decision: decisionValue,
+          checkDecisionRemark: false,
+          approvalDecisionHtml,
+        },
+        titleKey: "workspace.memo.tpToMphlgTitle",
+        title: "Memo to MPHLG",
+        descriptionKey: "workspace.memo.tpToMphlgDescription",
+        description: "Complete the memo before sending this approval to MPHLG.",
+      });
       return;
     }
 
     submitAction(action, {
       decision: decisionValue,
       checkDecisionRemark: false,
-      approvalDecisionHtml: approvalDecisionDraft,
+      approvalDecisionHtml,
     });
   }
 
@@ -915,18 +1027,25 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       {
                         key: "action",
                         label: t("common.action"),
-                        render: (app) =>
-                          canOpenWorkspaceRow(config, app, userDepartment) ? (
+                        render: (app) => {
+                          if (!canViewWorkspaceRow(config, app, userDepartment)) return null;
+
+                          const canActOnRow = canOpenWorkspaceRow(config, app, userDepartment);
+
+                          return (
                             <Button
                               type="button"
                               variant="secondary"
-                              icon="open_in_new"
+                              icon={canActOnRow ? "open_in_new" : "visibility"}
                               className="min-h-8 px-3 py-1 text-xs"
                               onClick={() => openSelectedTask(app)}
                             >
-                              {t("common.open", "Open")}
+                              {canActOnRow
+                                ? t("common.open", "Open")
+                                : t("common.view", "View")}
                             </Button>
-                          ) : null,
+                          );
+                        },
                       },
                     ]
                   : []),
@@ -966,7 +1085,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         {showActionPanel && (
           <Panel
             title={t("workspace.actionPanel")}
-            description={getWorkspaceActionDescription(config, t, userDepartment)}
+            description={
+              isReadOnlyActionPanel
+                ? t(
+                    "workspace.approval.viewOnlyAction",
+                    "View applications awaiting SUT, KB(LES), or TP(RES)/PGH action."
+                  )
+                : getWorkspaceActionDescription(config, t, userDepartment)
+            }
           >
             {!selectedRecord ? (
               <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
@@ -1107,13 +1233,77 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           </option>
                         </select>
                       </Field>
-                      {decision && (
-                        <SimpleWysiwygEditor
-                          label={t("workspace.memo.editorLabel", "Memo Content")}
-                          value={approvalDecisionDraft}
-                          onChange={setApprovalDecisionDraft}
-                          max={12000}
+                      {decision === "Approve" &&
+                      savedApprovalDecisionDraft &&
+                      !approvalDecisionEditable ? (
+                        <ApprovalDecisionMemoPreview
+                          memoHtml={savedApprovalDecisionDraft}
+                          t={t}
                         />
+                      ) : (
+                        decision && (
+                          <div className="space-y-3">
+                            <SimpleWysiwygEditor
+                              label={t("workspace.memo.editorLabel", "Memo Content")}
+                              value={approvalDecisionDraft}
+                              onChange={setApprovalDecisionDraft}
+                              max={12000}
+                            />
+                            {decision === "Approve" && (
+                              <div className="flex justify-end">
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="save"
+                                  onClick={saveApprovalDecisionMemo}
+                                  disabled={saving}
+                                  className="min-w-32"
+                                >
+                                  {t("common.save", "Save")}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      )}
+                    </>
+                  )}
+
+                  {showSavedApprovalDecisionMemo && !showApprovalSupportReadOnly && (
+                    <>
+                      <ApprovalMemoPreview
+                        app={selectedRecord}
+                        memoHtml={approvalMemoHtml}
+                        language={language}
+                        t={t}
+                      />
+                      <ApprovalDecisionMemoPreview
+                        memoHtml={savedApprovalDecisionHtml}
+                        t={t}
+                      />
+                    </>
+                  )}
+
+                  {showApprovalSupportReadOnly && (
+                    <>
+                      <ApprovalMemoPreview
+                        app={selectedRecord}
+                        memoHtml={approvalMemoHtml}
+                        language={language}
+                        t={t}
+                      />
+                      {savedApprovalDecisionHtml ? (
+                        <ApprovalDecisionMemoPreview
+                          memoHtml={savedApprovalDecisionHtml}
+                          t={t}
+                        />
+                      ) : (
+                        <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                          {t(
+                            "workspace.memo.noSavedApprovalMemo",
+                            "TP(RES)/PGH has not saved a memo yet."
+                          )}
+                        </p>
                       )}
                     </>
                   )}
@@ -1174,15 +1364,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         {t("workspace.openForm")}
                       </Button>
                     )}
-                    {isApprovalSupportWorkspace ? (
+                    {isApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg ? (
                       <Button
-                        onClick={() => submitApprovalSupport(decision)}
-                        disabled={saving || !decision}
+                        onClick={() =>
+                          submitApprovalSupport(canSendSavedApprovalMemoToMphlg ? "Approve" : decision)
+                        }
+                        disabled={
+                          saving ||
+                          (!canSendSavedApprovalMemoToMphlg && !decision) ||
+                          ((canSendSavedApprovalMemoToMphlg || decision === "Approve") &&
+                            (!(savedApprovalDecisionDraft || savedApprovalDecisionHtml) ||
+                              approvalDecisionEditable))
+                        }
                         variant="primary"
                         icon="send"
                         className="min-w-40"
                       >
-                        {saving ? t("workspace.saving") : t("common.submit", "Submit")}
+                        {saving ? t("workspace.saving") : t("workspace.memo.send", "Send")}
                       </Button>
                     ) : showApprovalDecisionButtons ? (
                       <>
@@ -1387,6 +1585,39 @@ function ApprovalMemoPreview({ app, memoHtml, language, t }) {
             </div>
           </div>
         </section>
+      </div>
+    </section>
+  );
+}
+
+function ApprovalDecisionMemoPreview({ memoHtml, onEdit, t }) {
+  const sanitizedMemoHtml = sanitizeMemoHtml(memoHtml);
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-3">
+        <div>
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+            {t("workspace.memo.savedPreviewTitle", "Saved Memo Content")}
+          </p>
+          <p className="mt-1 text-[14px] leading-5 text-slate-500">
+            {t(
+              "workspace.memo.savedPreviewDescription",
+              "This memo will be submitted with the approval decision."
+            )}
+          </p>
+        </div>
+        {onEdit && (
+          <Button type="button" variant="secondary" icon="edit" onClick={onEdit}>
+            {t("common.edit", "Edit")}
+          </Button>
+        )}
+      </div>
+      <div className="px-4 py-4">
+        <div
+          className="memo-template rounded-md border border-slate-300 bg-white px-5 py-5 text-sm leading-6 text-slate-950 [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
+          dangerouslySetInnerHTML={{ __html: sanitizedMemoHtml }}
+        />
       </div>
     </section>
   );
@@ -1935,7 +2166,7 @@ function createTpResToKuAmendmentMemoTemplate(app) {
         </tr>
         <tr>
           <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Daripada :</strong></td>
-          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">TP (LES)</td>
+          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">TP(RES)</td>
         </tr>
         <tr>
           <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Kami :</strong></td>
@@ -1960,6 +2191,58 @@ function createTpResToKuAmendmentMemoTemplate(app) {
     <p>....................................................................................................................</p>
     <p>....................................................................................................................</p>
     <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya berdasarkan catatan di atas.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
+function createTpResToMphlgMemoTemplate(app) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(now);
+  const reference = getApplicationReference(app);
+
+  return `
+    <h3 style="text-align:center;margin:0 0 28px 0;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border-top:1px solid #8ea2c5;border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border-top:1px solid #8ea2c5;border-bottom:1px solid #8ea2c5;padding:8px 10px;">MPHLG</td>
+        </tr>
+        <tr>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">TP(RES)</td>
+        </tr>
+        <tr>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:120px;border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Tarikh :</strong></td>
+          <td style="width:260px;border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(reference)}</td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Tarikh :</strong></td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(memoDate)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>&nbsp;</p>
+    <p><strong><u>PERMOHONAN UNTUK TINDAKAN MPHLG</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah disemak dan diluluskan oleh TP(RES) untuk tindakan pihak MPHLG.</p>
+    <p>Mohon pihak MPHLG membuat semakan dan tindakan selanjutnya.</p>
     <p>Sekian, terima kasih.</p>
   `;
 }
@@ -1998,6 +2281,8 @@ function getApprovalMemoHtml(app) {
   return (
     app?.form_data?.kb_les_verification?.memo_html ||
     app?.form_data?.management_recommendation?.memo_html ||
+    app?.kb_les_verification?.memo_html ||
+    app?.management_recommendation?.memo_html ||
     ""
   );
 }
@@ -2511,6 +2796,11 @@ function canOpenWorkspaceRow(config, app, department) {
   return getWorkspaceActions(config, app, department).length > 0;
 }
 
+function canViewWorkspaceRow(config, app, department) {
+  if (canOpenWorkspaceRow(config, app, department)) return true;
+  return config?.key === "approval" && isApprovalTaskForDepartment(app, department);
+}
+
 function isApprovalTaskForDepartment(app, department) {
   const stage = getApprovalStageKey(app);
 
@@ -2744,6 +3034,7 @@ function getApprovalStageKey(app) {
   const status = normalizeStatus(app?.status);
 
   if (status === "management_review") {
+    if (hasApprovalSupportMemo(app)) return "support";
     if (!isKbLesVerified(app)) return "kb";
     return "support";
   }
@@ -2776,6 +3067,10 @@ function hasManagementSupport(app) {
     .trim()
     .toLowerCase();
   return ["supported", "approved", "completed"].includes(status);
+}
+
+function hasApprovalSupportMemo(app) {
+  return Boolean(getApplicationSection(app, "management_recommendation")?.approval_note_html);
 }
 
 function getLocalizedApplicationType(app, t) {
@@ -3057,7 +3352,7 @@ function buildApprovalWorkflowPayload(app, data) {
     const approvalDecisionRemarks = getHtmlPlainText(approvalDecisionHtml);
 
     return {
-      status: rejected ? "technical_review_completed" : "approved",
+      status: rejected ? "technical_review_completed" : "mphlg_processing",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: rejected
         ? data.comment || approvalDecisionRemarks || app.latest_remark || ""
@@ -3072,7 +3367,15 @@ function buildApprovalWorkflowPayload(app, data) {
           approval_note_html: approvalDecisionHtml,
           decided_at: now,
         },
-        mphlg_gateway: app.form_data?.mphlg_gateway || null,
+        mphlg_gateway: rejected
+          ? app.form_data?.mphlg_gateway || null
+          : {
+              ...(app.form_data?.mphlg_gateway || {}),
+              status: "Pending MPHLG Approval",
+              routed_from: department,
+              routed_at: now,
+              memo_html: data.memoHtml || app.form_data?.mphlg_gateway?.memo_html || "",
+            },
         correction_request: rejected
           ? {
               source: department,
@@ -3082,17 +3385,7 @@ function buildApprovalWorkflowPayload(app, data) {
               requested_at: now,
             }
           : app.form_data?.correction_request || null,
-        approval: rejected
-          ? null
-          : {
-              ...(app.form_data?.approval || {}),
-              status: "Approved",
-              final_decision: "Approved",
-              notes: data.comment,
-              decided_by: department,
-              approval_note_html: approvalDecisionHtml,
-              approved_at: now,
-            },
+        approval: rejected ? null : app.form_data?.approval || null,
       }),
     };
   }

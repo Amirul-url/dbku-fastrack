@@ -91,6 +91,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return
 
         if requested_status == "management_review" and current_status == "management_review":
+            if self.is_management_support_memo_save(application, department):
+                return
+
+        if requested_status == "management_review" and current_status == "management_review":
             if department != "KB(LES)":
                 raise PermissionDenied("Only KB(LES) can verify the application at this stage.")
             return
@@ -128,6 +132,41 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if requested_status in {"payment_verified", "license_issued", "license_revoked"}:
             if department != "PT(IKL)":
                 raise PermissionDenied("Only PT(IKL) can complete payment and license actions.")
+
+    def is_management_support_memo_save(self, application, department):
+        if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+            return False
+
+        form_data = self.request.data.get("form_data") or {}
+        if not isinstance(form_data, dict):
+            return False
+
+        current_form_data = application.form_data or {}
+        changed_keys = {
+            key
+            for key, value in form_data.items()
+            if value != current_form_data.get(key)
+        }
+
+        if not changed_keys.issubset({"management_recommendation"}):
+            return False
+
+        support_section = form_data.get("management_recommendation") or {}
+        if not isinstance(support_section, dict):
+            return False
+
+        support_status = str(support_section.get("status") or "").strip().lower()
+        support_decision = str(support_section.get("decision") or "").strip().lower()
+        completed_statuses = {"approved", "supported", "completed", "rejected"}
+        completed_decisions = {"approve", "approved", "support", "supported", "reject", "rejected", "not supported"}
+
+        if support_status in completed_statuses or support_decision in completed_decisions:
+            return False
+
+        return bool(
+            support_section.get("approval_note_html")
+            or support_section.get("approval_note_saved_at")
+        )
 
     def ensure_applicant_can_update(self, application):
         user = self.request.user
