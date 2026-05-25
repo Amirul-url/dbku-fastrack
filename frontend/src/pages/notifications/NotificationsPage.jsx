@@ -10,7 +10,6 @@ import {
   StatusPill,
 } from "../../components/ui/SystemUI";
 import { isAdminUser, isSuperAdminUser, getStoredUser } from "../../services/api";
-import { formatDateTime } from "../../utils/workflow";
 
 const filters = [
   { value: "all", labelKey: "notifications.filter.all", fallback: "All" },
@@ -49,6 +48,22 @@ const typeStyles = {
 function getLocalized(item, field, language) {
   if (language === "ms") return item[`${field}Ms`] || item[field] || "";
   return item[`${field}En`] || item[field] || "";
+}
+
+function formatLocalizedDateTime(value, language) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString(language === "ms" ? "ms-MY" : "en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function getMemoBodyParts(body) {
@@ -158,7 +173,11 @@ function getMemoContentHtml(html) {
 
   const firstMemoTable = Array.from(document.body.querySelectorAll("figure, table")).find((element) => {
     const text = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-    return text.includes("kepada") && text.includes("daripada") && text.includes("ruj.");
+    return (
+      (text.includes("kepada") || text.includes("to")) &&
+      (text.includes("daripada") || text.includes("from")) &&
+      (text.includes("ruj.") || text.includes("ref"))
+    );
   });
 
   if (firstMemoTable) {
@@ -596,7 +615,7 @@ function NotificationsPage() {
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               {lastSyncedAt
-                ? `${t("notifications.lastSynced", "Last synced")}: ${formatDateTime(lastSyncedAt)}`
+                ? `${t("notifications.lastSynced", "Last synced")}: ${formatLocalizedDateTime(lastSyncedAt, language)}`
                 : t("notifications.waitingForSync", "Waiting for live sync.")}
             </p>
           </div>
@@ -645,7 +664,7 @@ function NotificationsPage() {
                 </p>
                 <p className="text-xs text-slate-500">
                   {selectedNotification
-                    ? selectedNotification.time
+                    ? formatLocalizedDateTime(selectedNotification.timestamp, language)
                     : `${unreadCount} ${t("notifications.unread", "Unread")}`}
                 </p>
               </div>
@@ -714,7 +733,7 @@ function NotificationsPage() {
                             </h3>
                           </div>
                           <time className="shrink-0 text-xs text-slate-500">
-                            {item.time}
+                            {formatLocalizedDateTime(item.timestamp, language)}
                           </time>
                         </div>
 
@@ -885,9 +904,12 @@ function NotificationBody({ item, bodyParts, memoHtml, t }) {
 
 function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }) {
   const memoFields = extractFormalMemoFields(memoHtml);
-  const recipient = memoFields.to || getFormalMemoRecipient(item);
-  const sender = memoFields.from || cleanMemoSender(item.from) || "ALiS Notification Center";
-  const notificationTimestamp = item.time || formatDateTime(item.timestamp);
+  const recipient = localizeFormalMemoFieldValue(memoFields.to || getFormalMemoRecipient(item), language);
+  const sender = localizeFormalMemoFieldValue(
+    memoFields.from || cleanMemoSender(item.from) || "ALiS Notification Center",
+    language
+  );
+  const notificationTimestamp = formatLocalizedDateTime(item.timestamp, language);
   const memoDate = getMemoTimestampValue(memoFields.date, notificationTimestamp);
   const memoYourDate = memoFields.yourDate;
   const isKuFinalReviewMemo =
@@ -1064,6 +1086,26 @@ function cleanMemoFieldValue(value) {
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function localizeFormalMemoFieldValue(value, language) {
+  const text = cleanMemoFieldValue(value);
+  if (!text) return "";
+
+  const replacements =
+    language === "ms"
+      ? [
+          [/Deputy Director \(Regulatory Services Department\)/gi, "Timbalan Pengarah (Jabatan Perkhidmatan Kawal Selia)"],
+          [/Head of Division \(Licensing\)/gi, "Ketua Bahagian (Pelesenan)"],
+          [/Licensing Division/gi, "Bahagian Pelesenan"],
+        ]
+      : [
+          [/Timbalan Pengarah \(Jabatan Perkhidmatan Kawal Selia\)/gi, "Deputy Director (Regulatory Services Department)"],
+          [/Ketua Bahagian \(Pelesenan\)/gi, "Head of Division (Licensing)"],
+          [/Bahagian Pelesenan/gi, "Licensing Division"],
+        ];
+
+  return replacements.reduce((next, [pattern, replacement]) => next.replace(pattern, replacement), text);
 }
 
 function isMemoLabel(label, candidates) {

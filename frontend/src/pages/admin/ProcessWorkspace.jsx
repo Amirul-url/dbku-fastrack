@@ -87,7 +87,7 @@ const KU_TECHNICAL_CHECK_KEYS = [
 
 function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const config = configs[type];
   const userDepartment = normalizeDepartmentCode(getStoredUser()?.department);
 
@@ -100,12 +100,13 @@ function ProcessWorkspace({ type }) {
       config={config}
       navigate={navigate}
       t={t}
+      language={language}
       userDepartment={userDepartment}
     />
   );
 }
 
-function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
+function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment }) {
   const location = useLocation();
   const querySelectedId = new URLSearchParams(location.search).get("id") || "";
   const [applications, setApplications] = useState([]);
@@ -387,6 +388,9 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     selectedRecord?.form_data?.approval?.approval_note_html ||
     selectedRecord?.form_data?.management_recommendation?.approval_note_html ||
     "";
+  const approvalMemoHtml = isApprovalSupportWorkspace
+    ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
+    : "";
 
   const stats = useMemo(
     () => config.stats(statusScopedApplications, userDepartment),
@@ -1028,15 +1032,23 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                   )}
 
                   {isApprovalSupportWorkspace && canSubmitWorkspaceAction && (
-                    <SimpleWysiwygEditor
-                      label={t(
-                        "workspace.approval.tpResDecisionTemplate",
-                        "TP(RES) Approval Template"
-                      )}
-                      value={approvalDecisionDraft}
-                      onChange={setApprovalDecisionDraft}
-                      max={12000}
-                    />
+                    <>
+                      <ApprovalMemoPreview
+                        app={selectedRecord}
+                        memoHtml={approvalMemoHtml}
+                        language={language}
+                        t={t}
+                      />
+                      <SimpleWysiwygEditor
+                        label={t(
+                          "workspace.approval.tpResDecisionTemplate",
+                          "TP(RES) Approval Template"
+                        )}
+                        value={approvalDecisionDraft}
+                        onChange={setApprovalDecisionDraft}
+                        max={12000}
+                      />
+                    </>
                   )}
 
                   {showSiteVisitFields && (
@@ -1255,6 +1267,80 @@ function KbLesMemoModal({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ApprovalMemoPreview({ app, memoHtml, language, t }) {
+  if (!memoHtml) return null;
+
+  const memoFields = extractFormalMemoFields(memoHtml);
+  const memoDate = getMemoTimestampValue(memoFields.date, getApprovalMemoTimestamp(app, language));
+  const memoYourDate = memoFields.yourDate;
+  const copy = getApprovalMemoCopy(language);
+  const memoContentHtml = localizeKbLesToTpMemoHtml(memoHtml, language);
+  const recipient = localizeFormalMemoFieldValue(memoFields.to || "TP(RES)", language);
+  const sender = localizeFormalMemoFieldValue(memoFields.from || "KB(LES)", language);
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          {t("workspace.memo.previewTitle", "Memo from KB(LES)")}
+        </p>
+        <p className="mt-1 text-[14px] leading-5 text-slate-500">
+          {t(
+            "workspace.memo.previewDescription",
+            "This is the memo sent with the notification for this approval."
+          )}
+        </p>
+      </div>
+      <div className="px-4 py-4">
+        <section className="w-full text-slate-950">
+          <div className="rounded-md border border-slate-300 bg-white px-5 py-6 text-sm leading-6 sm:px-7 sm:py-7">
+            <div className="text-center font-serif text-xl font-bold uppercase leading-6 text-slate-950">
+              <p>DEWAN BANDARAYA KUCHING UTARA</p>
+              <p>MEMORANDUM</p>
+            </div>
+
+            <div className="mt-6 divide-y divide-slate-400 border-y border-slate-500">
+              <FormalMemoRow label={copy.labels.to} value={recipient} />
+              <FormalMemoRow label={copy.labels.through} value={localizeFormalMemoFieldValue(memoFields.through, language)} />
+              <FormalMemoRow label={copy.labels.from} value={sender} />
+              <div className="grid divide-y divide-slate-500 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <FormalMemoRow label={copy.labels.ourRef} value={memoFields.ourRef} compact />
+                <FormalMemoRow label={copy.labels.date} value={memoDate} compact />
+              </div>
+              <div className="grid divide-y divide-slate-500 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <FormalMemoRow label={copy.labels.yourRef} value={memoFields.yourRef} compact />
+                <FormalMemoRow label={copy.labels.date} value={memoYourDate} compact />
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4 leading-6 text-slate-950">
+              {memoContentHtml ? (
+                <div
+                  className="memo-template [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
+                  dangerouslySetInnerHTML={{ __html: memoContentHtml }}
+                />
+              ) : (
+                <p className="text-slate-500">
+                  {t("workspace.memo.emptyBody", "No memo message was provided.")}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function FormalMemoRow({ label, value, compact = false }) {
+  return (
+    <div className={`grid grid-cols-[96px_1fr] items-start gap-2 px-2 ${compact ? "py-1.5" : "py-2"}`}>
+      <span className="font-bold">{label} :</span>
+      <span className="min-w-0 break-words">{value ?? ""}</span>
     </div>
   );
 }
@@ -1794,6 +1880,339 @@ function getRegisteredUserFullName(user, fallback = "") {
       .trim()
       .replace(/\s+/g, " ") || fallback
   );
+}
+
+function getApprovalMemoHtml(app) {
+  return (
+    app?.form_data?.kb_les_verification?.memo_html ||
+    app?.form_data?.management_recommendation?.memo_html ||
+    ""
+  );
+}
+
+function sanitizeMemoHtml(html) {
+  const source = String(html || "").trim();
+  if (!source || typeof window === "undefined" || !window.DOMParser) return "";
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const allowedTags = new Set([
+    "A", "B", "BLOCKQUOTE", "BR", "DIV", "EM", "FIGURE", "H1", "H2", "H3",
+    "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH",
+    "THEAD", "TR", "U", "UL",
+  ]);
+  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class"]);
+  const allowedStyleProperties = new Set([
+    "background-color",
+    "border",
+    "border-bottom",
+    "border-collapse",
+    "border-top",
+    "font-size",
+    "margin-left",
+    "margin-right",
+    "padding",
+    "text-align",
+    "width",
+  ]);
+
+  document.body.querySelectorAll("*").forEach((element) => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value || "";
+
+      if (!allowedAttributes.has(name) || /^on/i.test(name) || /javascript:/i.test(value)) {
+        element.removeAttribute(attribute.name);
+      }
+    });
+
+    if (element.hasAttribute("style")) {
+      const safeStyle = String(element.getAttribute("style") || "")
+        .split(";")
+        .map((rule) => rule.trim())
+        .filter((rule) => {
+          const [property, ...valueParts] = rule.split(":");
+          const value = valueParts.join(":").trim();
+          return (
+            allowedStyleProperties.has(String(property || "").trim().toLowerCase()) &&
+            value &&
+            !/url|expression|javascript/i.test(value)
+          );
+        })
+        .join("; ");
+
+      if (safeStyle) {
+        element.setAttribute("style", safeStyle);
+      } else {
+        element.removeAttribute("style");
+      }
+    }
+
+    if (element.tagName === "A") {
+      element.setAttribute("target", "_blank");
+      element.setAttribute("rel", "noreferrer");
+    }
+  });
+
+  return document.body.innerHTML;
+}
+
+function getMemoContentHtml(html) {
+  const source = sanitizeMemoHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const firstHeading = document.body.querySelector("h1, h2, h3");
+  const headingText = String(firstHeading?.textContent || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+  if (headingText.includes("DEWAN BANDARAYA KUCHING UTARA") && headingText.includes("MEMORANDUM")) {
+    firstHeading.remove();
+  }
+
+  const firstMemoTable = Array.from(document.body.querySelectorAll("figure, table")).find((element) => {
+    const text = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    return (
+      (text.includes("kepada") || text.includes("to")) &&
+      (text.includes("daripada") || text.includes("from")) &&
+      (text.includes("ruj.") || text.includes("ref"))
+    );
+  });
+
+  if (firstMemoTable) {
+    firstMemoTable.remove();
+  }
+
+  document.body.querySelectorAll("p").forEach((paragraph) => {
+    if (!String(paragraph.textContent || "").trim() && paragraph.children.length === 0) {
+      paragraph.remove();
+    }
+  });
+
+  return document.body.innerHTML;
+}
+
+function localizeKbLesToTpMemoHtml(html, language) {
+  const source = getMemoContentHtml(html);
+  if (!source || typeof window === "undefined" || !window.DOMParser) return source;
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const isMalay = language === "ms";
+  const replacements = isMalay
+    ? [
+        [/APPLICATION FOR APPROVAL OF BUSINESS SIGNAGE \/ ADVERTISEMENT LICENSE/gi, "PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN / IKLAN"],
+        [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
+        [/For your information, the Licensing Division has received two \(2\) new Business Signage\/Advertisement License applications\./gi, "Untuk makluman, Bahagian Pelesenan telah menerima dua (2) permohonan baru Lesen Tandanama Perniagaan/Iklan."],
+        [/Enclosed herewith are business signage\/advertisement applications that have complied with all requirements for your approval as follows:-/gi, "Bersama ini disertakan permohonan tandanama perniagaan/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-"],
+        [/ITEM/gi, "PERKARA"],
+        [/REVENUE/gi, "HASIL"],
+        [/Two \(2\) Business Signage\/Advertisement Licenses/gi, "Dua (2) Lesen Tandanama Perniagaan/Iklan"],
+        [/Grand Total/gi, "Jumlah Keseluruhan"],
+        [/Please approve the above matter\./gi, "Mohon kelulusan puan dalam perkara tersebut di atas."],
+        [/Thank you\./gi, "Sekian. Terima kasih."],
+        [/Head of Division/gi, "Ketua Bahagian"],
+        [/Licensing Division/gi, "Bahagian Pelesenan"],
+      ]
+    : [
+        [/PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN \/ IKLAN/gi, "APPLICATION FOR APPROVAL OF BUSINESS SIGNAGE / ADVERTISEMENT LICENSE"],
+        [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
+        [/Untuk makluman, Bahagian Pelesenan telah menerima dua \(2\) permohonan baru Lesen Tandanama Perniagaan\/Iklan\./gi, "For your information, the Licensing Division has received two (2) new Business Signage/Advertisement License applications."],
+        [/Bersama ini disertakan permohonan tandanama perniagaan\/iklan yang telah mematuhi semua syarat untuk kelulusan puan seperti berikut:-/gi, "Enclosed herewith are business signage/advertisement applications that have complied with all requirements for your approval as follows:-"],
+        [/PERKARA/gi, "ITEM"],
+        [/HASIL/gi, "REVENUE"],
+        [/Dua \(2\) Lesen Tandanama Perniagaan\/Iklan/gi, "Two (2) Business Signage/Advertisement Licenses"],
+        [/Jumlah Keseluruhan/gi, "Grand Total"],
+        [/Mohon kelulusan puan dalam perkara tersebut di atas\./gi, "Please approve the above matter."],
+        [/Sekian\. Terima kasih\./gi, "Thank you."],
+        [/Ketua Bahagian/gi, "Head of Division"],
+        [/Bahagian Pelesenan/gi, "Licensing Division"],
+      ];
+
+  const walker = document.createTreeWalker(document.body, window.NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  textNodes.forEach((node) => {
+    let text = node.nodeValue || "";
+    replacements.forEach(([pattern, replacement]) => {
+      text = text.replace(pattern, replacement);
+    });
+    node.nodeValue = text;
+  });
+
+  return document.body.innerHTML;
+}
+
+function extractFormalMemoFields(html) {
+  const source = sanitizeMemoHtml(html);
+  const emptyFields = {
+    to: "",
+    through: "",
+    from: "",
+    ourRef: "",
+    date: "",
+    yourRef: "",
+    yourDate: "",
+  };
+
+  if (!source || typeof window === "undefined" || !window.DOMParser) {
+    return emptyFields;
+  }
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const memoTable = Array.from(document.body.querySelectorAll("figure, table")).find((element) => {
+    const text = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    return (
+      (text.includes("kepada") || text.includes("to")) &&
+      (text.includes("daripada") || text.includes("from")) &&
+      (text.includes("ruj.") || text.includes("ref"))
+    );
+  });
+
+  if (!memoTable) return emptyFields;
+
+  const nextFields = { ...emptyFields };
+  Array.from(memoTable.querySelectorAll("tr")).forEach((row) => {
+    const cells = Array.from(row.querySelectorAll("td, th"));
+    const label = normalizeMemoLabel(cells[0]?.textContent);
+
+    if (!label) return;
+
+    const primaryValue = cleanMemoFieldValue(cells[1]?.textContent);
+    const secondaryLabel = normalizeMemoLabel(cells[2]?.textContent);
+    const secondaryValue = cleanMemoFieldValue(cells[3]?.textContent);
+
+    if (isMemoLabel(label, ["kepada", "to"])) {
+      nextFields.to = primaryValue;
+    } else if (isMemoLabel(label, ["melalui", "through"])) {
+      nextFields.through = primaryValue;
+    } else if (isMemoLabel(label, ["daripada", "from"])) {
+      nextFields.from = primaryValue;
+    } else if (isMemoLabel(label, ["ruj kami", "our ref"])) {
+      nextFields.ourRef = primaryValue;
+      if (isMemoLabel(secondaryLabel, ["tarikh", "date"])) {
+        nextFields.date = secondaryValue;
+      }
+    } else if (isMemoLabel(label, ["ruj tuan", "your ref"])) {
+      nextFields.yourRef = primaryValue;
+      if (isMemoLabel(secondaryLabel, ["tarikh", "date"])) {
+        nextFields.yourDate = secondaryValue;
+      }
+    }
+  });
+
+  return nextFields;
+}
+
+function normalizeMemoLabel(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[:.]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function cleanMemoFieldValue(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isMemoLabel(label, candidates) {
+  return candidates.some((candidate) => label === candidate || label.startsWith(`${candidate} `));
+}
+
+function getMemoTimestampValue(value, fallback = "") {
+  const cleanedValue = cleanMemoFieldValue(value);
+  if (hasTimeComponent(cleanedValue)) return cleanedValue;
+  return fallback || cleanedValue;
+}
+
+function hasTimeComponent(value) {
+  return /\d{1,2}:\d{2}|\b(?:am|pm|pagi|petang|malam)\b/i.test(String(value || ""));
+}
+
+function getApprovalMemoTimestamp(app, language) {
+  const timestamp =
+    app?.form_data?.kb_les_verification?.verified_at ||
+    app?.form_data?.management_recommendation?.routed_at ||
+    app?.updated_at ||
+    app?.created_at ||
+    "";
+
+  return timestamp ? formatLocalizedDateTime(timestamp, language) : "";
+}
+
+function formatLocalizedDateTime(value, language) {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString(language === "ms" ? "ms-MY" : "en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function localizeFormalMemoFieldValue(value, language) {
+  const text = cleanMemoFieldValue(value);
+  if (!text) return "";
+
+  const replacements =
+    language === "ms"
+      ? [
+          [/Deputy Director \(Regulatory Services Department\)/gi, "Timbalan Pengarah (Jabatan Perkhidmatan Kawal Selia)"],
+          [/Head of Division \(Licensing\)/gi, "Ketua Bahagian (Pelesenan)"],
+          [/Licensing Division/gi, "Bahagian Pelesenan"],
+        ]
+      : [
+          [/Timbalan Pengarah \(Jabatan Perkhidmatan Kawal Selia\)/gi, "Deputy Director (Regulatory Services Department)"],
+          [/Ketua Bahagian \(Pelesenan\)/gi, "Head of Division (Licensing)"],
+          [/Bahagian Pelesenan/gi, "Licensing Division"],
+        ];
+
+  return replacements.reduce((next, [pattern, replacement]) => next.replace(pattern, replacement), text);
+}
+
+function getApprovalMemoCopy(language) {
+  const isMalay = language === "ms";
+
+  return {
+    labels: isMalay
+      ? {
+          to: "Kepada",
+          through: "Melalui",
+          from: "Daripada",
+          ourRef: "Ruj. Kami",
+          yourRef: "Ruj. Tuan",
+          date: "Tarikh",
+        }
+      : {
+          to: "To",
+          through: "Through",
+          from: "From",
+          ourRef: "Our Ref.",
+          yourRef: "Your Ref.",
+          date: "Date",
+        },
+  };
 }
 
 function formatMemoAmount(value) {
