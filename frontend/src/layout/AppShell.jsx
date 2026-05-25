@@ -103,6 +103,14 @@ function buildAdminNav(taskCounts = {}, user = null) {
       view: "approval",
       badge: taskCounts.approval || 0,
     },
+    isSupervisor
+      ? {
+          labelKey: "admin.dashboard.completedApprovals",
+          fallback: "Completed",
+          path: "/dashboard/admin?view=completed",
+          view: "completed",
+        }
+      : null,
   ].filter(Boolean);
   const dashboardBadge = dashboardChildren.reduce(
     (total, child) => total + Number(child.badge || 0),
@@ -291,13 +299,17 @@ function AppShell({ children, role = "admin" }) {
 
   useEffect(() => {
     if (role !== "admin" || !location.pathname.startsWith("/admin/e-licenses")) {
-      return;
+      return undefined;
     }
 
-    setAdminELicensesOpen(true);
-    setAdminDashboardOpen(false);
-    writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
-    writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
+    const syncMenuStateId = window.setTimeout(() => {
+      setAdminELicensesOpen(true);
+      setAdminDashboardOpen(false);
+      writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
+      writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
+    }, 0);
+
+    return () => window.clearTimeout(syncMenuStateId);
   }, [location.pathname, role]);
 
   function handleLogout() {

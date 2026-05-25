@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
+import CompletedApprovalsPage from "../admin/approval/CompletedApprovalsPage";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, getStoredUser } from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
@@ -180,6 +181,10 @@ function AdminDashboard() {
 
   if (isMphlgUser(currentUser) && view === "approval") {
     return <ApprovalPage />;
+  }
+
+  if (isApprovalWorkflowUser(currentUser) && view === "completed") {
+    return <CompletedApprovalsPage />;
   }
 
   if (isMphlgUser(currentUser)) {
