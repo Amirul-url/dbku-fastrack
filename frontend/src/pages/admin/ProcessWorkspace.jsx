@@ -1852,6 +1852,59 @@ function createKbLesToKuAmendmentMemoTemplate(app, comment) {
   `;
 }
 
+function createTpResToKuAmendmentMemoTemplate(app, approvalDecisionHtml) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(now);
+  const reference = getApplicationReference(app);
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU (IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">TP (LES)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh :</strong></td>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>PINDAAN KU(IKL) DIPERLUKAN</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} tidak diluluskan oleh TP(RES) dan dikembalikan kepada KU(IKL) untuk pindaan.</p>
+    <p><strong>Catatan / sebab tidak diluluskan:</strong></p>
+    <div>${approvalDecisionHtml || "&nbsp;"}</div>
+    <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
 function createTpResApprovalDecisionTemplate(officerName) {
   const safeOfficerName = escapeHtml(officerName || "TP(RES)");
 
@@ -2942,31 +2995,36 @@ function buildApprovalWorkflowPayload(app, data) {
       app.form_data?.approval?.approval_note_html ||
       app.form_data?.management_recommendation?.approval_note_html ||
       "";
+    const approvalDecisionRemarks = getHtmlPlainText(approvalDecisionHtml);
 
     return {
-      status: rejected ? "rejected" : "approved",
+      status: rejected ? "technical_review_completed" : "approved",
       current_step: Math.max(Number(app.current_step || 1), 5),
-      latest_remark: data.comment || app.latest_remark || "",
+      latest_remark: rejected
+        ? data.comment || approvalDecisionRemarks || app.latest_remark || ""
+        : data.comment || app.latest_remark || "",
       form_data: mergeFormData(app, {
         management_recommendation: {
           ...(app.form_data?.management_recommendation || {}),
           officer: department,
           status: rejected ? "Rejected" : "Approved",
           decision,
-          remarks: data.comment,
+          remarks: rejected ? data.comment || approvalDecisionRemarks : data.comment,
           approval_note_html: approvalDecisionHtml,
           decided_at: now,
         },
         mphlg_gateway: app.form_data?.mphlg_gateway || null,
-        approval: rejected
+        correction_request: rejected
           ? {
-              status: "Rejected",
-              final_decision: "Rejected",
-              notes: data.comment,
-              decided_by: department,
-              approval_note_html: approvalDecisionHtml,
-              decided_at: now,
+              source: department,
+              target: "KU(IKL)",
+              remarks: data.comment || approvalDecisionRemarks,
+              memo_html: createTpResToKuAmendmentMemoTemplate(app, approvalDecisionHtml),
+              requested_at: now,
             }
+          : app.form_data?.correction_request || null,
+        approval: rejected
+          ? null
           : {
               ...(app.form_data?.approval || {}),
               status: "Approved",

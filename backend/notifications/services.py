@@ -792,9 +792,10 @@ def build_status_messages(application):
         title, admin_body = get_management_review_admin_text(application)
         subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+        amendment_source = get_ku_amendment_source(application) or "KB(LES)"
         title = "KU(IKL) amendment required"
         admin_body = (
-            f"Application {application.reference_no} was returned by KB(LES) and requires "
+            f"Application {application.reference_no} was returned by {amendment_source} and requires "
             "KU(IKL) amendment before verification can continue."
         )
         remark = get_latest_remark(application)
@@ -892,10 +893,11 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = KU_TECHNICAL_MEMO_RECIPIENT
     elif memo_html and status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+        amendment_source = get_ku_amendment_source(application) or "KB(LES)"
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "kb_les_to_ku_ikl"
-        metadata["from"] = "KB(LES)"
-        metadata["sender"] = "KB(LES)"
+        metadata["from"] = amendment_source
+        metadata["sender"] = amendment_source
         metadata["to"] = "KU(IKL)"
     elif memo_html and status_key == "technical_review_completed":
         metadata["memo_html"] = memo_html
@@ -997,10 +999,16 @@ def is_kb_les_returned_to_ku(application):
         return False
 
     correction = get_form_section(application, "correction_request")
+    source = normalize_department(correction.get("source"))
     return (
-        normalize_department(correction.get("source")) == "KB(LES)"
+        source in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
         and normalize_department(correction.get("target")) == "KU(IKL)"
     )
+
+
+def get_ku_amendment_source(application):
+    correction = get_form_section(application, "correction_request")
+    return str(correction.get("source") or "").strip()
 
 
 def format_notification_message(title, body, application, recipient_role):
