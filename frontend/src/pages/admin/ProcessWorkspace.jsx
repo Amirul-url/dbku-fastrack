@@ -388,6 +388,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isSimpleApprovalWorkspace &&
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
+  const approvalSupportDecision =
+    isApprovalSupportWorkspace && ["Approve", "Reject"].includes(decision)
+      ? decision
+      : "";
   const approvalOfficerName = getRegisteredUserFullName(currentUser, userDepartment);
   const savedApprovalDecisionHtml =
     selectedRecord?.form_data?.approval?.approval_note_html ||
@@ -397,10 +401,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     "";
   const approvalMemoNeedsRevision =
     isApprovalSupportWorkspace && hasMphlgReturnedApprovalForRevision(selectedRecord);
+  const canReuseSavedApprovalMemo =
+    Boolean(savedApprovalDecisionHtml) && !approvalMemoNeedsRevision;
   const canSendSavedApprovalMemoToMphlg =
     isApprovalWorkspace &&
     APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment) &&
-    Boolean(savedApprovalDecisionHtml) &&
+    canReuseSavedApprovalMemo &&
     !approvalDecisionEditable &&
     approvalStageKey === "support";
   const actionUnavailableMessage = canSendSavedApprovalMemoToMphlg
@@ -468,7 +474,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     if (isApprovalSupportWorkspace) {
-      setDecision(savedApprovalDecisionHtml ? "Approve" : "");
+      setDecision(canReuseSavedApprovalMemo ? "Approve" : "");
       setLicenseExpiryYears("1");
       return;
     }
@@ -478,9 +484,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     setLicenseExpiryYears("1");
   }, [
     approvalStageKey,
+    canReuseSavedApprovalMemo,
     config,
     isApprovalSupportWorkspace,
-    savedApprovalDecisionHtml,
     selectedRecord?.id,
     userDepartment,
   ]);
@@ -1225,7 +1231,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       />
                       <Field label={t("common.decision", "Decision")}>
                         <select
-                          value={decision}
+                          value={approvalSupportDecision}
                           onChange={(event) =>
                             handleApprovalSupportDecisionChange(event.target.value)
                           }
@@ -1242,7 +1248,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           </option>
                         </select>
                       </Field>
-                      {decision === "Approve" &&
+                      {approvalSupportDecision === "Approve" &&
                       savedApprovalDecisionDraft &&
                       !approvalDecisionEditable ? (
                         <ApprovalDecisionMemoPreview
@@ -1250,7 +1256,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           t={t}
                         />
                       ) : (
-                        decision && (
+                        approvalSupportDecision && (
                           <SimpleWysiwygEditor
                             label={t("workspace.memo.editorLabel", "Memo Content")}
                             value={approvalDecisionDraft}
@@ -1375,11 +1381,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           )}
                         <Button
                           onClick={() =>
-                            submitApprovalSupport(canSendSavedApprovalMemoToMphlg ? "Approve" : decision)
+                            submitApprovalSupport(canSendSavedApprovalMemoToMphlg ? "Approve" : approvalSupportDecision)
                           }
                           disabled={
                             saving ||
-                            (!canSendSavedApprovalMemoToMphlg && !decision) ||
+                            (!canSendSavedApprovalMemoToMphlg && !approvalSupportDecision) ||
                             (canSendSavedApprovalMemoToMphlg &&
                               !(savedApprovalDecisionDraft || savedApprovalDecisionHtml))
                           }

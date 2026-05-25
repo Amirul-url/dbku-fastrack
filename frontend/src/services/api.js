@@ -19,6 +19,7 @@ const SIDEBAR_SESSION_KEYS = [
   "fastrack_admin_e_licenses_menu_open",
   "fastrack_admin_applications_menu_open",
 ];
+let refreshTokenPromise = null;
 
 function clearSidebarSessionState() {
   try {
@@ -223,7 +224,9 @@ export async function fetchAuthenticatedBlob(url) {
     const newAccessToken = await refreshAccessToken();
 
     if (!newAccessToken) {
-      window.location.href = "/login/malaysian";
+      if (!hasRefreshToken()) {
+        window.location.href = "/login/malaysian";
+      }
       throw new Error("Session expired");
     }
 
@@ -348,7 +351,11 @@ export function getAccessTokenExpiryMs() {
   }
 }
 
-export async function refreshAccessToken() {
+export function hasRefreshToken() {
+  return Boolean(localStorage.getItem("fastrack_refresh_token"));
+}
+
+async function requestAccessTokenRefresh() {
   const refresh = localStorage.getItem("fastrack_refresh_token");
 
   if (!refresh) {
@@ -368,7 +375,9 @@ export async function refreshAccessToken() {
     });
 
     if (!response.ok) {
-      clearAuthSession();
+      if ([400, 401, 403].includes(response.status)) {
+        clearAuthSession();
+      }
       return null;
     }
 
@@ -383,9 +392,18 @@ export async function refreshAccessToken() {
     return null;
   } catch (error) {
     console.error("Token refresh failed:", error);
-    clearAuthSession();
     return null;
   }
+}
+
+export async function refreshAccessToken() {
+  if (!refreshTokenPromise) {
+    refreshTokenPromise = requestAccessTokenRefresh().finally(() => {
+      refreshTokenPromise = null;
+    });
+  }
+
+  return refreshTokenPromise;
 }
 
 export async function apiRequest(path, options = {}) {
@@ -428,7 +446,9 @@ export async function apiRequest(path, options = {}) {
     const newAccessToken = await refreshAccessToken();
 
     if (!newAccessToken) {
-      window.location.href = "/login/malaysian";
+      if (!hasRefreshToken()) {
+        window.location.href = "/login/malaysian";
+      }
       throw new Error("Session expired");
     }
 

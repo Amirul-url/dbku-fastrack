@@ -59,6 +59,7 @@ import {
   getAccessTokenExpiryMs,
   getStoredUser,
   getUserRedirectPath,
+  hasRefreshToken,
   isAdminUser,
   isApplicantUser,
   isSuperAdminUser,
@@ -227,6 +228,18 @@ function SessionManager() {
     const timeUntilWarning = expiryMs - Date.now() - SESSION_WARNING_MS;
 
     if (timeUntilWarning <= 0) {
+      if (expiryMs <= Date.now() && hasRefreshToken()) {
+        refreshAccessToken().then((token) => {
+          if (token) {
+            setModalOpen(false);
+            scheduleSessionWarning();
+          } else {
+            setModalOpen(true);
+          }
+        });
+        return;
+      }
+
       setModalOpen(true);
       return;
     }

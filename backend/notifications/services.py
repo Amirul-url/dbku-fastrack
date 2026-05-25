@@ -912,6 +912,19 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = "IKL(TECHNICAL)"
+    elif memo_html and status_key == "mphlg_processing":
+        mphlg_gateway = get_form_section(application, "mphlg_gateway")
+        management_recommendation = get_form_section(application, "management_recommendation")
+        sender = (
+            mphlg_gateway.get("routed_from")
+            or management_recommendation.get("officer")
+            or "TP(RES)/PGH"
+        )
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "tp_pgh_to_mphlg"
+        metadata["from"] = str(sender).strip() or "TP(RES)/PGH"
+        metadata["sender"] = metadata["from"]
+        metadata["to"] = "MPHLG"
 
     return metadata
 
@@ -928,6 +941,12 @@ def get_web_metadata_sender(application, recipient_role):
 
 def get_kb_les_memo_html(application):
     section = get_form_section(application, "kb_les_verification")
+    memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
+
+
+def get_mphlg_gateway_memo_html(application):
+    section = get_form_section(application, "mphlg_gateway")
     memo_html = section.get("memo_html")
     return str(memo_html or "").strip()
 
@@ -990,6 +1009,9 @@ def get_admin_memo_html(application):
         ku_final_memo = get_ku_final_review_memo_html(application)
         if ku_final_memo:
             return ku_final_memo
+
+    if status_key == "mphlg_processing":
+        return get_mphlg_gateway_memo_html(application)
 
     return get_kb_les_memo_html(application)
 

@@ -626,6 +626,19 @@ class NotificationRoutingTests(TestCase):
             department="SUT",
             is_active=True,
         )
+        memo_html = "<p>TP(RES) memo for MPHLG approval</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "management_recommendation": {
+                "officer": "TP(RES)",
+                "status": "Approved",
+            },
+            "mphlg_gateway": {
+                "status": "Pending MPHLG Approval",
+                "routed_from": "TP(RES)",
+                "memo_html": memo_html,
+            },
+        }
 
         self.notify_status("mphlg_processing", old_status="management_review")
 
@@ -636,6 +649,11 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertTrue(deliveries.filter(user=mphlg_user).exists())
         self.assertEqual(deliveries.count(), 1)
+        delivery = deliveries.get(user=mphlg_user)
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "tp_pgh_to_mphlg")
+        self.assertEqual(delivery.metadata["from"], "TP(RES)")
+        self.assertEqual(delivery.metadata["to"], "MPHLG")
 
     def test_mphlg_decision_received_notifies_sut_admin(self):
         sut_user = User.objects.create_user(
