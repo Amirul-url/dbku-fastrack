@@ -122,6 +122,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const [licenseExpiryYears, setLicenseExpiryYears] = useState("1");
   const [memoDraft, setMemoDraft] = useState("");
   const [pendingMemoSubmission, setPendingMemoSubmission] = useState(null);
+  const [approvalDecisionDraft, setApprovalDecisionDraft] = useState("");
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     fee_date: "",
@@ -359,11 +360,35 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     selectedRecord,
     userDepartment
   );
+  const savedApprovalDecisionHtml =
+    selectedRecord?.form_data?.approval?.approval_note_html ||
+    selectedRecord?.form_data?.management_recommendation?.approval_note_html ||
+    "";
 
   const stats = useMemo(
     () => config.stats(statusScopedApplications, userDepartment),
     [config, statusScopedApplications, userDepartment]
   );
+
+  useEffect(() => {
+    const syncApprovalDecisionId = window.setTimeout(() => {
+      if (!isApprovalSupportWorkspace || !selectedRecord?.id) {
+        setApprovalDecisionDraft("");
+        return;
+      }
+
+      setApprovalDecisionDraft(
+        savedApprovalDecisionHtml || createTpResApprovalDecisionTemplate()
+      );
+    }, 0);
+
+    return () => window.clearTimeout(syncApprovalDecisionId);
+  }, [
+    isApprovalSupportWorkspace,
+    savedApprovalDecisionHtml,
+    selectedRecord?.id,
+    selectedRecord?.updated_at,
+  ]);
 
   useEffect(() => {
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
@@ -375,7 +400,11 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
     const [action] = workspaceActions;
     if (!action) return;
 
-    submitAction(action, { decision: decisionValue, checkDecisionRemark: true });
+    submitAction(action, {
+      decision: decisionValue,
+      checkDecisionRemark: true,
+      approvalDecisionHtml: approvalDecisionDraft,
+    });
   }
 
   function submitApprovalDecisionButton(decisionValue) {
@@ -578,6 +607,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
         department: userDepartment,
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
+        approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
       });
 
       const requestPath =
@@ -951,6 +981,18 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                         placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
                       />
                     </Field>
+                  )}
+
+                  {isApprovalSupportWorkspace && canSubmitWorkspaceAction && (
+                    <SimpleWysiwygEditor
+                      label={t(
+                        "workspace.approval.tpResDecisionTemplate",
+                        "TP(RES) Approval Template"
+                      )}
+                      value={approvalDecisionDraft}
+                      onChange={setApprovalDecisionDraft}
+                      max={12000}
+                    />
                   )}
 
                   {showSiteVisitFields && (
@@ -1680,6 +1722,27 @@ function createKbLesToKuAmendmentMemoTemplate(app, comment) {
   `;
 }
 
+function createTpResApprovalDecisionTemplate() {
+  return `
+    <div style="font-family:Arial, sans-serif;font-size:12px;line-height:1.45;color:#000;">
+      <p style="margin:0 0 10px 0;"><strong><u>PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN<br>(samb...)</u></strong></p>
+      <p style="margin:0 0 4px 0;"><strong><u>KELULUSAN TIMBALAN PENGARAH (RES)</u></strong></p>
+      <p style="margin:0 0 4px 0;">Dilulus / Tidak Dilulus</p>
+      <p style="margin:0 0 4px 0;">Catatan (jika ada) :</p>
+      <p style="margin:0;">....................................................................................................................</p>
+      <p style="margin:0;">....................................................................................................................</p>
+      <p style="margin:0;">....................................................................................................................</p>
+      <p style="margin:0 0 22px 0;">....................................................................................................................</p>
+      <p style="margin:0 0 4px 0;">............................................................&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tarikh : ....................................</p>
+      <p style="margin:0;"><strong>(JAMES SAGA BAYANG AK ANDRIA)</strong></p>
+      <p style="margin:0;">Ketua Bahagian</p>
+      <p style="margin:0;">Hal Ehwal Undang-Undang</p>
+      <p style="margin:0;">b.p. Timbalan Pengarah</p>
+      <p style="margin:0;">(Jabatan Perkhidmatan Kawal Selia)</p>
+    </div>
+  `;
+}
+
 function formatMemoAmount(value) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat("en-US", {
@@ -2402,6 +2465,12 @@ function buildApprovalWorkflowPayload(app, data) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    const approvalDecisionHtml =
+      data.approvalDecisionHtml ||
+      app.form_data?.approval?.approval_note_html ||
+      app.form_data?.management_recommendation?.approval_note_html ||
+      "";
+
     return {
       status: rejected ? "rejected" : "approved",
       current_step: Math.max(Number(app.current_step || 1), 5),
@@ -2413,6 +2482,7 @@ function buildApprovalWorkflowPayload(app, data) {
           status: rejected ? "Rejected" : "Approved",
           decision,
           remarks: data.comment,
+          approval_note_html: approvalDecisionHtml,
           decided_at: now,
         },
         mphlg_gateway: app.form_data?.mphlg_gateway || null,
@@ -2422,6 +2492,7 @@ function buildApprovalWorkflowPayload(app, data) {
               final_decision: "Rejected",
               notes: data.comment,
               decided_by: department,
+              approval_note_html: approvalDecisionHtml,
               decided_at: now,
             }
           : {
@@ -2430,6 +2501,7 @@ function buildApprovalWorkflowPayload(app, data) {
               final_decision: "Approved",
               notes: data.comment,
               decided_by: department,
+              approval_note_html: approvalDecisionHtml,
               approved_at: now,
             },
       }),
