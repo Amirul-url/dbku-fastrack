@@ -66,6 +66,7 @@ import {
 } from "./services/api";
 
 const SESSION_WARNING_MS = 5 * 60 * 1000;
+const SESSION_RESPONSE_TIMEOUT_MS = 5 * 60 * 1000;
 
 function getUser() {
   return getStoredUser();
@@ -203,6 +204,7 @@ function SessionManager() {
   const navigate = useNavigate();
   const location = useLocation();
   const timerRef = useRef(null);
+  const responseTimerRef = useRef(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [extending, setExtending] = useState(false);
 
@@ -234,6 +236,19 @@ function SessionManager() {
     }, timeUntilWarning);
   }, [clearSessionTimer, location.pathname]);
 
+  const clearResponseTimer = useCallback(() => {
+    if (responseTimerRef.current) {
+      window.clearTimeout(responseTimerRef.current);
+      responseTimerRef.current = null;
+    }
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    clearResponseTimer();
+    clearAuthSession();
+    navigate("/login/malaysian", { replace: true });
+  }, [clearResponseTimer, navigate]);
+
   useEffect(() => {
     const initialCheckId = window.setTimeout(scheduleSessionWarning, 0);
 
@@ -243,29 +258,37 @@ function SessionManager() {
     return () => {
       window.clearTimeout(initialCheckId);
       clearSessionTimer();
+      clearResponseTimer();
       window.removeEventListener("fastrack:auth-changed", scheduleSessionWarning);
       window.removeEventListener("focus", scheduleSessionWarning);
     };
-  }, [clearSessionTimer, scheduleSessionWarning]);
+  }, [clearResponseTimer, clearSessionTimer, scheduleSessionWarning]);
+
+  useEffect(() => {
+    clearResponseTimer();
+
+    if (!modalOpen) return undefined;
+
+    responseTimerRef.current = window.setTimeout(() => {
+      handleLogout();
+    }, SESSION_RESPONSE_TIMEOUT_MS);
+
+    return clearResponseTimer;
+  }, [clearResponseTimer, handleLogout, modalOpen]);
 
   async function handleExtendSession() {
     try {
       setExtending(true);
       const token = await refreshAccessToken();
       if (!token) throw new Error("Unable to extend session.");
+      clearResponseTimer();
       setModalOpen(false);
       scheduleSessionWarning();
     } catch {
-      clearAuthSession();
-      navigate("/login/malaysian", { replace: true });
+      handleLogout();
     } finally {
       setExtending(false);
     }
-  }
-
-  function handleLogout() {
-    clearAuthSession();
-    navigate("/login/malaysian", { replace: true });
   }
 
   if (!modalOpen) return null;
