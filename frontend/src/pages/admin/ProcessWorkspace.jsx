@@ -2210,43 +2210,101 @@ function createTpResToMphlgMemoTemplate(app) {
     hour12: true,
   }).format(now);
   const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app) || "pemohon";
+  const applicationType = getLocalizedApplicationType(app, (key, fallback) => fallback) || "lesen iklan";
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+  const subject = `PERMOHONAN ${String(projectName || applicationType || "IKLAN").toUpperCase()}`;
+  const applicationDetails = [
+    projectName ? projectName : "",
+    location ? `di ${location}` : "",
+  ].filter(Boolean).join(" ");
+  const applicationDescription = applicationDetails
+    ? `${applicantName} berkenaan ${applicationDetails}`
+    : applicantName;
 
   return `
-    <h3 style="text-align:center;margin:0 0 28px 0;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
-    <figure class="table"><table style="width:100%;border-collapse:collapse;">
-      <tbody>
-        <tr>
-          <td style="width:120px;border-top:1px solid #8ea2c5;border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Kepada :</strong></td>
-          <td colspan="3" style="border-top:1px solid #8ea2c5;border-bottom:1px solid #8ea2c5;padding:8px 10px;">MPHLG</td>
-        </tr>
-        <tr>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Melalui :</strong></td>
-          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">&nbsp;</td>
-        </tr>
-        <tr>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Daripada :</strong></td>
-          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">TP(RES)</td>
-        </tr>
-        <tr>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Kami :</strong></td>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">DBKU/LES/IKL/M/${year}(1)</td>
-          <td style="width:120px;border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Tarikh :</strong></td>
-          <td style="width:260px;border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(memoDate)}</td>
-        </tr>
-        <tr>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Tuan :</strong></td>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(reference)}</td>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Tarikh :</strong></td>
-          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(memoDate)}</td>
-        </tr>
-      </tbody>
-    </table></figure>
-    <p>&nbsp;</p>
-    <p><strong><u>PERMOHONAN UNTUK TINDAKAN MPHLG</u></strong></p>
-    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
-    <p>Permohonan ${escapeHtml(reference)} telah disemak dan diluluskan oleh TP(RES) untuk tindakan pihak MPHLG.</p>
-    <p>Mohon pihak MPHLG membuat semakan dan tindakan selanjutnya.</p>
-    <p>Sekian, terima kasih.</p>
+    <div style="font-family:Arial, sans-serif;font-size:14px;line-height:1.45;color:#000;">
+      <h3 style="text-align:center;margin:0 0 16px 0;font-size:17px;line-height:1.35;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+      <figure class="table" style="margin:0 0 24px 0;"><table style="width:74%;margin-left:auto;margin-right:auto;border-collapse:collapse;border:1px solid #bfbfbf;">
+        <tbody>
+          <tr>
+            <td style="width:92px;border:1px solid #bfbfbf;padding:7px 8px;"><strong>Kepada :</strong></td>
+            <td colspan="3" style="border:1px solid #bfbfbf;padding:7px 8px;">MPHLG</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;"><strong>Melalui :</strong></td>
+            <td colspan="3" style="border:1px solid #bfbfbf;padding:7px 8px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;"><strong>Daripada :</strong></td>
+            <td colspan="3" style="border:1px solid #bfbfbf;padding:7px 8px;">TP(RES)</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;"><strong>Ruj. Kami :</strong></td>
+            <td style="width:34%;border:1px solid #bfbfbf;padding:7px 8px;">DBKU/LES/IKL/M/${year}(1)</td>
+            <td style="width:82px;border:1px solid #bfbfbf;padding:7px 8px;"><strong>Tarikh :</strong></td>
+            <td style="width:32%;border:1px solid #bfbfbf;padding:7px 8px;">${escapeHtml(memoDate)}</td>
+          </tr>
+          <tr>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;"><strong>Ruj. Tuan :</strong></td>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;">${escapeHtml(reference)}</td>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;"><strong>Tarikh :</strong></td>
+            <td style="border:1px solid #bfbfbf;padding:7px 8px;">${escapeHtml(memoDate)}</td>
+          </tr>
+        </tbody>
+      </table></figure>
+
+      <div style="margin-left:24px;margin-bottom:0;">
+        <p style="margin:0;">Setiausaha Tetap/</p>
+        <p style="margin:0;">Kementerian Kerajaan Tempatan dan Perumahan</p>
+        <p style="margin:0;">Tingkat 2, Baitul Makmur</p>
+        <p style="margin:0;">Medan Raya</p>
+        <p style="margin:0;">93050 Kuching</p>
+        <p style="margin:0;">Sarawak</p>
+        <p style="margin:0;">&nbsp;</p>
+        <p style="margin:0;">(u.p. : Encik Job Anak Nelson Nyangau)</p>
+      </div>
+
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;">Tuan</p>
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;border-bottom:1px solid #000;width:76%;"><strong>${escapeHtml(subject)}</strong></p>
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;">Dengan segala hormatnya perkara di atas dirujuk.</p>
+      <p style="margin:0;">&nbsp;</p>
+
+      <p style="margin:0 0 0 24px;">Pihak Dewan Bandaraya Kuching Utara (DBKU) telah menerima permohonan ${escapeHtml(applicationDescription)} bersama ini dikemukakan dokumen yang dikehendaki :-</p>
+      <ol type="a" style="margin:8px 0 0 54px;padding-left:20px;">
+        <li style="padding-left:6px;"><em>'Siting Application Form' (Form F);</em></li>
+        <li style="padding-left:6px;">Tujuh (7) set bersama A3 lakaran visual yang lengkap beserta ukuran, jenis cat, dimensi huruf-huruf dan ketebalan cat; dan</li>
+        <li style="padding-left:6px;">Tujuh (7) set pelan lokasi.</li>
+      </ol>
+
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;">Justeru, permohonan diajukan kepada pihak tuan untuk kelulusan pertapakan iklan di dinding bangunan tersebut.</p>
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;">Sekiranya tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra di talian 082-495079.</p>
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;">Sekian. Terima kasih.</p>
+
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;"><strong><em>"AN HONOUR TO SERVE"</em></strong></p>
+      <p style="margin:0 0 0 24px;"><strong><em>"TOGETHER WE CARE"</em></strong></p>
+
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0;">&nbsp;</p>
+      <p style="margin:0 0 0 24px;"><strong>(TP(RES))</strong></p>
+      <p style="margin:0 0 0 24px;">TP(RES)</p>
+      <p style="margin:0 0 0 24px;">Dewan Bandaraya Kuching Utara</p>
+
+      <p style="margin:0;">&nbsp;</p>
+      <div style="border-top:2px solid #000;border-bottom:1px solid #000;padding:6px 0;text-align:center;font-size:11px;line-height:1.2;">
+        <p style="margin:0;"><strong>"UNTUK MEMPERTINGKAT KUALITI KEHIDUPAN DENGAN MEWUJUDKAN PERSEKITARAN KONDUSIF,</strong></p>
+        <p style="margin:0;"><strong>PENGLIBATAN WARGA KOTA DAN PENYAMPAIAN PERKHIDMATAN TERUNGGUL"</strong></p>
+        <p style="margin:2px 0 0 0;"><em>"To Enhance The Quality Of Life By Creating A Conducive Environment, Citizens Engagement And Best-In-Class Service Delivery"</em></p>
+      </div>
+    </div>
   `;
 }
 
@@ -2301,18 +2359,27 @@ function sanitizeMemoHtml(html) {
     "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH",
     "THEAD", "TR", "U", "UL",
   ]);
-  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class"]);
+  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class", "type"]);
   const allowedStyleProperties = new Set([
     "background-color",
     "border",
     "border-bottom",
     "border-collapse",
     "border-top",
+    "color",
+    "font-family",
     "font-size",
+    "font-style",
+    "line-height",
+    "margin",
+    "margin-bottom",
     "margin-left",
     "margin-right",
+    "margin-top",
     "padding",
+    "padding-left",
     "text-align",
+    "vertical-align",
     "width",
   ]);
 
@@ -2393,7 +2460,7 @@ function getMemoContentHtml(html) {
 
   document.body.querySelectorAll("p").forEach((paragraph) => {
     if (!String(paragraph.textContent || "").trim() && paragraph.children.length === 0) {
-      paragraph.remove();
+      paragraph.innerHTML = "&nbsp;";
     }
   });
 

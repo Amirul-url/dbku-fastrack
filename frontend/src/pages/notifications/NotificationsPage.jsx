@@ -97,18 +97,27 @@ function sanitizeMemoHtml(html) {
     "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH",
     "THEAD", "TR", "U", "UL",
   ]);
-  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class"]);
+  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class", "type"]);
   const allowedStyleProperties = new Set([
     "border",
     "border-bottom",
     "border-collapse",
     "border-top",
     "background-color",
+    "color",
+    "font-family",
     "font-size",
+    "font-style",
+    "line-height",
+    "margin",
+    "margin-bottom",
     "margin-left",
     "margin-right",
+    "margin-top",
     "padding",
+    "padding-left",
     "text-align",
+    "vertical-align",
     "width",
   ]);
 
@@ -186,7 +195,7 @@ function getMemoContentHtml(html) {
 
   document.body.querySelectorAll("p").forEach((paragraph) => {
     if (!String(paragraph.textContent || "").trim() && paragraph.children.length === 0) {
-      paragraph.remove();
+      paragraph.innerHTML = "&nbsp;";
     }
   });
 
