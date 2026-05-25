@@ -404,8 +404,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         return;
       }
 
+      if (!decision) {
+        setApprovalDecisionDraft("");
+        return;
+      }
+
       setApprovalDecisionDraft(
-        savedApprovalDecisionHtml || createTpResApprovalDecisionTemplate(approvalOfficerName)
+        savedApprovalDecisionHtml ||
+          (decision === "Reject"
+            ? createTpResToKuAmendmentMemoTemplate(selectedRecord)
+            : createTpResApprovalDecisionTemplate(approvalOfficerName))
       );
     }, 0);
 
@@ -413,6 +421,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [
     isApprovalSupportWorkspace,
     approvalOfficerName,
+    decision,
     savedApprovalDecisionHtml,
     selectedRecord?.id,
     selectedRecord?.updated_at,
@@ -423,14 +432,54 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id]);
 
   useEffect(() => {
+    if (isApprovalSupportWorkspace) {
+      setDecision("");
+      setLicenseExpiryYears("1");
+      return;
+    }
+
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
     if (nextDecision) setDecision(nextDecision);
     setLicenseExpiryYears("1");
-  }, [approvalStageKey, config, selectedRecord?.id, userDepartment]);
+  }, [approvalStageKey, config, isApprovalSupportWorkspace, selectedRecord?.id, userDepartment]);
+
+  function handleApprovalSupportDecisionChange(nextDecision) {
+    setDecision(nextDecision);
+    if (!nextDecision) {
+      setApprovalDecisionDraft("");
+      return;
+    }
+
+    setApprovalDecisionDraft(
+      savedApprovalDecisionHtml ||
+        (nextDecision === "Reject"
+          ? createTpResToKuAmendmentMemoTemplate(selectedRecord)
+          : createTpResApprovalDecisionTemplate(approvalOfficerName))
+    );
+  }
 
   function submitApprovalSupport(decisionValue) {
     const [action] = workspaceActions;
     if (!action) return;
+    if (!decisionValue) {
+      setError(t("workspace.decision.required", "Please select a decision."));
+      return;
+    }
+
+    if (!getHtmlPlainText(approvalDecisionDraft)) {
+      setError(t("workspace.memo.required", "Please complete the memo before sending."));
+      return;
+    }
+
+    if (decisionValue === "Approve") {
+      setError(
+        t(
+          "workspace.approval.approvePendingSetup",
+          "Approve submission is not configured yet."
+        )
+      );
+      return;
+    }
 
     submitAction(action, {
       decision: decisionValue,
@@ -1039,15 +1088,33 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         language={language}
                         t={t}
                       />
-                      <SimpleWysiwygEditor
-                        label={t(
-                          "workspace.approval.tpResDecisionTemplate",
-                          "TP(RES) Approval Template"
-                        )}
-                        value={approvalDecisionDraft}
-                        onChange={setApprovalDecisionDraft}
-                        max={12000}
-                      />
+                      <Field label={t("common.decision", "Decision")}>
+                        <select
+                          value={decision}
+                          onChange={(event) =>
+                            handleApprovalSupportDecisionChange(event.target.value)
+                          }
+                          className="form-input max-w-xs"
+                        >
+                          <option value="">
+                            {t("workspace.decision.selectDecision", "Select decision")}
+                          </option>
+                          <option value="Approve">
+                            {t("workspace.decision.approve", "Approve")}
+                          </option>
+                          <option value="Reject">
+                            {t("workspace.decision.notApprove", "Not Approve")}
+                          </option>
+                        </select>
+                      </Field>
+                      {decision && (
+                        <SimpleWysiwygEditor
+                          label={t("workspace.memo.editorLabel", "Memo Content")}
+                          value={approvalDecisionDraft}
+                          onChange={setApprovalDecisionDraft}
+                          max={12000}
+                        />
+                      )}
                     </>
                   )}
 
@@ -1108,26 +1175,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       </Button>
                     )}
                     {isApprovalSupportWorkspace ? (
-                      <>
-                        <Button
-                          onClick={() => submitApprovalSupport("Reject")}
-                          disabled={saving}
-                          variant="danger"
-                          icon="cancel"
-                          className="min-w-40"
-                        >
-                          {t("workspace.decision.notApprove", "Not Approve")}
-                        </Button>
-                        <Button
-                          onClick={() => submitApprovalSupport("Approve")}
-                          disabled={saving}
-                          variant="primary"
-                          icon="check_circle"
-                          className="min-w-40"
-                        >
-                          {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
-                        </Button>
-                      </>
+                      <Button
+                        onClick={() => submitApprovalSupport(decision)}
+                        disabled={saving || !decision}
+                        variant="primary"
+                        icon="send"
+                        className="min-w-40"
+                      >
+                        {saving ? t("workspace.saving") : t("common.submit", "Submit")}
+                      </Button>
                     ) : showApprovalDecisionButtons ? (
                       <>
                         <Button
@@ -1852,7 +1908,7 @@ function createKbLesToKuAmendmentMemoTemplate(app, comment) {
   `;
 }
 
-function createTpResToKuAmendmentMemoTemplate(app, approvalDecisionHtml) {
+function createTpResToKuAmendmentMemoTemplate(app) {
   const now = new Date();
   const year = now.getFullYear();
   const memoDate = new Intl.DateTimeFormat("ms-MY", {
@@ -1866,41 +1922,44 @@ function createTpResToKuAmendmentMemoTemplate(app, approvalDecisionHtml) {
   const reference = getApplicationReference(app);
 
   return `
-    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <h3 style="text-align:center;margin:0 0 28px 0;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
     <figure class="table"><table style="width:100%;border-collapse:collapse;">
       <tbody>
         <tr>
-          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU (IKL)</td>
+          <td style="width:120px;border-top:1px solid #8ea2c5;border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border-top:1px solid #8ea2c5;border-bottom:1px solid #8ea2c5;padding:8px 10px;">KU (IKL)</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">&nbsp;</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">TP (LES)</td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">TP (LES)</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
-          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh :</strong></td>
-          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:120px;border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Tarikh :</strong></td>
+          <td style="width:260px;border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(memoDate)}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh :</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(reference)}</td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;"><strong>Tarikh :</strong></td>
+          <td style="border-bottom:1px solid #8ea2c5;padding:8px 10px;">${escapeHtml(memoDate)}</td>
         </tr>
       </tbody>
     </table></figure>
-    <p><strong><u>PINDAAN KU(IKL) DIPERLUKAN</u></strong></p>
+    <p>&nbsp;</p>
+    <p><strong><u>CATATAN TIDAK LULUS / PINDAAN DIPERLUKAN</u></strong></p>
     <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
-    <p>Permohonan ${escapeHtml(reference)} tidak diluluskan oleh TP(RES) dan dikembalikan kepada KU(IKL) untuk pindaan.</p>
-    <p><strong>Catatan / sebab tidak diluluskan:</strong></p>
-    <div>${approvalDecisionHtml || "&nbsp;"}</div>
-    <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya.</p>
+    <p>Catatan / sebab tidak diluluskan:</p>
+    <p>....................................................................................................................</p>
+    <p>....................................................................................................................</p>
+    <p>....................................................................................................................</p>
+    <p>....................................................................................................................</p>
+    <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya berdasarkan catatan di atas.</p>
     <p>Sekian, terima kasih.</p>
   `;
 }
@@ -3019,7 +3078,7 @@ function buildApprovalWorkflowPayload(app, data) {
               source: department,
               target: "KU(IKL)",
               remarks: data.comment || approvalDecisionRemarks,
-              memo_html: createTpResToKuAmendmentMemoTemplate(app, approvalDecisionHtml),
+              memo_html: approvalDecisionHtml,
               requested_at: now,
             }
           : app.form_data?.correction_request || null,
