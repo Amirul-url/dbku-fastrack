@@ -630,7 +630,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       userDepartment === "KB(LES)" &&
       getApprovalStageKey(selectedRecord) === "kb" &&
       action?.buildPayload === buildApprovalWorkflowPayload &&
-      ["Verify", "Reject"].includes(actionDecision)
+      ["Support", "Verify", "Reject"].includes(actionDecision)
     );
   }
 
@@ -1264,13 +1264,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   )}
 
                   {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && !isMphlgApprovalWorkspace && (
-                    <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
+                    <Field
+                      label={
+                        isSutApprovalWorkspace
+                          ? t("workspace.comment.sutApproval", "SUT Comments")
+                          : t(config.commentLabelKey, config.commentLabel || "Notes")
+                      }
+                    >
                       <textarea
                         value={comment}
                         onChange={(event) => setComment(event.target.value)}
                         rows="5"
                         className="form-input"
-                        placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+                        placeholder={
+                          isSutApprovalWorkspace
+                            ? t("workspace.comment.sutApprovalPlaceholder", "Enter SUT approval comments if needed.")
+                            : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
+                        }
                       />
                     </Field>
                   )}
@@ -1456,15 +1466,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       </>
                     ) : showApprovalDecisionButtons ? (
                       <>
-                        <Button
-                          onClick={() => submitApprovalDecisionButton("Reject")}
-                          disabled={saving}
-                          variant="danger"
-                          icon="cancel"
-                          className="min-w-40"
-                        >
-                          {t("workspace.decision.notApprove", "Not Approve")}
-                        </Button>
+                        {!isSutApprovalWorkspace && (
+                          <Button
+                            onClick={() => submitApprovalDecisionButton("Reject")}
+                            disabled={saving}
+                            variant="danger"
+                            icon="cancel"
+                            className="min-w-40"
+                          >
+                            {t("workspace.decision.notApprove", "Not Approve")}
+                          </Button>
+                        )}
                         <Button
                           onClick={() => submitApprovalDecisionButton("Approve")}
                           disabled={saving}
@@ -3018,11 +3030,11 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
 
   if (config?.key === "approval") {
     if (userDepartment === "KB(LES)") {
-      return t("workspace.approval.kbAction", "Verify applications after KU(IKL) final checking before sending them to TP(RES)/PGH.");
+      return t("workspace.approval.kbAction", "Review the SUT result and support the application before sending it to TP(RES)/PGH.");
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.supportAction", "Make the final approval decision after KB(LES) verification.");
+      return t("workspace.approval.supportAction", "Make the final approval decision after KB(LES) support.");
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
@@ -3065,7 +3077,7 @@ function getWorkspaceDecisionOptions(config, app, department) {
 
   if (department === "KB(LES)" && getApprovalStageKey(app) === "kb") {
     return [
-      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Support", labelKey: "workspace.decision.support" },
       { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
   }
@@ -3205,11 +3217,11 @@ function getActionUnavailableMessage(config, app, department) {
   const stage = getApprovalStageKey(app);
 
   if (department === "KB(LES)") {
-    return stage === "kb" ? "" : "KB(LES) verification is already complete or not required for this record.";
+    return stage === "kb" ? "" : "KB(LES) support is already complete or not required for this record.";
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
-    return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) verification.";
+    return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) support.";
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
@@ -3352,7 +3364,7 @@ function getApprovalStageLabel(app) {
   if (stage === "mphlg") return "Pending MPHLG Approval";
   if (stage === "sut") return "Pending SUT Approval";
   if (stage === "completed") return "Approval Completed";
-  return "Pending KB(LES) Verification";
+  return "Pending KB(LES) Support";
 }
 
 function getApprovalStageKey(app) {
@@ -3658,7 +3670,7 @@ function buildApprovalWorkflowPayload(app, data) {
         kb_les_verification: {
           ...(app.form_data?.kb_les_verification || {}),
           officer: "KB(LES)",
-          status: rejected ? "Rejected" : "Verified",
+          status: rejected ? "Rejected" : "Supported",
           decision,
           remarks: data.comment,
           memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
@@ -3793,7 +3805,7 @@ function buildApprovalWorkflowPayload(app, data) {
         },
         kb_les_verification: decision === "Approve"
           ? {
-              status: "Pending KB(LES) Verification",
+              status: "Pending KB(LES) Support",
               routed_from: "SUT",
               routed_at: now,
             }
@@ -4237,7 +4249,7 @@ const configs = {
     ],
     title: "Approval",
     titleKey: "workspace.approval.title",
-    description: "Record the SUT result, KB(LES) verification, and TP(RES)/PGH final approval.",
+    description: "Record the SUT result, KB(LES) support, and TP(RES)/PGH final approval.",
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",

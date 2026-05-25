@@ -1351,6 +1351,12 @@ def get_management_review_admin_text(application):
             f"Application {reference} is ready for TP(RES)/PGH final approval.",
         )
 
+    if is_sut_result_recorded(application):
+        return (
+            "KB(LES) support required",
+            f"SUT approval result for application {reference} has been recorded. KB(LES) support is required before TP(RES)/PGH final approval.",
+        )
+
     return (
         "KB(LES) verification required",
         f"Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
@@ -1434,6 +1440,11 @@ def is_management_support_pending(application):
     kb_status = normalize_status_value(get_form_section(application, "kb_les_verification").get("status"))
     support_status = normalize_status_value(get_form_section(application, "management_recommendation").get("status"))
     return kb_status in KB_LES_COMPLETE_STATUSES and support_status not in MANAGEMENT_SUPPORT_COMPLETE_STATUSES
+
+
+def is_sut_result_recorded(application):
+    status = normalize_status_value(get_form_section(application, "sut_approval").get("status"))
+    return status in {"approved", "supported", "completed"}
 
 
 def normalize_department(value):

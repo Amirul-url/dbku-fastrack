@@ -491,6 +491,53 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
 
+    def test_sut_approval_result_notifies_kb_les_for_support(self):
+        kb_user = User.objects.create_user(
+            username="kb-les-sut-result",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        User.objects.create_user(
+            username="sut-result",
+            email="",
+            password="Password123",
+            role="admin",
+            department="SUT",
+            is_active=True,
+        )
+        self.application.form_data = {
+            **self.application.form_data,
+            "sut_approval": {
+                "status": "Approved",
+                "officer": "SUT",
+                "decision": "Approve",
+                "remarks": "SUT approved",
+            },
+            "kb_les_verification": {
+                "status": "Pending KB(LES) Support",
+                "routed_from": "SUT",
+            },
+            "management_recommendation": None,
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("management_review", old_status="mphlg_decision_received")
+
+        deliveries = NotificationDelivery.objects.filter(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="management_review",
+        )
+        self.assertTrue(deliveries.filter(user=kb_user).exists())
+        self.assertEqual(deliveries.count(), 1)
+        delivery = deliveries.get(user=kb_user)
+        self.assertIn("KB(LES) support", delivery.metadata["title_en"])
+        self.assertIn("SUT approval result", delivery.metadata["message_en"])
+
     def test_management_review_notifies_tp_pgh_after_kb_les_support(self):
         tp_user = User.objects.create_user(
             username="tp-res",
