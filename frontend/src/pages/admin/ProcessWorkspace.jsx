@@ -114,6 +114,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -123,6 +124,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const [memoDraft, setMemoDraft] = useState("");
   const [pendingMemoSubmission, setPendingMemoSubmission] = useState(null);
   const [approvalDecisionDraft, setApprovalDecisionDraft] = useState("");
+  const [showVerificationReport, setShowVerificationReport] = useState(false);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     fee_date: "",
@@ -136,6 +138,23 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
   useEffect(() => {
     fetchApplications();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    apiRequest("/auth/me/")
+      .then((data) => {
+        const user = data?.user || data;
+        if (!active || !user) return;
+        setCurrentUser(user);
+        localStorage.setItem("fastrack_user", JSON.stringify(user));
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -355,11 +374,15 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
   const showActionPanel =
     !isApprovalViewOnlyWorkspace &&
     (!tableFirstWorkspace || (Boolean(selectedRecord) && canSubmitWorkspaceAction));
+  const showApprovalTechnicalReport =
+    isSimpleApprovalWorkspace &&
+    shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
   const actionUnavailableMessage = getActionUnavailableMessage(
     config,
     selectedRecord,
     userDepartment
   );
+  const approvalOfficerName = getRegisteredUserFullName(currentUser, userDepartment);
   const savedApprovalDecisionHtml =
     selectedRecord?.form_data?.approval?.approval_note_html ||
     selectedRecord?.form_data?.management_recommendation?.approval_note_html ||
@@ -378,17 +401,22 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
       }
 
       setApprovalDecisionDraft(
-        savedApprovalDecisionHtml || createTpResApprovalDecisionTemplate()
+        savedApprovalDecisionHtml || createTpResApprovalDecisionTemplate(approvalOfficerName)
       );
     }, 0);
 
     return () => window.clearTimeout(syncApprovalDecisionId);
   }, [
     isApprovalSupportWorkspace,
+    approvalOfficerName,
     savedApprovalDecisionHtml,
     selectedRecord?.id,
     selectedRecord?.updated_at,
   ]);
+
+  useEffect(() => {
+    setShowVerificationReport(false);
+  }, [selectedRecord?.id]);
 
   useEffect(() => {
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
@@ -402,7 +430,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
 
     submitAction(action, {
       decision: decisionValue,
-      checkDecisionRemark: true,
+      checkDecisionRemark: false,
       approvalDecisionHtml: approvalDecisionDraft,
     });
   }
@@ -924,14 +952,30 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                 }
               />
 
-              {isSimpleApprovalWorkspace &&
-                shouldShowApprovalTechnicalReport(userDepartment, selectedRecord) && (
-                <ApprovalTechnicalReviewSummary
-                  t={t}
-                  selectedRecord={selectedRecord}
-                  technicalSite={technicalSite}
-                  userDepartment={userDepartment}
-                />
+              {showApprovalTechnicalReport && (
+                <>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon={showVerificationReport ? "visibility_off" : "visibility"}
+                      onClick={() => setShowVerificationReport((visible) => !visible)}
+                    >
+                      {showVerificationReport
+                        ? t("workspace.approval.hideVerificationReport", "Hide Verification Report")
+                        : t("workspace.approval.showVerificationReport", "Show Verification Report")}
+                    </Button>
+                  </div>
+
+                  {showVerificationReport && (
+                    <ApprovalTechnicalReviewSummary
+                      t={t}
+                      selectedRecord={selectedRecord}
+                      technicalSite={technicalSite}
+                      userDepartment={userDepartment}
+                    />
+                  )}
+                </>
               )}
 
               {isIklWorkspace ? (
@@ -971,7 +1015,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                     </Field>
                   )}
 
-                  {config.showComment && canSubmitWorkspaceAction && (
+                  {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && (
                     <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
                       <textarea
                         value={comment}
@@ -1060,7 +1104,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           icon="cancel"
                           className="min-w-40"
                         >
-                          {t("workspace.decision.reject", "Reject")}
+                          {t("workspace.decision.notApprove", "Not Approve")}
                         </Button>
                         <Button
                           onClick={() => submitApprovalSupport("Approve")}
@@ -1081,7 +1125,7 @@ function ProcessWorkspaceContent({ config, navigate, t, userDepartment }) {
                           icon="cancel"
                           className="min-w-40"
                         >
-                          {t("workspace.decision.reject", "Reject")}
+                          {t("workspace.decision.notApprove", "Not Approve")}
                         </Button>
                         <Button
                           onClick={() => submitApprovalDecisionButton("Approve")}
@@ -1722,25 +1766,34 @@ function createKbLesToKuAmendmentMemoTemplate(app, comment) {
   `;
 }
 
-function createTpResApprovalDecisionTemplate() {
+function createTpResApprovalDecisionTemplate(officerName) {
+  const safeOfficerName = escapeHtml(officerName || "TP(RES)");
+
   return `
     <div style="font-family:Arial, sans-serif;font-size:12px;line-height:1.45;color:#000;">
       <p style="margin:0 0 10px 0;"><strong><u>PERMOHONAN KELULUSAN UNTUK LESEN TANDANAMA PERNIAGAAN<br>(samb...)</u></strong></p>
       <p style="margin:0 0 4px 0;"><strong><u>KELULUSAN TIMBALAN PENGARAH (RES)</u></strong></p>
-      <p style="margin:0 0 4px 0;">Dilulus / Tidak Dilulus</p>
       <p style="margin:0 0 4px 0;">Catatan (jika ada) :</p>
       <p style="margin:0;">....................................................................................................................</p>
       <p style="margin:0;">....................................................................................................................</p>
       <p style="margin:0;">....................................................................................................................</p>
       <p style="margin:0 0 22px 0;">....................................................................................................................</p>
       <p style="margin:0 0 4px 0;">............................................................&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tarikh : ....................................</p>
-      <p style="margin:0;"><strong>(JAMES SAGA BAYANG AK ANDRIA)</strong></p>
+      <p style="margin:0;"><strong>(${safeOfficerName})</strong></p>
       <p style="margin:0;">Ketua Bahagian</p>
       <p style="margin:0;">Hal Ehwal Undang-Undang</p>
       <p style="margin:0;">b.p. Timbalan Pengarah</p>
       <p style="margin:0;">(Jabatan Perkhidmatan Kawal Selia)</p>
     </div>
   `;
+}
+
+function getRegisteredUserFullName(user, fallback = "") {
+  return (
+    String(user?.full_name || user?.fullName || user?.name || user?.username || fallback || "")
+      .trim()
+      .replace(/\s+/g, " ") || fallback
+  );
 }
 
 function formatMemoAmount(value) {
