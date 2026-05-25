@@ -100,8 +100,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return
 
         if requested_status == "technical_review_completed" and current_status == "management_review":
-            if department != "KB(LES)":
-                raise PermissionDenied("Only KB(LES) can return the application to KU(IKL) at this stage.")
+            if department not in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+                raise PermissionDenied("Only KB(LES) or TP(RES)/PGH can return the application to KU(IKL) at this stage.")
             return
 
         if requested_status == "approved" and current_status == "management_review":

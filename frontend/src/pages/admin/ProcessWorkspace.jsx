@@ -395,6 +395,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     selectedRecord?.approval?.approval_note_html ||
     selectedRecord?.management_recommendation?.approval_note_html ||
     "";
+  const approvalMemoNeedsRevision =
+    isApprovalSupportWorkspace && hasMphlgReturnedApprovalForRevision(selectedRecord);
   const canSendSavedApprovalMemoToMphlg =
     isApprovalWorkspace &&
     APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment) &&
@@ -434,20 +436,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
 
       const nextDraft =
-        savedApprovalDecisionHtml ||
-          (decision === "Reject"
+        decision === "Approve" && savedApprovalDecisionHtml
+          ? savedApprovalDecisionHtml
+          : decision === "Reject"
             ? createTpResToKuAmendmentMemoTemplate(selectedRecord)
-            : createTpResApprovalDecisionTemplate(approvalOfficerName));
+            : createTpResApprovalDecisionTemplate(approvalOfficerName);
 
       setApprovalDecisionDraft(nextDraft);
       setSavedApprovalDecisionDraft(
         decision === "Approve" && savedApprovalDecisionHtml ? savedApprovalDecisionHtml : ""
       );
-      setApprovalDecisionEditable(decision === "Approve" ? !savedApprovalDecisionHtml : true);
+      setApprovalDecisionEditable(
+        decision === "Approve" ? !savedApprovalDecisionHtml || approvalMemoNeedsRevision : true
+      );
     }, 0);
 
     return () => window.clearTimeout(syncApprovalDecisionId);
   }, [
+    approvalMemoNeedsRevision,
     isApprovalSupportWorkspace,
     approvalOfficerName,
     decision,
@@ -489,16 +495,19 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
 
     const nextDraft =
-      savedApprovalDecisionHtml ||
-        (nextDecision === "Reject"
+      nextDecision === "Approve" && savedApprovalDecisionHtml
+        ? savedApprovalDecisionHtml
+        : nextDecision === "Reject"
           ? createTpResToKuAmendmentMemoTemplate(selectedRecord)
-          : createTpResApprovalDecisionTemplate(approvalOfficerName));
+          : createTpResApprovalDecisionTemplate(approvalOfficerName);
 
     setApprovalDecisionDraft(nextDraft);
     setSavedApprovalDecisionDraft(
       nextDecision === "Approve" && savedApprovalDecisionHtml ? savedApprovalDecisionHtml : ""
     );
-    setApprovalDecisionEditable(nextDecision === "Approve" ? !savedApprovalDecisionHtml : true);
+    setApprovalDecisionEditable(
+      nextDecision === "Approve" ? !savedApprovalDecisionHtml || approvalMemoNeedsRevision : true
+    );
   }
 
   async function saveApprovalDecisionMemo() {
@@ -1242,28 +1251,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         />
                       ) : (
                         decision && (
-                          <div className="space-y-3">
-                            <SimpleWysiwygEditor
-                              label={t("workspace.memo.editorLabel", "Memo Content")}
-                              value={approvalDecisionDraft}
-                              onChange={setApprovalDecisionDraft}
-                              max={12000}
-                            />
-                            {decision === "Approve" && (
-                              <div className="flex justify-end">
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  icon="save"
-                                  onClick={saveApprovalDecisionMemo}
-                                  disabled={saving}
-                                  className="min-w-32"
-                                >
-                                  {t("common.save", "Save")}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
+                          <SimpleWysiwygEditor
+                            label={t("workspace.memo.editorLabel", "Memo Content")}
+                            value={approvalDecisionDraft}
+                            onChange={setApprovalDecisionDraft}
+                            max={12000}
+                          />
                         )
                       )}
                     </>
@@ -1365,23 +1358,38 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       </Button>
                     )}
                     {isApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg ? (
-                      <Button
-                        onClick={() =>
-                          submitApprovalSupport(canSendSavedApprovalMemoToMphlg ? "Approve" : decision)
-                        }
-                        disabled={
-                          saving ||
-                          (!canSendSavedApprovalMemoToMphlg && !decision) ||
-                          ((canSendSavedApprovalMemoToMphlg || decision === "Approve") &&
-                            (!(savedApprovalDecisionDraft || savedApprovalDecisionHtml) ||
-                              approvalDecisionEditable))
-                        }
-                        variant="primary"
-                        icon="send"
-                        className="min-w-40"
-                      >
-                        {saving ? t("workspace.saving") : t("workspace.memo.send", "Send")}
-                      </Button>
+                      <>
+                        {isApprovalSupportWorkspace &&
+                          decision === "Approve" &&
+                          approvalDecisionEditable && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              icon="save"
+                              onClick={saveApprovalDecisionMemo}
+                              disabled={saving}
+                              className="min-w-40"
+                            >
+                              {t("common.save", "Save")}
+                            </Button>
+                          )}
+                        <Button
+                          onClick={() =>
+                            submitApprovalSupport(canSendSavedApprovalMemoToMphlg ? "Approve" : decision)
+                          }
+                          disabled={
+                            saving ||
+                            (!canSendSavedApprovalMemoToMphlg && !decision) ||
+                            (canSendSavedApprovalMemoToMphlg &&
+                              !(savedApprovalDecisionDraft || savedApprovalDecisionHtml))
+                          }
+                          variant="primary"
+                          icon="send"
+                          className="min-w-40"
+                        >
+                          {saving ? t("workspace.saving") : t("workspace.memo.send", "Send")}
+                        </Button>
+                      </>
                     ) : showApprovalDecisionButtons ? (
                       <>
                         <Button
@@ -1590,7 +1598,7 @@ function ApprovalMemoPreview({ app, memoHtml, language, t }) {
   );
 }
 
-function ApprovalDecisionMemoPreview({ memoHtml, onEdit, t }) {
+function ApprovalDecisionMemoPreview({ memoHtml, t }) {
   const sanitizedMemoHtml = sanitizeMemoHtml(memoHtml);
 
   return (
@@ -1607,11 +1615,6 @@ function ApprovalDecisionMemoPreview({ memoHtml, onEdit, t }) {
             )}
           </p>
         </div>
-        {onEdit && (
-          <Button type="button" variant="secondary" icon="edit" onClick={onEdit}>
-            {t("common.edit", "Edit")}
-          </Button>
-        )}
       </div>
       <div className="px-4 py-4">
         <div
@@ -3073,6 +3076,24 @@ function hasApprovalSupportMemo(app) {
   return Boolean(getApplicationSection(app, "management_recommendation")?.approval_note_html);
 }
 
+function hasMphlgReturnedApprovalForRevision(app) {
+  const support = getApplicationSection(app, "management_recommendation");
+  const mphlg = getApplicationSection(app, "mphlg_gateway");
+  const returnedFromMphlg =
+    normalizeDepartmentCode(support?.returned_from) === "MPHLG" ||
+    String(mphlg?.status || "").trim().toLowerCase().includes("returned to tp");
+
+  if (!returnedFromMphlg) return false;
+
+  const returnedAt = Date.parse(support?.returned_at || mphlg?.reviewed_at || "");
+  const savedAt = Date.parse(support?.approval_note_saved_at || "");
+
+  if (!Number.isFinite(returnedAt)) return true;
+  if (!Number.isFinite(savedAt)) return true;
+
+  return savedAt <= returnedAt;
+}
+
 function getLocalizedApplicationType(app, t) {
   const type = getApplicationType(app);
   const normalizedType = String(type || "").trim().toLowerCase();
@@ -3391,27 +3412,39 @@ function buildApprovalWorkflowPayload(app, data) {
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+    const approved = decision === "Approve";
+
     return {
-      status: decision === "Approve" ? "mphlg_decision_received" : normalizeStatus(app.status),
+      status: approved ? "mphlg_decision_received" : "management_review",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: data.comment || app.latest_remark || "",
       form_data: mergeFormData(app, {
+        management_recommendation: approved
+          ? app.form_data?.management_recommendation || null
+          : {
+              ...(app.form_data?.management_recommendation || {}),
+              status: "Pending TP(RES)/PGH Approval",
+              decision: "Draft",
+              returned_from: "MPHLG",
+              returned_at: now,
+              return_remarks: data.comment,
+            },
         mphlg_gateway: {
           ...(app.form_data?.mphlg_gateway || {}),
           officer: "MPHLG",
-          status: decision === "Approve" ? "Approved" : app.form_data?.mphlg_gateway?.status || "Pending MPHLG/SUT Processing",
+          status: approved ? "Approved" : "Returned to TP(RES)/PGH",
           decision,
           remarks: data.comment,
           reviewed_at: now,
         },
-        sut_approval: decision === "Approve"
+        sut_approval: approved
           ? {
               ...(app.form_data?.sut_approval || {}),
               status: "Pending SUT Approval",
               routed_from: "MPHLG",
               routed_at: now,
             }
-          : app.form_data?.sut_approval || null,
+          : null,
         approval: app.form_data?.approval || null,
       }),
     };
