@@ -884,9 +884,12 @@ function NotificationBody({ item, bodyParts, memoHtml, t }) {
 }
 
 function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }) {
-  const recipient = getFormalMemoRecipient(item);
-  const sender = cleanMemoSender(item.from) || "ALiS Notification Center";
-  const memoDate = item.time || formatDateTime(item.timestamp);
+  const memoFields = extractFormalMemoFields(memoHtml);
+  const recipient = memoFields.to || getFormalMemoRecipient(item);
+  const sender = memoFields.from || cleanMemoSender(item.from) || "ALiS Notification Center";
+  const notificationTimestamp = item.time || formatDateTime(item.timestamp);
+  const memoDate = getMemoTimestampValue(memoFields.date, notificationTimestamp);
+  const memoYourDate = memoFields.yourDate;
   const isKuFinalReviewMemo =
     item.memoTemplate === "ku_ikl_final_review" ||
     (
@@ -921,15 +924,15 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
 
         <div className="mt-6 divide-y divide-slate-400 border-y border-slate-500">
           <MemoRow label={copy.labels.to} value={recipient} />
-          <MemoRow label={copy.labels.through} value="" />
+          <MemoRow label={copy.labels.through} value={memoFields.through} />
           <MemoRow label={copy.labels.from} value={sender} />
           <div className="grid divide-y divide-slate-500 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-            <MemoRow label={copy.labels.ourRef} value="" compact />
+            <MemoRow label={copy.labels.ourRef} value={memoFields.ourRef} compact />
             <MemoRow label={copy.labels.date} value={memoDate} compact />
           </div>
           <div className="grid divide-y divide-slate-500 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-            <MemoRow label={copy.labels.yourRef} value="" compact />
-            <MemoRow label={copy.labels.date} value="" compact />
+            <MemoRow label={copy.labels.yourRef} value={memoFields.yourRef} compact />
+            <MemoRow label={copy.labels.date} value={memoYourDate} compact />
           </div>
         </div>
 
@@ -973,6 +976,98 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
       </div>
     </section>
   );
+}
+
+function getMemoTimestampValue(value, fallback = "") {
+  const cleanedValue = cleanMemoFieldValue(value);
+  if (hasTimeComponent(cleanedValue)) return cleanedValue;
+  return fallback || cleanedValue;
+}
+
+function hasTimeComponent(value) {
+  return /\d{1,2}:\d{2}|\b(?:am|pm|pagi|petang|malam)\b/i.test(String(value || ""));
+}
+
+function extractFormalMemoFields(html) {
+  const source = sanitizeMemoHtml(html);
+  const emptyFields = {
+    to: "",
+    through: "",
+    from: "",
+    ourRef: "",
+    date: "",
+    yourRef: "",
+    yourDate: "",
+  };
+
+  if (!source || typeof window === "undefined" || !window.DOMParser) {
+    return emptyFields;
+  }
+
+  const parser = new DOMParser();
+  const document = parser.parseFromString(source, "text/html");
+  const memoTable = Array.from(document.body.querySelectorAll("figure, table")).find((element) => {
+    const text = String(element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    return (
+      (text.includes("kepada") || text.includes("to")) &&
+      (text.includes("daripada") || text.includes("from")) &&
+      (text.includes("ruj.") || text.includes("ref"))
+    );
+  });
+
+  if (!memoTable) return emptyFields;
+
+  const nextFields = { ...emptyFields };
+  Array.from(memoTable.querySelectorAll("tr")).forEach((row) => {
+    const cells = Array.from(row.querySelectorAll("td, th"));
+    const label = normalizeMemoLabel(cells[0]?.textContent);
+
+    if (!label) return;
+
+    const primaryValue = cleanMemoFieldValue(cells[1]?.textContent);
+    const secondaryLabel = normalizeMemoLabel(cells[2]?.textContent);
+    const secondaryValue = cleanMemoFieldValue(cells[3]?.textContent);
+
+    if (isMemoLabel(label, ["kepada", "to"])) {
+      nextFields.to = primaryValue;
+    } else if (isMemoLabel(label, ["melalui", "through"])) {
+      nextFields.through = primaryValue;
+    } else if (isMemoLabel(label, ["daripada", "from"])) {
+      nextFields.from = primaryValue;
+    } else if (isMemoLabel(label, ["ruj kami", "our ref"])) {
+      nextFields.ourRef = primaryValue;
+      if (isMemoLabel(secondaryLabel, ["tarikh", "date"])) {
+        nextFields.date = secondaryValue;
+      }
+    } else if (isMemoLabel(label, ["ruj tuan", "your ref"])) {
+      nextFields.yourRef = primaryValue;
+      if (isMemoLabel(secondaryLabel, ["tarikh", "date"])) {
+        nextFields.yourDate = secondaryValue;
+      }
+    }
+  });
+
+  return nextFields;
+}
+
+function normalizeMemoLabel(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[:.]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function cleanMemoFieldValue(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isMemoLabel(label, candidates) {
+  return candidates.some((candidate) => label === candidate || label.startsWith(`${candidate} `));
 }
 
 function getFormalMemoRecipient(item) {
