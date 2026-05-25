@@ -609,6 +609,49 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_html"], "<p>KB(LES) return memo</p>")
         self.assertEqual(delivery.metadata["memo_template"], "kb_les_to_ku_ikl")
 
+    def test_mphlg_rejection_notifies_ku_ikl_for_amendment(self):
+        ku_user = User.objects.create_user(
+            username="ku-ikl-mphlg-return",
+            email="ku-mphlg-return@example.com",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        memo_html = "<p>MPHLG return memo</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "mphlg_gateway": {
+                "status": "Returned to KU(IKL)",
+                "decision": "Reject",
+                "remarks": "Please amend for MPHLG.",
+                "memo_html": memo_html,
+            },
+            "correction_request": {
+                "source": "MPHLG",
+                "target": "KU(IKL)",
+                "remarks": "Please amend for MPHLG.",
+                "memo_html": memo_html,
+            },
+            "approval": None,
+        }
+        self.application.latest_remark = "Please amend for MPHLG."
+        self.application.save(update_fields=["form_data", "latest_remark"])
+
+        self.notify_status("technical_review_completed", old_status="mphlg_processing")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=ku_user,
+            metadata__event_status="technical_review_completed",
+        )
+        self.assertIn("KU(IKL) amendment required", delivery.metadata["title_en"])
+        self.assertIn("returned by MPHLG", delivery.metadata["message_en"])
+        self.assertEqual(delivery.metadata["from"], "MPHLG")
+        self.assertEqual(delivery.metadata["to"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "kb_les_to_ku_ikl")
+
     def test_mphlg_processing_notifies_mphlg_admin(self):
         mphlg_user = User.objects.create_user(
             username="mphlg",

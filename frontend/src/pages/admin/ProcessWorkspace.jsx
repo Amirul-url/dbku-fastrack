@@ -416,6 +416,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace && Boolean(savedApprovalDecisionHtml) && !isApprovalSupportWorkspace;
   const showApprovalSupportReadOnly =
     isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
+  const showApprovalMemoPreviews =
+    !showApprovalTechnicalReport || showVerificationReport;
   const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
@@ -619,7 +621,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const [action] = workspaceActions;
     if (!action) return;
 
-    submitAction(action, { decision: decisionValue, checkDecisionRemark: true });
+    submitAction(action, { decision: decisionValue, checkDecisionRemark: false });
   }
 
   function isKbLesDecisionAction(action, actionDecision) {
@@ -668,6 +670,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       userDepartment === "IKL (TECHNICAL)" &&
       action?.buildPayload === buildIklTechnicalDecisionPayload &&
       ["Supported", "Supported with Conditions"].includes(actionDecision)
+    );
+  }
+
+  function isMphlgRejectToKuAction(action, actionDecision) {
+    return (
+      config.key === "approval" &&
+      userDepartment === "MPHLG" &&
+      getApprovalStageKey(selectedRecord) === "mphlg" &&
+      action?.buildPayload === buildApprovalWorkflowPayload &&
+      actionDecision === "Reject"
     );
   }
 
@@ -789,13 +801,29 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return false;
     }
 
+    if (isMphlgRejectToKuAction(action, actionDecision) && !overrides.memoHtml) {
+      setError("");
+      setSuccess("");
+      setMemoDraft(createMphlgToKuAmendmentMemoTemplate(selectedRecord));
+      setPendingMemoSubmission({
+        action,
+        overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
+        titleKey: "workspace.memo.mphlgToKuTitle",
+        title: "Memo to KU(IKL)",
+        descriptionKey: "workspace.memo.mphlgToKuDescription",
+        description: "Complete the memo before returning this application to KU(IKL).",
+      });
+      return false;
+    }
+
     if (
       (
         isKbLesDecisionAction(action, actionDecision) ||
         isPtIklApproveToKuAction(action, actionDecision) ||
         isKuIklApproveToTechnicalAction(action, actionDecision) ||
         isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
-        isIklTechnicalSupportToKuAction(action, actionDecision)
+        isIklTechnicalSupportToKuAction(action, actionDecision) ||
+        isMphlgRejectToKuAction(action, actionDecision)
       ) &&
       !getHtmlPlainText(overrides.memoHtml)
     ) {
@@ -1209,7 +1237,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </Field>
                   )}
 
-                  {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && (
+                  {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && !isMphlgApprovalWorkspace && (
                     <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
                       <textarea
                         value={comment}
@@ -1223,12 +1251,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
                   {isApprovalSupportWorkspace && canSubmitWorkspaceAction && (
                     <>
-                      <ApprovalMemoPreview
-                        app={selectedRecord}
-                        memoHtml={approvalMemoHtml}
-                        language={language}
-                        t={t}
-                      />
+                      {showApprovalMemoPreviews && (
+                        <ApprovalMemoPreview
+                          app={selectedRecord}
+                          memoHtml={approvalMemoHtml}
+                          language={language}
+                          t={t}
+                        />
+                      )}
                       <Field label={t("common.decision", "Decision")}>
                         <select
                           value={approvalSupportDecision}
@@ -1251,10 +1281,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       {approvalSupportDecision === "Approve" &&
                       savedApprovalDecisionDraft &&
                       !approvalDecisionEditable ? (
-                        <ApprovalDecisionMemoPreview
-                          memoHtml={savedApprovalDecisionDraft}
-                          t={t}
-                        />
+                        showApprovalMemoPreviews && (
+                          <ApprovalDecisionMemoPreview
+                            memoHtml={savedApprovalDecisionDraft}
+                            t={t}
+                          />
+                        )
                       ) : (
                         approvalSupportDecision && (
                           <SimpleWysiwygEditor
@@ -1268,7 +1300,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </>
                   )}
 
-                  {showSavedApprovalDecisionMemo && !showApprovalSupportReadOnly && (
+                  {showApprovalMemoPreviews && showSavedApprovalDecisionMemo && !showApprovalSupportReadOnly && (
                     <>
                       <ApprovalMemoPreview
                         app={selectedRecord}
@@ -1283,7 +1315,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </>
                   )}
 
-                  {showApprovalSupportReadOnly && (
+                  {showApprovalMemoPreviews && showApprovalSupportReadOnly && (
                     <>
                       <ApprovalMemoPreview
                         app={selectedRecord}
@@ -2200,6 +2232,85 @@ function createTpResToKuAmendmentMemoTemplate(app) {
     <p>....................................................................................................................</p>
     <p>....................................................................................................................</p>
     <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya berdasarkan catatan di atas.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
+function createMphlgToKuAmendmentMemoTemplate(app) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(now);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">KU(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">MPHLG</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>PINDAAN KU(IKL) DIPERLUKAN</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah disemak oleh MPHLG dan dikembalikan kepada KU(IKL) untuk pindaan sebelum proses kelulusan boleh diteruskan.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan MPHLG</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">Sila nyatakan catatan pindaan di sini.</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak KU(IKL) membuat pindaan dan tindakan selanjutnya.</p>
     <p>Sekian, terima kasih.</p>
   `;
 }
@@ -3486,30 +3597,34 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
     const approved = decision === "Approve";
+    const rejectRemark = data.comment || getHtmlPlainText(data.memoHtml) || app.latest_remark || "";
 
     return {
-      status: approved ? "mphlg_decision_received" : "management_review",
+      status: approved ? "mphlg_decision_received" : "technical_review_completed",
       current_step: Math.max(Number(app.current_step || 1), 5),
-      latest_remark: data.comment || app.latest_remark || "",
+      latest_remark: approved ? data.comment || app.latest_remark || "" : rejectRemark,
       form_data: mergeFormData(app, {
-        management_recommendation: approved
-          ? app.form_data?.management_recommendation || null
-          : {
-              ...(app.form_data?.management_recommendation || {}),
-              status: "Pending TP(RES)/PGH Approval",
-              decision: "Draft",
-              returned_from: "MPHLG",
-              returned_at: now,
-              return_remarks: data.comment,
-            },
+        management_recommendation: app.form_data?.management_recommendation || null,
         mphlg_gateway: {
           ...(app.form_data?.mphlg_gateway || {}),
           officer: "MPHLG",
-          status: approved ? "Approved" : "Returned to TP(RES)/PGH",
+          status: approved ? "Approved" : "Returned to KU(IKL)",
           decision,
-          remarks: data.comment,
+          remarks: approved ? data.comment : rejectRemark,
+          memo_html: approved
+            ? app.form_data?.mphlg_gateway?.memo_html || ""
+            : data.memoHtml || app.form_data?.mphlg_gateway?.memo_html || "",
           reviewed_at: now,
         },
+        correction_request: approved
+          ? app.form_data?.correction_request || null
+          : {
+              source: "MPHLG",
+              target: "KU(IKL)",
+              remarks: rejectRemark,
+              memo_html: data.memoHtml || "",
+              requested_at: now,
+            },
         sut_approval: approved
           ? {
               ...(app.form_data?.sut_approval || {}),

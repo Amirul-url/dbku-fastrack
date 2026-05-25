@@ -1023,7 +1023,7 @@ def is_kb_les_returned_to_ku(application):
     correction = get_form_section(application, "correction_request")
     source = normalize_department(correction.get("source"))
     return (
-        source in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
+        source in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH", "MPHLG"}
         and normalize_department(correction.get("target")) == "KU(IKL)"
     )
 

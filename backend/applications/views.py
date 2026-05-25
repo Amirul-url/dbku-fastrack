@@ -104,6 +104,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("Only KB(LES) or TP(RES)/PGH can return the application to KU(IKL) at this stage.")
             return
 
+        if requested_status == "technical_review_completed" and current_status == "mphlg_processing":
+            if department != "MPHLG":
+                raise PermissionDenied("Only MPHLG can return the application to KU(IKL) at this stage.")
+            return
+
         if requested_status == "approved" and current_status == "management_review":
             if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
                 raise PermissionDenied("Only TP(RES)/PGH can make the final approval decision.")
