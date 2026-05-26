@@ -19,7 +19,8 @@ from .models import NotificationDelivery
 logger = logging.getLogger(__name__)
 
 APP_BRAND_NAME = "ALiS"
-KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG"
+KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)"
+NOTIFICATION_SIDE_EFFECTS_ENABLED = False
 
 
 TECHNICAL_DEPARTMENTS = {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}
@@ -197,6 +198,9 @@ def notify_application_status_change(
     old_remark=None,
     old_form_data=None,
 ):
+    if not NOTIFICATION_SIDE_EFFECTS_ENABLED:
+        return
+
     new_status = str(application.status or "").strip().lower()
     previous_status = str(old_status or "").strip().lower()
     current_remark = str(getattr(application, "latest_remark", "") or "").strip()
@@ -230,6 +234,9 @@ def notify_application_status_change(
 
 
 def notify_account_created(account, created_by=None):
+    if not NOTIFICATION_SIDE_EFFECTS_ENABLED:
+        return
+
     if not getattr(account, "pk", None):
         return
 
@@ -745,12 +752,21 @@ def has_notification_route_changed(application, previous_status, new_status, old
     if previous_status != new_status:
         return False
 
+    if new_status in ADMIN_TECHNICAL_TASK_STATUSES:
+        previous_route = get_technical_review_route_key(old_form_data or {})
+        current_route = get_technical_review_route_key(getattr(application, "form_data", None) or {})
+        return previous_route != current_route
+
     if new_status != "management_review":
         return False
 
     previous_route = get_management_review_route_key(old_form_data or {})
     current_route = get_management_review_route_key(getattr(application, "form_data", None) or {})
     return previous_route != current_route
+
+
+def get_technical_review_route_key(form_data):
+    return ",".join(sorted(get_selected_technical_departments_from_form_data(form_data)))
 
 
 def get_management_review_route_key(form_data):
@@ -931,6 +947,12 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "MPHLG"
         metadata["sender"] = "MPHLG"
         metadata["to"] = "SUT"
+    elif memo_html and status_key == "approved":
+        metadata["memo_html"] = memo_html
+        metadata["memo_template"] = "tp_pgh_to_pt_ikl"
+        metadata["from"] = "TP(RES)/PGH"
+        metadata["sender"] = "TP(RES)/PGH"
+        metadata["to"] = "PT(IKL)"
 
     return metadata
 
@@ -960,6 +982,12 @@ def get_mphlg_gateway_memo_html(application):
 def get_sut_approval_memo_html(application):
     section = get_form_section(application, "sut_approval")
     memo_html = section.get("memo_html")
+    return str(memo_html or "").strip()
+
+
+def get_final_approval_memo_html(application):
+    section = get_form_section(application, "approval")
+    memo_html = section.get("memo_html") or section.get("approval_note_html")
     return str(memo_html or "").strip()
 
 
@@ -1027,6 +1055,9 @@ def get_admin_memo_html(application):
 
     if status_key == "mphlg_decision_received":
         return get_sut_approval_memo_html(application)
+
+    if status_key == "approved":
+        return get_final_approval_memo_html(application)
 
     return get_kb_les_memo_html(application)
 
@@ -1244,7 +1275,7 @@ def get_admin_task_web_recipients(application):
     users = User.objects.filter(role__in=["admin", "supervisor", "staff"], is_active=True)
 
     if status_key == "submitted":
-        return [user for user in users if is_pt_ikl_user(user)]
+        return [user for user in users if is_ku_ikl_user(user)]
 
     if status_key == "approved":
         return [user for user in users if is_pt_ikl_user(user)]
@@ -1365,10 +1396,39 @@ def get_management_review_admin_text(application):
 
 def get_pending_technical_departments(application):
     reviews = get_technical_department_reviews(application)
+    selected_departments = get_selected_technical_departments(application)
     return {
         department
-        for department in TECHNICAL_DEPARTMENTS
+        for department in selected_departments
         if not isinstance(reviews.get(department), dict) or not reviews.get(department)
+    }
+
+
+def get_selected_technical_departments(application):
+    form_data = getattr(application, "form_data", None) or {}
+    return get_selected_technical_departments_from_form_data(form_data)
+
+
+def get_selected_technical_departments_from_form_data(form_data):
+    form_data = form_data or {}
+    selection = form_data.get("technical_department_selection") or {}
+    departments = []
+
+    if isinstance(selection, dict):
+        departments = selection.get("departments") or []
+
+    if not departments:
+        referral = form_data.get("technical_referral") or {}
+        if isinstance(referral, dict):
+            departments = referral.get("participating_departments") or []
+
+    if not isinstance(departments, (list, tuple, set)):
+        return set()
+
+    return {
+        department
+        for department in (normalize_department(value) for value in departments)
+        if department in TECHNICAL_DEPARTMENTS
     }
 
 
@@ -1483,7 +1543,7 @@ def should_user_receive_admin_notification(user, application, status_key=None):
     department = normalize_department(getattr(user, "department", ""))
 
     if status == "submitted":
-        return department == "PT(IKL)"
+        return department == "KU(IKL)"
 
     if status == "approved":
         return department == "PT(IKL)"
@@ -1638,6 +1698,9 @@ def create_and_send_delivery(
     message,
     metadata=None,
 ):
+    if not NOTIFICATION_SIDE_EFFECTS_ENABLED:
+        return
+
     try:
         delivery, created = NotificationDelivery.objects.get_or_create(
             event_key=event_key,

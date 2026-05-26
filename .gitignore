@@ -27,6 +27,7 @@ frontend/login-review.png
 .idea/
 .DS_Store
 *.log
+.reset-backups/
 
 __pycache__/
 *.pyc

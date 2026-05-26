@@ -18,6 +18,7 @@ import {
 } from "../utils/workflow";
 
 const NotificationContext = createContext();
+const NOTIFICATIONS_ENABLED = false;
 const READ_STORAGE_KEY = "fastrack_notification_read_ids";
 const POLL_INTERVAL_MS = 5000;
 const applicantNotificationStatuses = new Set([
@@ -251,10 +252,10 @@ function getMemoSubject(subject, title, reference, options = {}) {
   const cleanTitle = String(title || "").trim();
   const cleanReference = String(reference || "").trim();
 
-  if (role === "admin" && status === "submitted" && department === "PT(IKL)") {
+  if (role === "admin" && status === "submitted" && department === "KU(IKL)") {
     return cleanReference
-      ? `${cleanReference} requires PT(IKL) review`
-      : "New application requires PT(IKL) review";
+      ? `${cleanReference} requires KU(IKL) review`
+      : "New application requires KU(IKL) review";
   }
 
   if (role === "admin" && status === "ku_ikl_review" && department === "KU(IKL)") {
@@ -851,8 +852,8 @@ function getNotificationDisplayStatus(role, status, user = null, app = null) {
     return "rejected";
   }
 
-  if (role === "admin" && normalizedStatus === "submitted" && getUserDepartment(user) === "PT(IKL)") {
-    return "pt_ikl_review";
+  if (role === "admin" && normalizedStatus === "submitted" && getUserDepartment(user) === "KU(IKL)") {
+    return "ku_ikl_review";
   }
 
   if (role === "admin" && normalizedStatus === "management_review" && app && isApprovalSupportPending(app)) {
@@ -1047,6 +1048,14 @@ export function NotificationProvider({ children }) {
   const [lastSyncedAt, setLastSyncedAt] = useState("");
 
   const refreshNotifications = useCallback(async () => {
+    if (!NOTIFICATIONS_ENABLED) {
+      setNotifications([]);
+      setError("");
+      setLastSyncedAt("");
+      setLoading(false);
+      return;
+    }
+
     const token = localStorage.getItem("fastrack_access_token");
     const user = getStoredUser();
 
@@ -1107,6 +1116,8 @@ export function NotificationProvider({ children }) {
   }, [refreshNotifications]);
 
   function markAsRead(id) {
+    if (!NOTIFICATIONS_ENABLED) return;
+
     setNotifications((prev) =>
       prev.map((item) => (item.id === id ? { ...item, read: true } : item))
     );
@@ -1125,6 +1136,8 @@ export function NotificationProvider({ children }) {
   }
 
   function markAllAsRead() {
+    if (!NOTIFICATIONS_ENABLED) return;
+
     setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
     setReadIds((prev) => {
       const next = [...new Set([...prev, ...notifications.map((item) => item.id)])];

@@ -26,7 +26,7 @@ import {
 
 function UserApplicationsPage() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState("");
@@ -55,7 +55,7 @@ function UserApplicationsPage() {
       const haystack = [
         getApplicationReference(app),
         getProjectName(app),
-        getApplicationType(app),
+        getApplicationType(app, language),
         translatedStatus(t, app.status),
       ]
         .join(" ")
@@ -64,7 +64,7 @@ function UserApplicationsPage() {
       const status = getApplicantDisplayStatus(app.status);
       return (!q || haystack.includes(q)) && (statusFilter === "ALL" || status === statusFilter);
     });
-  }, [applications, keyword, statusFilter, t]);
+  }, [applications, keyword, language, statusFilter, t]);
 
   const summary = useMemo(() => {
     return {
@@ -143,7 +143,7 @@ function UserApplicationsPage() {
               ),
             },
             { key: "project", label: t("common.project"), render: getProjectName },
-            { key: "type", label: t("common.type"), render: getApplicationType },
+            { key: "type", label: t("common.type"), render: (app) => getApplicationType(app, language) },
             {
               key: "status",
               label: t("common.status"),

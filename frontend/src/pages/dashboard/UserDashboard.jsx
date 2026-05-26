@@ -47,7 +47,6 @@ function UserDashboard() {
   const [licensePanelOpen, setLicensePanelOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
@@ -137,7 +136,7 @@ function UserDashboard() {
       const matchesKeyword = !keyword || [
         getApplicationReference(app),
         getProjectName(app),
-        getApplicationType(app),
+        getApplicationType(app, language),
         translatedStatus(t, app.status),
       ]
         .join(" ")
@@ -152,7 +151,7 @@ function UserDashboard() {
 
       return matchesKeyword && matchesMonth && matchesYear;
     });
-  }, [applications, filterMonth, filterYear, search]);
+  }, [applications, filterMonth, filterYear, language, search, t]);
 
   const applicationYearOptions = useMemo(() => {
     return Array.from(
@@ -176,38 +175,6 @@ function UserDashboard() {
 
   function openApplication(app) {
     navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?id=${app.id}`);
-  }
-
-  async function deleteApplication(app) {
-    const reference = getApplicationReference(app);
-    const confirmed = window.confirm(`${t("applicant.deleteApplicationConfirm")} ${reference}?`);
-    if (!confirmed) return;
-
-    try {
-      setDeletingId(app.id);
-      setMessage({ type: "", text: "" });
-      await apiRequest(`/applications/${app.id}/`, { method: "DELETE" });
-      setApplications((current) => current.filter((item) => item.id !== app.id));
-
-      if (String(selectedId) === String(app.id)) {
-        setSelectedId("");
-        setSelectedApplication(null);
-        setLicensePanelOpen(false);
-      }
-
-      window.dispatchEvent(new Event("fastrack:applications-changed"));
-      setMessage({
-        type: "success",
-        text: t("applicant.deleteApplicationSuccess"),
-      });
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: err.message || t("applicant.deleteApplicationFailed"),
-      });
-    } finally {
-      setDeletingId(null);
-    }
   }
 
   function openLicenseRecord(app) {
@@ -440,8 +407,6 @@ function UserDashboard() {
             showSection("status");
           }}
           onOpen={openApplication}
-          onDelete={deleteApplication}
-          deletingId={deletingId}
         />
       )}
 
@@ -450,9 +415,8 @@ function UserDashboard() {
           applications={submittedApplications}
           loading={loading}
           t={t}
+          language={language}
           onOpen={openApplication}
-          onDelete={deleteApplication}
-          deletingId={deletingId}
         />
       )}
 
@@ -566,8 +530,6 @@ function ApplicationsSection({
   onYearChange,
   onSelect,
   onOpen,
-  onDelete,
-  deletingId,
 }) {
   const hasActiveFilter = Boolean(search.trim()) || month !== "all" || year !== "all";
 
@@ -681,16 +643,15 @@ function ApplicationsSection({
         applications={applications}
         loading={loading}
         t={t}
+        language={language}
         onSelect={onSelect}
         onOpen={onOpen}
-        onDelete={onDelete}
-        deletingId={deletingId}
       />
     </section>
   );
 }
 
-function StatusSection({ applications, loading, t, onOpen, onDelete, deletingId }) {
+function StatusSection({ applications, loading, t, language, onOpen }) {
   if (loading) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -709,10 +670,9 @@ function StatusSection({ applications, loading, t, onOpen, onDelete, deletingId 
         applications={applications}
         loading={loading}
         t={t}
+        language={language}
         onSelect={onOpen}
         onOpen={onOpen}
-        onDelete={onDelete}
-        deletingId={deletingId}
       />
     </section>
   );
@@ -988,7 +948,7 @@ function EmptyLicenseSection({ t }) {
   );
 }
 
-function ApplicationTable({ applications, loading, t, onSelect, onOpen, onDelete, deletingId }) {
+function ApplicationTable({ applications, loading, t, language = "en", onSelect, onOpen }) {
   return (
     <DataTable
       loading={loading}
@@ -1010,7 +970,7 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen, onDelete
           ),
         },
         { key: "project", label: t("common.project"), render: getProjectName },
-        { key: "type", label: t("common.type"), render: getApplicationType },
+        { key: "type", label: t("common.type"), render: (app) => getApplicationType(app, language) },
         {
           key: "status",
           label: t("common.status"),
@@ -1029,30 +989,15 @@ function ApplicationTable({ applications, loading, t, onSelect, onOpen, onDelete
           key: "action",
           label: t("common.action"),
           render: (app) => (
-            <div className="flex flex-wrap gap-2">
-              {!shouldHideApplicantAction(app) && (
-                <button
-                  type="button"
-                  onClick={() => onOpen(app)}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {t(getApplicantActionKey(app))}
-                </button>
-              )}
+            !shouldHideApplicantAction(app) && (
               <button
                 type="button"
-                onClick={() => onDelete?.(app)}
-                disabled={deletingId === app.id}
-                className="inline-flex min-h-8 items-center justify-center gap-1 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => onOpen(app)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                <span className="material-symbols-outlined text-[16px]">
-                  delete
-                </span>
-                {deletingId === app.id
-                  ? t("common.deleting", "Deleting...")
-                  : t("common.delete")}
+                {t(getApplicantActionKey(app))}
               </button>
-            </div>
+            )
           ),
         },
       ]}

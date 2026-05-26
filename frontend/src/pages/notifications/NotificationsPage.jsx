@@ -1186,11 +1186,11 @@ function getWorkflowMemoCopy(status, reference, isMalay) {
   const copy = {
     submitted: {
       en: {
-        subject: `${reference} requires PT(IKL) review`,
+        subject: `${reference} requires KU(IKL) review`,
         lines: [`New application ${reference} has been submitted and is waiting for review.`],
       },
       ms: {
-        subject: `${reference} memerlukan semakan PT(IKL)`,
+        subject: `${reference} memerlukan semakan KU(IKL)`,
         lines: [`Permohonan baharu ${reference} telah dihantar dan sedang menunggu semakan.`],
       },
     },

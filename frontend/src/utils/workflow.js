@@ -326,8 +326,18 @@ export function getProjectName(app) {
   );
 }
 
-export function getApplicationType(app) {
+export function getApplicationType(app, language = "en") {
   const step1 = getStep(app, "step_1");
+  const optionLabels = Array.isArray(step1.application_type_options)
+    ? step1.application_type_options
+        .map((value) => getLocalizedApplicationTypeLabel(value, language))
+        .filter(Boolean)
+    : [];
+
+  if (optionLabels.length > 0) {
+    return optionLabels.join(", ");
+  }
+
   const rawType =
     step1.application_type_label ||
     step1.application_type ||
@@ -337,14 +347,45 @@ export function getApplicationType(app) {
     app?.application_type ||
     "Siting Application";
 
+  const localizedLabel = getLocalizedApplicationTypeLabel(rawType, language);
+  if (localizedLabel) return localizedLabel;
+
   const labelMap = {
-    sitting_application: "Sitting Application",
-    signboard_license: "Signboard License",
-    building_plan: "Building Plan",
-    other: "Other",
+    sitting_application: language === "ms" ? "Permohonan Tapak" : "Sitting Application",
+    signboard_license: language === "ms" ? "Lesen Papan Tanda" : "Signboard License",
+    building_plan: language === "ms" ? "Pelan Bangunan" : "Building Plan",
+    other: language === "ms" ? "Lain-lain" : "Other",
   };
 
   return labelMap[rawType] || rawType;
+}
+
+function getLocalizedApplicationTypeLabel(value, language = "en") {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  const labelMap = {
+    open_space: {
+      en: "Open Space",
+      ms: "Kawasan Lapang",
+    },
+    kawasan_lapang: {
+      en: "Open Space",
+      ms: "Kawasan Lapang",
+    },
+    building: {
+      en: "Building",
+      ms: "Bangunan",
+    },
+    bangunan: {
+      en: "Building",
+      ms: "Bangunan",
+    },
+  };
+
+  return labelMap[key]?.[language === "ms" ? "ms" : "en"] || "";
 }
 
 export function getApplicationLocation(app) {

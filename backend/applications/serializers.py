@@ -103,6 +103,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     applicant_full_name = serializers.SerializerMethodField()
     application_type_label = serializers.SerializerMethodField()
     technical_department_reviews = serializers.SerializerMethodField()
+    technical_department_selection = serializers.SerializerMethodField()
+    technical_referral = serializers.SerializerMethodField()
     kb_les_verification = serializers.SerializerMethodField()
     management_recommendation = serializers.SerializerMethodField()
     mphlg_gateway = serializers.SerializerMethodField()
@@ -124,6 +126,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "latest_remark",
             "current_step",
             "technical_department_reviews",
+            "technical_department_selection",
+            "technical_referral",
             "kb_les_verification",
             "management_recommendation",
             "mphlg_gateway",
@@ -145,10 +149,23 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         return get_application_applicant_name(obj)
 
     def get_application_type_label(self, obj):
+        step1 = (obj.form_data or {}).get("step_1") or {}
+        if isinstance(step1, dict):
+            for key in ["application_type_label", "project_category"]:
+                value = str(step1.get(key) or "").strip()
+                if value:
+                    return value
+
         return obj.get_application_type_display()
 
     def get_technical_department_reviews(self, obj):
         return (obj.form_data or {}).get("technical_department_reviews", {})
+
+    def get_technical_department_selection(self, obj):
+        return (obj.form_data or {}).get("technical_department_selection", {})
+
+    def get_technical_referral(self, obj):
+        return (obj.form_data or {}).get("technical_referral", {})
 
     def get_kb_les_verification(self, obj):
         return (obj.form_data or {}).get("kb_les_verification", {})

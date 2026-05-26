@@ -30,7 +30,6 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
             use_department_inbox = bool(department)
             if department == "PT(IKL)":
                 allowed_event_statuses = {
-                    "submitted",
                     "approved",
                     "payment_submitted",
                     "payment_verified",
@@ -41,6 +40,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 }
             elif department == "KU(IKL)":
                 allowed_event_statuses = {
+                    "submitted",
                     "ku_ikl_review",
                     "technical_review_completed",
                     "bill_pending_ku",

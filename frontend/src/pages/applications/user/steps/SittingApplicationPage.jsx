@@ -28,6 +28,43 @@ import UserViewStepControls from "./UserViewStepControls";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
 
+const APPLICATION_TYPE_OPTIONS = [
+  { value: "open_space", labelKey: "applicationTypeOpenSpace", label: "Open Space" },
+  { value: "building", labelKey: "applicationTypeBuilding", label: "Building" },
+];
+
+const APPLICATION_TYPE_DEPARTMENTS = {
+  open_space: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
+  building: ["IMT", "LNP", "GPM"],
+};
+
+function normalizeApplicationTypeOptions(value) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  const normalized = values
+    .map((item) => String(item || "").trim().toLowerCase())
+    .filter((item) => APPLICATION_TYPE_OPTIONS.some((option) => option.value === item));
+
+  return [...new Set(normalized)];
+}
+
+function getApplicationTypeDepartments(types) {
+  const departments = normalizeApplicationTypeOptions(types).flatMap(
+    (type) => APPLICATION_TYPE_DEPARTMENTS[type] || []
+  );
+
+  return [...new Set(departments)];
+}
+
+function getApplicationTypeLabel(language, types) {
+  const selected = normalizeApplicationTypeOptions(types);
+  return selected
+    .map((type) => {
+      const option = APPLICATION_TYPE_OPTIONS.find((item) => item.value === type);
+      return option ? stepText(language, option.labelKey) : type;
+    })
+    .join(", ");
+}
+
 function SittingApplicationPage({
   LayoutComponent = UserDashboardLayout,
   StepNavComponent = null,
@@ -67,6 +104,7 @@ function SittingApplicationPage({
   const [applicationDate, setApplicationDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
+  const [applicationTypeOptions, setApplicationTypeOptions] = useState(["open_space"]);
   const [applicationRecord, setApplicationRecord] = useState(null);
 
   const [siteImageName, setSiteImageName] = useState("");
@@ -107,6 +145,11 @@ function SittingApplicationPage({
       setDesignation(step1.designation || "");
       setOfficerName(step1.officer_name || "");
       setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
+      setApplicationTypeOptions(
+        normalizeApplicationTypeOptions(step1.application_type_options).length > 0
+          ? normalizeApplicationTypeOptions(step1.application_type_options)
+          : ["open_space"]
+      );
 
       const siteImageDocument =
         data.supporting_documents
@@ -140,6 +183,10 @@ function SittingApplicationPage({
   }
 
   async function buildStepOnePayload(titleValue, currentStep = 1) {
+    const selectedTypes = normalizeApplicationTypeOptions(applicationTypeOptions);
+    const applicationTypeDisplay = getApplicationTypeLabel(language, selectedTypes);
+    const technicalDepartments = getApplicationTypeDepartments(selectedTypes);
+
     return {
       application_type: "sitting_application",
       title: titleValue,
@@ -147,10 +194,12 @@ function SittingApplicationPage({
       form_data: {
         step_1: {
           status: "Prepare Case",
-          application_type: "Application for Site (New Site)",
-          application_type_label: "Application for Site (New Site)",
+          application_type: selectedTypes.join(","),
+          application_type_label: applicationTypeDisplay,
+          application_type_options: selectedTypes,
+          technical_departments: technicalDepartments,
           division: "",
-          project_category: "",
+          project_category: applicationTypeDisplay,
           project_name: projectName,
           applicant,
           contact_person: contactPerson,
@@ -249,7 +298,8 @@ function SittingApplicationPage({
       !siteSelectionReason.trim() ||
       !designation.trim() ||
       !officerName.trim() ||
-      !applicationDate
+      !applicationDate ||
+      normalizeApplicationTypeOptions(applicationTypeOptions).length === 0
     ) {
       alert(tx("requiredAlert"));
       return;
@@ -356,7 +406,10 @@ function SittingApplicationPage({
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference language={language} />
+            <ApplicationReference
+              language={language}
+              applicationTypeOptions={applicationTypeOptions}
+            />
 
             {isReadOnly && (
               <ReadOnlyNotice language={language} status={applicationRecord?.status} />
@@ -364,7 +417,12 @@ function SittingApplicationPage({
 
             <fieldset disabled={isReadOnly} className="p-4 space-y-3">
               <FormSection title={tx("typeOfApplication")}>
-                <Checkbox label={tx("applicationForSite")} checked />
+                <ApplicationTypeCheckboxes
+                  language={language}
+                  value={applicationTypeOptions}
+                  onChange={setApplicationTypeOptions}
+                  readOnly={isReadOnly}
+                />
               </FormSection>
 
               <Field label={tx("nameOfProject")} required>
@@ -1278,10 +1336,13 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function ApplicationReference({ language }) {
+function ApplicationReference({ language, applicationTypeOptions = ["open_space"] }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const tx = (key) => stepText(language, key);
+  const applicationTypeText =
+    getApplicationTypeLabel(language, applicationTypeOptions) ||
+    applicationTypeLabel(language, "Application for Site (New Site)");
 
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
@@ -1304,7 +1365,7 @@ function ApplicationReference({ language }) {
 
         <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {applicationTypeLabel(language, "Application for Site (New Site)")}
+          {applicationTypeText}
         </p>
       </div>
     </div>
@@ -1336,12 +1397,35 @@ function Field({ label, children, required = false }) {
   );
 }
 
-function Checkbox({ label, checked = false }) {
+function ApplicationTypeCheckboxes({ language, value, onChange, readOnly }) {
+  const selected = normalizeApplicationTypeOptions(value);
+
+  function toggle(type, checked) {
+    if (readOnly) return;
+    onChange(
+      checked
+        ? normalizeApplicationTypeOptions([...selected, type])
+        : selected.filter((item) => item !== type)
+    );
+  }
+
   return (
-    <label className="flex items-center gap-2">
-      <input type="checkbox" checked={checked} readOnly />
-      <span>{label}</span>
-    </label>
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {APPLICATION_TYPE_OPTIONS.map((option) => (
+        <label
+          key={option.value}
+          className="flex min-h-10 items-center gap-2 rounded-sm border border-slate-200 px-3 py-2"
+        >
+          <input
+            type="checkbox"
+            checked={selected.includes(option.value)}
+            disabled={readOnly}
+            onChange={(event) => toggle(option.value, event.target.checked)}
+          />
+          <span>{stepText(language, option.labelKey)}</span>
+        </label>
+      ))}
+    </div>
   );
 }
 

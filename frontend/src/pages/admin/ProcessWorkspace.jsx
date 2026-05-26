@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
@@ -42,11 +42,23 @@ import {
 } from "../../utils/workflow";
 
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
-const KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG";
+const MEMO_EDITOR_ENABLED = false;
+const KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)";
+const APPLICATION_TYPE_OPTIONS = ["open_space", "building"];
+const SQFT_TO_SQM = 0.092903;
+const TECHNICAL_FIRST_AREA_SQM = 20;
+const TECHNICAL_FIRST_AREA_RATE = 100;
+const TECHNICAL_ADDITIONAL_AREA_RATE = 70;
+const TECHNICAL_FIXED_DEPOSIT = 5000;
+const TECHNICAL_PROCESSING_FEE = 10;
+const APPLICATION_TYPE_TECHNICAL_DEPARTMENTS = {
+  open_space: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
+  building: ["IMT", "LNP", "GPM"],
+};
 const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
-  "PT(IKL)": ["submitted", "incomplete"],
-  "KU(IKL)": ["ku_ikl_review", "technical_review_completed"],
+  "PT(IKL)": ["incomplete"],
+  "KU(IKL)": ["submitted", "ku_ikl_review", "technical_review_completed"],
   "IKL (TECHNICAL)": ["technical_review", "technical_site_visit", "technical_amendment"],
 };
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
@@ -119,6 +131,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [commentError, setCommentError] = useState("");
+  const [technicalSizeError, setTechnicalSizeError] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
   const [comment, setComment] = useState("");
   const [licenseExpiryYears, setLicenseExpiryYears] = useState("1");
@@ -128,14 +142,25 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [savedApprovalDecisionDraft, setSavedApprovalDecisionDraft] = useState("");
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [showVerificationReport, setShowVerificationReport] = useState(false);
+  const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
+  const technicalSiteDraftSaveIdRef = useRef(0);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     fee_date: "",
     fee_items: [createTechnicalFeeItem()],
+    width_ft: "",
+    height_ft: "",
+    area_sqft: "",
+    area_sqm: "",
+    chargeable_area_sqm: "",
+    first_area_fee: "",
+    additional_area_sqm: "",
+    additional_area_fee: "",
     fee_total: "",
     payable_total: "",
     license_fee_calculation: "",
     deposit_calculation: "",
+    processing_fee_calculation: "",
     site_remarks: "",
   });
 
@@ -204,16 +229,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const currentPhotos = getCurrentTechnicalSitePhotos(savedPhotos, selectedDetail);
     const feeItems = normalizeTechnicalFeeItems(saved.fee_items);
     const feeTotals = getTechnicalFeeTotals(feeItems);
+    const calculatedFees = calculateTechnicalFee(saved);
     setTechnicalSite({
       site_photos: currentPhotos,
       fee_date: saved.fee_date || new Date().toISOString().slice(0, 10),
       fee_items: feeItems,
-      fee_total: saved.fee_total || feeTotals.feeTotal || "",
-      payable_total: saved.payable_total || feeTotals.grandTotal || "",
-      license_fee_calculation: saved.license_fee_calculation || (feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
-      deposit_calculation: saved.deposit_calculation || (feeTotals.depositTotal ? String(feeTotals.depositTotal) : ""),
+      width_ft: saved.width_ft || "",
+      height_ft: saved.height_ft || "",
+      area_sqft: saved.area_sqft || calculatedFees.areaSqft || "",
+      area_sqm: saved.area_sqm || calculatedFees.areaSqm || "",
+      chargeable_area_sqm: saved.chargeable_area_sqm || calculatedFees.chargeableAreaSqm || "",
+      first_area_fee: saved.first_area_fee || calculatedFees.firstAreaFee || "",
+      additional_area_sqm: saved.additional_area_sqm || calculatedFees.additionalAreaSqm || "",
+      additional_area_fee: saved.additional_area_fee || calculatedFees.additionalAreaFee || "",
+      fee_total: saved.fee_total || calculatedFees.feeTotal || feeTotals.feeTotal || "",
+      payable_total: saved.payable_total || calculatedFees.totalPayable || feeTotals.grandTotal || "",
+      license_fee_calculation: saved.license_fee_calculation || (calculatedFees.feeTotal ? String(calculatedFees.feeTotal) : feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
+      deposit_calculation: saved.deposit_calculation || String(TECHNICAL_FIXED_DEPOSIT),
+      processing_fee_calculation: saved.processing_fee_calculation || String(TECHNICAL_PROCESSING_FEE),
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
     });
+    setTechnicalApplicationTypeSelection(getApplicationTypeOptionsFromApplication(selectedDetail));
+    setTechnicalSizeError("");
   }, [selectedDetail?.id, selectedDetail?.updated_at]);
 
   async function fetchApplications({ silent = false } = {}) {
@@ -293,7 +330,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         statusScope.length === 0 || statusScope.includes(normalizedStatus);
       const isInDepartmentScope =
         !isDepartmentTechnicalWorkspace ||
-        !hasTechnicalDepartmentReview(app, userDepartment);
+        (isTechnicalDepartmentSelected(app, userDepartment) &&
+          !hasTechnicalDepartmentReview(app, userDepartment));
       const isInApprovalScope =
         !isApprovalWorkspace ||
         isApprovalTaskForDepartment(app, userDepartment);
@@ -309,7 +347,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         getApplicationReference(app),
         getApplicantName(app),
         getProjectName(app),
-        getApplicationType(app),
+        getApplicationType(app, language),
         getApplicationLocation(app),
       ]
         .join(" ")
@@ -317,7 +355,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       return !q || haystack.includes(q);
     });
-  }, [keyword, statusScopedApplications]);
+  }, [keyword, language, statusScopedApplications]);
 
   useEffect(() => {
     if (filtered.length === 0) return;
@@ -388,6 +426,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isSimpleApprovalWorkspace &&
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
+  const isFinalApprovalSupportWorkspace =
+    isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
   const approvalSupportDecision =
     isApprovalSupportWorkspace && ["Approve", "Reject"].includes(decision)
       ? decision
@@ -400,15 +440,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     selectedRecord?.management_recommendation?.approval_note_html ||
     "";
   const approvalMemoNeedsRevision =
-    isApprovalSupportWorkspace && hasMphlgReturnedApprovalForRevision(selectedRecord);
+    isApprovalSupportWorkspace &&
+    !isFinalApprovalSupportWorkspace &&
+    hasMphlgReturnedApprovalForRevision(selectedRecord);
   const canReuseSavedApprovalMemo =
-    Boolean(savedApprovalDecisionHtml) && !approvalMemoNeedsRevision;
-  const canSendSavedApprovalMemoToMphlg =
-    isApprovalWorkspace &&
-    APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment) &&
-    canReuseSavedApprovalMemo &&
-    !approvalDecisionEditable &&
-    approvalStageKey === "support";
+    !isFinalApprovalSupportWorkspace &&
+    Boolean(savedApprovalDecisionHtml) &&
+    !approvalMemoNeedsRevision;
+  const canSendSavedApprovalMemoToMphlg = false;
   const actionUnavailableMessage = canSendSavedApprovalMemoToMphlg
     ? ""
     : getActionUnavailableMessage(config, selectedRecord, userDepartment);
@@ -429,7 +468,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     const syncApprovalDecisionId = window.setTimeout(() => {
-      if (!isApprovalSupportWorkspace || !selectedRecord?.id) {
+      if (!isApprovalSupportWorkspace || isFinalApprovalSupportWorkspace || !selectedRecord?.id) {
         setApprovalDecisionDraft("");
         setSavedApprovalDecisionDraft("");
         setApprovalDecisionEditable(false);
@@ -462,6 +501,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     return () => window.clearTimeout(syncApprovalDecisionId);
   }, [
     approvalMemoNeedsRevision,
+    isFinalApprovalSupportWorkspace,
     isApprovalSupportWorkspace,
     approvalOfficerName,
     decision,
@@ -476,7 +516,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     if (isApprovalSupportWorkspace) {
-      setDecision(canReuseSavedApprovalMemo ? "Approve" : "");
+      setDecision("Approve");
       setLicenseExpiryYears("1");
       return;
     }
@@ -567,53 +607,143 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function saveTechnicalApplicationTypeSelection(nextSelection = technicalApplicationTypeSelection) {
+    if (!selectedRecord?.id) {
+      setError(t("workspace.selectApplication", "Please select an application first."));
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const now = new Date().toISOString();
+      const selectedTypes = normalizeApplicationTypeOptions(nextSelection).slice(0, 1);
+      if (selectedTypes.length === 0) {
+        setError(t("workspace.technical.applicationTypeRequired", "Please select at least one application type."));
+        return;
+      }
+      const departments = getApplicationTypeTechnicalDepartmentsFromTypes(selectedTypes);
+      const step1 = selectedRecord.form_data?.step_1 || {};
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: normalizeStatus(selectedRecord.status) || "technical_review",
+          form_data: mergeFormData(selectedRecord, {
+            step_1: {
+              ...step1,
+              application_type: selectedTypes.join(","),
+              application_type_label: getApplicationTypeOptionsLabel(selectedTypes, "en"),
+              application_type_options: selectedTypes,
+              project_category: getApplicationTypeOptionsLabel(selectedTypes, "en"),
+              technical_departments: departments,
+            },
+            technical_department_selection: {
+              departments,
+              application_type_options: selectedTypes,
+              selected_by: "IKL (TECHNICAL)",
+              selected_at: now,
+            },
+            technical_referral: {
+              ...(selectedRecord.form_data?.technical_referral || {}),
+              status: "Referred",
+              source: selectedRecord.form_data?.technical_referral?.source || "KU(IKL)",
+              target: KU_TECHNICAL_MEMO_RECIPIENT,
+              participating_departments: departments,
+              departments_selected_at: now,
+            },
+          }),
+        }),
+      });
+
+      setSuccess(t("workspace.technical.applicationTypeSaved", "Application type updated."));
+      await fetchApplications({ silent: true });
+      setSelectedDetail(response?.data || response || selectedRecord);
+    } catch (err) {
+      setError(err.message || t("workspace.technical.applicationTypeSaveFailed", "Could not update application type."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveTechnicalSiteVisitDraft(nextSite) {
+    if (!selectedRecord?.id) return;
+
+    const saveId = technicalSiteDraftSaveIdRef.current + 1;
+    technicalSiteDraftSaveIdRef.current = saveId;
+    const technicalFee = calculateTechnicalFee(nextSite);
+    const saved = selectedRecord.form_data?.technical_site_visit || {};
+    const nextTechnicalSiteVisit = {
+      ...saved,
+      site_photos: nextSite.site_photos || saved.site_photos || [],
+      site_photo: nextSite.site_photos?.[0] || saved.site_photo || null,
+      fee_date: nextSite.fee_date || saved.fee_date || new Date().toISOString().slice(0, 10),
+      fee_items: [],
+      width_ft: nextSite.width_ft || "",
+      height_ft: nextSite.height_ft || "",
+      area_sqft: technicalFee.areaSqft ? String(technicalFee.areaSqft) : "",
+      area_sqm: technicalFee.areaSqm ? String(technicalFee.areaSqm) : "",
+      chargeable_area_sqm: technicalFee.chargeableAreaSqm ? String(technicalFee.chargeableAreaSqm) : "",
+      first_area_sqm: technicalFee.firstAreaSqm ? String(technicalFee.firstAreaSqm) : "",
+      first_area_fee: technicalFee.firstAreaFee ? String(technicalFee.firstAreaFee) : "",
+      additional_area_sqm: technicalFee.additionalAreaSqm ? String(technicalFee.additionalAreaSqm) : "0",
+      additional_area_fee: technicalFee.additionalAreaFee ? String(technicalFee.additionalAreaFee) : "0",
+      fee_total: technicalFee.feeTotal,
+      payable_total: technicalFee.totalPayable,
+      license_fee_calculation: technicalFee.feeTotal ? String(technicalFee.feeTotal) : "",
+      deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
+      processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
+      site_remarks: nextSite.site_remarks || saved.site_remarks || "",
+      officer_role: saved.officer_role || "PT/PO/KP Unit Iklan",
+      draft_saved_at: new Date().toISOString(),
+    };
+
+    try {
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            technical_site_visit: nextTechnicalSiteVisit,
+          }),
+        }),
+      });
+
+      if (technicalSiteDraftSaveIdRef.current === saveId) {
+        setSelectedDetail(response?.data || response || selectedRecord);
+      }
+      await fetchApplications({ silent: true });
+    } catch (err) {
+      setError(err.message || t("workspace.technical.siteVisitSaveFailed", "Could not save site visit details."));
+    }
+  }
+
   function submitApprovalSupport(decisionValue) {
     const [availableAction] = workspaceActions;
     const action = availableAction || (canSendSavedApprovalMemoToMphlg ? config.actions?.[0] : null);
     if (!action) return;
+
     if (!decisionValue) {
       setError(t("workspace.decision.required", "Please select a decision."));
       return;
     }
 
-    const savedApprovalMemoHtml = savedApprovalDecisionDraft || savedApprovalDecisionHtml;
-
-    if (decisionValue === "Approve" && (!savedApprovalMemoHtml || approvalDecisionEditable)) {
-      setError(t("workspace.memo.saveBeforeSubmit", "Please save the memo before submitting."));
-      return;
-    }
-
-    const approvalDecisionHtml =
-      decisionValue === "Approve" ? savedApprovalMemoHtml : approvalDecisionDraft;
-
-    if (!getHtmlPlainText(approvalDecisionHtml)) {
-      setError(t("workspace.memo.required", "Please complete the memo before sending."));
-      return;
-    }
-
-    if (decisionValue === "Approve") {
-      setError("");
-      setSuccess("");
-      setMemoDraft(createTpResToMphlgMemoTemplate(selectedRecord, approvalDecisionHtml));
-      setPendingMemoSubmission({
-        action,
-        overrides: {
-          decision: decisionValue,
-          checkDecisionRemark: false,
-          approvalDecisionHtml,
-        },
-        titleKey: "workspace.memo.tpToMphlgTitle",
-        title: "Memo to MPHLG",
-        descriptionKey: "workspace.memo.tpToMphlgDescription",
-        description: "Complete the memo before sending this approval to MPHLG.",
+    if (isFinalApprovalSupportWorkspace) {
+      setDecision("Approve");
+      submitAction(action, {
+        decision: "Approve",
+        comment: cleanRemark(comment),
+        checkDecisionRemark: false,
+        approvalDecisionHtml: "",
       });
       return;
     }
 
     submitAction(action, {
       decision: decisionValue,
-      checkDecisionRemark: false,
-      approvalDecisionHtml,
+      comment: cleanRemark(comment),
+      checkDecisionRemark: decisionValue !== "Approve",
+      approvalDecisionHtml: "",
     });
   }
 
@@ -699,6 +829,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
+    setCommentError("");
+    setTechnicalSizeError("");
     const actionDecision = overrides.decision || action.decision || decision;
     const cleanedComment = cleanRemark(overrides.comment ?? comment);
     const requiresDecisionRemark =
@@ -706,7 +838,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       /reject|amendment|condition|not supported/i.test(String(actionDecision || ""));
 
     if ((action.requiresComment || requiresDecisionRemark) && !cleanedComment) {
-      setError("Please enter notes or comments first.");
+      setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+      return;
+    }
+
+    if (
+      action?.buildPayload === buildIklTechnicalDecisionPayload &&
+      userDepartment === "IKL (TECHNICAL)" &&
+      (parseTechnicalNumber(technicalSite.width_ft) <= 0 ||
+        parseTechnicalNumber(technicalSite.height_ft) <= 0)
+    ) {
+      setTechnicalSizeError(t("workspace.technical.sizeRequired", "Please enter the advertisement width and height first."));
       return;
     }
 
@@ -720,141 +862,143 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    if (isKbLesDecisionAction(action, actionDecision) && !overrides.memoHtml) {
-      const rejected = actionDecision === "Reject";
+    if (MEMO_EDITOR_ENABLED) {
+      if (isKbLesDecisionAction(action, actionDecision) && !overrides.memoHtml) {
+        const rejected = actionDecision === "Reject";
 
-      setError("");
-      setSuccess("");
-      setMemoDraft(
-        rejected
-          ? createKbLesToKuAmendmentMemoTemplate(selectedRecord, cleanedComment)
-          : createKbLesMemoTemplate(selectedRecord, technicalSite)
-      );
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
-        titleKey: rejected ? "workspace.memo.kbToKuTitle" : "workspace.memo.title",
-        title: rejected ? "Memo to KU(IKL)" : "Memo to TP(RES)",
-        descriptionKey: rejected ? "workspace.memo.kbToKuDescription" : "workspace.memo.description",
-        description: rejected
-          ? "Complete the memo before returning this application to KU(IKL)."
-          : "Complete the memo template. This exact memo will appear in TP(RES) notifications.",
-      });
-      return false;
-    }
+        setError("");
+        setSuccess("");
+        setMemoDraft(
+          rejected
+            ? createKbLesToKuAmendmentMemoTemplate(selectedRecord, cleanedComment)
+            : createKbLesMemoTemplate(selectedRecord, technicalSite)
+        );
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
+          titleKey: rejected ? "workspace.memo.kbToKuTitle" : "workspace.memo.title",
+          title: rejected ? "Memo to KU(IKL)" : "Memo to TP(RES)",
+          descriptionKey: rejected ? "workspace.memo.kbToKuDescription" : "workspace.memo.description",
+          description: rejected
+            ? "Complete the memo before returning this application to KU(IKL)."
+            : "Complete the memo template. This exact memo will appear in TP(RES) notifications.",
+        });
+        return false;
+      }
 
-    if (isPtIklApproveToKuAction(action, actionDecision) && !overrides.memoHtml) {
-      setError("");
-      setSuccess("");
-      setMemoDraft(createPtIklToKuMemoTemplate(selectedRecord));
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision },
-        titleKey: "workspace.memo.ptToKuTitle",
-        title: "Memo to KU(IKL)",
-        descriptionKey: "workspace.memo.ptToKuDescription",
-        description: "Complete the memo before sending this application to KU(IKL).",
-      });
-      return false;
-    }
+      if (isPtIklApproveToKuAction(action, actionDecision) && !overrides.memoHtml) {
+        setError("");
+        setSuccess("");
+        setMemoDraft(createPtIklToKuMemoTemplate(selectedRecord));
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision },
+          titleKey: "workspace.memo.ptToKuTitle",
+          title: "Memo to KU(IKL)",
+          descriptionKey: "workspace.memo.ptToKuDescription",
+          description: "Complete the memo before sending this application to KU(IKL).",
+        });
+        return false;
+      }
 
-    if (isKuIklApproveToTechnicalAction(action, actionDecision) && !overrides.memoHtml) {
-      setError("");
-      setSuccess("");
-      setMemoDraft(createKuIklToTechnicalMemoTemplate(selectedRecord));
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision },
-        titleKey: "workspace.memo.kuToTechnicalTitle",
-        title: "Memo to IKL(TECHNICAL)",
-        descriptionKey: "workspace.memo.kuToTechnicalDescription",
-        description: "Complete the memo before sending this application to IKL(TECHNICAL).",
-      });
-      return false;
-    }
+      if (isKuIklApproveToTechnicalAction(action, actionDecision) && !overrides.memoHtml) {
+        setError("");
+        setSuccess("");
+        setMemoDraft(createKuIklToTechnicalMemoTemplate(selectedRecord));
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision },
+          titleKey: "workspace.memo.kuToTechnicalTitle",
+          title: "Memo to IKL(TECHNICAL)",
+          descriptionKey: "workspace.memo.kuToTechnicalDescription",
+          description: "Complete the memo before sending this application to IKL(TECHNICAL).",
+        });
+        return false;
+      }
 
-    if (isKuIklFinalTechnicalDecisionAction(action, actionDecision) && !overrides.memoHtml) {
-      const amendmentRequired = actionDecision === "KU(IKL) Request Technical Amendment";
+      if (isKuIklFinalTechnicalDecisionAction(action, actionDecision) && !overrides.memoHtml) {
+        const amendmentRequired = actionDecision === "KU(IKL) Request Technical Amendment";
 
-      setError("");
-      setSuccess("");
-      setMemoDraft(createKuIklFinalReviewMemoTemplate(selectedRecord, technicalSite, actionDecision, cleanedComment));
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
-        titleKey: amendmentRequired
-          ? "workspace.memo.kuAmendTechnicalTitle"
-          : "workspace.memo.kuToKbTitle",
-        title: amendmentRequired ? "Memo to IKL(TECHNICAL)" : "Memo to KB(LES)",
-        descriptionKey: amendmentRequired
-          ? "workspace.memo.kuAmendTechnicalDescription"
-          : "workspace.memo.kuToKbDescription",
-        description: amendmentRequired
-          ? "Complete the memo before returning this application to IKL(TECHNICAL)."
-          : "Complete the memo before sending this application to KB(LES).",
-      });
-      return false;
-    }
+        setError("");
+        setSuccess("");
+        setMemoDraft(createKuIklFinalReviewMemoTemplate(selectedRecord, technicalSite, actionDecision, cleanedComment));
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
+          titleKey: amendmentRequired
+            ? "workspace.memo.kuAmendTechnicalTitle"
+            : "workspace.memo.kuToKbTitle",
+          title: amendmentRequired ? "Memo to IKL(TECHNICAL)" : "Memo to KB(LES)",
+          descriptionKey: amendmentRequired
+            ? "workspace.memo.kuAmendTechnicalDescription"
+            : "workspace.memo.kuToKbDescription",
+          description: amendmentRequired
+            ? "Complete the memo before returning this application to IKL(TECHNICAL)."
+            : "Complete the memo before sending this application to KB(LES).",
+        });
+        return false;
+      }
 
-    if (isIklTechnicalSupportToKuAction(action, actionDecision) && !overrides.memoHtml) {
-      setError("");
-      setSuccess("");
-      setMemoDraft(createIklTechnicalToKuMemoTemplate(selectedRecord, technicalSite, actionDecision, cleanedComment));
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
-        titleKey: "workspace.memo.technicalToKuTitle",
-        title: "Memo to KU(IKL)",
-        descriptionKey: "workspace.memo.technicalToKuDescription",
-        description: "Complete the memo before sending this technical decision to KU(IKL).",
-      });
-      return false;
-    }
+      if (isIklTechnicalSupportToKuAction(action, actionDecision) && !overrides.memoHtml) {
+        setError("");
+        setSuccess("");
+        setMemoDraft(createIklTechnicalToKuMemoTemplate(selectedRecord, technicalSite, actionDecision, cleanedComment));
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision, comment: cleanedComment },
+          titleKey: "workspace.memo.technicalToKuTitle",
+          title: "Memo to KU(IKL)",
+          descriptionKey: "workspace.memo.technicalToKuDescription",
+          description: "Complete the memo before sending this technical decision to KU(IKL).",
+        });
+        return false;
+      }
 
-    if (isMphlgRejectToKuAction(action, actionDecision) && !overrides.memoHtml) {
-      setError("");
-      setSuccess("");
-      setMemoDraft(createMphlgToKuAmendmentMemoTemplate(selectedRecord));
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
-        titleKey: "workspace.memo.mphlgToKuTitle",
-        title: "Memo to KU(IKL)",
-        descriptionKey: "workspace.memo.mphlgToKuDescription",
-        description: "Complete the memo before returning this application to KU(IKL).",
-      });
-      return false;
-    }
+      if (isMphlgRejectToKuAction(action, actionDecision) && !overrides.memoHtml) {
+        setError("");
+        setSuccess("");
+        setMemoDraft(createMphlgToKuAmendmentMemoTemplate(selectedRecord));
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
+          titleKey: "workspace.memo.mphlgToKuTitle",
+          title: "Memo to KU(IKL)",
+          descriptionKey: "workspace.memo.mphlgToKuDescription",
+          description: "Complete the memo before returning this application to KU(IKL).",
+        });
+        return false;
+      }
 
-    if (isMphlgApproveToSutAction(action, actionDecision) && !overrides.memoHtml) {
-      setError("");
-      setSuccess("");
-      setMemoDraft(createMphlgToSutMemoTemplate(selectedRecord));
-      setPendingMemoSubmission({
-        action,
-        overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
-        titleKey: "workspace.memo.mphlgToSutTitle",
-        title: "Memo to SUT",
-        descriptionKey: "workspace.memo.mphlgToSutDescription",
-        description: "Complete the memo before sending this approval to SUT.",
-      });
-      return false;
-    }
+      if (isMphlgApproveToSutAction(action, actionDecision) && !overrides.memoHtml) {
+        setError("");
+        setSuccess("");
+        setMemoDraft(createMphlgToSutMemoTemplate(selectedRecord));
+        setPendingMemoSubmission({
+          action,
+          overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
+          titleKey: "workspace.memo.mphlgToSutTitle",
+          title: "Memo to SUT",
+          descriptionKey: "workspace.memo.mphlgToSutDescription",
+          description: "Complete the memo before sending this approval to SUT.",
+        });
+        return false;
+      }
 
-    if (
-      (
-        isKbLesDecisionAction(action, actionDecision) ||
-        isPtIklApproveToKuAction(action, actionDecision) ||
-        isKuIklApproveToTechnicalAction(action, actionDecision) ||
-        isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
-        isIklTechnicalSupportToKuAction(action, actionDecision) ||
-        isMphlgRejectToKuAction(action, actionDecision) ||
-        isMphlgApproveToSutAction(action, actionDecision)
-      ) &&
-      !getHtmlPlainText(overrides.memoHtml)
-    ) {
-      setError(t("workspace.memo.required", "Please complete the memo before sending."));
-      return false;
+      if (
+        (
+          isKbLesDecisionAction(action, actionDecision) ||
+          isPtIklApproveToKuAction(action, actionDecision) ||
+          isKuIklApproveToTechnicalAction(action, actionDecision) ||
+          isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
+          isIklTechnicalSupportToKuAction(action, actionDecision) ||
+          isMphlgRejectToKuAction(action, actionDecision) ||
+          isMphlgApproveToSutAction(action, actionDecision)
+        ) &&
+        !getHtmlPlainText(overrides.memoHtml)
+      ) {
+        setError(t("workspace.memo.required", "Please complete the memo before sending."));
+        return false;
+      }
     }
 
     try {
@@ -870,6 +1014,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
+        kuChecks: overrides.kuChecks,
       });
 
       const requestPath =
@@ -945,6 +1090,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   function returnToTaskList() {
     setSelectedId("");
     setSelectedDetail(null);
+    setCommentError("");
     const params = new URLSearchParams(location.search);
     params.delete("id");
     const search = params.toString();
@@ -1073,7 +1219,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     );
                   },
                 },
-                { key: "applicant", label: t("common.applicant"), render: getApplicantName },
+                {
+                  key: "type",
+                  label: t("common.type"),
+                  render: (app) => getApplicationType(app, language),
+                },
                 { key: "project", label: t("common.project"), render: getProjectName },
                 {
                   key: "status",
@@ -1180,7 +1330,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   updated: t("common.updated"),
                 }}
                 statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
-                applicationType={getLocalizedApplicationType(selectedRecord, t)}
+                applicationType={getLocalizedApplicationType(selectedRecord, t, language)}
                 actions={
                   isFocusedPersonalWorkspace || tableFirstWorkspace ? (
                     <Button
@@ -1218,6 +1368,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   {showVerificationReport && (
                     <ApprovalTechnicalReviewSummary
                       t={t}
+                      language={language}
                       selectedRecord={selectedRecord}
                       technicalSite={technicalSite}
                       userDepartment={userDepartment}
@@ -1230,6 +1381,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 <IklWorkspaceSections
                   key={selectedRecord.id}
                   t={t}
+                  language={language}
                   config={config}
                   selectedRecord={selectedRecord}
                   decision={decision}
@@ -1238,12 +1390,43 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   setComment={setComment}
                   technicalSite={technicalSite}
                   setTechnicalSite={setTechnicalSite}
+                  technicalApplicationTypeSelection={technicalApplicationTypeSelection}
+                  setTechnicalApplicationTypeSelection={setTechnicalApplicationTypeSelection}
+                  saveTechnicalApplicationTypeSelection={saveTechnicalApplicationTypeSelection}
+                  saveTechnicalSiteVisitDraft={saveTechnicalSiteVisitDraft}
                   saving={saving}
                   submitAction={submitAction}
+                  commentError={commentError}
+                  setCommentError={setCommentError}
+                  technicalSizeError={technicalSizeError}
+                  setTechnicalSizeError={setTechnicalSizeError}
                   userDepartment={userDepartment}
                 />
               ) : (
                 <>
+                  {isDepartmentTechnicalWorkspace && (
+                    <>
+                      <TechnicalApplicationTypePanel
+                        t={t}
+                        language={language}
+                        selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+                        derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
+                        saving={false}
+                        onToggle={() => {}}
+                        readOnly
+                      />
+
+                      <TechnicalSiteVisitFields
+                        t={t}
+                        applicationId={selectedRecord.id}
+                        value={technicalSite}
+                        onChange={() => {}}
+                        onFileChange={() => {}}
+                        readOnly
+                      />
+                    </>
+                  )}
+
                   {config.showDecision &&
                     canSubmitWorkspaceAction &&
                     !isApprovalSupportWorkspace &&
@@ -1266,22 +1449,37 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && !isMphlgApprovalWorkspace && (
                     <Field
                       label={
-                        isSutApprovalWorkspace
-                          ? t("workspace.comment.sutApproval", "SUT Comments")
-                          : t(config.commentLabelKey, config.commentLabel || "Notes")
+                        <>
+                          {isSutApprovalWorkspace
+                            ? t("workspace.comment.sutApproval", "SUT Comments")
+                            : t(config.commentLabelKey, config.commentLabel || "Notes")}
+                          {workspaceActions.some((action) => action.requiresComment) && (
+                            <span className="ml-1 text-red-600">*</span>
+                          )}
+                        </>
                       }
                     >
                       <textarea
                         value={comment}
-                        onChange={(event) => setComment(event.target.value)}
+                        onChange={(event) => {
+                          setComment(event.target.value);
+                          if (commentError) setCommentError("");
+                        }}
                         rows="5"
-                        className="form-input"
+                        required={workspaceActions.some((action) => action.requiresComment)}
+                        aria-required={workspaceActions.some((action) => action.requiresComment)}
+                        className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                         placeholder={
                           isSutApprovalWorkspace
                             ? t("workspace.comment.sutApprovalPlaceholder", "Enter SUT approval comments if needed.")
                             : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
                         }
                       />
+                      {commentError && (
+                        <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                          {commentError}
+                        </p>
+                      )}
                     </Field>
                   )}
 
@@ -1299,39 +1497,37 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         <select
                           value={approvalSupportDecision}
                           onChange={(event) =>
-                            handleApprovalSupportDecisionChange(event.target.value)
+                            isFinalApprovalSupportWorkspace
+                              ? setDecision("Approve")
+                              : setDecision(event.target.value)
                           }
                           className="form-input max-w-xs"
                         >
-                          <option value="">
-                            {t("workspace.decision.selectDecision", "Select decision")}
-                          </option>
+                          {!isFinalApprovalSupportWorkspace && (
+                            <option value="">
+                              {t("workspace.decision.selectDecision", "Select decision")}
+                            </option>
+                          )}
                           <option value="Approve">
                             {t("workspace.decision.approve", "Approve")}
                           </option>
-                          <option value="Reject">
-                            {t("workspace.decision.notApprove", "Not Approve")}
-                          </option>
+                          {!isFinalApprovalSupportWorkspace && (
+                            <option value="Reject">
+                              {t("workspace.decision.notApprove", "Not Approve")}
+                            </option>
+                          )}
                         </select>
                       </Field>
-                      {approvalSupportDecision === "Approve" &&
-                      savedApprovalDecisionDraft &&
-                      !approvalDecisionEditable ? (
-                        showApprovalMemoPreviews && (
-                          <ApprovalDecisionMemoPreview
-                            memoHtml={savedApprovalDecisionDraft}
-                            t={t}
+                      {approvalSupportDecision && (
+                        <Field label={t("workspace.comment.approvalRemarks", "Remarks")}>
+                          <textarea
+                            value={comment}
+                            onChange={(event) => setComment(event.target.value)}
+                            rows="5"
+                            className="form-input"
+                            placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks if needed.")}
                           />
-                        )
-                      ) : (
-                        approvalSupportDecision && (
-                          <SimpleWysiwygEditor
-                            label={t("workspace.memo.editorLabel", "Memo Content")}
-                            value={approvalDecisionDraft}
-                            onChange={setApprovalDecisionDraft}
-                            max={12000}
-                          />
-                        )
+                        </Field>
                       )}
                     </>
                   )}
@@ -1433,29 +1629,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )}
                     {isApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg ? (
                       <>
-                        {isApprovalSupportWorkspace &&
-                          decision === "Approve" &&
-                          approvalDecisionEditable && (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              icon="save"
-                              onClick={saveApprovalDecisionMemo}
-                              disabled={saving}
-                              className="min-w-40"
-                            >
-                              {t("common.save", "Save")}
-                            </Button>
-                          )}
                         <Button
                           onClick={() =>
-                            submitApprovalSupport(canSendSavedApprovalMemoToMphlg ? "Approve" : approvalSupportDecision)
+                            submitApprovalSupport(
+                              isFinalApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg
+                                ? "Approve"
+                                : approvalSupportDecision
+                            )
                           }
                           disabled={
                             saving ||
-                            (!canSendSavedApprovalMemoToMphlg && !approvalSupportDecision) ||
-                            (canSendSavedApprovalMemoToMphlg &&
-                              !(savedApprovalDecisionDraft || savedApprovalDecisionHtml))
+                            (!canSendSavedApprovalMemoToMphlg && !approvalSupportDecision)
                           }
                           variant="primary"
                           icon="send"
@@ -1516,7 +1700,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
               <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
-              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t)} />
+              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t, language)} />
               <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
               <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
               <Info
@@ -1879,10 +2063,7 @@ function createKuIklFinalReviewMemoTemplate(app, technicalSite, decision, commen
     ? "Mohon pihak IKL(TECHNICAL) membuat pindaan dan tindakan selanjutnya."
     : "Mohon pihak KB(LES) membuat pengesahan dan tindakan selanjutnya.";
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
-  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
-    (item) => item.item || item.account_code || item.amount
-  );
-  const feeTotals = getTechnicalFeeTotals(feeItems);
+  const feeSummary = getTechnicalFeeSummary(reviewTechnicalSite);
   const reference = getApplicationReference(app);
   const applicantName = getApplicantName(app);
   const applicationType = getApplicationType(app);
@@ -1947,15 +2128,15 @@ function createKuIklFinalReviewMemoTemplate(app, technicalSite, decision, commen
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Yuran Lesen</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.feeTotal || 0))}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeSummary.feeTotal || 0))}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Deposit</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.depositTotal || 0))}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeSummary.deposit || 0))}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jumlah Perlu Dibayar</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.grandTotal || 0))}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeSummary.totalPayable || 0))}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan</strong></td>
@@ -1976,10 +2157,7 @@ function createIklTechnicalToKuMemoTemplate(app, technicalSite, decision, commen
     year: "numeric",
   }).format(now);
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
-  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
-    (item) => item.item || item.account_code || item.amount
-  );
-  const feeTotals = getTechnicalFeeTotals(feeItems);
+  const feeSummary = getTechnicalFeeSummary(reviewTechnicalSite);
   const reference = getApplicationReference(app);
   const applicantName = getApplicantName(app);
   const applicationType = getApplicationType(app);
@@ -2044,15 +2222,15 @@ function createIklTechnicalToKuMemoTemplate(app, technicalSite, decision, commen
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Yuran Lesen</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.feeTotal || 0))}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeSummary.feeTotal || 0))}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Deposit</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.depositTotal || 0))}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeSummary.deposit || 0))}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jumlah Perlu Dibayar</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeTotals.grandTotal || 0))}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(formatCurrency(feeSummary.totalPayable || 0))}</td>
         </tr>
         <tr>
           <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan</strong></td>
@@ -2067,13 +2245,8 @@ function createIklTechnicalToKuMemoTemplate(app, technicalSite, decision, commen
 
 function createKbLesMemoTemplate(app, technicalSite) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, app);
-  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
-    (item) => item.item || item.account_code || item.amount
-  );
-  const total =
-    getTechnicalFeeTotal(feeItems) ||
-    parseMemoAmount(reviewTechnicalSite.license_fee_calculation) ||
-    parseMemoAmount(reviewTechnicalSite.fee_total);
+  const feeSummary = getTechnicalFeeSummary(reviewTechnicalSite);
+  const total = feeSummary.feeTotal;
   const totalText = formatMemoAmount(total);
   const year = new Date().getFullYear();
   const memoDate = new Intl.DateTimeFormat("ms-MY", {
@@ -2575,6 +2748,86 @@ function createTpResToMphlgMemoTemplate(app) {
   `;
 }
 
+function createTpResToPtIklMemoTemplate(app, remarks = "") {
+  const now = new Date();
+  const year = now.getFullYear();
+  const memoDate = new Intl.DateTimeFormat("ms-MY", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(now);
+  const reference = getApplicationReference(app);
+  const applicantName = getApplicantName(app);
+  const applicationType = getApplicationType(app);
+  const projectName = getProjectName(app);
+  const location = getApplicationLocation(app);
+  const safeRemarks = escapeHtml(remarks || "Permohonan telah diluluskan untuk tindakan PT(IKL).");
+
+  return `
+    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">PT(IKL)</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
+          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">TP(RES)/PGH</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
+          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p><strong><u>KELULUSAN AKHIR TP(RES)/PGH</u></strong></p>
+    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+    <p>Permohonan ${escapeHtml(reference)} telah mendapat kelulusan akhir TP(RES)/PGH dan dikemukakan kepada PT(IKL) untuk penyediaan surat kelulusan dan bil kepada pemohon.</p>
+    <figure class="table"><table style="width:100%;border-collapse:collapse;">
+      <tbody>
+        <tr>
+          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
+        </tr>
+        <tr>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan TP(RES)/PGH</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;">${safeRemarks}</td>
+        </tr>
+      </tbody>
+    </table></figure>
+    <p>Mohon pihak PT(IKL) menjana surat kelulusan dan bil untuk tindakan pemohon.</p>
+    <p>Sekian, terima kasih.</p>
+  `;
+}
+
 function createTpResApprovalDecisionTemplate(officerName) {
   const safeOfficerName = escapeHtml(officerName || "TP(RES)");
 
@@ -2988,7 +3241,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const isApprovalWorkspace = config?.key === "approval";
 
   if (isIklWorkspace && status === "submitted") {
-    return t("status.pt_ikl_review", "PT(IKL) Review");
+    return t("status.ku_ikl_review", "KU(IKL) Review");
   }
 
   if (isIklWorkspace && status === "ku_ikl_review") {
@@ -3000,7 +3253,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   if (isIklWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
-    return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${TECHNICAL_DEPARTMENTS.join(" / ")}`;
+    return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${getTechnicalRouteLabel(app)}`;
   }
 
   if (isDepartmentTechnicalWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
@@ -3083,10 +3336,15 @@ function getWorkspaceDecisionOptions(config, app, department) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "support") {
-    return [
+    const options = [
       { value: "Approve", labelKey: "workspace.decision.approve" },
-      { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
+
+    if (!hasSutApprovalResult(app)) {
+      options.push({ value: "Reject", labelKey: "workspace.decision.reject" });
+    }
+
+    return options;
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "mphlg") {
@@ -3371,7 +3629,6 @@ function getApprovalStageKey(app) {
   const status = normalizeStatus(app?.status);
 
   if (status === "management_review") {
-    if (hasApprovalSupportMemo(app)) return "support";
     if (!isKbLesVerified(app)) return "kb";
     return "support";
   }
@@ -3406,6 +3663,13 @@ function hasManagementSupport(app) {
   return ["supported", "approved", "completed"].includes(status);
 }
 
+function hasSutApprovalResult(app) {
+  const status = String(getApplicationSection(app, "sut_approval")?.status || "")
+    .trim()
+    .toLowerCase();
+  return ["approved", "supported", "completed"].includes(status);
+}
+
 function hasApprovalSupportMemo(app) {
   return Boolean(getApplicationSection(app, "management_recommendation")?.approval_note_html);
 }
@@ -3428,8 +3692,8 @@ function hasMphlgReturnedApprovalForRevision(app) {
   return savedAt <= returnedAt;
 }
 
-function getLocalizedApplicationType(app, t) {
-  const type = getApplicationType(app);
+function getLocalizedApplicationType(app, t, language = "en") {
+  const type = getApplicationType(app, language);
   const normalizedType = String(type || "").trim().toLowerCase();
   const labelMap = {
     "application for site (new site)": "application.type.siteNew",
@@ -3437,6 +3701,10 @@ function getLocalizedApplicationType(app, t) {
     "sitting application": "application.type.sitting",
     "signboard license": "application.type.signboard",
     "building plan": "application.type.buildingPlan",
+    "open space": "application.type.openSpace",
+    "kawasan lapang": "application.type.openSpace",
+    building: "application.type.building",
+    bangunan: "application.type.building",
   };
 
   return labelMap[normalizedType] ? t(labelMap[normalizedType], type) : type;
@@ -3501,6 +3769,98 @@ function getTechnicalFeeTotals(items) {
   }, { feeTotal: 0, depositTotal: 0, grandTotal: 0 });
 }
 
+function parseTechnicalNumber(value) {
+  const number = Number(String(value || "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
+function roundTechnicalNumber(value, decimals = 2) {
+  const factor = 10 ** decimals;
+  return Math.round((Number(value) || 0) * factor) / factor;
+}
+
+function calculateTechnicalFee(site = {}) {
+  const widthFt = parseTechnicalNumber(site.width_ft);
+  const heightFt = parseTechnicalNumber(site.height_ft);
+  const areaSqft = widthFt > 0 && heightFt > 0 ? widthFt * heightFt : 0;
+  const areaSqm = areaSqft * SQFT_TO_SQM;
+  const firstAreaSqm = Math.min(areaSqm, TECHNICAL_FIRST_AREA_SQM);
+  const additionalAreaSqm = Math.max(areaSqm - TECHNICAL_FIRST_AREA_SQM, 0);
+  const firstAreaFee = firstAreaSqm * TECHNICAL_FIRST_AREA_RATE;
+  const additionalAreaFee = additionalAreaSqm * TECHNICAL_ADDITIONAL_AREA_RATE;
+  const feeTotal = firstAreaFee + additionalAreaFee;
+
+  return {
+    areaSqft: roundTechnicalNumber(areaSqft, 2),
+    areaSqm,
+    chargeableAreaSqm: areaSqm,
+    firstAreaSqm,
+    additionalAreaSqm,
+    firstAreaFee,
+    additionalAreaFee,
+    feeTotal,
+    deposit: TECHNICAL_FIXED_DEPOSIT,
+    processingFee: TECHNICAL_PROCESSING_FEE,
+    totalPayable: feeTotal + TECHNICAL_FIXED_DEPOSIT + TECHNICAL_PROCESSING_FEE,
+  };
+}
+
+function getTechnicalFeeSummary(site = {}) {
+  const calculated = calculateTechnicalFee(site);
+  const hasCalculatedSize = calculated.areaSqft > 0;
+  const feeTotal =
+    hasCalculatedSize
+      ? calculated.feeTotal
+      : parseMemoAmount(site.license_fee_calculation) || parseMemoAmount(site.fee_total);
+  const deposit =
+    parseMemoAmount(site.deposit_calculation) || calculated.deposit || TECHNICAL_FIXED_DEPOSIT;
+  const processingFee =
+    parseMemoAmount(site.processing_fee_calculation) ||
+    calculated.processingFee ||
+    TECHNICAL_PROCESSING_FEE;
+  const totalPayable =
+    hasCalculatedSize
+      ? calculated.totalPayable
+      : parseMemoAmount(site.payable_total) || feeTotal + deposit + processingFee;
+
+  return {
+    feeTotal,
+    deposit,
+    processingFee,
+    totalPayable,
+  };
+}
+
+function formatTechnicalArea(value) {
+  const rounded = roundTechnicalNumber(value, 2);
+  return rounded.toLocaleString("en-MY", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatTechnicalCurrency(value) {
+  return formatCurrency(value).replace(/^RM\s+/, "RM");
+}
+
+function mergeTechnicalFeeCalculation(site = {}) {
+  const fees = calculateTechnicalFee(site);
+  return {
+    ...site,
+    area_sqft: fees.areaSqft ? String(fees.areaSqft) : "",
+    area_sqm: fees.areaSqm ? String(fees.areaSqm) : "",
+    chargeable_area_sqm: fees.chargeableAreaSqm ? String(fees.chargeableAreaSqm) : "",
+    first_area_fee: fees.firstAreaFee ? String(fees.firstAreaFee) : "",
+    additional_area_sqm: fees.additionalAreaSqm ? String(fees.additionalAreaSqm) : "0",
+    additional_area_fee: fees.additionalAreaFee ? String(fees.additionalAreaFee) : "0",
+    fee_total: fees.feeTotal ? String(fees.feeTotal) : "",
+    payable_total: fees.feeTotal ? String(fees.totalPayable) : "",
+    license_fee_calculation: fees.feeTotal ? String(fees.feeTotal) : "",
+    deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
+    processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
+  };
+}
+
 function createKuTechnicalChecks(savedChecks = {}) {
   return KU_TECHNICAL_CHECK_KEYS.reduce((checks, key) => ({
     ...checks,
@@ -3518,6 +3878,7 @@ function buildIklScreeningPayload(app, data) {
   const sendTechnical = data.decision === "KU(IKL) Confirm - Send to Technical Units";
   const correctionRequired = reject || technicalAmendment;
   const previousAutoScreening = app.form_data?.auto_screening || {};
+  const selectedTechnicalDepartments = getApplicationTypeTechnicalDepartments(app);
 
   return {
     status: reject
@@ -3546,10 +3907,18 @@ function buildIklScreeningPayload(app, data) {
             status: "Referred",
             source: "KU(IKL)",
             target: KU_TECHNICAL_MEMO_RECIPIENT,
+            participating_departments: selectedTechnicalDepartments,
             memo_html: data.memoHtml || app.form_data?.technical_referral?.memo_html || "",
             referred_at: now,
           }
         : app.form_data?.technical_referral || null,
+      technical_department_selection: sendTechnical
+        ? {
+            departments: selectedTechnicalDepartments,
+            selected_by: "Application Type",
+            selected_at: now,
+          }
+        : app.form_data?.technical_department_selection || null,
       correction_request: correctionRequired
         ? {
             source: data.decision.includes("KU") ? "KU(IKL)" : "PT(IKL)",
@@ -3563,8 +3932,7 @@ function buildIklScreeningPayload(app, data) {
 
 function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
-  const feeItems = normalizeTechnicalFeeItems(data.technicalSite.fee_items);
-  const feeTotals = getTechnicalFeeTotals(feeItems);
+  const technicalFee = calculateTechnicalFee(data.technicalSite);
   const notSupported = data.decision === "Not Supported";
 
   return {
@@ -3589,11 +3957,21 @@ function buildIklTechnicalDecisionPayload(app, data) {
         site_photos: data.technicalSite.site_photos || [],
         site_photo: data.technicalSite.site_photos?.[0] || null,
         fee_date: data.technicalSite.fee_date || new Date().toISOString().slice(0, 10),
-        fee_items: feeItems,
-        fee_total: feeTotals.feeTotal,
-        payable_total: feeTotals.grandTotal,
-        license_fee_calculation: feeTotals.feeTotal ? String(feeTotals.feeTotal) : data.technicalSite.license_fee_calculation,
-        deposit_calculation: feeTotals.depositTotal ? String(feeTotals.depositTotal) : data.technicalSite.deposit_calculation,
+        fee_items: [],
+        width_ft: data.technicalSite.width_ft || "",
+        height_ft: data.technicalSite.height_ft || "",
+        area_sqft: technicalFee.areaSqft ? String(technicalFee.areaSqft) : "",
+        area_sqm: technicalFee.areaSqm ? String(technicalFee.areaSqm) : "",
+        chargeable_area_sqm: technicalFee.chargeableAreaSqm ? String(technicalFee.chargeableAreaSqm) : "",
+        first_area_sqm: technicalFee.firstAreaSqm ? String(technicalFee.firstAreaSqm) : "",
+        first_area_fee: technicalFee.firstAreaFee ? String(technicalFee.firstAreaFee) : "",
+        additional_area_sqm: technicalFee.additionalAreaSqm ? String(technicalFee.additionalAreaSqm) : "0",
+        additional_area_fee: technicalFee.additionalAreaFee ? String(technicalFee.additionalAreaFee) : "0",
+        fee_total: technicalFee.feeTotal,
+        payable_total: technicalFee.totalPayable,
+        license_fee_calculation: technicalFee.feeTotal ? String(technicalFee.feeTotal) : "",
+        deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
+        processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
         site_remarks: data.technicalSite.site_remarks || data.comment,
         officer_role: "PT/PO/KP Unit Iklan",
         visited_at: now,
@@ -3699,15 +4077,17 @@ function buildApprovalWorkflowPayload(app, data) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    const finalApproval = hasSutApprovalResult(app);
     const approvalDecisionHtml =
       data.approvalDecisionHtml ||
       app.form_data?.approval?.approval_note_html ||
       app.form_data?.management_recommendation?.approval_note_html ||
+      (finalApproval ? data.memoHtml : "") ||
       "";
     const approvalDecisionRemarks = getHtmlPlainText(approvalDecisionHtml);
 
     return {
-      status: rejected ? "technical_review_completed" : "mphlg_processing",
+      status: rejected ? "technical_review_completed" : finalApproval ? "approved" : "mphlg_processing",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: rejected
         ? data.comment || approvalDecisionRemarks || app.latest_remark || ""
@@ -3722,7 +4102,7 @@ function buildApprovalWorkflowPayload(app, data) {
           approval_note_html: approvalDecisionHtml,
           decided_at: now,
         },
-        mphlg_gateway: rejected
+        mphlg_gateway: rejected || finalApproval
           ? app.form_data?.mphlg_gateway || null
           : {
               ...(app.form_data?.mphlg_gateway || {}),
@@ -3740,7 +4120,18 @@ function buildApprovalWorkflowPayload(app, data) {
               requested_at: now,
             }
           : app.form_data?.correction_request || null,
-        approval: rejected ? null : app.form_data?.approval || null,
+        approval: rejected || !finalApproval
+          ? app.form_data?.approval || null
+          : {
+              ...(app.form_data?.approval || {}),
+              officer: department,
+              status: "Approved",
+              decision,
+              remarks: data.comment,
+              memo_html: data.memoHtml || app.form_data?.approval?.memo_html || "",
+              approval_note_html: approvalDecisionHtml,
+              approved_at: now,
+            },
       }),
     };
   }
@@ -3857,13 +4248,118 @@ function getTechnicalDepartmentReviews(app) {
   );
 }
 
+function normalizeTechnicalDepartmentSelection(departments) {
+  const selected = Array.isArray(departments) ? departments : [];
+  return TECHNICAL_DEPARTMENTS.filter((department) =>
+    selected.some((value) => normalizeDepartmentCode(value) === department)
+  );
+}
+
+function normalizeApplicationTypeOptions(value) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return [
+    ...new Set(
+      values
+        .flatMap((item) => String(item || "").split(","))
+        .map((item) => item.trim().toLowerCase())
+        .filter((item) => Object.prototype.hasOwnProperty.call(APPLICATION_TYPE_TECHNICAL_DEPARTMENTS, item))
+    ),
+  ];
+}
+
+function getApplicationTypeOptionsFromApplication(app) {
+  const step1 = app?.form_data?.step_1 || {};
+  const selected = normalizeApplicationTypeOptions(
+    step1.application_type_options || step1.application_type
+  );
+  return selected.length > 0 ? selected : ["open_space"];
+}
+
+function getApplicationTypeOptionLabel(type, language = "en") {
+  const labels = {
+    open_space: {
+      en: "Open Space",
+      ms: "Kawasan Lapang",
+    },
+    building: {
+      en: "Building",
+      ms: "Bangunan",
+    },
+  };
+
+  return labels[type]?.[language === "ms" ? "ms" : "en"] || type;
+}
+
+function getApplicationTypeOptionsLabel(types, language = "en") {
+  return normalizeApplicationTypeOptions(types)
+    .map((type) => getApplicationTypeOptionLabel(type, language))
+    .join(", ");
+}
+
+function getApplicationTypeTechnicalDepartmentsFromTypes(types) {
+  const departments = normalizeApplicationTypeOptions(types).flatMap(
+    (type) => APPLICATION_TYPE_TECHNICAL_DEPARTMENTS[type] || []
+  );
+  return normalizeTechnicalDepartmentSelection(departments);
+}
+
+function getApplicationTypeTechnicalDepartments(app) {
+  const departments = getApplicationTypeTechnicalDepartmentsFromTypes(
+    getApplicationTypeOptionsFromApplication(app)
+  );
+
+  return normalizeTechnicalDepartmentSelection(departments.length > 0 ? departments : TECHNICAL_DEPARTMENTS);
+}
+
+function getSelectedTechnicalDepartments(app) {
+  const selection =
+    app?.technical_department_selection ||
+    app?.form_data?.technical_department_selection ||
+    {};
+  const selectedDepartments = normalizeTechnicalDepartmentSelection(selection.departments);
+  if (selectedDepartments.length > 0 || hasTechnicalDepartmentSelection(app)) {
+    return selectedDepartments;
+  }
+
+  return normalizeTechnicalDepartmentSelection(
+    app?.technical_referral?.participating_departments ||
+      app?.form_data?.technical_referral?.participating_departments
+  );
+}
+
+function hasTechnicalDepartmentSelection(app) {
+  const selection =
+    app?.technical_department_selection ||
+    app?.form_data?.technical_department_selection;
+  return Boolean(
+    selection &&
+      typeof selection === "object" &&
+      Object.prototype.hasOwnProperty.call(selection, "departments")
+  );
+}
+
+function isTechnicalDepartmentSelected(app, department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (!TECHNICAL_DEPARTMENTS.includes(normalizedDepartment)) return false;
+
+  return getSelectedTechnicalDepartments(app).includes(normalizedDepartment);
+}
+
+function getTechnicalRouteLabel(app) {
+  const selected = getSelectedTechnicalDepartments(app);
+  const route = ["IKL (TECHNICAL)", ...selected];
+  return route.join(" / ");
+}
+
 function hasTechnicalDepartmentReview(app, department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   return Boolean(getTechnicalDepartmentReviews(app)?.[normalizedDepartment]);
 }
 
 function areAllTechnicalDepartmentReviewsComplete(app) {
-  return TECHNICAL_DEPARTMENTS.every((department) =>
+  if (!hasTechnicalDepartmentSelection(app)) return false;
+
+  return getSelectedTechnicalDepartments(app).every((department) =>
     hasTechnicalDepartmentReview(app, department)
   );
 }
@@ -4656,6 +5152,7 @@ function buildScreeningChecks(app) {
 
 function IklWorkspaceSections({
   t,
+  language,
   config,
   selectedRecord,
   decision,
@@ -4664,12 +5161,25 @@ function IklWorkspaceSections({
   setComment,
   technicalSite,
   setTechnicalSite,
+  technicalApplicationTypeSelection,
+  setTechnicalApplicationTypeSelection,
+  saveTechnicalApplicationTypeSelection,
+  saveTechnicalSiteVisitDraft,
   saving,
   submitAction,
+  commentError,
+  setCommentError,
+  technicalSizeError,
+  setTechnicalSizeError,
   userDepartment,
 }) {
   const status = normalizeStatus(selectedRecord.status);
   const allDepartmentReviewsComplete = areAllTechnicalDepartmentReviewsComplete(selectedRecord);
+  const hasSavedDepartmentSelection = hasTechnicalDepartmentSelection(selectedRecord);
+  const selectedTechnicalDepartments = getSelectedTechnicalDepartments(selectedRecord);
+  const pendingTechnicalDepartments = selectedTechnicalDepartments.filter(
+    (department) => !hasTechnicalDepartmentReview(selectedRecord, department)
+  );
   const showScreeningDecision = ["submitted", "incomplete", "ku_ikl_review"].includes(status);
   const showTechnicalFinalDecision = [
     "technical_review",
@@ -4685,6 +5195,11 @@ function IklWorkspaceSections({
     config.kuTechnicalReview?.defaultDecision || ""
   );
   const [kuRemarks, setKuRemarks] = useState("");
+  const [technicalDecision, setTechnicalDecision] = useState(
+    config.technicalActions?.[0]?.decision || ""
+  );
+  const technicalSiteSaveTimerRef = useRef(null);
+  const latestTechnicalSiteRef = useRef(technicalSite);
   const [kuChecks, setKuChecks] = useState(() =>
     createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks)
   );
@@ -4694,6 +5209,17 @@ function IklWorkspaceSections({
     userDepartment
   );
   const screeningCopy = getIklScreeningCopy(userDepartment);
+  const selectedTechnicalAction = config.technicalActions.find(
+    (action) => action.decision === technicalDecision
+  );
+  const technicalDecisionMustWait =
+    (!hasSavedDepartmentSelection || !allDepartmentReviewsComplete) &&
+    selectedTechnicalAction?.decision !== "Not Supported";
+  const technicalDecisionDisabled =
+    saving ||
+    !selectedTechnicalAction ||
+    Boolean(selectedTechnicalAction.disabled) ||
+    technicalDecisionMustWait;
 
   useEffect(() => {
     const hasDecision = screeningDecisionOptions.some(
@@ -4704,8 +5230,62 @@ function IklWorkspaceSections({
     }
   }, [decision, screeningDecisionOptions, setDecision]);
 
+  useEffect(() => {
+    const savedDecision =
+      selectedRecord.form_data?.technical_review?.final_decision ||
+      selectedRecord.form_data?.technical_review?.decision ||
+      "";
+    const hasSavedDecision = config.technicalActions.some(
+      (action) => action.decision === savedDecision
+    );
+
+    setTechnicalDecision(
+      hasSavedDecision
+        ? savedDecision
+        : config.technicalActions?.[0]?.decision || ""
+    );
+  }, [config.technicalActions, selectedRecord.id, selectedRecord.form_data?.technical_review]);
+
+  useEffect(() => {
+    latestTechnicalSiteRef.current = technicalSite;
+  }, [technicalSite]);
+
+  useEffect(() => {
+    return () => {
+      if (technicalSiteSaveTimerRef.current) {
+        window.clearTimeout(technicalSiteSaveTimerRef.current);
+      }
+    };
+  }, []);
+
   function updateKuCheck(key, checked) {
     setKuChecks((prev) => ({ ...prev, [key]: checked }));
+  }
+
+  function handleTechnicalApplicationTypeToggle(type, checked) {
+    const nextSelection = normalizeApplicationTypeOptions(
+      checked ? [type] : technicalApplicationTypeSelection.filter((item) => item !== type)
+    );
+
+    if (nextSelection.length === 0) {
+      setError(t("workspace.technical.applicationTypeRequired", "Please select at least one application type."));
+      return;
+    }
+
+    setTechnicalApplicationTypeSelection(nextSelection);
+    saveTechnicalApplicationTypeSelection(nextSelection);
+  }
+
+  function scheduleTechnicalSiteVisitDraftSave(nextSite) {
+    latestTechnicalSiteRef.current = nextSite;
+
+    if (technicalSiteSaveTimerRef.current) {
+      window.clearTimeout(technicalSiteSaveTimerRef.current);
+    }
+
+    technicalSiteSaveTimerRef.current = window.setTimeout(() => {
+      saveTechnicalSiteVisitDraft(nextSite);
+    }, 600);
   }
 
   async function handleSitePhotoUpload(files) {
@@ -4722,10 +5302,20 @@ function IklWorkspaceSections({
       )
     );
 
-    setTechnicalSite((prev) => ({
-      ...prev,
-      site_photos: [...(prev.site_photos || []), ...sitePhotos],
-    }));
+    if (technicalSiteSaveTimerRef.current) {
+      window.clearTimeout(technicalSiteSaveTimerRef.current);
+    }
+
+    const nextSite = {
+      ...latestTechnicalSiteRef.current,
+      site_photos: [...(latestTechnicalSiteRef.current.site_photos || []), ...sitePhotos],
+    };
+
+    setTechnicalSite(nextSite);
+    latestTechnicalSiteRef.current = nextSite;
+    saveTechnicalSiteVisitDraft({
+      ...nextSite,
+    });
   }
 
   return (
@@ -4784,114 +5374,199 @@ function IklWorkspaceSections({
 
       {showTechnicalFinalDecision && (
         <section className="space-y-3">
+          {userDepartment === "IKL (TECHNICAL)" && (
+            <TechnicalApplicationTypePanel
+              t={t}
+              language={language}
+              selectedTypes={technicalApplicationTypeSelection}
+              derivedDepartments={getApplicationTypeTechnicalDepartmentsFromTypes(
+                technicalApplicationTypeSelection
+              )}
+              saving={saving}
+              onToggle={handleTechnicalApplicationTypeToggle}
+            />
+          )}
+
           <TechnicalSiteVisitFields
             t={t}
             applicationId={selectedRecord.id}
             value={technicalSite}
             onChange={setTechnicalSite}
             onFileChange={handleSitePhotoUpload}
+            onDraftChange={scheduleTechnicalSiteVisitDraftSave}
+            sizeError={technicalSizeError}
+            onSizeErrorChange={setTechnicalSizeError}
           />
 
-          {!allDepartmentReviewsComplete && (
+          {hasSavedDepartmentSelection && !allDepartmentReviewsComplete && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[14px] font-medium leading-5 text-amber-800">
-              {t("workspace.technical.awaitingDepartmentReviews")}
+              {t(
+                "workspace.technical.awaitingSelectedDepartmentReviews",
+                "Awaiting selected department reviews."
+              )}
+              {pendingTechnicalDepartments.length > 0 && (
+                <span> {pendingTechnicalDepartments.join(", ")}</span>
+              )}
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {config.technicalActions.map((action) => {
-              const mustWaitForDepartmentFeedback =
-                !allDepartmentReviewsComplete && action.decision !== "Not Supported";
+          {!hasSavedDepartmentSelection && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-[14px] font-medium leading-5 text-amber-800">
+              {t(
+                "workspace.technical.saveDepartmentSelectionFirst",
+                "Save the participating departments before completing IKL Technical review."
+              )}
+            </div>
+          )}
 
-              return (
+          <div className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="space-y-3">
+              <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
+                <select
+                  value={technicalDecision}
+                  onChange={(event) => setTechnicalDecision(event.target.value)}
+                  className="form-input min-h-10 max-w-xl"
+                >
+                  {config.technicalActions.map((action) => (
+                    <option key={action.decision} value={action.decision}>
+                      {t(action.labelKey, action.label)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label={t("workspace.technical.siteRemarks")}>
+                <textarea
+                  value={technicalSite.site_remarks}
+                  onChange={(event) => {
+                    if (commentError) setCommentError("");
+                    setTechnicalSite((prev) => ({
+                      ...prev,
+                      site_remarks: event.target.value,
+                    }));
+                  }}
+                  rows="4"
+                  className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  placeholder={t("workspace.technical.siteRemarksPlaceholder")}
+                />
+                {commentError && (
+                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                    {commentError}
+                  </p>
+                )}
+              </Field>
+
+              <div className="flex justify-end border-t border-slate-100 pt-3">
                 <Button
-                  key={action.label}
+                  icon="fact_check"
+                  disabled={technicalDecisionDisabled}
                   onClick={() => {
-                    if (action.disabled || mustWaitForDepartmentFeedback) return;
+                    if (technicalDecisionDisabled) return;
 
-                    submitAction(action, {
+                    submitAction(selectedTechnicalAction, {
                       comment: technicalSite.site_remarks,
                       checkDecisionRemark: true,
                     });
                   }}
-                  disabled={saving || mustWaitForDepartmentFeedback || action.disabled}
-                  variant={action.variant || "primary"}
-                  icon={action.icon}
-                  className="w-full"
+                  className="w-full sm:w-auto"
                 >
-                  {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+                  {saving
+                    ? t("workspace.saving")
+                    : t("common.submit", "Submit")}
                 </Button>
-              );
-            })}
+              </div>
+            </div>
           </div>
         </section>
       )}
 
       {showKuTechnicalReview && config.kuTechnicalReview && (
-        <section className="rounded-md border border-slate-200 bg-white p-3">
-          <div className="mb-3">
-            <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-              {t("workspace.technical.kuFurtherTitle", "KU(IKL) Further Checking")}
-            </h3>
-            <p className="mt-1 text-[14px] leading-5 text-slate-500">
-              {t("workspace.technical.kuReviewDesc")}
-            </p>
-          </div>
+        <>
+          <TechnicalApplicationTypePanel
+            t={t}
+            language={language}
+            selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+            derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
+            saving={false}
+            onToggle={() => {}}
+            readOnly
+          />
 
-          <div className="space-y-3">
-            <KuTechnicalFurtherReviewPanel
-              t={t}
-              selectedRecord={selectedRecord}
-              technicalSite={reviewTechnicalSite}
-              checks={kuChecks}
-              onCheckChange={updateKuCheck}
-            />
+          <TechnicalSiteVisitFields
+            t={t}
+            applicationId={selectedRecord.id}
+            value={reviewTechnicalSite}
+            onChange={() => {}}
+            onFileChange={() => {}}
+            readOnly
+          />
 
-            <Field label={t("common.decision")}>
-              <select
-                value={kuDecision}
-                onChange={(event) => setKuDecision(event.target.value)}
-                className="form-input max-w-64"
-              >
-                {config.kuTechnicalReview.decisions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {t(item.labelKey, item.value)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label={t("workspace.comment.remarks")}>
-              <textarea
-                value={kuRemarks}
-                onChange={(event) => setKuRemarks(event.target.value)}
-                rows="4"
-                className="form-input"
-                placeholder={t("workspace.technical.kuReviewPlaceholder")}
-              />
-            </Field>
-
-            <div className="flex justify-end">
-              <Button
-                icon={config.kuTechnicalReview.action.icon}
-                disabled={saving}
-                onClick={() =>
-                  submitAction(config.kuTechnicalReview.action, {
-                    decision: kuDecision,
-                    comment: kuRemarks,
-                    kuChecks,
-                    checkDecisionRemark: true,
-                  })
-                }
-                className="w-full sm:w-auto"
-              >
-                {saving
-                  ? t("workspace.saving")
-                  : t("common.submit", "Submit")}
-              </Button>
+          <section className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="mb-3">
+              <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+                {t("workspace.technical.kuFurtherTitle", "KU(IKL) Further Checking")}
+              </h3>
+              <p className="mt-1 text-[14px] leading-5 text-slate-500">
+                {t("workspace.technical.kuReviewDesc")}
+              </p>
             </div>
-          </div>
-        </section>
+
+            <div className="space-y-3">
+              <KuTechnicalFurtherReviewPanel
+                t={t}
+                selectedRecord={selectedRecord}
+                technicalSite={reviewTechnicalSite}
+                checks={kuChecks}
+                onCheckChange={updateKuCheck}
+                compact
+              />
+
+              <Field label={t("common.decision")}>
+                <select
+                  value={kuDecision}
+                  onChange={(event) => setKuDecision(event.target.value)}
+                  className="form-input max-w-64"
+                >
+                  {config.kuTechnicalReview.decisions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {t(item.labelKey, item.value)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label={t("workspace.comment.remarks")}>
+                <textarea
+                  value={kuRemarks}
+                  onChange={(event) => setKuRemarks(event.target.value)}
+                  rows="4"
+                  className="form-input"
+                  placeholder={t("workspace.technical.kuReviewPlaceholder")}
+                />
+              </Field>
+
+              <div className="flex justify-end">
+                <Button
+                  icon={config.kuTechnicalReview.action.icon}
+                  disabled={saving}
+                  onClick={() =>
+                    submitAction(config.kuTechnicalReview.action, {
+                      decision: kuDecision,
+                      comment: kuRemarks,
+                      kuChecks,
+                      checkDecisionRemark: true,
+                    })
+                  }
+                  className="w-full sm:w-auto"
+                >
+                  {saving
+                    ? t("workspace.saving")
+                    : t("common.submit", "Submit")}
+                </Button>
+              </div>
+            </div>
+          </section>
+        </>
       )}
 
       {showStandaloneTechnicalDepartmentRemarks && (
@@ -4915,17 +5590,32 @@ function getReviewTechnicalSite(technicalSite, selectedRecord) {
     technicalSite.fee_items || saved.fee_items
   );
   const feeTotals = getTechnicalFeeTotals(feeItems);
+  const calculatedFees = calculateTechnicalFee({
+    ...saved,
+    ...technicalSite,
+  });
 
   return {
     site_photos: currentPhotos.length > 0 ? currentPhotos : savedPhotos,
     fee_date: technicalSite.fee_date || saved.fee_date || "",
     fee_items: feeItems,
-    fee_total: feeTotals.feeTotal || saved.fee_total || "",
-    payable_total: feeTotals.grandTotal || saved.payable_total || "",
+    width_ft: technicalSite.width_ft || saved.width_ft || "",
+    height_ft: technicalSite.height_ft || saved.height_ft || "",
+    area_sqft: calculatedFees.areaSqft || saved.area_sqft || "",
+    area_sqm: calculatedFees.areaSqm || saved.area_sqm || "",
+    chargeable_area_sqm: calculatedFees.chargeableAreaSqm || saved.chargeable_area_sqm || "",
+    first_area_sqm: calculatedFees.firstAreaSqm || saved.first_area_sqm || "",
+    first_area_fee: calculatedFees.firstAreaFee || saved.first_area_fee || "",
+    additional_area_sqm: calculatedFees.additionalAreaSqm || saved.additional_area_sqm || "0",
+    additional_area_fee: calculatedFees.additionalAreaFee || saved.additional_area_fee || "0",
+    fee_total: calculatedFees.feeTotal || feeTotals.feeTotal || saved.fee_total || "",
+    payable_total: calculatedFees.totalPayable || feeTotals.grandTotal || saved.payable_total || "",
     license_fee_calculation:
-      technicalSite.license_fee_calculation || saved.license_fee_calculation || (feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
+      technicalSite.license_fee_calculation || saved.license_fee_calculation || (calculatedFees.feeTotal ? String(calculatedFees.feeTotal) : feeTotals.feeTotal ? String(feeTotals.feeTotal) : ""),
     deposit_calculation:
-      technicalSite.deposit_calculation || saved.deposit_calculation || (feeTotals.depositTotal ? String(feeTotals.depositTotal) : ""),
+      technicalSite.deposit_calculation || saved.deposit_calculation || String(TECHNICAL_FIXED_DEPOSIT),
+    processing_fee_calculation:
+      technicalSite.processing_fee_calculation || saved.processing_fee_calculation || String(TECHNICAL_PROCESSING_FEE),
     site_remarks:
       technicalSite.site_remarks ||
       saved.site_remarks ||
@@ -4979,27 +5669,106 @@ function getIklScreeningCopy(department) {
   };
 }
 
+function TechnicalApplicationTypePanel({
+  t,
+  language,
+  selectedTypes,
+  derivedDepartments,
+  saving,
+  onToggle,
+  readOnly = false,
+}) {
+  const selectedType = normalizeApplicationTypeOptions(selectedTypes)[0] || "";
+  const selectedSet = new Set(selectedType ? [selectedType] : []);
+  const departmentLabel =
+    derivedDepartments.length > 0
+      ? derivedDepartments.join(", ")
+      : t("workspace.technical.noExternalDepartments", "No external departments selected");
+  const showApplicationTypeMeta = !readOnly;
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="mb-3">
+        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+          {t("workspace.technical.applicationTypeTitle", "Application Type")}
+        </h3>
+        {showApplicationTypeMeta && (
+          <p className="mt-1 text-[14px] leading-5 text-slate-500">
+            {t(
+              "workspace.technical.applicationTypeDesc",
+              "Correct the application type if needed. The participating departments will follow the selected type."
+            )}
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {APPLICATION_TYPE_OPTIONS.map((type) => (
+          <label
+            key={type}
+            className={`flex min-h-10 w-full items-center gap-2 rounded-md border px-3 py-2 text-[14px] font-semibold leading-5 sm:w-56 ${
+              selectedSet.has(type)
+                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            } ${saving || readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+          >
+            <input
+              type="checkbox"
+              checked={selectedSet.has(type)}
+              disabled={saving || readOnly}
+              onChange={(event) => onToggle(type, event.target.checked)}
+              className="h-4 w-4 accent-emerald-700"
+            />
+            {getApplicationTypeOptionLabel(type, language)}
+          </label>
+        ))}
+      </div>
+
+      {showApplicationTypeMeta && (
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1 text-[13px] leading-5 text-slate-600">
+            <p>
+              <span className="font-semibold text-slate-700">
+                {t("workspace.technical.derivedDepartments", "Departments involved")}:
+              </span>{" "}
+              {departmentLabel}
+            </p>
+          </div>
+          {saving && (
+            <span className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold leading-5 text-emerald-700">
+              <Icon name="sync" className="text-[18px]" />
+              {t("workspace.saving")}
+            </span>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function KuTechnicalFurtherReviewPanel({
   t,
   selectedRecord,
   technicalSite,
   checks,
   onCheckChange,
+  compact = false,
   readOnly = false,
 }) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
   const formData = selectedRecord.form_data || {};
   const step1 = formData.step_1 || {};
   const technicalReview = formData.technical_review || {};
-  const completedDepartmentCount = TECHNICAL_DEPARTMENTS.filter(
+  const selectedDepartments = getSelectedTechnicalDepartments(selectedRecord);
+  const reviewDepartments = hasTechnicalDepartmentSelection(selectedRecord)
+    ? selectedDepartments
+    : TECHNICAL_DEPARTMENTS;
+  const completedDepartmentCount = reviewDepartments.filter(
     (department) => hasTechnicalDepartmentReview(selectedRecord, department)
   ).length;
   const completedText = t("workspace.technical.completedDepartments", "{count} of {total} completed")
     .replace("{count}", String(completedDepartmentCount))
-    .replace("{total}", String(TECHNICAL_DEPARTMENTS.length));
-  const feeItems = normalizeTechnicalFeeItems(reviewTechnicalSite.fee_items).filter(
-    (item) => item.item || item.account_code || item.amount
-  );
+    .replace("{total}", String(reviewDepartments.length));
   const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
     ? reviewTechnicalSite.site_photos
     : [];
@@ -5009,94 +5778,72 @@ function KuTechnicalFurtherReviewPanel({
     ["fees", t("workspace.technical.checkFees")],
     ["departments", t("workspace.technical.checkDepartments")],
   ];
+  const iklTechnicalRemarks =
+    reviewTechnicalSite.site_remarks ||
+    technicalReview.comment ||
+    technicalReview.remarks ||
+    "";
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border border-slate-200 bg-white p-3">
-        <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-          {t("workspace.technical.iklSubmissionSummary")}
-        </h4>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Info
-            label={t("common.reference")}
-            value={getApplicationReference(selectedRecord)}
-          />
-          <Info
-            label={t("common.project")}
-            value={getProjectName(selectedRecord)}
-          />
-          <Info
-            label={t("workspace.location")}
-            value={getApplicationLocation(selectedRecord)}
-          />
-          <Info
-            label={t("workspace.technical.coordinates", "Coordinates")}
-            value={getApplicationCoordinates(step1)}
-          />
-          <Info
-            label={t("common.decision")}
-            value={formatDecisionValue(technicalReview.final_decision || technicalReview.decision, t)}
-          />
-          <Info
-            label={t("workspace.technical.departmentFeedbackStatus")}
-            value={completedText}
-          />
-          <Info
-            label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
-            value={formatDateTime(formData.technical_site_visit?.visited_at)}
-          />
-          <Info
-            label={t("workspace.technical.siteRemarks")}
-            value={
-              reviewTechnicalSite.site_remarks ||
-              technicalReview.comment ||
-              technicalReview.remarks ||
-              "-"
-            }
-          />
-        </div>
-      </div>
-
+      {!compact && (
         <div className="rounded-md border border-slate-200 bg-white p-3">
-          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
-              {t("workspace.technical.feeBreakdown")}
-            </h4>
-            <p className="text-[15px] font-semibold leading-6 text-slate-950">
-              {t("workspace.technical.grandTotal")}: {formatCurrency(getTechnicalPayableTotal(feeItems))}
-            </p>
+          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
+            {t("workspace.technical.iklSubmissionSummary")}
+          </h4>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Info
+              label={t("common.reference")}
+              value={getApplicationReference(selectedRecord)}
+            />
+            <Info
+              label={t("common.project")}
+              value={getProjectName(selectedRecord)}
+            />
+            <Info
+              label={t("workspace.location")}
+              value={getApplicationLocation(selectedRecord)}
+            />
+            <Info
+              label={t("workspace.technical.coordinates", "Coordinates")}
+              value={getApplicationCoordinates(step1)}
+            />
+            <Info
+              label={t("common.decision")}
+              value={formatDecisionValue(technicalReview.final_decision || technicalReview.decision, t)}
+            />
+            <Info
+              label={t("workspace.technical.departmentFeedbackStatus")}
+              value={completedText}
+            />
+            <Info
+              label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
+              value={formatDateTime(formData.technical_site_visit?.visited_at)}
+            />
+            <Info
+              label={t("workspace.technical.siteRemarks")}
+              value={
+                reviewTechnicalSite.site_remarks ||
+                technicalReview.comment ||
+                technicalReview.remarks ||
+                "-"
+              }
+            />
           </div>
-          {feeItems.length === 0 ? (
-            <p className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-              {t("workspace.technical.noFeeItems")}
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-[14px] leading-5">
-                <thead>
-                  <tr className="border-b border-slate-200 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-                    <th className="px-2 py-2">{t("workspace.technical.feeItem")}</th>
-                    <th className="px-2 py-2">{t("workspace.technical.accountCode")}</th>
-                    <th className="px-2 py-2 text-right">{t("workspace.technical.cashChequeAmount")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {feeItems.map((item) => {
-                    const option = getTechnicalFeeOption(item.item);
-                    return (
-                      <tr key={item.id}>
-                        <td className="px-2 py-2">{option?.label || item.item || "-"}</td>
-                        <td className="px-2 py-2">{item.account_code || option?.accountCode || "-"}</td>
-                        <td className="px-2 py-2 text-right">{formatReportAmount(item.amount)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
+      )}
 
+      {!compact && (
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <TechnicalFeeCalculationSheet
+            t={t}
+            value={reviewTechnicalSite}
+            readOnly
+          />
+        </div>
+      )}
+
+      {!compact && (
         <ReportPhotoGrid
           t={t}
           title={t("workspace.technical.siteVisitEvidence")}
@@ -5104,10 +5851,23 @@ function KuTechnicalFurtherReviewPanel({
           applicationId={selectedRecord.id}
           photos={technicalSitePhotos}
         />
+      )}
 
-        <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+      {compact && (
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
+            {t("workspace.technical.iklTechnicalRemarks", "IKL(TECHNICAL) Remarks")}
+          </h4>
+          <p className="mt-2 whitespace-pre-wrap text-[14px] leading-5 text-slate-800">
+            {iklTechnicalRemarks || t("workspace.info.notSubmitted", "Not submitted")}
+          </p>
+        </div>
+      )}
 
-      <div className="rounded-md border border-slate-200 bg-white p-3">
+      <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+
+      {!compact && (
+        <div className="rounded-md border border-slate-200 bg-white p-3">
         <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
           {t("workspace.technical.reviewChecklist")}
         </h4>
@@ -5131,13 +5891,15 @@ function KuTechnicalFurtherReviewPanel({
             </label>
           ))}
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function ApprovalTechnicalReviewSummary({
   t,
+  language,
   selectedRecord,
   technicalSite,
   title,
@@ -5233,7 +5995,7 @@ function ApprovalTechnicalReviewSummary({
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
               <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
-              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t)} />
+              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t, language)} />
               <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
               <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
               <Info
@@ -5317,6 +6079,14 @@ function ApprovalTechnicalReviewSummary({
 
         {!isKbVerificationReport && (
           <>
+            <div className="rounded-md border border-slate-200 bg-white p-3">
+              <TechnicalFeeCalculationSheet
+                t={t}
+                value={reviewTechnicalSite}
+                readOnly
+              />
+            </div>
+
             <ReportPhotoGrid
               t={t}
               title={t("workspace.siteImage", "Applicant Site Image")}
@@ -5467,6 +6237,9 @@ function formatReportAmount(value) {
 
 function TechnicalDepartmentRemarks({ app, t }) {
   const reviews = getTechnicalDepartmentReviews(app);
+  const selectedDepartments = getSelectedTechnicalDepartments(app);
+  const hasSelection = hasTechnicalDepartmentSelection(app);
+  const departments = hasSelection ? selectedDepartments : TECHNICAL_DEPARTMENTS;
 
   return (
     <div className="rounded-md border border-slate-200 bg-white">
@@ -5484,7 +6257,12 @@ function TechnicalDepartmentRemarks({ app, t }) {
           <div>{t("common.status", "Status")}</div>
           <div>{t("workspace.comment.remarks", "Remarks")}</div>
         </div>
-        {TECHNICAL_DEPARTMENTS.map((department) => {
+        {departments.length === 0 && (
+          <div className="px-3 py-3 text-[14px] leading-5 text-slate-500">
+            {t("workspace.technical.noExternalDepartments", "No external departments selected")}
+          </div>
+        )}
+        {departments.map((department) => {
           const review = reviews?.[department];
 
           return (
@@ -5588,56 +6366,28 @@ function getIklScreeningDecisionOptions(decisions, department) {
   return decisions.filter((item) => allowed.has(item.value || item));
 }
 
-function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileChange }) {
+function TechnicalSiteVisitFields({
+  t,
+  applicationId,
+  value,
+  onChange,
+  onFileChange,
+  onDraftChange,
+  readOnly = false,
+  sizeError = "",
+  onSizeErrorChange,
+}) {
   const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
-  const feeItems = normalizeTechnicalFeeItems(value.fee_items);
-  const payableTotal = getTechnicalPayableTotal(feeItems);
   const [deletingIndex, setDeletingIndex] = useState(null);
 
-  function updateField(field, nextValue) {
-    onChange((prev) => ({ ...prev, [field]: nextValue }));
-  }
-
-  function updateFeeItems(nextItems) {
-    const normalizedItems = normalizeTechnicalFeeItems(nextItems);
-    const totals = getTechnicalFeeTotals(normalizedItems);
-
-    onChange((prev) => ({
-      ...prev,
-      fee_items: normalizedItems,
-      fee_total: totals.feeTotal,
-      payable_total: totals.grandTotal,
-      license_fee_calculation: totals.feeTotal ? String(totals.feeTotal) : "",
-      deposit_calculation: totals.depositTotal ? String(totals.depositTotal) : "",
-    }));
-  }
-
-  function updateFeeItem(index, updates) {
-    updateFeeItems(
-      feeItems.map((item, itemIndex) =>
-        itemIndex === index ? { ...item, ...updates } : item
-      )
-    );
-  }
-
-  function handleFeeSelection(index, selectedValue) {
-    const option = getTechnicalFeeOption(selectedValue);
-    updateFeeItem(index, {
-      item: selectedValue,
-      account_code: option?.accountCode || "",
+  function updateSizeField(field, nextValue) {
+    if (readOnly) return;
+    if (sizeError) onSizeErrorChange?.("");
+    onChange((prev) => {
+      const nextSite = mergeTechnicalFeeCalculation({ ...prev, [field]: nextValue });
+      onDraftChange?.(nextSite);
+      return nextSite;
     });
-  }
-
-  function addFeeItem() {
-    updateFeeItems([...feeItems, createTechnicalFeeItem()]);
-  }
-
-  function removeFeeItem(index) {
-    updateFeeItems(
-      feeItems.length > 1
-        ? feeItems.filter((_, itemIndex) => itemIndex !== index)
-        : [createTechnicalFeeItem()]
-    );
   }
 
   async function removePhoto(photo, index) {
@@ -5648,17 +6398,21 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
         await deleteApplicationDocument(applicationId, photo.document_id);
       }
 
-      onChange((prev) => ({
-        ...prev,
-        site_photos: (prev.site_photos || []).filter((_, itemIndex) => itemIndex !== index),
-      }));
+      onChange((prev) => {
+        const nextSite = {
+          ...prev,
+          site_photos: (prev.site_photos || []).filter((_, itemIndex) => itemIndex !== index),
+        };
+        onDraftChange?.(nextSite);
+        return nextSite;
+      });
     } finally {
       setDeletingIndex(null);
     }
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-emerald-100 bg-emerald-50/40 p-3">
+    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
       <div>
         <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
           {t("workspace.technical.siteVisitTitle")}
@@ -5673,23 +6427,30 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
           {t("workspace.technical.sitePhoto")}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-white hover:bg-emerald-800">
-            <Icon name="add_photo_alternate" className="mr-1 text-base" />
-            {t("workspace.technical.uploadSitePhoto")}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(event) => {
-                onFileChange(event.target.files);
-                event.target.value = "";
-              }}
-            />
-          </label>
+          {!readOnly && (
+            <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-white hover:bg-emerald-800">
+              <Icon name="add_photo_alternate" className="mr-1 text-base" />
+              {t("workspace.technical.uploadSitePhoto")}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(event) => {
+                  onFileChange(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          )}
           {sitePhotos.length > 0 && (
             <span className="text-[14px] font-medium leading-5 text-emerald-700">
               {t("workspace.technical.sitePhotoUploaded")}: {sitePhotos.length}
+            </span>
+          )}
+          {readOnly && sitePhotos.length === 0 && (
+            <span className="text-[14px] font-medium leading-5 text-slate-500">
+              {t("workspace.technical.noSitePhoto", "No site photo uploaded.")}
             </span>
           )}
         </div>
@@ -5718,6 +6479,7 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
                     download: t("common.download"),
                     delete: t("common.delete"),
                   }}
+                  hideDelete={readOnly}
                 />
               </div>
             </div>
@@ -5725,104 +6487,306 @@ function TechnicalSiteVisitFields({ t, applicationId, value, onChange, onFileCha
         </div>
       )}
 
-      <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
-        <Field label={t("workspace.technical.feeDate", "Date")} className="max-w-xs">
-          <input
-            type="date"
-            value={value.fee_date || ""}
-            onChange={(event) => updateField("fee_date", event.target.value)}
-            className="form-input min-h-9"
-          />
-        </Field>
+      <TechnicalFeeCalculationSheet
+        t={t}
+        value={value}
+        onSizeChange={updateSizeField}
+        readOnly={readOnly}
+        sizeError={sizeError}
+      />
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-[14px] leading-5">
+    </div>
+  );
+}
+
+function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false, sizeError = "" }) {
+  const technicalFee = calculateTechnicalFee(value);
+  const hasAdvertisementSize = technicalFee.areaSqft > 0;
+
+  return (
+    <section className="pt-2">
+      <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
+        {t("workspace.technical.feeCalculationTitle", "Advertisement Size & Fee Calculation")}
+      </h4>
+
+      <div className="mt-3 rounded-md border border-slate-300 bg-white p-4">
+        <div className="text-center">
+          <p className="text-[13px] font-bold uppercase leading-5 text-slate-950">
+            {t("workspace.technical.scheduleTitle", "SECOND SCHEDULE")}
+          </p>
+          <div className="mt-1 flex items-center justify-center gap-4">
+            <span className="h-px w-24 bg-slate-950" />
+            <p className="text-[19px] font-bold leading-6 text-slate-950">
+              {t("workspace.technical.scheduleFeesTitle", "LICENCE FEES")}
+            </p>
+            <span className="h-px w-24 bg-slate-950" />
+          </div>
+          <p className="mt-1 text-[13px] font-semibold leading-5 text-slate-700">
+            {t("workspace.technical.scheduleBylaws", "(By-laws 9 and 10)")}
+          </p>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[960px] table-fixed overflow-hidden text-[13px] leading-5 text-slate-950">
+            <colgroup>
+              <col className="w-[64px]" />
+              <col className="w-[310px]" />
+              <col className="w-[268px]" />
+              <col className="w-[200px]" />
+              <col className="w-[196px]" />
+            </colgroup>
             <thead>
-              <tr className="border-b border-slate-200 text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-                <th className="px-2 py-2">{t("workspace.technical.feeItem", "Item")}</th>
-                <th className="px-2 py-2">{t("workspace.technical.accountCode", "Account Code")}</th>
-                <th className="px-2 py-2">{t("workspace.technical.cashChequeAmount", "Cash/Cheque (RM)")}</th>
-                <th className="w-12 px-2 py-2 text-right">{t("common.action", "Action")}</th>
+              <tr className="text-center font-bold">
+                <th className="px-3 py-3">{t("common.no", "No.")}</th>
+                <th className="px-3 py-3">
+                  {t("workspace.technical.scheduleAdvertisementType", "Type of Advertisement")}
+                </th>
+                <th className="px-3 py-3">
+                  {t("workspace.technical.scheduleFeePayable", "Fee Payable")}
+                </th>
+                <th className="px-3 py-3">
+                  {t("workspace.technical.scheduleCityLine1", "City/")}
+                  {t("workspace.technical.scheduleCityLine2", "Municipal Council")}
+                </th>
+                <th className="px-3 py-3">
+                  {t("workspace.technical.scheduleDistrictLine1", "District")}{" "}
+                  {t("workspace.technical.scheduleDistrictLine2", "Council")}
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {feeItems.map((item, index) => (
-                <tr key={item.id}>
-                  <td className="px-2 py-2">
-                    <select
-                      value={item.item}
-                      onChange={(event) => handleFeeSelection(index, event.target.value)}
-                      className="form-input min-h-9"
-                    >
-                      <option value="">{t("workspace.technical.selectFeeItem", "-sila pilih-")}</option>
-                      {TECHNICAL_FEE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={item.account_code}
-                      readOnly
-                      className="form-input min-h-9 bg-slate-50 text-slate-600"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      value={item.amount}
-                      onChange={(event) => updateFeeItem(index, { amount: event.target.value })}
-                      className="form-input min-h-9"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => removeFeeItem(index)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
-                      aria-label={t("workspace.technical.removeFeeItem", "Remove item")}
-                    >
-                      <Icon name="remove" className="text-[20px]" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="font-normal">
+              <tr className="align-top">
+                <td className="px-3 py-4 text-center text-[13px] font-normal" rowSpan={2}>1.</td>
+                <td className="px-5 py-4 text-justify font-normal" rowSpan={2}>
+                  {t(
+                    "workspace.technical.scheduleAdvertisementDesc",
+                    "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support"
+                  )}
+                </td>
+                <td className="px-5 py-4 text-justify font-normal">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 shrink-0 font-normal text-slate-950">(a)</span>
+                    <span>
+                      {t("workspace.technical.scheduleFirstArea", "For the first 20 square metre or part thereof")}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-justify font-normal">
+                  <span className="font-normal text-slate-950">RM100.00</span>{" "}
+                  {t("workspace.technical.scheduleCityFirstRateSuffix", "for every square metre per year")}
+                </td>
+                <td className="px-5 py-4 text-justify font-normal">
+                  <span className="font-normal text-slate-950">RM70.00</span>{" "}
+                  {t("workspace.technical.scheduleDistrictFirstRateSuffix", "for every square metre per year")}
+                </td>
+              </tr>
+              <tr className="align-top">
+                <td className="px-5 py-4 text-justify font-normal">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 shrink-0 font-normal text-slate-950">(b)</span>
+                    <span>
+                      {t("workspace.technical.scheduleAdditionalArea", "For every additional square metre or part thereof")}
+                    </span>
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-justify font-normal">
+                  <span className="font-normal text-slate-950">RM70.00</span>{" "}
+                  {t("workspace.technical.schedulePerYear", "per year")}
+                </td>
+                <td className="px-5 py-4 text-justify font-normal">
+                  <span className="font-normal text-slate-950">RM50.00</span>{" "}
+                  {t("workspace.technical.schedulePerYear", "per year")}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <button
-            type="button"
-            onClick={addFeeItem}
-            className="inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-emerald-700 hover:bg-emerald-50"
-          >
-            <Icon name="add" className="mr-1 text-[18px]" />
-            {t("workspace.technical.addFeeItem", "Add item")}
-          </button>
-          <div className="text-right">
-            <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-500">
-              {t("workspace.technical.grandTotal", "Total Payable")}
-            </p>
-            <p className="text-[18px] font-semibold text-slate-950">
-              {formatCurrency(payableTotal)}
-            </p>
-          </div>
-        </div>
       </div>
 
-      <Field label={t("workspace.technical.siteRemarks")}>
-        <textarea
-          value={value.site_remarks}
-          onChange={(event) => updateField("site_remarks", event.target.value)}
-          rows="4"
-          className="form-input"
-          placeholder={t("workspace.technical.siteRemarksPlaceholder")}
-        />
-      </Field>
+      <div className="mt-3 overflow-x-auto">
+        <div className="min-w-[820px] divide-y divide-slate-100 text-[14px] leading-5">
+          <FeeSheetSizeRow
+            label={t("workspace.technical.size", "Size")}
+            widthLabel={t("workspace.technical.widthFt", "Width (ft)")}
+            widthValue={value.width_ft || ""}
+            heightLabel={t("workspace.technical.heightFt", "Height (ft)")}
+            heightValue={value.height_ft || ""}
+            onWidthChange={(nextValue) => onSizeChange?.("width_ft", nextValue)}
+            onHeightChange={(nextValue) => onSizeChange?.("height_ft", nextValue)}
+            readOnly={readOnly}
+            required={!readOnly}
+            error={sizeError}
+          />
+          {sizeError && !readOnly && (
+            <div className="grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] items-center gap-2 bg-white px-2 pb-2">
+              <span aria-hidden="true" />
+              <p className="col-span-6 text-[13px] font-medium leading-5 text-red-600">
+                {sizeError}
+              </p>
+            </div>
+          )}
+          <FeeSheetRow
+            label={t("workspace.technical.totalAreaFt", "Total Area (ft)")}
+            value={hasAdvertisementSize ? formatTechnicalArea(technicalFee.areaSqft) : "-"}
+            unit="ft"
+          />
+          <FeeSheetRow
+            label={t("workspace.technical.totalAreaSqm", "Total Area (m2)")}
+            value={hasAdvertisementSize ? formatTechnicalArea(technicalFee.areaSqm) : "-"}
+            unit="m2"
+          />
+          <FeeSheetSection label={t("workspace.technical.fees", "Fees:")} />
+          <FeeSheetRow
+            label={t("workspace.technical.firstTwenty", "(i) First 20 m2")}
+            value={formatTechnicalArea(technicalFee.firstAreaSqm || 0)}
+            unit="m2"
+            operator="x"
+            multiplier={formatTechnicalCurrency(TECHNICAL_FIRST_AREA_RATE)}
+            equals="="
+            amount={formatTechnicalCurrency(technicalFee.firstAreaFee)}
+          />
+          <FeeSheetRow
+            label={t("workspace.technical.additionalArea", "(ii) Additional Area")}
+            value={formatTechnicalArea(technicalFee.additionalAreaSqm || 0)}
+            unit="m2"
+            operator="x"
+            multiplier={formatTechnicalCurrency(TECHNICAL_ADDITIONAL_AREA_RATE)}
+            equals="="
+            amount={formatTechnicalCurrency(technicalFee.additionalAreaFee)}
+          />
+          <FeeSheetRow
+            label={t("workspace.technical.totalFee", "Total Fee")}
+            value={formatTechnicalCurrency(technicalFee.feeTotal)}
+            emphasized
+          />
+          <FeeSheetRow
+            label={t("workspace.technical.depositShort", "Deposit")}
+            value={formatTechnicalCurrency(TECHNICAL_FIXED_DEPOSIT)}
+          />
+          <FeeSheetRow
+            label={t("workspace.technical.processingFee", "Processing Fee")}
+            value={formatTechnicalCurrency(TECHNICAL_PROCESSING_FEE)}
+          />
+          <FeeSheetRow
+            label={t("workspace.technical.total", "TOTAL")}
+            value={formatTechnicalCurrency(technicalFee.totalPayable)}
+            emphasized
+            total
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FeeSheetSection({ label }) {
+  return (
+    <div className="grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] gap-2 bg-slate-50 px-2 py-2 font-semibold text-slate-800">
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function FeeSheetSizeRow({
+  label,
+  widthLabel,
+  widthValue = "",
+  heightLabel,
+  heightValue = "",
+  onWidthChange,
+  onHeightChange,
+  readOnly = false,
+  required = false,
+  error = "",
+}) {
+  const inputClassName = `h-8 w-full rounded border px-2 py-1 text-right text-[14px] leading-5 outline-none ${
+    error
+      ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]"
+      : "border-slate-300 focus:border-emerald-700 focus:shadow-[0_0_0_3px_rgba(4,120,87,0.12)]"
+  } ${
+    readOnly ? "bg-slate-50 text-slate-700" : "bg-white text-slate-950"
+  }`;
+
+  return (
+    <div className="grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] items-center gap-2 bg-white px-2 py-2">
+      <span className="font-semibold text-slate-800">
+        {label}
+        {required && <span className="ml-1 text-red-600">*</span>}
+      </span>
+      <input
+        aria-label={widthLabel}
+        aria-required={required}
+        aria-invalid={Boolean(error)}
+        value={widthValue}
+        onChange={(event) => onWidthChange(event.target.value)}
+        readOnly={readOnly}
+        required={required}
+        className={inputClassName}
+        inputMode="decimal"
+        placeholder="0.00"
+      />
+      <span className="text-slate-700">ft</span>
+      <span className="text-center text-slate-700">x</span>
+      <input
+        aria-label={heightLabel}
+        aria-required={required}
+        aria-invalid={Boolean(error)}
+        value={heightValue}
+        onChange={(event) => onHeightChange(event.target.value)}
+        readOnly={readOnly}
+        required={required}
+        className={inputClassName}
+        inputMode="decimal"
+        placeholder="0.00"
+      />
+      <span className="text-slate-700">ft</span>
+      <span aria-hidden="true" />
+    </div>
+  );
+}
+
+function FeeSheetRow({
+  label,
+  value = "",
+  unit = "",
+  operator = "",
+  multiplier = "",
+  multiplierUnit = "",
+  equals = "",
+  amount = "",
+  emphasized = false,
+  total = false,
+}) {
+  const hasMultiplier = multiplier !== "" && multiplier !== null && multiplier !== undefined;
+  const hasAmount = amount !== "" && amount !== null && amount !== undefined;
+
+  return (
+    <div
+      className={`grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] items-center gap-2 px-2 py-2 ${
+        total ? "bg-emerald-50" : emphasized ? "bg-slate-50/70" : "bg-white"
+      }`}
+    >
+      <span className={`${total ? "font-bold" : "font-semibold"} text-slate-800`}>{label}</span>
+      <span className={`rounded border border-slate-300 bg-white px-2 py-1 text-right ${emphasized || total ? "font-bold text-slate-950" : "text-slate-800"}`}>
+        {value}
+      </span>
+      <span className="text-slate-700">{unit}</span>
+      <span className="text-center text-slate-700">{operator}</span>
+      {hasMultiplier ? (
+        <span className="rounded border border-slate-200 bg-white px-2 py-1 text-right text-slate-800">
+          {multiplier}
+        </span>
+      ) : (
+        <span aria-hidden="true" />
+      )}
+      <span className="text-center text-slate-700">{equals || multiplierUnit}</span>
+      {hasAmount ? (
+        <span className="rounded border border-slate-300 bg-white px-2 py-1 text-right font-bold text-slate-950">
+          {amount}
+        </span>
+      ) : (
+        <span aria-hidden="true" />
+      )}
     </div>
   );
 }

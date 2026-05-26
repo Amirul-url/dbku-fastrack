@@ -87,3 +87,24 @@ class ApplicationReferenceTests(TestCase):
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(data[0]["applicant_username"], "020215130135")
         self.assertEqual(data[0]["applicant_full_name"], "ALI AHMAD")
+
+    def test_applicant_submit_marks_application_submitted(self):
+        User = get_user_model()
+        applicant = User.objects.create_user(
+            username="route-to-ku",
+            password="testpass123",
+            role="applicant",
+        )
+        application = Application.objects.create(
+            applicant=applicant,
+            title="LED signage",
+            status="draft",
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=applicant)
+        response = client.post(f"/api/applications/{application.id}/submit/")
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "submitted")

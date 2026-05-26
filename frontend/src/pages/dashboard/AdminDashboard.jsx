@@ -17,8 +17,8 @@ import {
 import {
   formatCompactDateTime,
   formatWorkflowStatus,
-  getApplicantName,
   getApplicationReference,
+  getApplicationType,
   getProjectName,
   normalizeStatus,
 } from "../../utils/workflow";
@@ -63,7 +63,7 @@ const units = [
     descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["submitted", "incomplete"],
+    statuses: ["incomplete"],
     historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/auto-screening",
   },
@@ -74,8 +74,8 @@ const units = [
     descriptionKey: "admin.unit.kuIkl.desc",
     icon: "verified_user",
     color: "bg-indigo-700",
-    statuses: ["ku_ikl_review", "technical_review_completed"],
-    historyStatuses: IKL_HISTORY_STATUSES.filter((status) => status !== "submitted"),
+    statuses: ["submitted", "ku_ikl_review", "technical_review_completed"],
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/auto-screening",
   },
   {
@@ -216,7 +216,7 @@ function MphlgDashboard({ user }) {
 }
 
 function PersonalTaskDashboard() {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const userDepartment = normalizeDepartmentCode(getStoredUser()?.department);
   const assignedUnit = getAssignedUnit(userDepartment);
   const activeDepartment = assignedUnit?.department || "";
@@ -290,6 +290,7 @@ function PersonalTaskDashboard() {
       <section className="mb-5 border border-slate-300 bg-white p-3">
         <ClaimableTaskView
           t={t}
+          language={language}
           loading={loading}
           selected={selected}
           selectedUnit={selectedUnit}
@@ -307,6 +308,7 @@ function PersonalTaskDashboard() {
 
 function ClaimableTaskView({
   t,
+  language,
   loading,
   selected,
   selectedUnit,
@@ -392,7 +394,11 @@ function ClaimableTaskView({
                 </Link>
               ),
             },
-            { key: "applicant", label: t("common.applicant"), render: getApplicantName },
+            {
+              key: "type",
+              label: t("common.type"),
+              render: (application) => getApplicationType(application, language),
+            },
             { key: "project", label: t("common.project"), render: getProjectName },
             {
               key: "status",
@@ -490,6 +496,7 @@ function isUnitActionableApplication(application, unit, activeDepartment = "") {
   const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
   const isExternalTechnicalTask =
     isExternalTechnicalUnit &&
+    isTechnicalDepartmentSelected(application, unit.department) &&
     !hasTechnicalDepartmentReview(application, unit.department);
 
   return (
@@ -546,6 +553,30 @@ function getTechnicalDepartmentReviews(app) {
   return app?.technical_department_reviews || app?.form_data?.technical_department_reviews || {};
 }
 
+function getSelectedTechnicalDepartments(app) {
+  const selection =
+    app?.technical_department_selection ||
+    app?.form_data?.technical_department_selection ||
+    {};
+  const departments = Array.isArray(selection.departments)
+    ? selection.departments
+    : app?.technical_referral?.participating_departments ||
+      app?.form_data?.technical_referral?.participating_departments ||
+      [];
+
+  return Array.from(
+    new Set(
+      departments
+        .map(normalizeDepartmentCode)
+        .filter((department) => EXTERNAL_TECHNICAL_DEPARTMENTS.has(department))
+    )
+  );
+}
+
+function isTechnicalDepartmentSelected(app, department) {
+  return getSelectedTechnicalDepartments(app).includes(normalizeDepartmentCode(department));
+}
+
 function hasTechnicalDepartmentReview(app, department) {
   return Boolean(getTechnicalDepartmentReviews(app)?.[department]);
 }
@@ -553,8 +584,8 @@ function hasTechnicalDepartmentReview(app, department) {
 function getDashboardTaskStatusLabel(application, unit, t) {
   const status = normalizeStatus(application?.status);
 
-  if (unit?.department === "PT(IKL)" && status === "submitted") {
-    return t("status.pt_ikl_review", "PT(IKL) Review");
+  if (unit?.department === "KU(IKL)" && status === "submitted") {
+    return t("status.ku_ikl_review", "KU(IKL) Review");
   }
 
   if (unit?.department === "KU(IKL)" && status === "technical_review_completed") {
@@ -562,7 +593,9 @@ function getDashboardTaskStatusLabel(application, unit, t) {
   }
 
   if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
-    return `${t(`status.${status}`, formatWorkflowStatus(status))}: BLG / GPM / MNE / IMT / LNP / ENG`;
+    const selectedDepartments = getSelectedTechnicalDepartments(application);
+    const route = ["IKL (TECHNICAL)", ...selectedDepartments].join(" / ");
+    return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${route}`;
   }
 
   if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit?.department) && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {

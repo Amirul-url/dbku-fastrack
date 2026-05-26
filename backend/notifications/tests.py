@@ -223,7 +223,113 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_to_technical")
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
-        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL) / BLG / GPM / MNE / IMT / LNP / ENG")
+        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
+
+    def test_selected_technical_departments_receive_tasks_after_ikl_selection(self):
+        ikl_user = User.objects.create_user(
+            username="ikl-technical-selection",
+            email="ikl-selection@example.com",
+            password="Password123",
+            role="admin",
+            department="IKL (TECHNICAL)",
+            is_active=True,
+        )
+        blg_user = User.objects.create_user(
+            username="blg-reviewer",
+            email="blg@example.com",
+            password="Password123",
+            role="admin",
+            department="BLG",
+            is_active=True,
+        )
+        gpm_user = User.objects.create_user(
+            username="gpm-reviewer",
+            email="gpm@example.com",
+            password="Password123",
+            role="admin",
+            department="GPM",
+            is_active=True,
+        )
+        old_form_data = {
+            **self.application.form_data,
+            "technical_referral": {
+                "status": "Referred",
+                "source": "KU(IKL)",
+                "target": "IKL(TECHNICAL)",
+                "participating_departments": [],
+            },
+        }
+        self.application.status = "technical_review"
+        self.application.form_data = {
+            **old_form_data,
+            "technical_department_selection": {
+                "departments": ["BLG"],
+                "selected_by": "IKL (TECHNICAL)",
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        notify_application_status_change(
+            self.application,
+            old_status="technical_review",
+            old_form_data=old_form_data,
+        )
+
+        notified_users = set(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                recipient_role="admin",
+                metadata__event_status="technical_review",
+            ).values_list("user", flat=True)
+        )
+        self.assertIn(ikl_user.id, notified_users)
+        self.assertIn(blg_user.id, notified_users)
+        self.assertNotIn(gpm_user.id, notified_users)
+
+    def test_ku_ikl_final_check_values_are_visible_to_kb_les(self):
+        ku_user = User.objects.create_user(
+            username="ku-final-check",
+            email="ku-final@example.com",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        self.application.status = "technical_review_completed"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_ku_review": {
+                "status": "Verified",
+                "decision": "KU(IKL) Confirm - Send to KB(LES)",
+                "checks": {
+                    "application": True,
+                    "sitePhoto": True,
+                    "fees": True,
+                    "departments": True,
+                },
+                "reviewed_by": "KU(IKL)",
+            },
+            "kb_les_verification": {
+                "status": "Pending KB(LES) Verification",
+                "routed_from": "KU(IKL)",
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        client = APIClient()
+        client.force_authenticate(user=ku_user)
+        response = client.get(f"/api/applications/{self.application.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["form_data"]["technical_ku_review"]["checks"],
+            {
+                "application": True,
+                "sitePhoto": True,
+                "fees": True,
+                "departments": True,
+            },
+        )
 
     def test_ku_ikl_rejection_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Rejected by KU(IKL). Please update the site details."
@@ -330,6 +436,16 @@ class NotificationRoutingTests(TestCase):
         self.assertIn("License issuance", delivery.metadata["title_en"])
 
     def test_final_approval_notifies_pt_ikl_for_billing(self):
+        memo_html = "<p>TP final approval memo for PT(IKL)</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "approval": {
+                "status": "Approved",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
         self.notify_status("approved", old_status="management_review")
 
         delivery = NotificationDelivery.objects.get(
@@ -339,6 +455,10 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(delivery.user, self.admin)
         self.assertIn("Final approval", delivery.metadata["title_en"])
+        self.assertEqual(delivery.metadata["memo_html"], memo_html)
+        self.assertEqual(delivery.metadata["memo_template"], "tp_pgh_to_pt_ikl")
+        self.assertEqual(delivery.metadata["from"], "TP(RES)/PGH")
+        self.assertEqual(delivery.metadata["to"], "PT(IKL)")
 
     def test_generated_bill_notifies_ku_ikl_for_confirmation(self):
         ku_user = User.objects.create_user(

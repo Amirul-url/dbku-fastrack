@@ -17,6 +17,149 @@ import {
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
 
+const stateCityOptions = {
+  Johor: [
+    "Johor Bahru",
+    "Batu Pahat",
+    "Muar",
+    "Kluang",
+    "Kulai",
+    "Skudai",
+    "Segamat",
+    "Pontian",
+    "Pasir Gudang",
+    "Kota Tinggi",
+  ],
+  Kedah: [
+    "Alor Setar",
+    "Sungai Petani",
+    "Kulim",
+    "Langkawi",
+    "Jitra",
+    "Baling",
+    "Kuala Nerang",
+  ],
+  Kelantan: [
+    "Kota Bharu",
+    "Tanah Merah",
+    "Pasir Mas",
+    "Tumpat",
+    "Machang",
+    "Gua Musang",
+  ],
+  Melaka: ["Melaka City", "Alor Gajah", "Jasin", "Masjid Tanah"],
+  "Negeri Sembilan": [
+    "Seremban",
+    "Port Dickson",
+    "Nilai",
+    "Senawang",
+    "Bahau",
+    "Rembau",
+  ],
+  Pahang: [
+    "Kuantan",
+    "Temerloh",
+    "Bentong",
+    "Mentakab",
+    "Pekan",
+    "Raub",
+    "Cameron Highlands",
+  ],
+  Penang: [
+    "George Town",
+    "Bayan Lepas",
+    "Butterworth",
+    "Bukit Mertajam",
+    "Perai",
+    "Nibong Tebal",
+  ],
+  Perak: [
+    "Ipoh",
+    "Taiping",
+    "Sitiawan",
+    "Teluk Intan",
+    "Batu Gajah",
+    "Lumut",
+    "Kuala Kangsar",
+    "Tanjong Malim",
+  ],
+  Perlis: ["Kangar", "Arau", "Padang Besar"],
+  Sabah: [
+    "Kota Kinabalu",
+    "Sandakan",
+    "Tawau",
+    "Lahad Datu",
+    "Keningau",
+    "Penampang",
+    "Tuaran",
+    "Papar",
+    "Kudat",
+  ],
+  Sarawak: [
+    "Kuching",
+    "Miri",
+    "Sibu",
+    "Bintulu",
+    "Samarahan",
+    "Sri Aman",
+    "Sarikei",
+    "Kapit",
+    "Limbang",
+    "Lawas",
+  ],
+  Selangor: [
+    "Shah Alam",
+    "Petaling Jaya",
+    "Subang Jaya",
+    "Klang",
+    "Puchong",
+    "Cheras",
+    "Kajang",
+    "Rawang",
+    "Ampang",
+    "Seri Kembangan",
+    "Cyberjaya",
+    "Sepang",
+  ],
+  Terengganu: [
+    "Kuala Terengganu",
+    "Chukai",
+    "Dungun",
+    "Kemaman",
+    "Besut",
+    "Marang",
+  ],
+  "W.P. Kuala Lumpur": [
+    "Kuala Lumpur",
+    "Cheras",
+    "Setapak",
+    "Kepong",
+    "Bangsar",
+    "Bukit Jalil",
+  ],
+  "W.P. Labuan": ["Labuan"],
+  "W.P. Putrajaya": ["Putrajaya"],
+};
+const stateOptions = Object.keys(stateCityOptions);
+
+function normalizeStateCity(state, city) {
+  if (stateCityOptions[state]) {
+    return {
+      state,
+      city: stateCityOptions[state].includes(city) ? city : "",
+    };
+  }
+
+  if (stateCityOptions[city]?.includes(state)) {
+    return {
+      state: city,
+      city: state,
+    };
+  }
+
+  return { state: "", city: "" };
+}
+
 function SubmittingPersonPage({
   LayoutComponent = UserDashboardLayout,
   StepNavComponent = null,
@@ -87,6 +230,7 @@ function SubmittingPersonPage({
   const [faxCountryCode, setFaxCountryCode] = useState("");
   const [faxNo, setFaxNo] = useState("");
   const [applicationRecord, setApplicationRecord] = useState(null);
+  const cityOptions = stateValue ? stateCityOptions[stateValue] || [] : [];
 
   useEffect(() => {
     if (applicationId) {
@@ -108,8 +252,9 @@ function SubmittingPersonPage({
       setPostalAddress(step3.postal_address || "");
       setPostcode(step3.postcode || "");
       setAddress2(step3.address_2 || "");
-      setStateValue(step3.state || "");
-      setCity(step3.city || "");
+      const normalizedLocation = normalizeStateCity(step3.state || "", step3.city || "");
+      setStateValue(normalizedLocation.state);
+      setCity(normalizedLocation.city);
       setAddress3(step3.address_3 || "");
       setOrgCountryCode(step3.org_country_code || "");
       setTelephoneNo(step3.telephone_no || "");
@@ -129,6 +274,11 @@ function SubmittingPersonPage({
     } catch (err) {
       console.error("Load Step 3 failed:", err);
     }
+  }
+
+  function handleStateChange(value) {
+    setStateValue(value);
+    setCity("");
   }
 
   function buildStep3Payload() {
@@ -371,19 +521,36 @@ function SubmittingPersonPage({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label={tx("state")} required>
-                      <input
+                      <select
                         className="spa-input"
                         value={stateValue}
-                        onChange={(e) => setStateValue(e.target.value)}
-                      />
+                        onChange={(e) => handleStateChange(e.target.value)}
+                      >
+                        <option value="">{tx("selectState")}</option>
+                        {stateOptions.map((state) => (
+                          <option key={state} value={state}>
+                            {state}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
 
                     <Field label={tx("city")} required>
-                      <input
+                      <select
                         className="spa-input"
                         value={city}
+                        disabled={!stateValue}
                         onChange={(e) => setCity(e.target.value)}
-                      />
+                      >
+                        <option value="">
+                          {stateValue ? tx("selectCity") : tx("selectStateFirst")}
+                        </option>
+                        {cityOptions.map((cityOption) => (
+                          <option key={cityOption} value={cityOption}>
+                            {cityOption}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
 
