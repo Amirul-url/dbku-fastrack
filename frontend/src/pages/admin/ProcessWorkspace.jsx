@@ -462,6 +462,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showApprovalTechnicalReport =
     isSimpleApprovalWorkspace &&
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
+  const showELicenseVerificationReport =
+    isELicenseWorkspace &&
+    shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
+  const showWorkspaceVerificationReport =
+    showApprovalTechnicalReport || showELicenseVerificationReport;
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -494,6 +499,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
+  const showWorkspaceCommentField =
+    config.showComment &&
+    canSubmitWorkspaceAction &&
+    !isApprovalSupportWorkspace &&
+    (
+      config.key !== "payment" ||
+      workspaceActions.some((action) =>
+        action.requiresComment ||
+        action.requiresReceipt ||
+        action.requiresSubmittedReceipt
+      )
+    );
   const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
@@ -1424,7 +1441,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 }
               />
 
-              {showApprovalTechnicalReport && (
+              {showWorkspaceVerificationReport && (
                 <>
                   <div className="flex justify-end">
                     <Button
@@ -1525,7 +1542,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </Field>
                   )}
 
-                  {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && (
+                  {showWorkspaceCommentField && (
                     <Field
                       label={
                         <>
@@ -4467,6 +4484,7 @@ function getBillAmount(app) {
   const calculatedAmounts = [
     technicalSite.license_fee_calculation,
     technicalSite.deposit_calculation,
+    technicalSite.processing_fee_calculation,
   ]
     .map(parseCurrencyAmount)
     .filter((value) => Number.isFinite(value));
@@ -6890,10 +6908,13 @@ function SitePhotoPreview({ photo, applicationId, alt }) {
 
 function PaymentDetails({ app, t }) {
   const payment = app.form_data?.payment || {};
+  const approvalLetter = app.form_data?.approval_letter || {};
   const receiptFile = payment.receipt_file;
   const notGenerated = t("workspace.info.notGenerated");
   const amount = getBillAmount(app);
   const receiptSource = getPaymentReceiptSource(receiptFile);
+  const letterReady = Boolean(approvalLetter.generated_at || payment.generated_at);
+  const billReady = Boolean(payment.generated_at || payment.invoice_no);
 
   async function viewReceipt() {
     if (!receiptSource) return;
@@ -6917,33 +6938,74 @@ function PaymentDetails({ app, t }) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 text-sm">
-      <Info label={t("common.invoice")} value={getInvoiceNo(app) || notGenerated} />
-      <Info
-        label={t("common.amount")}
-        value={hasValue(amount) ? formatCurrency(amount) : notGenerated}
-      />
-      <Info
-        label={t("common.status")}
-        value={getPaymentDetailStatus(payment.status, t) || notGenerated}
-      />
-      <Info label={t("workspace.info.receipt")} value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")} />
-      {receiptSource && (
-        <button
-          type="button"
-          onClick={viewReceipt}
-          className="inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
-        >
-          <Icon name="visibility" className="text-base" />
-          {t("workspace.info.viewReceipt")}
-        </button>
-      )}
-      {payment.verification_result && (
-        <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
-      )}
-      {payment.verification_notes && (
-        <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
-      )}
+    <div className="space-y-4 text-sm">
+      <section className="rounded-md border border-slate-200 bg-white">
+        <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+              {t("workspace.payment.documents", "Approval Letter and Bill")}
+            </p>
+            <p className="mt-1 text-[14px] leading-5 text-slate-500">
+              {t(
+                "workspace.payment.documentsDesc",
+                "PT(IKL) prepares the approval letter and bill before KU(IKL) confirms the bill."
+              )}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            icon="visibility"
+            className="w-full sm:w-auto"
+            disabled={!letterReady && !billReady}
+            onClick={() => openApprovalLetterBillPreview(app, t)}
+          >
+            {t("workspace.payment.viewLetterBill", "View Letter & Bill")}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 px-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Info
+            label={t("workspace.payment.approvalLetter", "Approval Letter")}
+            value={letterReady ? approvalLetter.status || "Generated" : notGenerated}
+          />
+          <Info label={t("common.invoice")} value={billReady ? getInvoiceNo(app) : notGenerated} />
+          <Info
+            label={t("common.amount")}
+            value={hasValue(amount) ? formatCurrency(amount) : notGenerated}
+          />
+          <Info
+            label={t("common.status")}
+            value={getPaymentDetailStatus(payment.status, t) || notGenerated}
+          />
+        </div>
+      </section>
+
+      <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Info
+            label={t("workspace.info.receipt")}
+            value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
+          />
+          {payment.verification_result && (
+            <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
+          )}
+          {payment.verification_notes && (
+            <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
+          )}
+        </div>
+
+        {receiptSource && (
+          <button
+            type="button"
+            onClick={viewReceipt}
+            className="mt-3 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
+          >
+            <Icon name="visibility" className="text-base" />
+            {t("workspace.info.viewReceipt")}
+          </button>
+        )}
+      </section>
     </div>
   );
 }
@@ -6967,6 +7029,330 @@ function getPaymentReceiptSource(receiptFile) {
     receiptFile?.file ||
     ""
   );
+}
+
+function openApprovalLetterBillPreview(app, t) {
+  openPrintablePreview(
+    `${getApplicationReference(app)} approval letter and bill`,
+    buildApprovalLetterBillHtml(app, t)
+  );
+}
+
+function openAdvertisementLicensePreview(app, t) {
+  openPrintablePreview(
+    `${getApplicationReference(app)} advertisement license`,
+    buildAdvertisementLicenseHtml(app, t)
+  );
+}
+
+function openPrintablePreview(title, html) {
+  const preview = window.open("", "_blank", "noopener,noreferrer");
+  if (!preview) return;
+
+  preview.document.open();
+  preview.document.write(html);
+  preview.document.close();
+  preview.document.title = title;
+}
+
+function buildApprovalLetterBillHtml(app, t) {
+  const reference = getApplicationReference(app);
+  const applicant = getApplicantName(app);
+  const applicantAddress = getApplicantPostalAddress(app);
+  const projectName = getProjectName(app);
+  const applicationType = getApplicationType(app);
+  const location = getApplicationLocation(app);
+  const letterRef = app?.form_data?.approval_letter?.reference_no || `DBKU/LES/IKL/${reference}`;
+  const generatedDate = app?.form_data?.approval_letter?.generated_at ||
+    app?.form_data?.payment?.generated_at ||
+    new Date().toISOString();
+  const paymentRows = getPaymentBillRows(app);
+  const amount = getBillAmount(app);
+  const total = hasValue(amount)
+    ? formatCurrency(amount)
+    : formatCurrency(paymentRows.reduce((sum, row) => sum + row.amount, 0));
+  const validityText = getApprovalValidityText(app);
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(reference)} Approval Letter and Bill</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 12px; background: #fff; padding: 16mm 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+    .letterhead { display: grid; grid-template-columns: 76px 1fr 96px; gap: 14px; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 8px; }
+    .crest { height: 68px; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; text-align: center; }
+    h1 { margin: 0; font-size: 18px; line-height: 1.1; text-transform: uppercase; }
+    .subhead { font-size: 11px; line-height: 1.35; }
+    .topline { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 12px; font-size: 12px; }
+    .right { text-align: right; }
+    .address { margin: 14px 0 18px 72px; white-space: pre-line; font-size: 12px; line-height: 1.35; }
+    .subject { margin: 12px 0; font-weight: 700; text-transform: uppercase; text-decoration: underline; }
+    .details { margin: 8px 0 14px; font-size: 12px; }
+    .details div { display: grid; grid-template-columns: 145px 12px 1fr; line-height: 1.45; }
+    p { font-size: 12px; line-height: 1.45; margin: 8px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+    th, td { border: 1px solid #111827; padding: 6px 8px; vertical-align: top; }
+    th { text-align: left; background: #f1f5f9; }
+    td.amount, th.amount { text-align: right; white-space: nowrap; }
+    .signature { margin-top: 28px; font-size: 12px; }
+    .footer { margin-top: 42px; border-top: 2px solid #111827; padding-top: 6px; text-align: center; font-size: 10px; font-weight: 700; }
+    .appendix h2 { margin: 10px 0 24px; text-align: right; font-size: 14px; }
+    .appendix h3 { text-align: center; font-size: 13px; text-transform: uppercase; }
+    .terms { margin-top: 28px; font-size: 12px; line-height: 1.45; }
+    .terms li { margin: 8px 0; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    @media print { body { background: white; } .page { box-shadow: none; margin: 0; } .print-actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
+  <section class="page">
+    <header class="letterhead">
+      <div class="crest">DBKU</div>
+      <div>
+        <h1>Dewan Bandaraya Kuching Utara</h1>
+        <div class="subhead">
+          Commission of the City of Kuching North<br />
+          Bukit Siol, Jalan Semariang, Petra Jaya, 93050 Kuching, Sarawak.
+        </div>
+      </div>
+      <div class="crest">ALiS</div>
+    </header>
+
+    <div class="topline">
+      <div>
+        <div>Bil. Tuan :</div>
+        <div>Bil. Kami : <strong>${escapeHtml(letterRef)}</strong></div>
+      </div>
+      <div class="right">Tarikh : <strong>${escapeHtml(formatDate(generatedDate))}</strong></div>
+    </div>
+
+    <div class="address">${escapeHtml(applicant)}<br />${escapeHtml(applicantAddress)}</div>
+
+    <p>Tuan/Puan,</p>
+    <p class="subject">Permohonan Lesen Tandanama Perniagaan/Iklan</p>
+
+    <div class="details">
+      <div><span>Jenis Iklan</span><span>:</span><strong>${escapeHtml(applicationType)}</strong></div>
+      <div><span>Nama Iklan</span><span>:</span><strong>${escapeHtml(projectName)}</strong></div>
+      <div><span>Nama Pemohon</span><span>:</span><strong>${escapeHtml(applicant)}</strong></div>
+      <div><span>Tempat Iklan Dipamer</span><span>:</span><strong>${escapeHtml(location)}</strong></div>
+    </div>
+
+    <p>Adalah dimaklumkan bahawa permohonan tuan/puan untuk perkara di atas telah diluluskan. Sila buat pembayaran seperti di bawah kepada Dewan Bandaraya Kuching Utara dalam tempoh empat belas (14) hari bekerja dari tarikh surat ini diterima.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Butir Bayaran</th>
+          <th>Tempoh Lesen Berkuatkuasa</th>
+          <th class="amount">Jumlah (RM)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${paymentRows.map((row) => `
+          <tr>
+            <td>${escapeHtml(row.label)}</td>
+            <td>${escapeHtml(row.validity || validityText)}</td>
+            <td class="amount">${escapeHtml(formatCurrency(row.amount))}</td>
+          </tr>
+        `).join("")}
+        <tr>
+          <td colspan="2" class="amount"><strong>Jumlah Keseluruhan</strong></td>
+          <td class="amount"><strong>${escapeHtml(total)}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Dilampirkan bersama ini syarat-syarat lesen yang mesti dipatuhi. Sebarang pelanggaran syarat lesen boleh menyebabkan lesen puan/tuan ditarik balik.</p>
+    <p>Sekian, terima kasih.</p>
+
+    <div class="signature">
+      <p><strong>"AN HONOUR TO SERVE"<br />"TOGETHER WE CARE"</strong></p>
+      <br /><br />
+      <p><strong>(KETUA BAHAGIAN)</strong><br />Bahagian Pelesenan<br />b.p. Pengarah, Dewan Bandaraya Kuching Utara</p>
+    </div>
+    <div class="footer">UNTUK MEMPERTINGKAT KUALITI KEHIDUPAN DENGAN MEWUJUDKAN PERSEKITARAN KONDUSIF, PENGLIBATAN WARGA KOTA DAN PENYAMPAIAN PERKHIDMATAN TERUNGGUL</div>
+  </section>
+
+  <section class="page appendix">
+    <h2>Lampiran</h2>
+    <h3>Syarat-Syarat Lesen Iklan Dalam Kawasan Dewan Bandaraya Kuching Utara (DBKU)</h3>
+    <ol class="terms">
+      <li>Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.</li>
+      <li>Pemohon hendaklah memastikan papan iklan dipasang, dipamer, dan diselenggara dengan sempurna sepanjang tempoh kelulusan.</li>
+      <li>Sebarang kerja pembinaan atau pemasangan hendaklah mendapat permit dan kebenaran yang berkaitan sebelum kerja dijalankan.</li>
+      <li>Pemohon hendaklah memastikan tiada gangguan keselamatan, lalu lintas, atau ketenteraman awam disebabkan pemasangan iklan.</li>
+      <li>DBKU boleh mengarahkan pindaan, penurunan, atau pembatalan lesen sekiranya syarat lesen tidak dipatuhi.</li>
+      <li>Kos pembetulan, pemadaman, atau penurunan iklan yang diarahkan oleh DBKU adalah tanggungjawab pemohon.</li>
+    </ol>
+  </section>
+</body>
+</html>`;
+}
+
+function buildAdvertisementLicenseHtml(app, t) {
+  const license = app?.form_data?.license || {};
+  const payment = app?.form_data?.payment || {};
+  const reference = getApplicationReference(app);
+  const licenseId = license.license_id || getLicenseId(app);
+  const applicant = getApplicantName(app);
+  const applicantAddress = getApplicantPostalAddress(app);
+  const projectName = getProjectName(app);
+  const applicationType = getApplicationType(app);
+  const location = getApplicationLocation(app);
+  const receiptNo = payment.receipt_reference || payment.invoice_no || getInvoiceNo(app);
+  const amount = getBillAmount(app);
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(reference)} Advertisement License</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { margin: 0; font-family: "Times New Roman", serif; color: #111827; background: #f8fafc; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 12px; background: #fff; padding: 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+    .center { text-align: center; }
+    h1 { margin: 10px 0 0; font-size: 22px; text-transform: uppercase; }
+    h2 { margin: 8px 0 20px; font-size: 17px; }
+    .crest { width: 78px; height: 58px; margin: 0 auto 8px; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font: 700 12px Arial; }
+    .row { display: grid; grid-template-columns: 92px 12px 1fr 92px 12px 1fr; gap: 0 8px; margin: 12px 0; font-size: 15px; }
+    .line { border-bottom: 1px dotted #111827; min-height: 20px; font-weight: 700; }
+    .wide { grid-column: span 4; }
+    p { font-size: 15px; line-height: 1.5; }
+    .signature { display: grid; grid-template-columns: 1fr 180px; gap: 20px; margin-top: 40px; align-items: end; }
+    .terms li { margin: 14px 0; font-size: 17px; line-height: 1.35; }
+    .payment { margin-top: 90px; text-align: right; font-size: 16px; font-weight: 700; }
+    .amount { display: inline-block; min-width: 132px; border: 1px solid #111827; padding: 6px 16px; text-align: center; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial; cursor: pointer; }
+    @media print { body { background: white; } .page { box-shadow: none; margin: 0; } .print-actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
+  <section class="page">
+    <div class="center">
+      <div class="crest">DBKU</div>
+      <h1>Dewan Bandaraya Kuching Utara</h1>
+      <p><strong>(Commission of the City of Kuching North)</strong><br />The Local Authorities (Advertisements) By-Laws, 2012</p>
+      <h2>Borang B<br />(Undang-undang Kecil 7)<br />Lesen Pengiklanan</h2>
+    </div>
+
+    <div class="row">
+      <span>No. Resit</span><span>:</span><span class="line">${escapeHtml(receiptNo)}</span>
+      <span>Rujukan</span><span>:</span><span class="line">${escapeHtml(licenseId)}</span>
+    </div>
+    <div class="row">
+      <span>Nama</span><span>:</span><span class="line wide">${escapeHtml(applicant)}</span>
+    </div>
+    <div class="row">
+      <span>Alamat</span><span>:</span><span class="line wide">${escapeHtml(applicantAddress)}</span>
+    </div>
+
+    <p>Adalah dengan ini diberi lesen oleh <strong><u>Pengarah, Dewan Bandaraya Kuching Utara</u></strong> di bawah undang-undang kecil untuk mempamer iklan seperti berikut:-</p>
+
+    <div class="row">
+      <span>Papan Iklan</span><span>:</span><span class="line wide">${escapeHtml(projectName)}</span>
+    </div>
+    <div class="row">
+      <span>Jenis Iklan</span><span>:</span><span class="line wide">${escapeHtml(applicationType)}</span>
+    </div>
+    <div class="row">
+      <span>Tempat</span><span>:</span><span class="line wide">${escapeHtml(location)}</span>
+    </div>
+    <div class="row">
+      <span>Tempoh Lesen Iklan</span><span>:</span><span class="line">${escapeHtml(formatDate(license.issue_date || new Date()))}</span>
+      <span>hingga</span><span>:</span><span class="line">${escapeHtml(formatDate(license.expiry_date))}</span>
+    </div>
+
+    <p>Tertakluk kepada syarat-syarat dalam <strong><u>Lampiran A.</u></strong></p>
+
+    <div class="signature">
+      <div>
+        <br /><br />
+        <p>............................................................<br />b.p : Dewan Bandaraya Kuching Utara</p>
+      </div>
+      <p>Tarikh : ${escapeHtml(formatDate(license.issued_at || license.issue_date || new Date()))}</p>
+    </div>
+  </section>
+
+  <section class="page">
+    <h2><u>Lampiran A</u></h2>
+    <ol class="terms">
+      <li>Lesen ini dikeluarkan tertakluk di bawah peruntukan The Local Authorities (Advertisements) By-Laws, 2012.</li>
+      <li>Lesen ini akan tamat tempoh dengan sendirinya jika tidak diperbaharui.</li>
+      <li>Lesen ini tidak boleh dipindah milik tanpa kebenaran bertulis dari DBKU.</li>
+      <li>Lesen ini hendaklah dipamer dan digantung dengan sempurna sepanjang tempoh lesen pengiklanan ini.</li>
+      <li>Papan tanda hendaklah sentiasa diselenggara dalam keadaan sempurna dan memuaskan.</li>
+      <li>Sebarang pengubahsuaian papan tanda tidak boleh dilakukan setelah diluluskan.</li>
+      <li>Lesen ini hendaklah dikembalikan kepada Pejabat Bahagian Pelesenan DBKU jika pelesen berhenti berniaga.</li>
+      <li>Pelesen hendaklah mematuhi mana-mana syarat atau arahan DBKU dari masa ke semasa.</li>
+      <li>Sila bawa salinan asal lesen untuk pembaharuan lesen.</li>
+    </ol>
+    <div class="payment">Bayaran : <span class="amount">${escapeHtml(hasValue(amount) ? formatCurrency(amount) : "-")}</span></div>
+  </section>
+</body>
+</html>`;
+}
+
+function getApplicantPostalAddress(app) {
+  const step2 = app?.form_data?.step_2 || {};
+  const step3 = app?.form_data?.step_3 || {};
+  const parts = [
+    step3.postal_address || step2.postal_address || step2.address || step3.address,
+    step3.address_2 || step2.address_2,
+    step3.address_3 || step2.address_3,
+    step3.address_4 || step2.address_4,
+  ].filter(hasValue);
+
+  return parts.length > 0 ? parts.join("\n") : getApplicationLocation(app);
+}
+
+function getPaymentBillRows(app) {
+  const technicalSite = app?.form_data?.technical_site_visit || {};
+  const applicationType = getApplicationType(app);
+  const rows = [];
+  const licenseFee = parseCurrencyAmount(technicalSite.license_fee_calculation);
+  const deposit = parseCurrencyAmount(technicalSite.deposit_calculation);
+  const processing = parseCurrencyAmount(technicalSite.processing_fee_calculation);
+
+  if (Number.isFinite(licenseFee) && licenseFee > 0) {
+    rows.push({ label: `Lesen Iklan - ${applicationType}`, amount: licenseFee });
+  }
+
+  if (Number.isFinite(deposit) && deposit > 0) {
+    rows.push({ label: "Deposit", amount: deposit, validity: "-" });
+  }
+
+  if (Number.isFinite(processing) && processing > 0) {
+    rows.push({ label: "Yuran Pemprosesan Lesen", amount: processing, validity: "-" });
+  }
+
+  if (rows.length === 0) {
+    const amount = parseCurrencyAmount(getBillAmount(app));
+    rows.push({
+      label: `Lesen Iklan - ${applicationType}`,
+      amount: Number.isFinite(amount) ? amount : 0,
+    });
+  }
+
+  return rows;
+}
+
+function getApprovalValidityText(app) {
+  const license = app?.form_data?.license || {};
+  if (license.issue_date || license.expiry_date) {
+    return `${formatDate(license.issue_date || new Date())} hingga ${formatDate(license.expiry_date)}`;
+  }
+
+  return "Tertakluk kepada tempoh kelulusan";
 }
 
 function LicenseDetails({
@@ -7020,6 +7406,19 @@ function LicenseDetails({
           value={license.verification_url || t("workspace.info.notGenerated")}
         />
       </div>
+
+      {normalizeStatus(app?.status) === "license_issued" && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            icon="visibility"
+            onClick={() => openAdvertisementLicensePreview(app, t)}
+          >
+            {t("workspace.license.viewLicense", "View Advertisement License")}
+          </Button>
+        </div>
+      )}
 
       {Object.keys(renewal).length > 0 && (
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
