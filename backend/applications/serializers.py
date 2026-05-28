@@ -108,6 +108,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     kb_les_verification = serializers.SerializerMethodField()
     management_recommendation = serializers.SerializerMethodField()
     mphlg_gateway = serializers.SerializerMethodField()
+    sut_approval = serializers.SerializerMethodField()
     approval = serializers.SerializerMethodField()
 
     class Meta:
@@ -131,6 +132,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "kb_les_verification",
             "management_recommendation",
             "mphlg_gateway",
+            "sut_approval",
             "approval",
             "created_at",
             "updated_at",
@@ -175,6 +177,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_mphlg_gateway(self, obj):
         return (obj.form_data or {}).get("mphlg_gateway", {})
+
+    def get_sut_approval(self, obj):
+        return (obj.form_data or {}).get("sut_approval", {})
 
     def get_approval(self, obj):
         return (obj.form_data or {}).get("approval", {})

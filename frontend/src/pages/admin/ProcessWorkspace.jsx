@@ -126,7 +126,10 @@ function ProcessWorkspace({ type }) {
 
 function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment }) {
   const location = useLocation();
-  const querySelectedId = new URLSearchParams(location.search).get("id") || "";
+  const searchParams = new URLSearchParams(location.search);
+  const querySelectedId = searchParams.get("id") || "";
+  const returnToPath = searchParams.get("returnTo") || "";
+  const fromCompletedApprovals = searchParams.get("from") === "completed-approvals";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
@@ -384,8 +387,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const selected = useMemo(() => {
     const matchingRecord = filtered.find((app) => String(app.id) === String(selectedId));
     if (tableFirstWorkspace && !selectedId) return null;
+    if (
+      tableFirstWorkspace &&
+      selectedId &&
+      selectedDetail &&
+      String(selectedDetail.id) === String(selectedId)
+    ) {
+      return matchingRecord ? { ...matchingRecord, ...selectedDetail } : selectedDetail;
+    }
     return matchingRecord || filtered[0] || null;
-  }, [filtered, tableFirstWorkspace, selectedId]);
+  }, [filtered, selectedDetail, tableFirstWorkspace, selectedId]);
   const selectedRecord =
     selectedDetail && String(selectedDetail.id) === String(selected?.id)
       ? { ...selected, ...selectedDetail }
@@ -405,6 +416,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     SUT_APPROVAL_DEPARTMENTS.includes(userDepartment);
   const showApprovalDecisionButtons = false;
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
+  const isKbLesSupportWorkspace =
+    isApprovalWorkspace && userDepartment === "KB(LES)" && approvalStageKey === "kb_support";
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
   const canViewSelectedWorkspace =
@@ -762,9 +775,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     return (
       config.key === "approval" &&
       userDepartment === "KB(LES)" &&
-      getApprovalStageKey(selectedRecord) === "kb" &&
+      ["kb", "kb_support"].includes(getApprovalStageKey(selectedRecord)) &&
       action?.buildPayload === buildApprovalWorkflowPayload &&
-      ["Support", "Verify", "Reject", "Not Verify"].includes(actionDecision)
+      ["Support", "Verify", "Reject", "Not Verify", "Not Support"].includes(actionDecision)
     );
   }
 
@@ -1037,6 +1050,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         body: JSON.stringify(body),
       });
 
+      if (tableFirstWorkspace && config.key === "approval" && isApprovalHistoryRecord(body)) {
+        setSuccess(t(action.successKey, action.success));
+        setComment("");
+        setSelectedId("");
+        setSelectedDetail(null);
+        await fetchApplications({ silent: true });
+        navigate("/dashboard/admin?view=completed", { replace: true });
+        return true;
+      }
+
       setSuccess(t(action.successKey, action.success));
       setComment("");
       await fetchApplications();
@@ -1047,6 +1070,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       const refreshed =
         response?.data || (await apiRequest(`/applications/${selectedRecord.id}/`));
+
+      if (tableFirstWorkspace && config.key === "approval" && isApprovalHistoryRecord(refreshed)) {
+        setSelectedId("");
+        setSelectedDetail(null);
+        navigate("/dashboard/admin?view=completed");
+        return true;
+      }
+
+      if (tableFirstWorkspace && !canOpenWorkspaceRow(config, refreshed, userDepartment)) {
+        setSelectedDetail(null);
+        returnToTaskList();
+        return true;
+      }
+
       setSelectedDetail(refreshed);
       return true;
     } catch (err) {
@@ -1097,6 +1134,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }
 
   function returnToTaskList() {
+    if (fromCompletedApprovals && returnToPath) {
+      navigate(returnToPath);
+      return;
+    }
+
     setSelectedId("");
     setSelectedDetail(null);
     setCommentError("");
@@ -1304,7 +1346,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               onClick={returnToTaskList}
             >
               {isSimpleApprovalWorkspace
-                ? t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
+                ? fromCompletedApprovals
+                  ? t("workspace.backToCompleted", "Back to Completed")
+                  : t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
                 : t("workspace.backToELicenseList", "Back to E-Licenses List")}
             </Button>
           </div>
@@ -1315,11 +1359,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             title={t("workspace.actionPanel")}
             description={
               isReadOnlyActionPanel
-                ? t(
-                    "workspace.approval.viewOnlyAction",
-                    "View applications awaiting SUT, KB(LES), or TP(RES)/PGH action."
-                  )
-                : getWorkspaceActionDescription(config, t, userDepartment)
+                ? isApprovalHistoryRecord(selectedRecord)
+                  ? t("workspace.approval.completedAction", "Final approval has been recorded.")
+                  : t(
+                      "workspace.approval.viewOnlyAction",
+                      "View applications awaiting SUT, KB(LES), or TP(RES)/PGH action."
+                    )
+                : getWorkspaceActionDescription(config, t, userDepartment, selectedRecord)
             }
           >
             {!selectedRecord ? (
@@ -1446,9 +1492,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onChange={(event) => setDecision(event.target.value)}
                         className={`form-input ${tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "max-w-xs" : ""}`}
                       >
-                        <option value="">
-                          {t("workspace.decision.selectDecision", "Select decision")}
-                        </option>
+                        {!isKbLesSupportWorkspace && (
+                          <option value="">
+                            {t("workspace.decision.selectDecision", "Select decision")}
+                          </option>
+                        )}
                         {decisionOptions.map((item) => (
                           <option key={item.value || item} value={item.value || item}>
                             {t(item.labelKey, item.label || item)}
@@ -1521,7 +1569,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             </option>
                           )}
                           <option value="Approve">
-                            {t("workspace.decision.support", "Support")}
+                            {isFinalApprovalSupportWorkspace
+                              ? t("workspace.decision.approveApplication", "Approve Application")
+                              : t("workspace.decision.support", "Support")}
                           </option>
                           {!isFinalApprovalSupportWorkspace && (
                             <option value="Reject">
@@ -3248,13 +3298,17 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
-function getWorkspaceActionDescription(config, t, userDepartment) {
+function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord) {
   if (config?.key === "screening") {
     const copy = getIklScreeningCopy(userDepartment);
     return t(copy.actionDescriptionKey, copy.actionDescription);
   }
 
   if (config?.key === "approval") {
+    if (userDepartment === "KB(LES)" && getApprovalStageKey(selectedRecord) === "kb_support") {
+      return t("workspace.approval.kbSupportAction", "Support the application before sending it to TP(RES)/PGH.");
+    }
+
     if (userDepartment === "KB(LES)") {
       return t("workspace.approval.kbAction", "Review the SUT result and verify the application before sending it to TP(RES)/PGH.");
     }
@@ -3308,6 +3362,12 @@ function getWorkspaceDecisionOptions(config, app, department) {
     ];
   }
 
+  if (department === "KB(LES)" && getApprovalStageKey(app) === "kb_support") {
+    return [
+      { value: "Support", labelKey: "workspace.decision.support" },
+    ];
+  }
+
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "support") {
     const options = [
       { value: "Approve", labelKey: "workspace.decision.approve" },
@@ -3337,6 +3397,10 @@ function getWorkspaceDecisionOptions(config, app, department) {
 }
 
 function getDefaultWorkspaceDecision(config, app, department) {
+  if (config?.key === "approval" && department === "KB(LES)" && getApprovalStageKey(app) === "kb_support") {
+    return "Support";
+  }
+
   return config?.showDecision ? "" : config?.defaultDecision || "";
 }
 
@@ -3349,7 +3413,7 @@ function getWorkspaceActions(config, app, department) {
   }
 
   const stage = getApprovalStageKey(app);
-  const canKbVerify = department === "KB(LES)" && stage === "kb";
+  const canKbVerify = department === "KB(LES)" && (stage === "kb" || stage === "kb_support");
   const canSupport =
     APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && stage === "support";
   const canMphlgApprove =
@@ -3374,7 +3438,7 @@ function isApprovalTaskForDepartment(app, department) {
 
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
-  if (department === "KB(LES)") return stage === "kb" || isKbLesMonitoredRecord(app);
+  if (department === "KB(LES)") return stage === "kb" || stage === "kb_support" || isKbLesMonitoredRecord(app);
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return stage === "support";
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return stage === "mphlg";
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
@@ -3434,10 +3498,12 @@ function getActionUnavailableMessage(config, app, department) {
 
   if (config?.key !== "approval") return "";
 
+  if (isApprovalHistoryRecord(app)) return "";
+
   const stage = getApprovalStageKey(app);
 
   if (department === "KB(LES)") {
-    return stage === "kb" ? "" : "KB(LES) support is already complete or not required for this record.";
+    return ["kb", "kb_support"].includes(stage) ? "" : "KB(LES) support is already complete or not required for this record.";
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
@@ -3580,6 +3646,7 @@ function canSupportCancellationNotice(app, department) {
 function getApprovalStageLabel(app) {
   const stage = getApprovalStageKey(app);
 
+  if (stage === "kb_support") return "Pending KB(LES) Support";
   if (stage === "support") return "Pending TP(RES)/PGH Approval";
   if (stage === "mphlg") return "Pending MPHLG Approval";
   if (stage === "sut") return "Pending SUT Approval";
@@ -3591,6 +3658,10 @@ function getApprovalStageKey(app) {
   const status = normalizeStatus(app?.status);
 
   if (status === "management_review") {
+    if (isKbLesSupportPending(app)) {
+      return "kb_support";
+    }
+
     if (!isKbLesVerified(app)) return "kb";
     return "support";
   }
@@ -3623,6 +3694,20 @@ function hasManagementSupport(app) {
     .trim()
     .toLowerCase();
   return ["supported", "approved", "completed"].includes(status);
+}
+
+function isKbLesSupportPending(app) {
+  const recommendationStatus = String(getApplicationSection(app, "management_recommendation")?.status || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    !hasManagementSupport(app) &&
+    (
+      recommendationStatus === "pending kb(les) support" ||
+      (hasSutApprovalResult(app) && recommendationStatus !== "pending tp(res)/pgh approval")
+    )
+  );
 }
 
 function hasSutApprovalResult(app) {
@@ -3999,9 +4084,11 @@ function buildApprovalWorkflowPayload(app, data) {
   const now = new Date().toISOString();
   const department = normalizeDepartmentCode(data.department);
   const decision = data.decision;
-  const rejected = ["Reject", "Not Supported", "Not Verify", "Not Verified"].includes(decision);
+  const rejected = ["Reject", "Not Supported", "Not Verify", "Not Verified", "Not Support"].includes(decision);
 
   if (department === "KB(LES)") {
+    const kbSupportStage = getApprovalStageKey(app) === "kb_support";
+
     return {
       status: rejected ? "technical_review_completed" : "management_review",
       current_step: Math.max(Number(app.current_step || 1), 5),
@@ -4010,7 +4097,13 @@ function buildApprovalWorkflowPayload(app, data) {
         kb_les_verification: {
           ...(app.form_data?.kb_les_verification || {}),
           officer: "KB(LES)",
-          status: rejected ? "Not Verified" : "Verified",
+          status: kbSupportStage
+            ? isKbLesVerified(app)
+              ? app.form_data?.kb_les_verification?.status || "Verified"
+              : "Verified"
+            : rejected
+              ? "Not Verified"
+              : "Verified",
           decision,
           remarks: data.comment,
           memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
@@ -4020,9 +4113,13 @@ function buildApprovalWorkflowPayload(app, data) {
           ? null
           : {
               ...(app.form_data?.management_recommendation || {}),
-              status: "Pending TP(RES)/PGH Approval",
+              officer: kbSupportStage ? "KB(LES)" : app.form_data?.management_recommendation?.officer,
+              status: kbSupportStage ? "Supported" : "Pending TP(RES)/PGH Approval",
+              decision: kbSupportStage ? decision : app.form_data?.management_recommendation?.decision,
+              remarks: kbSupportStage ? data.comment : app.form_data?.management_recommendation?.remarks,
               routed_from: "KB(LES)",
               routed_at: now,
+              supported_at: kbSupportStage ? now : app.form_data?.management_recommendation?.supported_at,
             },
         correction_request: rejected
           ? {
@@ -4158,13 +4255,19 @@ function buildApprovalWorkflowPayload(app, data) {
         },
         kb_les_verification: decision === "Approve"
           ? {
-              status: "Pending KB(LES) Verification",
+              ...(app.form_data?.kb_les_verification || {}),
+              status: "Verified",
               routed_from: "SUT",
               routed_at: now,
             }
           : app.form_data?.kb_les_verification || null,
         management_recommendation: decision === "Approve"
-          ? null
+          ? {
+              ...(app.form_data?.management_recommendation || {}),
+              status: "Pending KB(LES) Support",
+              routed_from: "SUT",
+              routed_at: now,
+            }
           : app.form_data?.management_recommendation || null,
         approval: app.form_data?.approval || null,
       }),
@@ -4695,15 +4798,6 @@ const configs = {
       "management_review",
       "mphlg_processing",
       "mphlg_decision_received",
-      "approved",
-      "approved_with_conditions",
-      "rejected",
-      "bill_pending_ku",
-      "invoice_generated",
-      "payment_submitted",
-      "payment_verified",
-      "license_issued",
-      "license_revoked",
     ],
     title: "Approval",
     titleKey: "workspace.approval.title",

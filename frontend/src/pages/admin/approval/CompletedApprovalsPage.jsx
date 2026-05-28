@@ -15,7 +15,6 @@ import {
 import {
   formatCompactDateTime,
   formatWorkflowStatus,
-  getApplicantName,
   getApplicationReference,
   getApplicationType,
   getProjectName,
@@ -104,9 +103,8 @@ function CompletedApprovalsPage() {
       const decisionValue = getApprovalDecision(app);
       const haystack = [
         getApplicationReference(app),
-        getApplicantName(app),
-        getProjectName(app),
         getApplicationType(app),
+        getProjectName(app),
         formatWorkflowStatus(app.status),
         decisionValue,
       ]
@@ -146,7 +144,7 @@ function CompletedApprovalsPage() {
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               className="form-input"
-              placeholder={t("approval.completed.searchPlaceholder", "Search reference, applicant, project, or status")}
+              placeholder={t("approval.completed.searchPlaceholder", "Search reference, type, project, or status")}
             />
           </Field>
 
@@ -233,7 +231,7 @@ function CompletedApprovalsPage() {
                 </span>
               ),
             },
-            { key: "applicant", label: t("common.applicant"), render: getApplicantName },
+            { key: "type", label: t("common.type"), render: getApplicationType },
             { key: "project", label: t("common.project"), render: getProjectName },
             {
               key: "decision",
@@ -250,20 +248,11 @@ function CompletedApprovalsPage() {
               ),
             },
             {
-              key: "updated",
-              label: t("common.updated"),
-              render: (app) => (
-                <span className="whitespace-nowrap text-[12px] leading-5">
-                  {formatCompactDateTime(app.updated_at)}
-                </span>
-              ),
-            },
-            {
               key: "action",
               label: t("common.action"),
               render: (app) => (
                 <LinkButton
-                  to={`/admin/applications/${app.id}/view/step-1?id=${app.id}&from=completed-approvals&returnTo=/dashboard/admin?view=completed`}
+                  to={`/dashboard/admin?view=approval&id=${app.id}&from=completed-approvals&returnTo=/dashboard/admin?view=completed`}
                   icon="visibility"
                   variant="secondary"
                   className="min-h-8 px-3 py-1 text-xs"
