@@ -9,10 +9,10 @@ const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
 const PT_IKL_TASK_STATUSES = new Set([
-  "submitted",
   "incomplete",
 ]);
 const KU_IKL_TASK_STATUSES = new Set([
+  "submitted",
   "ku_ikl_review",
   "technical_review_completed",
 ]);
@@ -26,6 +26,24 @@ const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
   "technical_site_visit",
 ]);
 const TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const COMPLETED_VIEW_DEPARTMENTS = new Set([
+  "PT(IKL)",
+  "KU(IKL)",
+  "IKL (TECHNICAL)",
+  "BLG",
+  "GPM",
+  "MNE",
+  "IMT",
+  "LNP",
+  "ENG",
+  "KB(LES)",
+  "TP(RES)",
+  "PGH",
+  "TP(RES)/PGH",
+  "TP/PGH",
+  "MPHLG",
+  "SUT",
+]);
 const APPROVAL_TASK_STATUSES = new Set([
   "management_review",
   "mphlg_processing",
@@ -81,10 +99,18 @@ function buildAdminNav(taskCounts = {}, user = null) {
         icon: "check_circle",
         badge: taskCounts.approval || 0,
       },
+      {
+        labelKey: "admin.dashboard.completedApprovals",
+        fallback: "Completed",
+        path: "/dashboard/admin?view=completed",
+        view: "completed",
+        icon: "task_alt",
+      },
     ];
   }
 
   const isSupervisor = isApprovalWorkflowUser(user);
+  const canViewCompleted = isCompletedWorkflowUser(user);
 
   const dashboardChildren = [
     isSupervisor
@@ -103,7 +129,7 @@ function buildAdminNav(taskCounts = {}, user = null) {
       view: "approval",
       badge: taskCounts.approval || 0,
     },
-    isSupervisor
+    canViewCompleted
       ? {
           labelKey: "admin.dashboard.completedApprovals",
           fallback: "Completed",
@@ -380,7 +406,7 @@ function AppShell({ children, role = "admin" }) {
             }
 
             const activeTab = new URLSearchParams(location.search).get("tab");
-            const activeView = new URLSearchParams(location.search).get("view") || "personal";
+            const activeView = getAdminSidebarView(location);
             const itemPathname = getPathname(item.path);
             const active =
               (item.activePathPrefix &&
@@ -473,6 +499,14 @@ function AppShell({ children, role = "admin" }) {
                 ) : (
                   <Link
                     to={item.path}
+                    onClick={() => {
+                      if (role === "admin" && !adminDashboardItem && !adminELicensesItem) {
+                        setAdminDashboardOpen(false);
+                        setAdminELicensesOpen(false);
+                        writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
+                        writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false);
+                      }
+                    }}
                     className={`flex items-center justify-between rounded-md px-3.5 py-2.5 text-sm font-medium ${
                       active
                         ? "bg-emerald-50 text-emerald-800"
@@ -746,6 +780,13 @@ function isApprovalWorkflowUser(user) {
   );
 }
 
+function isCompletedWorkflowUser(user) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  const department = normalizeDepartmentCode(user?.department);
+
+  return role === "supervisor" || COMPLETED_VIEW_DEPARTMENTS.has(department);
+}
+
 function isMphlgUser(user) {
   return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
 }
@@ -997,6 +1038,52 @@ function getApplicationIdFromPath(pathname) {
 
 function getPathname(path) {
   return String(path || "").split("?")[0];
+}
+
+function getAdminSidebarView(location) {
+  const params = new URLSearchParams(location.search);
+
+  if (isCompletedSidebarContext(params)) {
+    return "completed";
+  }
+
+  const view = params.get("view");
+  if (view) return view;
+
+  const returnTo = params.get("returnTo") || "";
+  const returnToView = getViewFromPath(returnTo);
+
+  return returnToView || "personal";
+}
+
+function isCompletedSidebarContext(params) {
+  const from = params.get("from") || "";
+  const view = params.get("view") || "";
+  const returnTo = params.get("returnTo") || "";
+
+  return (
+    view === "completed" ||
+    from === "completed-approvals" ||
+    returnTo.includes("view=completed") ||
+    returnTo.includes("from=completed-approvals")
+  );
+}
+
+function getViewFromPath(path) {
+  if (!path) return "";
+
+  try {
+    const parsed = new URL(path, "http://localhost");
+    const params = parsed.searchParams;
+
+    if (isCompletedSidebarContext(params)) {
+      return "completed";
+    }
+
+    return params.get("view") || "";
+  } catch {
+    return "";
+  }
 }
 
 export default AppShell;

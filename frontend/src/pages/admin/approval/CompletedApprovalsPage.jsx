@@ -22,6 +22,25 @@ import {
 } from "../../../utils/workflow";
 
 const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+const TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const COMPLETED_VIEW_DEPARTMENTS = new Set([
+  "PT(IKL)",
+  "KU(IKL)",
+  "IKL (TECHNICAL)",
+  "BLG",
+  "GPM",
+  "MNE",
+  "IMT",
+  "LNP",
+  "ENG",
+  "KB(LES)",
+  "TP(RES)",
+  "PGH",
+  "TP(RES)/PGH",
+  "TP/PGH",
+  "MPHLG",
+  "SUT",
+]);
 const APPROVED_WORKFLOW_STATUSES = new Set([
   "approved",
   "approved_with_conditions",
@@ -100,7 +119,7 @@ function CompletedApprovalsPage() {
 
     return completedRecords.filter((app) => {
       const completedAt = getCompletionDate(app);
-      const decisionValue = getApprovalDecision(app);
+      const decisionValue = getDepartmentDecision(app, userDepartment);
       const haystack = [
         getApplicationReference(app),
         getApplicationType(app),
@@ -118,7 +137,13 @@ function CompletedApprovalsPage() {
 
       return true;
     });
-  }, [completedRecords, decision, keyword, month, year]);
+  }, [completedRecords, decision, keyword, month, userDepartment, year]);
+
+  const decisionOptions = useMemo(() => {
+    return Array.from(
+      new Set(completedRecords.map((app) => getDepartmentDecision(app, userDepartment)).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+  }, [completedRecords, userDepartment]);
 
   function resetFilters() {
     setKeyword("");
@@ -185,8 +210,11 @@ function CompletedApprovalsPage() {
               className="form-input"
             >
               <option value="">{t("common.allStatuses")}</option>
-              <option value="Approved">{t("workspace.decision.approved", "Approved")}</option>
-              <option value="Rejected">{t("workspace.decision.rejected", "Rejected")}</option>
+              {decisionOptions.map((item) => (
+                <option key={item} value={item}>
+                  {formatDecisionLabel(item, t)}
+                </option>
+              ))}
             </select>
           </Field>
 
@@ -236,14 +264,18 @@ function CompletedApprovalsPage() {
             {
               key: "decision",
               label: t("common.status"),
-              render: (app) => <StatusPill value={getApprovalDecision(app)} />,
+              render: (app) => (
+                <StatusPill
+                  value={formatDecisionLabel(getDepartmentDecision(app, userDepartment), t)}
+                />
+              ),
             },
             {
               key: "completed",
               label: t("approval.completed.completedOn", "Completed On"),
               render: (app) => (
                 <span className="whitespace-nowrap text-[12px] leading-5">
-                  {formatCompactDateTime(getCompletionDate(app))}
+                  {formatCompactDateTime(getCompletionDate(app, userDepartment))}
                 </span>
               ),
             },
@@ -252,7 +284,7 @@ function CompletedApprovalsPage() {
               label: t("common.action"),
               render: (app) => (
                 <LinkButton
-                  to={`/dashboard/admin?view=approval&id=${app.id}&from=completed-approvals&returnTo=/dashboard/admin?view=completed`}
+                  to={getCompletedRecordPath(app, userDepartment)}
                   icon="visibility"
                   variant="secondary"
                   className="min-h-8 px-3 py-1 text-xs"
@@ -291,10 +323,46 @@ function getMonthOptions(t) {
 }
 
 function isCompletedApprovalForDepartment(app, department) {
-  if (!APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
+  if (!COMPLETED_VIEW_DEPARTMENTS.has(department)) {
     return false;
   }
 
+  if (isFinalApprovalCompleted(app)) {
+    return true;
+  }
+
+  if (department === "PT(IKL)") {
+    return isPtIklCompleted(app);
+  }
+
+  if (department === "KU(IKL)") {
+    return isKuIklCompleted(app);
+  }
+
+  if (department === "IKL (TECHNICAL)") {
+    return hasIklTechnicalReview(app);
+  }
+
+  if (TECHNICAL_DEPARTMENTS.has(department)) {
+    return hasTechnicalDepartmentReview(app, department);
+  }
+
+  if (department === "KB(LES)") {
+    return hasKbLesDecision(app);
+  }
+
+  if (department === "MPHLG") {
+    return hasMphlgDecision(app);
+  }
+
+  if (department === "SUT") {
+    return hasSutDecision(app);
+  }
+
+  return isFinalApprovalCompleted(app, department);
+}
+
+function isFinalApprovalCompleted(app, department) {
   const approval = getApplicationSection(app, "approval");
   const managementRecommendation = getApplicationSection(app, "management_recommendation");
   const decisionDepartment = normalizeDepartmentCode(
@@ -305,7 +373,13 @@ function isCompletedApprovalForDepartment(app, department) {
   const finalDecision = getApprovalDecision(app);
   const status = normalizeStatus(app?.status);
   const departmentMatches =
-    !decisionDepartment || APPROVAL_SUPPORT_DEPARTMENTS.has(decisionDepartment);
+    !department ||
+    !decisionDepartment ||
+    decisionDepartment === department ||
+    (
+      APPROVAL_SUPPORT_DEPARTMENTS.has(department) &&
+      APPROVAL_SUPPORT_DEPARTMENTS.has(decisionDepartment)
+    );
 
   return (
     departmentMatches &&
@@ -316,6 +390,154 @@ function isCompletedApprovalForDepartment(app, department) {
       status === "rejected"
     )
   );
+}
+
+function isPtIklCompleted(app) {
+  const status = normalizeStatus(app?.status);
+  const autoScreening = getApplicationSection(app, "auto_screening");
+  const decision = String(autoScreening.result || autoScreening.decision || "").trim();
+
+  return (
+    decision.includes("PT(IKL)") ||
+    (hasApplicationSection(app, "auto_screening") &&
+      !["submitted"].includes(status))
+  );
+}
+
+function isKuIklCompleted(app) {
+  const autoScreening = getApplicationSection(app, "auto_screening");
+  const technicalKuReview = getApplicationSection(app, "technical_ku_review");
+  const decision = String(autoScreening.result || autoScreening.decision || "").trim();
+
+  return (
+    decision.includes("KU(IKL)") ||
+    hasDecisionSection(technicalKuReview, ["reviewed_at"]) ||
+    hasApplicationSection(app, "technical_referral")
+  );
+}
+
+function hasIklTechnicalReview(app) {
+  const technicalReview = getApplicationSection(app, "technical_review");
+
+  return hasDecisionSection(technicalReview, ["reviewed_at"]);
+}
+
+function hasTechnicalDepartmentReview(app, department) {
+  const review = getTechnicalDepartmentReviews(app)?.[department];
+  return Boolean(review && typeof review === "object" && hasDecisionSection(review, ["reviewed_at", "submitted_at"]));
+}
+
+function hasKbLesDecision(app) {
+  const verification = getApplicationSection(app, "kb_les_verification");
+  const status = String(verification.status || "").trim().toLowerCase();
+
+  return (
+    hasDecisionSection(verification, ["verified_at"]) &&
+    !status.includes("pending")
+  );
+}
+
+function hasMphlgDecision(app) {
+  const mphlg = getApplicationSection(app, "mphlg_gateway");
+  const status = String(mphlg.status || "").trim().toLowerCase();
+
+  return (
+    hasDecisionSection(mphlg, ["reviewed_at"]) &&
+    !status.includes("pending")
+  );
+}
+
+function hasSutDecision(app) {
+  const sutApproval = getApplicationSection(app, "sut_approval");
+  const status = String(sutApproval.status || "").trim().toLowerCase();
+
+  return (
+    hasDecisionSection(sutApproval, ["approved_at"]) &&
+    !status.includes("pending")
+  );
+}
+
+function hasDecisionSection(section, dateKeys = []) {
+  if (!section || typeof section !== "object") return false;
+
+  return Boolean(
+    section.decision ||
+      section.result ||
+      section.final_decision ||
+      section.remarks ||
+      section.comment ||
+      dateKeys.some((key) => section[key])
+  );
+}
+
+function getDepartmentDecision(app, department) {
+  if (isFinalApprovalCompleted(app)) {
+    return getApprovalDecision(app);
+  }
+
+  if (department === "PT(IKL)") {
+    return getScreeningDecision(app, "PT(IKL)");
+  }
+
+  if (department === "KU(IKL)") {
+    return getKuIklDecision(app);
+  }
+
+  if (department === "IKL (TECHNICAL)") {
+    const review = getApplicationSection(app, "technical_review");
+    return getSectionDecision(review) || formatWorkflowStatus(app.status);
+  }
+
+  if (TECHNICAL_DEPARTMENTS.has(department)) {
+    return getSectionDecision(getTechnicalDepartmentReviews(app)?.[department]) || formatWorkflowStatus(app.status);
+  }
+
+  if (department === "KB(LES)") {
+    return getSectionDecision(getApplicationSection(app, "kb_les_verification")) || formatWorkflowStatus(app.status);
+  }
+
+  if (department === "MPHLG") {
+    return getSectionDecision(getApplicationSection(app, "mphlg_gateway")) || formatWorkflowStatus(app.status);
+  }
+
+  if (department === "SUT") {
+    return getSectionDecision(getApplicationSection(app, "sut_approval")) || formatWorkflowStatus(app.status);
+  }
+
+  return getApprovalDecision(app);
+}
+
+function getScreeningDecision(app, department) {
+  const autoScreening = getApplicationSection(app, "auto_screening");
+  const decision = getSectionDecision(autoScreening);
+
+  if (decision.includes(department)) return decision;
+
+  if (department && isCompletedApprovalForDepartment(app, department)) {
+    return "Completed";
+  }
+
+  return decision || formatWorkflowStatus(app.status);
+}
+
+function getKuIklDecision(app) {
+  const technicalKuReview = getApplicationSection(app, "technical_ku_review");
+  const kuTechnicalDecision = getSectionDecision(technicalKuReview);
+
+  if (kuTechnicalDecision) return kuTechnicalDecision;
+
+  return getScreeningDecision(app, "KU(IKL)");
+}
+
+function getSectionDecision(section = {}) {
+  const rawDecision =
+    section.final_decision ||
+    section.decision ||
+    section.result ||
+    section.status ||
+    "";
+
+  return String(rawDecision || "").trim();
 }
 
 function getApprovalDecision(app) {
@@ -345,15 +567,72 @@ function getApprovalDecision(app) {
   return formatWorkflowStatus(rawDecision);
 }
 
-function getCompletionDate(app) {
+function getCompletionDate(app, department = normalizeDepartmentCode(getStoredUser()?.department)) {
+  const finalApprovalDate = isFinalApprovalCompleted(app)
+    ? getFinalApprovalCompletionDate(app)
+    : null;
+
+  if (finalApprovalDate) {
+    return finalApprovalDate;
+  }
+
+  if (department === "PT(IKL)") {
+    return parseCompletionDate(getApplicationSection(app, "auto_screening"), ["checked_at"]);
+  }
+
+  if (department === "KU(IKL)") {
+    return (
+      parseCompletionDate(getApplicationSection(app, "technical_ku_review"), ["reviewed_at"]) ||
+      parseCompletionDate(getApplicationSection(app, "technical_referral"), ["referred_at"]) ||
+      parseCompletionDate(getApplicationSection(app, "auto_screening"), ["checked_at"])
+    );
+  }
+
+  if (department === "IKL (TECHNICAL)") {
+    return parseCompletionDate(getApplicationSection(app, "technical_review"), ["reviewed_at"]);
+  }
+
+  if (TECHNICAL_DEPARTMENTS.has(department)) {
+    return parseCompletionDate(getTechnicalDepartmentReviews(app)?.[department], ["reviewed_at", "submitted_at"]);
+  }
+
+  if (department === "KB(LES)") {
+    return parseCompletionDate(getApplicationSection(app, "kb_les_verification"), ["verified_at"]);
+  }
+
+  if (department === "MPHLG") {
+    return parseCompletionDate(getApplicationSection(app, "mphlg_gateway"), ["reviewed_at"]);
+  }
+
+  if (department === "SUT") {
+    return parseCompletionDate(getApplicationSection(app, "sut_approval"), ["approved_at"]);
+  }
+
+  const rawDate = app?.updated_at || app?.created_at;
+  const date = new Date(rawDate);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getFinalApprovalCompletionDate(app) {
   const approval = getApplicationSection(app, "approval");
   const managementRecommendation = getApplicationSection(app, "management_recommendation");
-  const rawDate =
-    approval.decided_at ||
-    approval.approved_at ||
-    managementRecommendation.decided_at ||
-    app?.updated_at ||
-    app?.created_at;
+
+  return parseCompletionDate(
+    {
+      decided_at:
+        approval.decided_at ||
+        approval.approved_at ||
+        managementRecommendation.decided_at ||
+        managementRecommendation.supported_at ||
+        app?.updated_at,
+    },
+    ["decided_at"]
+  );
+}
+
+function parseCompletionDate(section = {}, dateKeys = []) {
+  const rawDate = dateKeys.map((key) => section?.[key]).find(Boolean);
   const date = new Date(rawDate);
 
   return Number.isNaN(date.getTime()) ? null : date;
@@ -361,6 +640,37 @@ function getCompletionDate(app) {
 
 function getRecordTime(app) {
   return getCompletionDate(app)?.getTime() || 0;
+}
+
+function getCompletedRecordPath(app, department) {
+  const returnTo = encodeURIComponent("/dashboard/admin?view=completed");
+  const basePath = isFinalApprovalCompleted(app)
+    ? "/dashboard/admin?view=approval"
+    : getDepartmentWorkspacePath(department);
+
+  return `${basePath}${basePath.includes("?") ? "&" : "?"}id=${app.id}&from=completed-approvals&returnTo=${returnTo}`;
+}
+
+function getDepartmentWorkspacePath(department) {
+  if (["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"].includes(department)) {
+    return "/admin/auto-screening";
+  }
+
+  if (TECHNICAL_DEPARTMENTS.has(department)) {
+    return "/admin/technical-review";
+  }
+
+  return "/dashboard/admin?view=approval";
+}
+
+function formatDecisionLabel(value, t) {
+  if (value === "Approved") return t("workspace.decision.approved", "Approved");
+  if (value === "Rejected") return t("workspace.decision.rejected", "Rejected");
+  return value || "-";
+}
+
+function getTechnicalDepartmentReviews(app) {
+  return app?.technical_department_reviews || app?.form_data?.technical_department_reviews || {};
 }
 
 function getApplicationSection(app, key) {
@@ -381,8 +691,20 @@ function normalizeDepartmentCode(value) {
     .replace(/\s*\/\s*/g, "/")
     .replace(/\s+/g, " ");
 
+  if (department === "UNIT IKLAN") return "PT(IKL)";
+  if (department === "PT IKL") return "PT(IKL)";
+  if (department === "KU IKL") return "KU(IKL)";
   if (department === "TP RES" || department === "TP(RES)") return "TP(RES)";
   if (department === "TP RES/PGH" || department === "TP(RES)/PGH") return "TP(RES)/PGH";
+  if (
+    department === "IKL(TECHNICAL)" ||
+    department === "IKL TECHNICAL" ||
+    department === "IKL-TECHNICAL"
+  ) {
+    return "IKL (TECHNICAL)";
+  }
+  if (department === "INP") return "LNP";
+  if (department === "SETIAUSAHA TETAP") return "SUT";
   return department;
 }
 

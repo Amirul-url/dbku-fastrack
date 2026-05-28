@@ -78,6 +78,13 @@ const APPROVAL_TECHNICAL_REPORT_DEPARTMENTS = [
   ...MPHLG_REVIEW_DEPARTMENTS,
   ...SUT_APPROVAL_DEPARTMENTS,
 ];
+const APPROVAL_REPORT_VIEW_DEPARTMENTS = [
+  "PT(IKL)",
+  "KU(IKL)",
+  "IKL (TECHNICAL)",
+  ...TECHNICAL_DEPARTMENTS,
+  ...APPROVAL_TECHNICAL_REPORT_DEPARTMENTS,
+];
 const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
 const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
 const TECHNICAL_FEE_OPTIONS = [
@@ -334,6 +341,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const statusScopedApplications = useMemo(() => {
     const statusScope = getWorkspaceStatusScope(config, userDepartment);
     return applications.filter((app) => {
+      if (fromCompletedApprovals && String(app.id) === String(selectedId)) {
+        return true;
+      }
+
       const normalizedStatus = normalizeStatus(app.status);
       const isInStatusScope =
         statusScope.length === 0 || statusScope.includes(normalizedStatus);
@@ -347,7 +358,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       return isInStatusScope && isInDepartmentScope && isInApprovalScope;
     });
-  }, [applications, config, isApprovalWorkspace, isDepartmentTechnicalWorkspace, userDepartment]);
+  }, [
+    applications,
+    config,
+    fromCompletedApprovals,
+    isApprovalWorkspace,
+    isDepartmentTechnicalWorkspace,
+    selectedId,
+    userDepartment,
+  ]);
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -3480,7 +3499,7 @@ function shouldShowApprovalTechnicalReport(department, app) {
   const normalizedDepartment = normalizeDepartmentCode(department);
 
   return (
-    APPROVAL_TECHNICAL_REPORT_DEPARTMENTS.includes(normalizedDepartment) ||
+    APPROVAL_REPORT_VIEW_DEPARTMENTS.includes(normalizedDepartment) ||
     getApprovalStageKey(app) === "support"
   );
 }
@@ -4792,7 +4811,7 @@ const configs = {
   },
   approval: {
     key: "approval",
-    eyebrow: "SUT, KB(LES), and TP/PGH",
+    eyebrow: "KB(LES), TP/PGH, MPHLG, and SUT",
     eyebrowKey: "workspace.approval.eyebrow",
     statuses: [
       "management_review",
@@ -4801,7 +4820,7 @@ const configs = {
     ],
     title: "Approval",
     titleKey: "workspace.approval.title",
-    description: "Record the SUT result, KB(LES) verification, and TP(RES)/PGH final approval.",
+    description: "Record KB(LES) verification, TP(RES)/PGH support, MPHLG review, SUT decision, and final approval.",
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",

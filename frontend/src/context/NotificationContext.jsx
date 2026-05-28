@@ -415,7 +415,7 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   const normalizedStatus = normalizeStatus(status);
 
   if (normalizedStatus === "submitted") {
-    return department === "PT(IKL)";
+    return department === "KU(IKL)";
   }
 
   if (normalizedStatus === "approved") {
@@ -651,10 +651,10 @@ function buildAdminNotifications(app, user) {
         "admin",
         "screening",
         "warning",
-        "New IKL application submitted",
-        "Permohonan IKL baharu telah dihantar",
-        `${reference} (${type}) was submitted for ${project} at ${location}.`,
-        `${reference} (${type}) telah dihantar untuk ${project} di ${location}.`,
+        "Application ready for KU(IKL) review",
+        "Permohonan sedia untuk semakan KU(IKL)",
+        `${reference} (${type}) was submitted for ${project} at ${location} and is ready for KU(IKL) review.`,
+        `${reference} (${type}) telah dihantar untuk ${project} di ${location} dan sedia untuk semakan KU(IKL).`,
         user
       )
     );

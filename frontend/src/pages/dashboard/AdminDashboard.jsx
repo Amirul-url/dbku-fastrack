@@ -33,6 +33,24 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
 ]);
 const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const COMPLETED_VIEW_DEPARTMENTS = new Set([
+  "PT(IKL)",
+  "KU(IKL)",
+  "IKL (TECHNICAL)",
+  "BLG",
+  "GPM",
+  "MNE",
+  "IMT",
+  "LNP",
+  "ENG",
+  "KB(LES)",
+  "TP(RES)",
+  "PGH",
+  "TP(RES)/PGH",
+  "TP/PGH",
+  "MPHLG",
+  "SUT",
+]);
 const IKL_HISTORY_STATUSES = [
   "submitted",
   "incomplete",
@@ -179,12 +197,12 @@ function AdminDashboard() {
     };
   }, []);
 
-  if (isMphlgUser(currentUser) && view === "approval") {
-    return <ApprovalPage />;
+  if (isCompletedWorkflowUser(currentUser) && view === "completed") {
+    return <CompletedApprovalsPage />;
   }
 
-  if (isApprovalWorkflowUser(currentUser) && view === "completed") {
-    return <CompletedApprovalsPage />;
+  if (isMphlgUser(currentUser) && view === "approval") {
+    return <ApprovalPage />;
   }
 
   if (isMphlgUser(currentUser)) {
@@ -478,6 +496,13 @@ function isApprovalWorkflowUser(user) {
     department === "TP(RES)/PGH" ||
     department === "TP/PGH"
   );
+}
+
+function isCompletedWorkflowUser(user) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  const department = normalizeDepartmentCode(user?.department);
+
+  return role === "supervisor" || COMPLETED_VIEW_DEPARTMENTS.has(department);
 }
 
 function isMphlgUser(user) {
