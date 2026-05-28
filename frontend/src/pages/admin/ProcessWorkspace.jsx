@@ -72,6 +72,12 @@ const TECHNICAL_REVIEW_STATUSES = new Set([
 const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
 const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
 const SUT_APPROVAL_DEPARTMENTS = ["SUT"];
+const APPROVAL_TECHNICAL_REPORT_DEPARTMENTS = [
+  "KB(LES)",
+  ...APPROVAL_SUPPORT_DEPARTMENTS,
+  ...MPHLG_REVIEW_DEPARTMENTS,
+  ...SUT_APPROVAL_DEPARTMENTS,
+];
 const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
 const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
 const TECHNICAL_FEE_OPTIONS = [
@@ -397,8 +403,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     approvalStageKey === "sut" &&
     SUT_APPROVAL_DEPARTMENTS.includes(userDepartment);
-  const showApprovalDecisionButtons =
-    isMphlgApprovalWorkspace || isSutApprovalWorkspace;
+  const showApprovalDecisionButtons = false;
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
@@ -516,13 +521,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     if (isApprovalSupportWorkspace) {
-      setDecision("Approve");
+      setDecision(isFinalApprovalSupportWorkspace ? "Approve" : "");
       setLicenseExpiryYears("1");
       return;
     }
 
-    const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
-    if (nextDecision) setDecision(nextDecision);
+    setDecision(getDefaultWorkspaceDecision(config, selectedRecord, userDepartment));
     setLicenseExpiryYears("1");
   }, [
     approvalStageKey,
@@ -760,7 +764,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       userDepartment === "KB(LES)" &&
       getApprovalStageKey(selectedRecord) === "kb" &&
       action?.buildPayload === buildApprovalWorkflowPayload &&
-      ["Support", "Verify", "Reject"].includes(actionDecision)
+      ["Support", "Verify", "Reject", "Not Verify"].includes(actionDecision)
     );
   }
 
@@ -835,7 +839,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const cleanedComment = cleanRemark(overrides.comment ?? comment);
     const requiresDecisionRemark =
       (overrides.checkDecisionRemark ?? config.showComment) &&
-      /reject|amendment|condition|not supported/i.test(String(actionDecision || ""));
+      /reject|amendment|condition|not supported|not verify|not verified/i.test(String(actionDecision || ""));
+
+    if (config.showDecision && !actionDecision) {
+      setError(t("workspace.decision.required", "Please select a decision."));
+      return;
+    }
 
     if ((action.requiresComment || requiresDecisionRemark) && !cleanedComment) {
       setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
@@ -864,7 +873,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if (MEMO_EDITOR_ENABLED) {
       if (isKbLesDecisionAction(action, actionDecision) && !overrides.memoHtml) {
-        const rejected = actionDecision === "Reject";
+        const rejected = ["Reject", "Not Verify", "Not Verified"].includes(actionDecision);
 
         setError("");
         setSuccess("");
@@ -1437,6 +1446,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onChange={(event) => setDecision(event.target.value)}
                         className={`form-input ${tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "max-w-xs" : ""}`}
                       >
+                        <option value="">
+                          {t("workspace.decision.selectDecision", "Select decision")}
+                        </option>
                         {decisionOptions.map((item) => (
                           <option key={item.value || item} value={item.value || item}>
                             {t(item.labelKey, item.label || item)}
@@ -1446,12 +1458,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </Field>
                   )}
 
-                  {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && !isMphlgApprovalWorkspace && (
+                  {config.showComment && canSubmitWorkspaceAction && !isApprovalSupportWorkspace && (
                     <Field
                       label={
                         <>
                           {isSutApprovalWorkspace
-                            ? t("workspace.comment.sutApproval", "SUT Comments")
+                            ? t("workspace.comment.approvalRemarks", "Remarks")
                             : t(config.commentLabelKey, config.commentLabel || "Notes")}
                           {workspaceActions.some((action) => action.requiresComment) && (
                             <span className="ml-1 text-red-600">*</span>
@@ -1471,7 +1483,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                         placeholder={
                           isSutApprovalWorkspace
-                            ? t("workspace.comment.sutApprovalPlaceholder", "Enter SUT approval comments if needed.")
+                            ? t("workspace.comment.approvalRemarksPlaceholder", "Enter remarks if needed.")
                             : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
                         }
                       />
@@ -1509,11 +1521,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             </option>
                           )}
                           <option value="Approve">
-                            {t("workspace.decision.approve", "Approve")}
+                            {t("workspace.decision.support", "Support")}
                           </option>
                           {!isFinalApprovalSupportWorkspace && (
                             <option value="Reject">
-                              {t("workspace.decision.notApprove", "Not Approve")}
+                              {t("workspace.decision.notSupport", "Not Support")}
                             </option>
                           )}
                         </select>
@@ -1528,45 +1540,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks if needed.")}
                           />
                         </Field>
-                      )}
-                    </>
-                  )}
-
-                  {showApprovalMemoPreviews && showSavedApprovalDecisionMemo && !showApprovalSupportReadOnly && (
-                    <>
-                      <ApprovalMemoPreview
-                        app={selectedRecord}
-                        memoHtml={approvalMemoHtml}
-                        language={language}
-                        t={t}
-                      />
-                      <ApprovalDecisionMemoPreview
-                        memoHtml={savedApprovalDecisionHtml}
-                        t={t}
-                      />
-                    </>
-                  )}
-
-                  {showApprovalMemoPreviews && showApprovalSupportReadOnly && (
-                    <>
-                      <ApprovalMemoPreview
-                        app={selectedRecord}
-                        memoHtml={approvalMemoHtml}
-                        language={language}
-                        t={t}
-                      />
-                      {savedApprovalDecisionHtml ? (
-                        <ApprovalDecisionMemoPreview
-                          memoHtml={savedApprovalDecisionHtml}
-                          t={t}
-                        />
-                      ) : (
-                        <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                          {t(
-                            "workspace.memo.noSavedApprovalMemo",
-                            "TP(RES)/PGH has not saved a memo yet."
-                          )}
-                        </p>
                       )}
                     </>
                   )}
@@ -3272,7 +3245,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.bill_pending_ku", "Pending Bill Confirmation");
   }
 
-  return formatWorkflowStatus(status);
+  return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
 function getWorkspaceActionDescription(config, t, userDepartment) {
@@ -3283,7 +3256,7 @@ function getWorkspaceActionDescription(config, t, userDepartment) {
 
   if (config?.key === "approval") {
     if (userDepartment === "KB(LES)") {
-      return t("workspace.approval.kbAction", "Review the SUT result and support the application before sending it to TP(RES)/PGH.");
+      return t("workspace.approval.kbAction", "Review the SUT result and verify the application before sending it to TP(RES)/PGH.");
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
@@ -3330,8 +3303,8 @@ function getWorkspaceDecisionOptions(config, app, department) {
 
   if (department === "KB(LES)" && getApprovalStageKey(app) === "kb") {
     return [
-      { value: "Support", labelKey: "workspace.decision.support" },
-      { value: "Reject", labelKey: "workspace.decision.reject" },
+      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Not Verify", labelKey: "workspace.decision.notVerify" },
     ];
   }
 
@@ -3350,6 +3323,7 @@ function getWorkspaceDecisionOptions(config, app, department) {
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "mphlg") {
     return [
       { value: "Approve", labelKey: "workspace.decision.approve" },
+      { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
   }
 
@@ -3363,8 +3337,7 @@ function getWorkspaceDecisionOptions(config, app, department) {
 }
 
 function getDefaultWorkspaceDecision(config, app, department) {
-  const options = getWorkspaceDecisionOptions(config, app, department);
-  return options[0]?.value || options[0] || config?.defaultDecision || "";
+  return config?.showDecision ? "" : config?.defaultDecision || "";
 }
 
 function getWorkspaceActions(config, app, department) {
@@ -3436,25 +3409,14 @@ function isApprovalHistoryRecord(app) {
 }
 
 function isApprovalActionDepartment(department) {
-  return (
-    department === "KB(LES)" ||
-    APPROVAL_SUPPORT_DEPARTMENTS.includes(department) ||
-    MPHLG_REVIEW_DEPARTMENTS.includes(department) ||
-    SUT_APPROVAL_DEPARTMENTS.includes(department)
-  );
+  return APPROVAL_TECHNICAL_REPORT_DEPARTMENTS.includes(department);
 }
 
 function shouldShowApprovalTechnicalReport(department, app) {
   const normalizedDepartment = normalizeDepartmentCode(department);
-  const approvalDepartments = [
-    "KB(LES)",
-    ...APPROVAL_SUPPORT_DEPARTMENTS,
-    ...MPHLG_REVIEW_DEPARTMENTS,
-    ...SUT_APPROVAL_DEPARTMENTS,
-  ];
 
   return (
-    approvalDepartments.includes(normalizedDepartment) ||
+    APPROVAL_TECHNICAL_REPORT_DEPARTMENTS.includes(normalizedDepartment) ||
     getApprovalStageKey(app) === "support"
   );
 }
@@ -3622,7 +3584,7 @@ function getApprovalStageLabel(app) {
   if (stage === "mphlg") return "Pending MPHLG Approval";
   if (stage === "sut") return "Pending SUT Approval";
   if (stage === "completed") return "Approval Completed";
-  return "Pending KB(LES) Support";
+  return "Pending KB(LES) Verification";
 }
 
 function getApprovalStageKey(app) {
@@ -4037,7 +3999,7 @@ function buildApprovalWorkflowPayload(app, data) {
   const now = new Date().toISOString();
   const department = normalizeDepartmentCode(data.department);
   const decision = data.decision;
-  const rejected = decision === "Reject" || decision === "Not Supported";
+  const rejected = ["Reject", "Not Supported", "Not Verify", "Not Verified"].includes(decision);
 
   if (department === "KB(LES)") {
     return {
@@ -4048,7 +4010,7 @@ function buildApprovalWorkflowPayload(app, data) {
         kb_les_verification: {
           ...(app.form_data?.kb_les_verification || {}),
           officer: "KB(LES)",
-          status: rejected ? "Rejected" : "Supported",
+          status: rejected ? "Not Verified" : "Verified",
           decision,
           remarks: data.comment,
           memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
@@ -4196,7 +4158,7 @@ function buildApprovalWorkflowPayload(app, data) {
         },
         kb_les_verification: decision === "Approve"
           ? {
-              status: "Pending KB(LES) Support",
+              status: "Pending KB(LES) Verification",
               routed_from: "SUT",
               routed_at: now,
             }
@@ -4745,7 +4707,7 @@ const configs = {
     ],
     title: "Approval",
     titleKey: "workspace.approval.title",
-    description: "Record the SUT result, KB(LES) support, and TP(RES)/PGH final approval.",
+    description: "Record the SUT result, KB(LES) verification, and TP(RES)/PGH final approval.",
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",
@@ -4753,10 +4715,10 @@ const configs = {
     actionDescriptionKey: "workspace.approval.action",
     showDecision: true,
     showComment: true,
-    defaultDecision: "Support",
+    defaultDecision: "Verify",
     decisions: [
-      { value: "Support", labelKey: "workspace.decision.support" },
-      { value: "Reject", labelKey: "workspace.decision.reject" },
+      { value: "Verify", labelKey: "workspace.decision.verify" },
+      { value: "Not Verify", labelKey: "workspace.decision.notVerify" },
     ],
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
@@ -5192,7 +5154,7 @@ function IklWorkspaceSections({
   const showStandaloneTechnicalDepartmentRemarks =
     showTechnicalDepartmentRemarks && !showKuTechnicalReview;
   const [kuDecision, setKuDecision] = useState(
-    config.kuTechnicalReview?.defaultDecision || ""
+    ""
   );
   const [kuRemarks, setKuRemarks] = useState("");
   const [technicalDecision, setTechnicalDecision] = useState(
@@ -5225,8 +5187,8 @@ function IklWorkspaceSections({
     const hasDecision = screeningDecisionOptions.some(
       (item) => (item.value || item) === decision
     );
-    if (!hasDecision && screeningDecisionOptions.length > 0) {
-      setDecision(screeningDecisionOptions[0].value || screeningDecisionOptions[0]);
+    if (decision && !hasDecision) {
+      setDecision("");
     }
   }, [decision, screeningDecisionOptions, setDecision]);
 
@@ -5242,7 +5204,7 @@ function IklWorkspaceSections({
     setTechnicalDecision(
       hasSavedDecision
         ? savedDecision
-        : config.technicalActions?.[0]?.decision || ""
+        : ""
     );
   }, [config.technicalActions, selectedRecord.id, selectedRecord.form_data?.technical_review]);
 
@@ -5338,6 +5300,9 @@ function IklWorkspaceSections({
                 onChange={(event) => setDecision(event.target.value)}
                 className={`form-input ${["PT(IKL)", "KU(IKL)"].includes(userDepartment) ? "max-w-64" : ""}`}
               >
+                <option value="">
+                  {t("workspace.decision.selectDecision", "Select decision")}
+                </option>
                 {screeningDecisionOptions.map((item) => (
                   <option key={item.value || item} value={item.value || item}>
                     {getIklScreeningDecisionLabel(item, userDepartment, t)}
@@ -5423,13 +5388,16 @@ function IklWorkspaceSections({
             <div className="space-y-3">
               <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
                 <select
-                  value={technicalDecision}
-                  onChange={(event) => setTechnicalDecision(event.target.value)}
-                  className="form-input min-h-10 max-w-xl"
-                >
-                  {config.technicalActions.map((action) => (
-                    <option key={action.decision} value={action.decision}>
-                      {t(action.labelKey, action.label)}
+                value={technicalDecision}
+                onChange={(event) => setTechnicalDecision(event.target.value)}
+                className="form-input min-h-10 max-w-xl"
+              >
+                <option value="">
+                  {t("workspace.decision.selectDecision", "Select decision")}
+                </option>
+                {config.technicalActions.map((action) => (
+                  <option key={action.decision} value={action.decision}>
+                    {t(action.labelKey, action.label)}
                     </option>
                   ))}
                 </select>
@@ -5501,17 +5469,7 @@ function IklWorkspaceSections({
             readOnly
           />
 
-          <section className="rounded-md border border-slate-200 bg-white p-3">
-            <div className="mb-3">
-              <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-                {t("workspace.technical.kuFurtherTitle", "KU(IKL) Further Checking")}
-              </h3>
-              <p className="mt-1 text-[14px] leading-5 text-slate-500">
-                {t("workspace.technical.kuReviewDesc")}
-              </p>
-            </div>
-
-            <div className="space-y-3">
+          <section className="space-y-3">
               <KuTechnicalFurtherReviewPanel
                 t={t}
                 selectedRecord={selectedRecord}
@@ -5527,6 +5485,9 @@ function IklWorkspaceSections({
                   onChange={(event) => setKuDecision(event.target.value)}
                   className="form-input max-w-64"
                 >
+                  <option value="">
+                    {t("workspace.decision.selectDecision", "Select decision")}
+                  </option>
                   {config.kuTechnicalReview.decisions.map((item) => (
                     <option key={item.value} value={item.value}>
                       {t(item.labelKey, item.value)}
@@ -5564,7 +5525,6 @@ function IklWorkspaceSections({
                     : t("common.submit", "Submit")}
                 </Button>
               </div>
-            </div>
           </section>
         </>
       )}
@@ -5753,6 +5713,7 @@ function KuTechnicalFurtherReviewPanel({
   checks,
   onCheckChange,
   compact = false,
+  compiledRemarksLeadingRows = [],
   readOnly = false,
 }) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
@@ -5783,6 +5744,14 @@ function KuTechnicalFurtherReviewPanel({
     technicalReview.comment ||
     technicalReview.remarks ||
     "";
+  const iklTechnicalRemarkRows = [
+    {
+      department: "IKL(TECHNICAL)",
+      decision: technicalReview.final_decision || technicalReview.decision,
+      remarks: iklTechnicalRemarks,
+      reviewed_at: technicalReview.reviewed_at || reviewTechnicalSite.visited_at,
+    },
+  ];
 
   return (
     <div className="space-y-3">
@@ -5853,18 +5822,11 @@ function KuTechnicalFurtherReviewPanel({
         />
       )}
 
-      {compact && (
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
-            {t("workspace.technical.iklTechnicalRemarks", "IKL(TECHNICAL) Remarks")}
-          </h4>
-          <p className="mt-2 whitespace-pre-wrap text-[14px] leading-5 text-slate-800">
-            {iklTechnicalRemarks || t("workspace.info.notSubmitted", "Not submitted")}
-          </p>
-        </div>
-      )}
-
-      <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
+      <TechnicalDepartmentRemarks
+        app={selectedRecord}
+        t={t}
+        leadingRows={compiledRemarksLeadingRows.length > 0 ? compiledRemarksLeadingRows : compact ? iklTechnicalRemarkRows : []}
+      />
 
       {!compact && (
         <div className="rounded-md border border-slate-200 bg-white p-3">
@@ -5907,207 +5869,53 @@ function ApprovalTechnicalReviewSummary({
   userDepartment,
 }) {
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
-  const formData = selectedRecord.form_data || {};
-  const step1 = formData.step_1 || {};
   const technicalReview = selectedRecord.form_data?.technical_review || {};
   const kuReview = selectedRecord.form_data?.technical_ku_review || {};
-  const kuDecision = formatDecisionValue(kuReview.decision || kuReview.status, t);
-  const kuRemarks = kuReview.remarks || kuReview.comment || "-";
-  const isKbVerificationReport =
-    normalizeDepartmentCode(userDepartment) === "KB(LES)" &&
-    getApprovalStageKey(selectedRecord) === "kb";
-  const reportStatus =
-    kuReview.status ||
-    kuReview.decision ||
-    technicalReview.final_decision ||
-    technicalReview.decision ||
-    selectedRecord.latest_remark ||
-    "-";
-
-  if (isKbVerificationReport) {
-    return (
-      <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-                {t("workspace.approval.recommendationReport", "Verification Report")}
-              </p>
-              <h3 className="mt-1 text-[16px] font-semibold leading-6 text-slate-950">
-                {t("workspace.approval.technicalSummaryTitle", "KU(IKL) Final Checking")}
-              </h3>
-              <p className="mt-1 text-[14px] leading-5 text-slate-500">
-                {t("workspace.approval.technicalSummaryDesc", "Review KU(IKL)'s final technical check before verifying this application.")}
-              </p>
-            </div>
-            <StatusPill value={formatDecisionValue(reportStatus, t)} />
-          </div>
-        </div>
-
-        <div className="p-3">
-          <KuTechnicalFurtherReviewPanel
-            t={t}
-            selectedRecord={selectedRecord}
-            technicalSite={reviewTechnicalSite}
-            checks={createKuTechnicalChecks(kuReview.checks)}
-            readOnly
-          />
-        </div>
-      </section>
-    );
-  }
-
-  const applicantSitePhotos = getApplicantSitePhotos(selectedRecord);
-  const technicalSitePhotos = Array.isArray(reviewTechnicalSite.site_photos)
-    ? reviewTechnicalSite.site_photos
-    : [];
-  const coordinates = getApplicationCoordinates(step1);
+  const iklTechnicalRemarks =
+    reviewTechnicalSite.site_remarks ||
+    technicalReview.comment ||
+    technicalReview.remarks ||
+    "";
+  const iklTechnicalRemarkRows = [
+    {
+      department: "IKL(TECHNICAL)",
+      decision: technicalReview.final_decision || technicalReview.decision,
+      remarks: iklTechnicalRemarks,
+      reviewed_at: technicalReview.reviewed_at || reviewTechnicalSite.visited_at,
+    },
+  ];
 
   return (
-    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 bg-slate-50 px-3 py-3">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.approval.recommendationReport", "Recommendation Report")}
-            </p>
-            <h3 className="mt-1 text-[16px] font-semibold leading-6 text-slate-950">
-              {title || t("workspace.approval.technicalSummaryTitle", "Technical Report")}
-            </h3>
-            <p className="mt-1 text-[14px] leading-5 text-slate-500">
-              {description ||
-                t(
-                  "workspace.approval.technicalSummaryDesc",
-                  "Review the compiled application details, site photos, fee calculations, technical remarks, and KU(IKL) final check before making a decision."
-                )}
-            </p>
-          </div>
-          <StatusPill value={formatDecisionValue(reportStatus, t)} />
-        </div>
-      </div>
+    <div className="space-y-3">
+      <TechnicalApplicationTypePanel
+        t={t}
+        language={language}
+        selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+        derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
+        saving={false}
+        onToggle={() => {}}
+        readOnly
+      />
 
-      <div className="space-y-3 p-3">
-        {!isKbVerificationReport && (
-          <div className="rounded-md border border-slate-200 bg-white p-3">
-            <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-              {t("workspace.approval.applicationFacts", "Application Facts")}
-            </h4>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Info label={t("common.reference")} value={getApplicationReference(selectedRecord)} />
-              <Info label={t("common.applicant")} value={getApplicantName(selectedRecord)} />
-              <Info label={t("common.type")} value={getLocalizedApplicationType(selectedRecord, t, language)} />
-              <Info label={t("common.project")} value={getProjectName(selectedRecord)} />
-              <Info label={t("workspace.location")} value={getApplicationLocation(selectedRecord)} />
-              <Info
-                label={t("workspace.applicationDate", "Application Date")}
-                value={formatDate(step1.application_date)}
-              />
-              <Info
-                label={t("workspace.technical.coordinates", "Coordinates")}
-                value={coordinates}
-              />
-              <Info
-                label={t("workspace.created")}
-                value={formatDateTime(selectedRecord.created_at)}
-              />
-              <Info
-                label={t("common.updated")}
-                value={formatDateTime(selectedRecord.updated_at)}
-              />
-            </div>
-          </div>
-        )}
+      <TechnicalSiteVisitFields
+        t={t}
+        applicationId={selectedRecord.id}
+        value={reviewTechnicalSite}
+        onChange={() => {}}
+        onFileChange={() => {}}
+        readOnly
+      />
 
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <h4 className="mb-3 text-[15px] font-semibold leading-6 text-slate-950">
-            {isKbVerificationReport
-              ? t("workspace.approval.kuFinalCheck", "KU(IKL) Final Checking Result")
-              : t("workspace.approval.technicalRecommendation", "Technical Recommendation")}
-          </h4>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-            <Info
-              label={t("workspace.approval.finalTechnicalDecision", "Final Technical Decision")}
-              value={formatDecisionValue(technicalReview.final_decision || technicalReview.decision, t)}
-            />
-            <Info
-              label={t("workspace.technical.kuDecision", "KU(IKL) Decision")}
-              value={kuDecision}
-            />
-            <Info
-              label={t("workspace.technical.reviewedBy", "Reviewed By")}
-              value={kuReview.reviewed_by || "KU(IKL)"}
-            />
-            <Info
-              label={t("workspace.technical.reviewedAt", "Reviewed At")}
-              value={formatDateTime(kuReview.reviewed_at)}
-            />
-          </div>
-          {!isKbVerificationReport && (
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Info
-                label={t("workspace.technical.licenseFee")}
-                value={formatReportAmount(reviewTechnicalSite.license_fee_calculation)}
-              />
-              <Info
-                label={t("workspace.technical.deposit")}
-                value={formatReportAmount(reviewTechnicalSite.deposit_calculation)}
-              />
-              <Info
-                label={t("workspace.technical.siteVisitDate", "Site Visit Date")}
-                value={formatDateTime(formData.technical_site_visit?.visited_at)}
-              />
-            </div>
-          )}
-          <div className="mt-3">
-            <Info
-              label={t("workspace.comment.remarks", "Remarks")}
-              value={kuRemarks}
-            />
-          </div>
-          <div className="mt-3">
-            <Info
-              label={t("workspace.technical.siteRemarks")}
-              value={
-                reviewTechnicalSite.site_remarks ||
-                technicalReview.comment ||
-                technicalReview.remarks ||
-                "-"
-              }
-            />
-          </div>
-        </div>
-
-        {!isKbVerificationReport && (
-          <>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <TechnicalFeeCalculationSheet
-                t={t}
-                value={reviewTechnicalSite}
-                readOnly
-              />
-            </div>
-
-            <ReportPhotoGrid
-              t={t}
-              title={t("workspace.siteImage", "Applicant Site Image")}
-              emptyText={t("workspace.info.notSubmitted", "Not submitted")}
-              applicationId={selectedRecord.id}
-              photos={applicantSitePhotos}
-            />
-
-            <ReportPhotoGrid
-              t={t}
-              title={t("workspace.technical.sitePhoto")}
-              emptyText={t("workspace.info.notSubmitted", "Not submitted")}
-              applicationId={selectedRecord.id}
-              photos={technicalSitePhotos}
-            />
-
-            <TechnicalDepartmentRemarks app={selectedRecord} t={t} />
-          </>
-        )}
-      </div>
-    </section>
+      <KuTechnicalFurtherReviewPanel
+        t={t}
+        selectedRecord={selectedRecord}
+        technicalSite={reviewTechnicalSite}
+        checks={createKuTechnicalChecks(kuReview.checks)}
+        compiledRemarksLeadingRows={iklTechnicalRemarkRows}
+        compact
+        readOnly
+      />
+    </div>
   );
 }
 
@@ -6235,7 +6043,7 @@ function formatReportAmount(value) {
   return text;
 }
 
-function TechnicalDepartmentRemarks({ app, t }) {
+function TechnicalDepartmentRemarks({ app, t, leadingRows = [] }) {
   const reviews = getTechnicalDepartmentReviews(app);
   const selectedDepartments = getSelectedTechnicalDepartments(app);
   const hasSelection = hasTechnicalDepartmentSelection(app);
@@ -6257,7 +6065,35 @@ function TechnicalDepartmentRemarks({ app, t }) {
           <div>{t("common.status", "Status")}</div>
           <div>{t("workspace.comment.remarks", "Remarks")}</div>
         </div>
-        {departments.length === 0 && (
+        {leadingRows.map((review) => (
+          <div key={review.department} className="grid grid-cols-1 gap-4 px-3 py-2 text-[14px] leading-5 md:grid-cols-[110px_210px_1fr]">
+            <div className="font-semibold text-slate-950">{review.department}</div>
+            <div>
+              <StatusPill
+                value={
+                  review.decision
+                    ? t(getDecisionLabelKey(review.decision), review.decision)
+                    : t("workspace.stat.pending")
+                }
+              />
+            </div>
+            <div className="min-w-0 text-slate-700">
+              {review.remarks ? (
+                <>
+                  <p className="whitespace-pre-wrap leading-5">{review.remarks}</p>
+                  {review.reviewed_at && (
+                    <p className="mt-1 text-[13px] leading-5 text-slate-400">
+                      {formatDateTime(review.reviewed_at)}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <span className="text-slate-400">{t("workspace.info.notSubmitted")}</span>
+              )}
+            </div>
+          </div>
+        ))}
+        {departments.length === 0 && leadingRows.length === 0 && (
           <div className="px-3 py-3 text-[14px] leading-5 text-slate-500">
             {t("workspace.technical.noExternalDepartments", "No external departments selected")}
           </div>
@@ -6300,7 +6136,9 @@ function TechnicalDepartmentRemarks({ app, t }) {
 function getDecisionLabelKey(value) {
   const map = {
     Verify: "workspace.decision.verify",
+    "Not Verify": "workspace.decision.notVerify",
     Verified: "workspace.decision.verified",
+    "Not Verified": "workspace.decision.notVerified",
     Reject: "workspace.decision.reject",
     Rejected: "workspace.decision.rejected",
     Supported: "workspace.decision.supported",
@@ -6511,7 +6349,7 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
 
       <div className="mt-3 rounded-md border border-slate-300 bg-white p-4">
         <div className="text-center">
-          <p className="text-[13px] font-bold uppercase leading-5 text-slate-950">
+          <p className="text-[13px] font-normal uppercase italic leading-5 text-slate-950">
             {t("workspace.technical.scheduleTitle", "SECOND SCHEDULE")}
           </p>
           <div className="mt-1 flex items-center justify-center gap-4">
@@ -6521,7 +6359,7 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
             </p>
             <span className="h-px w-24 bg-slate-950" />
           </div>
-          <p className="mt-1 text-[13px] font-semibold leading-5 text-slate-700">
+          <p className="mt-1 text-[13px] font-bold leading-5 text-slate-950">
             {t("workspace.technical.scheduleBylaws", "(By-laws 9 and 10)")}
           </p>
         </div>
@@ -6530,25 +6368,25 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
           <table className="w-full min-w-[960px] table-fixed overflow-hidden text-[13px] leading-5 text-slate-950">
             <colgroup>
               <col className="w-[64px]" />
-              <col className="w-[310px]" />
-              <col className="w-[268px]" />
-              <col className="w-[200px]" />
-              <col className="w-[196px]" />
+              <col className="w-[340px]" />
+              <col className="w-[300px]" />
+              <col className="w-[220px]" />
+              <col className="w-[210px]" />
             </colgroup>
             <thead>
-              <tr className="text-center font-bold">
-                <th className="px-3 py-3">{t("common.no", "No.")}</th>
-                <th className="px-3 py-3">
+              <tr className="text-center italic">
+                <th className="px-3 py-3 font-normal" aria-hidden="true"></th>
+                <th className="px-3 py-3 font-normal">
                   {t("workspace.technical.scheduleAdvertisementType", "Type of Advertisement")}
                 </th>
-                <th className="px-3 py-3">
+                <th className="px-3 py-3 font-normal">
                   {t("workspace.technical.scheduleFeePayable", "Fee Payable")}
                 </th>
-                <th className="px-3 py-3">
+                <th className="px-3 py-3 font-normal">
                   {t("workspace.technical.scheduleCityLine1", "City/")}
                   {t("workspace.technical.scheduleCityLine2", "Municipal Council")}
                 </th>
-                <th className="px-3 py-3">
+                <th className="px-3 py-3 font-normal">
                   {t("workspace.technical.scheduleDistrictLine1", "District")}{" "}
                   {t("workspace.technical.scheduleDistrictLine2", "Council")}
                 </th>
