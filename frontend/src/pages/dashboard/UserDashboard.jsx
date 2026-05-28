@@ -720,6 +720,8 @@ function LicenseSection({
         </div>
 
         <div className="space-y-4 p-4">
+          <ApplicantPaymentDocuments app={app} t={t} />
+
           <section className="rounded-md border border-slate-200 bg-slate-50">
             <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -844,6 +846,79 @@ function LicenseSection({
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ApplicantPaymentDocuments({ app, t }) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const documents = [
+    {
+      label: t("workspace.payment.approvalLetter", "Approval Letter"),
+      file: approvalLetter.letter_file,
+      manual: approvalLetter.manual_letter,
+      type: "letter",
+    },
+    {
+      label: t("workspace.payment.billDocument", "Bill"),
+      file: approvalLetter.bill_file,
+      manual: approvalLetter.manual_bill,
+      type: "bill",
+    },
+  ];
+  const hasAnyDocument = documents.some((item) =>
+    getPaymentDocumentSource(item.file) || item.manual?.saved_at
+  );
+
+  if (!hasAnyDocument) return null;
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <h4 className="text-sm font-semibold text-slate-950">
+          {t("workspace.payment.documents", "Approval Letter and Bill")}
+        </h4>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
+        </p>
+      </div>
+
+      <div className="divide-y divide-slate-200">
+        {documents.map((item) => (
+          <div
+            key={item.label}
+            className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase text-slate-500">
+                {item.label}
+              </p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                {item.file?.name ||
+                  (item.manual?.saved_at
+                    ? t("workspace.payment.createdManually", "Created manually")
+                    : t("workspace.info.notUploaded", "Not uploaded"))}
+              </p>
+            </div>
+            {(getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
+              <button
+                type="button"
+                onClick={() =>
+                  item.file
+                    ? openApplicantPaymentDocument(item.file, t)
+                    : openApplicantManualPaymentDocument(app, item.type, t)
+                }
+                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  visibility
+                </span>
+                {t("common.view", "View")}
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -1116,6 +1191,107 @@ function shouldHideApplicantAction(app) {
 
 function getPaymentReceiptSource(receipt) {
   return receipt?.dataUrl || receipt?.url || receipt?.file_url || receipt?.file || "";
+}
+
+function getPaymentDocumentSource(file) {
+  return file?.dataUrl || file?.url || file?.file_url || file?.file || "";
+}
+
+async function openApplicantPaymentDocument(file, t) {
+  const source = getPaymentDocumentSource(file);
+  if (!source) return;
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    if (!isInlineFile) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (err) {
+    console.error("Failed to open payment document:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function openApplicantManualPaymentDocument(app, type, t) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualLetter = approvalLetter.manual_letter || {};
+  const manualBill = approvalLetter.manual_bill || {};
+  const isBill = type === "bill";
+  const title = isBill
+    ? t("workspace.payment.billDocument", "Bill")
+    : manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
+  const body = isBill
+    ? manualBill.notes || ""
+    : manualLetter.body || "";
+  const amount = app?.form_data?.payment?.amount || manualBill.amount || "";
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+    .header { border-bottom: 2px solid #111827; padding-bottom: 10px; }
+    h1 { margin: 0; font-size: 18px; text-transform: uppercase; }
+    .meta { display: grid; grid-template-columns: 140px 1fr; gap: 8px 14px; margin-top: 18px; font-size: 13px; }
+    .body { margin-top: 22px; white-space: pre-line; font-size: 13px; line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
+    th, td { border: 1px solid #111827; padding: 8px; text-align: left; }
+    td.amount { text-align: right; font-weight: 700; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    @media print { body { background: white; } .page { box-shadow: none; } .print-actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
+  <section class="page">
+    <div class="header">
+      <h1>Dewan Bandaraya Kuching Utara</h1>
+      <p>${escapeHtml(title)}</p>
+    </div>
+    <div class="meta">
+      <strong>Rujukan</strong><span>${escapeHtml(getApplicationReference(app))}</span>
+      <strong>Pemohon</strong><span>${escapeHtml(getApplicantName(app))}</span>
+      <strong>Projek</strong><span>${escapeHtml(getProjectName(app))}</span>
+      <strong>Tarikh</strong><span>${escapeHtml(formatDate(new Date()))}</span>
+    </div>
+    <div class="body">${escapeHtml(body)}</div>
+    ${isBill ? `
+      <table>
+        <tbody>
+          <tr><th>No. Bil</th><td>${escapeHtml(manualBill.invoice_no || getInvoiceNo(app))}</td></tr>
+          <tr><th>Jumlah Bayaran</th><td class="amount">${escapeHtml(amount ? `RM ${Number(amount).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-")}</td></tr>
+        </tbody>
+      </table>
+    ` : ""}
+  </section>
+</body>
+</html>`;
+  const preview = window.open("", "_blank");
+  if (!preview) return;
+  preview.opener = null;
+  preview.document.open();
+  preview.document.write(html);
+  preview.document.close();
+  preview.document.title = `${getApplicationReference(app)} ${title}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function isRejectedApplication(app) {
