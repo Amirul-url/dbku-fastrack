@@ -3098,7 +3098,7 @@ function sanitizeMemoHtml(html) {
     "I", "LI", "OL", "P", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH",
     "THEAD", "TR", "U", "UL",
   ]);
-  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class", "type"]);
+  const allowedAttributes = new Set(["colspan", "rowspan", "style", "href", "target", "rel", "class", "type", "start"]);
   const allowedStyleProperties = new Set([
     "background-color",
     "border",
@@ -7075,8 +7075,6 @@ function PaymentDetails({
   const payment = app.form_data?.payment || {};
   const approvalLetter = app.form_data?.approval_letter || {};
   const receiptFile = payment.receipt_file;
-  const notGenerated = t("workspace.info.notGenerated");
-  const amount = getBillAmount(app);
   const receiptSource = getPaymentReceiptSource(receiptFile);
   const letterFile = approvalLetter.letter_file;
   const billFile = approvalLetter.bill_file;
@@ -7085,6 +7083,13 @@ function PaymentDetails({
   const manualReady = hasManualPaymentDocuments(app);
   const canUploadDocuments =
     userDepartment === "PT(IKL)" && normalizeStatus(app?.status) === "approved";
+  const showReceiptDetails = Boolean(
+    receiptFile?.name ||
+    payment.receipt_reference ||
+    receiptSource ||
+    payment.verification_result ||
+    payment.verification_notes
+  );
   const [documentMode, setDocumentMode] = useState(() =>
     manualReady && !letterReady && !billReady ? "manual" : "upload"
   );
@@ -7186,51 +7191,35 @@ function PaymentDetails({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 border-t border-slate-200 px-3 py-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Info
-            label={t("workspace.payment.approvalLetter", "Approval Letter")}
-            value={letterReady || manualReady ? approvalLetter.status || "Uploaded" : notGenerated}
-          />
-          <Info
-            label={t("workspace.payment.billReceiptNo", "Bill / Receipt No.")}
-            value={billReady || manualReady ? getInvoiceNo(app) : notGenerated}
-          />
-          <Info
-            label={t("common.amount")}
-            value={hasValue(amount) ? formatCurrency(amount) : notGenerated}
-          />
-          <Info
-            label={t("common.status")}
-            value={getPaymentDetailStatus(payment.status, t) || notGenerated}
-          />
-        </div>
       </section>
 
-      <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Info
-            label={t("workspace.info.receipt")}
-            value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
-          />
-          {payment.verification_result && (
-            <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
-          )}
-          {payment.verification_notes && (
-            <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
-          )}
-        </div>
+      {showReceiptDetails && (
+        <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Info
+              label={t("workspace.info.receipt")}
+              value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
+            />
+            {payment.verification_result && (
+              <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
+            )}
+            {payment.verification_notes && (
+              <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
+            )}
+          </div>
 
-        {receiptSource && (
-          <button
-            type="button"
-            onClick={viewReceipt}
-            className="mt-3 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
-          >
-            <Icon name="visibility" className="text-base" />
-            {t("workspace.info.viewReceipt")}
-          </button>
-        )}
-      </section>
+          {receiptSource && (
+            <button
+              type="button"
+              onClick={viewReceipt}
+              className="mt-3 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
+            >
+              <Icon name="visibility" className="text-base" />
+              {t("workspace.info.viewReceipt")}
+            </button>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -7248,7 +7237,9 @@ function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange }
           {file?.name || t("workspace.info.notUploaded", "Not uploaded")}
         </p>
         {canUpload && (
-          <p className="mt-0.5 text-xs text-slate-500">PDF, JPG, or PNG</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {t("workspace.payment.uploadHint", "PDF, JPG, or PNG")}
+          </p>
         )}
       </div>
 
@@ -7300,7 +7291,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     normalizePaymentRows(manualBill.rows?.length ? manualBill.rows : defaultDraft.paymentRows)
   );
   const [terms, setTerms] = useState(() =>
-    manualLetter.terms || defaultDraft.terms
+    normalizeManualRichTextValue(manualLetter.terms || defaultDraft.terms)
   );
   const amount = getBillAmount(app);
   const [invoiceNo, setInvoiceNo] = useState(() =>
@@ -7310,6 +7301,8 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
     0
   );
+  const totalForWords = totalAmount || parseCurrencyAmount(amount) || 0;
+  const amountInWords = getCurrencyAmountWords(totalForWords);
   const letterBody = buildManualLetterBody({ fields, subject });
   const billNotes = buildManualBillNotes({ invoiceNo, paymentRows });
   const previewApp = buildManualPaymentPreviewApp(app, {
@@ -7341,8 +7334,27 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     setFields(getManualPaymentFields(app, manualLetter.fields));
     setPaymentRows(normalizePaymentRows(manualBill.rows?.length ? manualBill.rows : nextDefault.paymentRows));
     setInvoiceNo(manualBill.invoice_no || getInvoiceNo(app));
-    setTerms(manualLetter.terms || nextDefault.terms);
+    setTerms(normalizeManualRichTextValue(manualLetter.terms || nextDefault.terms));
   }, [app?.id, app?.updated_at]);
+
+  useEffect(() => {
+    if (readOnly) return;
+
+    setFields((current) => {
+      if (
+        current.billAmountText === amountInWords.ringgit &&
+        current.billSenText === amountInWords.sen
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        billAmountText: amountInWords.ringgit,
+        billSenText: amountInWords.sen,
+      };
+    });
+  }, [amountInWords.ringgit, amountInWords.sen, readOnly]);
 
   function updateField(key, value) {
     setFields((current) => ({ ...current, [key]: value }));
@@ -7366,33 +7378,19 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     );
   }
 
-  function addPaymentRow() {
-    setPaymentRows((current) => [
-      ...current,
-      { label: "", validity: "-", amount: "" },
-    ]);
-  }
-
-  function removePaymentRow(index) {
-    setPaymentRows((current) => {
-      const nextRows = current.filter((_, rowIndex) => rowIndex !== index);
-      return nextRows.length > 0 ? nextRows : [{ label: "", validity: "-", amount: "" }];
-    });
-  }
-
   const billReceiptSection = (
     <div className="rounded-md border border-slate-200 bg-white px-4 py-4">
       <div className="mb-4 flex flex-col gap-1 border-b border-slate-200 pb-3">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Bill / Official Receipt
+          {t("workspace.payment.manual.billReceiptTitle", "Bill / Official Receipt")}
         </p>
         <p className="text-sm text-slate-500">
-          Sediakan maklumat bil bayaran berasingan untuk disahkan oleh KU(IKL).
+          {t("workspace.payment.manual.billReceiptDesc", "Prepare separate bill payment information for KU(IKL) confirmation.")}
         </p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
-        <Field label="No. Bil / Resit">
+        <Field label={t("workspace.payment.manual.billReceiptNo", "Bill / Receipt No.")}>
           <input
             value={invoiceNo}
             onChange={(event) => setInvoiceNo(event.target.value)}
@@ -7400,7 +7398,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Tarikh Bil">
+        <Field label={t("workspace.payment.manual.billDate", "Bill Date")}>
           <input
             type="date"
             value={fields.letterDate}
@@ -7409,7 +7407,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Jumlah Bayaran">
+        <Field label={t("workspace.payment.manual.paymentAmount", "Payment Amount")}>
           <input
             value={formatCurrency(totalAmount || amount)}
             className="form-input font-semibold"
@@ -7419,7 +7417,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-        <Field label="Diterima Daripada">
+        <Field label={t("workspace.payment.manual.receivedFrom", "Received From")}>
           <input
             value={fields.billReceivedFrom || ""}
             onChange={(event) => updateField("billReceivedFrom", event.target.value)}
@@ -7427,7 +7425,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Station">
+        <Field label={t("workspace.payment.manual.station", "Station")}>
           <input
             value={fields.billStation || ""}
             onChange={(event) => updateField("billStation", event.target.value)}
@@ -7438,7 +7436,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <Field label="Label Salinan">
+        <Field label={t("workspace.payment.manual.copyLabel", "Copy Label")}>
           <input
             value={fields.billCopyLabel || ""}
             onChange={(event) => updateField("billCopyLabel", event.target.value)}
@@ -7446,7 +7444,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Tajuk Resit">
+        <Field label={t("workspace.payment.manual.receiptTitle", "Receipt Title")}>
           <input
             value={fields.billReceiptTitle || ""}
             onChange={(event) => updateField("billReceiptTitle", event.target.value)}
@@ -7454,7 +7452,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Tandatangan Bil">
+        <Field label={t("workspace.payment.manual.billSignature", "Bill Signature")}>
           <input
             value={fields.billSignatureText || ""}
             onChange={(event) => updateField("billSignatureText", event.target.value)}
@@ -7465,7 +7463,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        <Field label="Jumlah Dalam Perkataan">
+        <Field label={t("workspace.payment.manual.amountInWords", "Amount In Words")}>
           <input
             value={fields.billAmountText || ""}
             onChange={(event) => updateField("billAmountText", event.target.value)}
@@ -7473,7 +7471,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Sen Dalam Perkataan">
+        <Field label={t("workspace.payment.manual.senInWords", "Sen In Words")}>
           <input
             value={fields.billSenText || ""}
             onChange={(event) => updateField("billSenText", event.target.value)}
@@ -7485,9 +7483,9 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
 
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {[
-          ["billRemarkLine1", "Catatan Resit 1"],
-          ["billRemarkLine2", "Catatan Resit 2"],
-          ["billRemarkLine3", "Catatan Resit 3"],
+          ["billRemarkLine1", t("workspace.payment.manual.receiptNote1", "Receipt Note 1")],
+          ["billRemarkLine2", t("workspace.payment.manual.receiptNote2", "Receipt Note 2")],
+          ["billRemarkLine3", t("workspace.payment.manual.receiptNote3", "Receipt Note 3")],
         ].map(([key, label]) => (
           <Field key={key} label={label}>
             <input
@@ -7501,17 +7499,12 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-md border border-slate-300">
-        <table className="w-full min-w-[860px] border-collapse text-sm">
+        <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="border border-slate-300 px-3 py-2 text-left uppercase">Untuk Kredit</th>
-              <th className="border border-slate-300 px-3 py-2 text-left uppercase">Tempoh / Catatan</th>
-              <th className="border border-slate-300 px-3 py-2 text-right uppercase">Amaun (RM)</th>
-              {!readOnly && (
-                <th className="w-24 border border-slate-300 px-3 py-2 text-center uppercase">
-                  Action
-                </th>
-              )}
+              <th className="border border-slate-300 px-3 py-2 text-left uppercase">{t("workspace.payment.manual.forCredit", "For Credit")}</th>
+              <th className="border border-slate-300 px-3 py-2 text-left uppercase">{t("workspace.payment.manual.periodNotes", "Period / Notes")}</th>
+              <th className="border border-slate-300 px-3 py-2 text-right uppercase">{t("workspace.payment.manual.amountRm", "Amount (RM)")}</th>
             </tr>
           </thead>
           <tbody>
@@ -7542,46 +7535,22 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                     readOnly={readOnly}
                   />
                 </td>
-                {!readOnly && (
-                  <td className="border border-slate-300 px-2 py-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => removePaymentRow(index)}
-                      className="min-h-9 rounded border border-rose-200 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                )}
               </tr>
             ))}
             <tr className="bg-slate-50 font-bold">
               <td className="border border-slate-300 px-3 py-2 text-right" colSpan="2">
-                Total RM
+                {t("workspace.payment.manual.totalRm", "Total RM")}
               </td>
               <td className="border border-slate-300 px-3 py-2 text-right">
                 {formatCurrency(totalAmount || amount)}
               </td>
-              {!readOnly && <td className="border border-slate-300 px-3 py-2" />}
             </tr>
           </tbody>
         </table>
       </div>
 
-      {!readOnly && (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={addPaymentRow}
-            className="min-h-9 rounded border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Add Row
-          </button>
-        </div>
-      )}
-
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <Field label="Kaedah Bayaran Baris 1">
+        <Field label={t("workspace.payment.manual.paymentMethodLine1", "Payment Method Line 1")}>
           <input
             value={fields.billPaymentLine1 || ""}
             onChange={(event) => updateField("billPaymentLine1", event.target.value)}
@@ -7589,7 +7558,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Kaedah Bayaran Baris 2">
+        <Field label={t("workspace.payment.manual.paymentMethodLine2", "Payment Method Line 2")}>
           <input
             value={fields.billPaymentLine2 || ""}
             onChange={(event) => updateField("billPaymentLine2", event.target.value)}
@@ -7597,7 +7566,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label="Nota Bank">
+        <Field label={t("workspace.payment.manual.bankNote", "Bank Note")}>
           <textarea
             value={fields.billBankNote || ""}
             onChange={(event) => updateField("billBankNote", event.target.value)}
@@ -7656,16 +7625,63 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
               className="max-h-20 max-w-full object-contain"
             />
           </div>
-          <div className="text-center">
-            <p className="text-lg font-bold uppercase leading-5 text-slate-950">
-              Dewan Bandaraya Kuching Utara
-            </p>
-            <p className="text-xs font-semibold leading-5 text-slate-600">
-              Commission of the City of Kuching North
-            </p>
-            <p className="text-xs leading-5 text-slate-600">
-              Bukit Siol, Jalan Semariang, Petra Jaya, 93050 Kuching, Sarawak.
-            </p>
+          <div className="mx-auto w-fit max-w-full text-left">
+            <input
+              value={fields.letterheadTitle || ""}
+              onChange={(event) => updateField("letterheadTitle", event.target.value)}
+              className="form-input border-transparent bg-transparent px-0 text-left text-[16px] font-extrabold uppercase leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadSubtitle || ""}
+              onChange={(event) => updateField("letterheadSubtitle", event.target.value)}
+              className="form-input border-transparent bg-transparent px-0 text-left text-xs font-semibold italic leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadAddress || ""}
+              onChange={(event) => updateField("letterheadAddress", event.target.value)}
+              className="form-input border-transparent bg-transparent px-0 text-left text-xs font-bold uppercase leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadAddressLine2 || ""}
+              onChange={(event) => updateField("letterheadAddressLine2", event.target.value)}
+              className="form-input border-transparent bg-transparent px-0 text-left text-xs font-bold uppercase leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadPhoneLine || ""}
+              onChange={(event) => updateField("letterheadPhoneLine", event.target.value)}
+              className="form-input border-transparent bg-transparent px-0 text-left text-xs font-semibold italic leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadWebLine || ""}
+              onChange={(event) => updateField("letterheadWebLine", event.target.value)}
+              className="form-input border-transparent bg-transparent px-0 text-left text-xs font-semibold leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <div className="mt-1 flex flex-wrap items-center justify-start gap-x-4 gap-y-1">
+              <label className="flex min-w-[180px] items-center gap-1">
+                <img src={BOOTSTRAP_AT_ICON_URL} alt="" className="h-4 w-4 object-contain" />
+                <input
+                  value={fields.letterheadComplaintLine || ""}
+                  onChange={(event) => updateField("letterheadComplaintLine", event.target.value)}
+                  className="form-input h-6 border-transparent bg-transparent px-0 text-xs font-semibold leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+                  readOnly={readOnly}
+                />
+              </label>
+              <label className="flex min-w-[220px] items-center gap-1">
+                <img src={BOOTSTRAP_FACEBOOK_ICON_URL} alt="" className="h-4 w-4 object-contain" />
+                <input
+                  value={fields.letterheadFacebookLine || ""}
+                  onChange={(event) => updateField("letterheadFacebookLine", event.target.value)}
+                  className="form-input h-6 border-transparent bg-transparent px-0 text-xs font-semibold leading-4 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+                  readOnly={readOnly}
+                />
+              </label>
+            </div>
           </div>
           <div className="flex h-20 items-center justify-center">
             <img
@@ -7677,7 +7693,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </div>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          <Field label="Bil. Tuan">
+          <Field label={t("workspace.payment.manual.yourRef", "Your Ref.")}>
             <input
               value={fields.yourRef}
               onChange={(event) => updateField("yourRef", event.target.value)}
@@ -7685,7 +7701,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
               readOnly={readOnly}
             />
           </Field>
-          <Field label="Tarikh">
+          <Field label={t("workspace.payment.manual.date", "Date")}>
             <input
               type="date"
               value={fields.letterDate}
@@ -7694,7 +7710,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
               readOnly={readOnly}
             />
           </Field>
-          <Field label="Bil. Kami">
+          <Field label={t("workspace.payment.manual.ourRef", "Our Ref.")}>
             <input
               value={fields.ourRef}
               onChange={(event) => updateField("ourRef", event.target.value)}
@@ -7705,7 +7721,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </div>
 
         <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <Field label="Nama / Syarikat Pemohon">
+          <Field label={t("workspace.payment.manual.applicantCompanyName", "Applicant / Company Name")}>
             <input
               value={fields.recipientName}
               onChange={(event) => updateField("recipientName", event.target.value)}
@@ -7713,7 +7729,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
               readOnly={readOnly}
             />
           </Field>
-          <Field label="Alamat Pemohon">
+          <Field label={t("workspace.payment.manual.applicantAddress", "Applicant Address")}>
             <textarea
               value={fields.recipientAddress}
               onChange={(event) => updateField("recipientAddress", event.target.value)}
@@ -7725,7 +7741,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </div>
 
         <div className="mt-4">
-          <Field label="Salutation">
+          <Field label={t("workspace.payment.manual.salutation", "Salutation")}>
             <input
               value={fields.salutation || ""}
               onChange={(event) => updateField("salutation", event.target.value)}
@@ -7748,10 +7764,10 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
 
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {[
-            ["adType", "Jenis Iklan"],
-            ["adName", "Nama Iklan"],
-            ["applicantName", "Nama Pemohon"],
-            ["displayLocation", "Tempat Iklan Dipamer"],
+            ["adType", t("workspace.payment.manual.adType", "Advertisement Type")],
+            ["adName", t("workspace.payment.manual.adName", "Advertisement Name")],
+            ["applicantName", t("workspace.payment.manual.applicantName", "Applicant Name")],
+            ["displayLocation", t("workspace.payment.manual.displayLocation", "Advertisement Display Location")],
           ].map(([key, label]) => (
             <Field key={key} label={label}>
               <input
@@ -7765,7 +7781,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </div>
 
         <div className="mt-4 space-y-3">
-          <Field label="Perenggan Kelulusan">
+          <Field label={t("workspace.payment.manual.approvalParagraph", "Approval Paragraph")}>
             <textarea
               value={fields.approvalParagraph}
               onChange={(event) => updateField("approvalParagraph", event.target.value)}
@@ -7776,17 +7792,12 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
           </Field>
 
           <div className="overflow-x-auto rounded-md border border-slate-300">
-            <table className="w-full min-w-[860px] border-collapse text-sm">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="border border-slate-300 px-3 py-2 text-left uppercase">Butir Bayaran</th>
-                  <th className="border border-slate-300 px-3 py-2 text-left uppercase">Tempoh Lesen Berkuatkuasa</th>
-                  <th className="border border-slate-300 px-3 py-2 text-right uppercase">Jumlah (RM)</th>
-                  {!readOnly && (
-                    <th className="w-24 border border-slate-300 px-3 py-2 text-center uppercase">
-                      Action
-                    </th>
-                  )}
+                  <th className="border border-slate-300 px-3 py-2 text-left uppercase">{t("workspace.payment.manual.paymentDetails", "Payment Details")}</th>
+                  <th className="border border-slate-300 px-3 py-2 text-left uppercase">{t("workspace.payment.manual.licenseValidityPeriod", "License Validity Period")}</th>
+                  <th className="border border-slate-300 px-3 py-2 text-right uppercase">{t("workspace.payment.manual.totalAmountRm", "Total (RM)")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -7817,45 +7828,21 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                         readOnly={readOnly}
                       />
                     </td>
-                    {!readOnly && (
-                      <td className="border border-slate-300 px-2 py-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => removePaymentRow(index)}
-                          className="min-h-9 rounded border border-rose-200 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    )}
                   </tr>
                 ))}
                 <tr className="bg-slate-50 font-bold">
                   <td className="border border-slate-300 px-3 py-2 text-right" colSpan="2">
-                    Jumlah Keseluruhan
+                    {t("workspace.payment.manual.grandTotal", "Grand Total")}
                   </td>
                   <td className="border border-slate-300 px-3 py-2 text-right">
                     {formatCurrency(totalAmount || amount)}
                   </td>
-                  {!readOnly && <td className="border border-slate-300 px-3 py-2" />}
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {!readOnly && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={addPaymentRow}
-                className="min-h-9 rounded border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Add Row
-              </button>
-            </div>
-          )}
-
-          <Field label="Perenggan Lampiran / Syarat">
+          <Field label={t("workspace.payment.manual.attachmentParagraph", "Attachment / Conditions Paragraph")}>
             <textarea
               value={fields.attachmentParagraph}
               onChange={(event) => updateField("attachmentParagraph", event.target.value)}
@@ -7865,7 +7852,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             />
           </Field>
 
-          <Field label="Maklumat Untuk Dihubungi">
+          <Field label={t("workspace.payment.manual.contactInfo", "Contact Information")}>
             <textarea
               value={fields.contactParagraph}
               onChange={(event) => updateField("contactParagraph", event.target.value)}
@@ -7877,10 +7864,10 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
 
           <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
             <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Letter Closing / Signature
+              {t("workspace.payment.manual.closingSignature", "Letter Closing / Signature")}
             </p>
             <div className="grid gap-3 lg:grid-cols-2">
-              <Field label="Ayat Penutup">
+              <Field label={t("workspace.payment.manual.closingText", "Closing Text")}>
                 <input
                   value={fields.closingText || ""}
                   onChange={(event) => updateField("closingText", event.target.value)}
@@ -7888,7 +7875,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                   readOnly={readOnly}
                 />
               </Field>
-              <Field label="Motto Baris 1">
+              <Field label={t("workspace.payment.manual.mottoLine1", "Motto Line 1")}>
                 <input
                   value={fields.mottoLine1 || ""}
                   onChange={(event) => updateField("mottoLine1", event.target.value)}
@@ -7896,7 +7883,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                   readOnly={readOnly}
                 />
               </Field>
-              <Field label="Motto Baris 2">
+              <Field label={t("workspace.payment.manual.mottoLine2", "Motto Line 2")}>
                 <input
                   value={fields.mottoLine2 || ""}
                   onChange={(event) => updateField("mottoLine2", event.target.value)}
@@ -7904,7 +7891,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                   readOnly={readOnly}
                 />
               </Field>
-              <Field label="Jawatan Penandatangan">
+              <Field label={t("workspace.payment.manual.signatoryTitle", "Signatory Title")}>
                 <input
                   value={fields.signatoryTitle || ""}
                   onChange={(event) => updateField("signatoryTitle", event.target.value)}
@@ -7912,7 +7899,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                   readOnly={readOnly}
                 />
               </Field>
-              <Field label="Bahagian">
+              <Field label={t("workspace.payment.manual.department", "Department")}>
                 <input
                   value={fields.signatoryDepartment || ""}
                   onChange={(event) => updateField("signatoryDepartment", event.target.value)}
@@ -7920,7 +7907,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                   readOnly={readOnly}
                 />
               </Field>
-              <Field label="Kuasa Menandatangani">
+              <Field label={t("workspace.payment.manual.signingAuthority", "Signing Authority")}>
                 <input
                   value={fields.signatoryAuthority || ""}
                   onChange={(event) => updateField("signatoryAuthority", event.target.value)}
@@ -7930,7 +7917,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
               </Field>
             </div>
             <div className="mt-3">
-              <Field label="Footer Surat">
+              <Field label={t("workspace.payment.manual.letterFooter", "Letter Footer")}>
                 <textarea
                   value={fields.footerText || ""}
                   onChange={(event) => updateField("footerText", event.target.value)}
@@ -7947,17 +7934,38 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       <div className="rounded-md border border-slate-200 bg-white px-4 py-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold uppercase text-slate-950">Lampiran</p>
-            <p className="text-sm text-slate-500">Syarat-syarat lesen yang akan dipaparkan pada halaman lampiran.</p>
+            <p className="text-sm font-semibold uppercase text-slate-950">
+              {t("workspace.payment.manual.appendix", "Appendix")}
+            </p>
+            <p className="text-sm text-slate-500">
+              {t("workspace.payment.manual.appendixDesc", "License conditions that will be shown on the appendix page.")}
+            </p>
           </div>
         </div>
-        <textarea
-          value={terms}
-          onChange={(event) => setTerms(event.target.value)}
-          rows="10"
-          className="form-input"
-          readOnly={readOnly}
-        />
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+          <input
+            value={fields.appendixLabel || ""}
+            onChange={(event) => updateField("appendixLabel", event.target.value)}
+            className="form-input border-transparent bg-transparent px-0 text-right text-base font-semibold text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+            readOnly={readOnly}
+          />
+          <input
+            value={fields.appendixTitle || ""}
+            onChange={(event) => updateField("appendixTitle", event.target.value)}
+            className="form-input mt-8 border-transparent bg-transparent px-0 text-center text-sm font-bold uppercase text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+            readOnly={readOnly}
+          />
+          <div className="mt-6">
+            <SimpleWysiwygEditor
+              key={`manual-payment-terms-${app?.id || "new"}-${app?.updated_at || ""}`}
+              label={t("workspace.payment.manual.appendixContent", "Appendix Content")}
+              value={terms}
+              onChange={setTerms}
+              max={6000}
+              readOnly={readOnly}
+            />
+          </div>
+        </div>
       </div>
 
       {billReceiptSection}
@@ -8000,17 +8008,6 @@ function ManualPaymentDocumentsSummary({ app, t }) {
       </div>
     </div>
   );
-}
-
-function getPaymentDetailStatus(status, t) {
-  const value = String(status || "").trim();
-  if (!value) return "";
-
-  if (/pending\s+ku\(ikl\)\s+bill\s+confirmation/i.test(value)) {
-    return t("status.bill_pending_ku", "Pending Bill Confirmation");
-  }
-
-  return value;
 }
 
 function getPaymentReceiptSource(receiptFile) {
@@ -8078,6 +8075,68 @@ function formatPaymentRowAmount(value) {
   return Number.isFinite(amount) ? amount.toFixed(2) : "";
 }
 
+const MALAY_NUMBER_WORDS = [
+  "Kosong",
+  "Satu",
+  "Dua",
+  "Tiga",
+  "Empat",
+  "Lima",
+  "Enam",
+  "Tujuh",
+  "Lapan",
+  "Sembilan",
+];
+
+function numberToMalayWords(value) {
+  const number = Math.floor(Number(value) || 0);
+  if (number < 10) return MALAY_NUMBER_WORDS[number];
+  if (number === 10) return "Sepuluh";
+  if (number === 11) return "Sebelas";
+  if (number < 20) return `${numberToMalayWords(number - 10)} Belas`;
+  if (number < 100) {
+    const tens = Math.floor(number / 10);
+    const remainder = number % 10;
+    return `${numberToMalayWords(tens)} Puluh${remainder ? ` ${numberToMalayWords(remainder)}` : ""}`;
+  }
+  if (number === 100) return "Seratus";
+  if (number < 200) return `Seratus ${numberToMalayWords(number - 100)}`;
+  if (number < 1000) {
+    const hundreds = Math.floor(number / 100);
+    const remainder = number % 100;
+    return `${numberToMalayWords(hundreds)} Ratus${remainder ? ` ${numberToMalayWords(remainder)}` : ""}`;
+  }
+  if (number === 1000) return "Seribu";
+  if (number < 2000) return `Seribu ${numberToMalayWords(number - 1000)}`;
+  if (number < 1000000) {
+    const thousands = Math.floor(number / 1000);
+    const remainder = number % 1000;
+    return `${numberToMalayWords(thousands)} Ribu${remainder ? ` ${numberToMalayWords(remainder)}` : ""}`;
+  }
+  if (number < 1000000000) {
+    const millions = Math.floor(number / 1000000);
+    const remainder = number % 1000000;
+    return `${numberToMalayWords(millions)} Juta${remainder ? ` ${numberToMalayWords(remainder)}` : ""}`;
+  }
+
+  const billions = Math.floor(number / 1000000000);
+  const remainder = number % 1000000000;
+  return `${numberToMalayWords(billions)} Bilion${remainder ? ` ${numberToMalayWords(remainder)}` : ""}`;
+}
+
+function getCurrencyAmountWords(value) {
+  const amount = parseCurrencyAmount(value);
+  const safeAmount = Number.isFinite(amount) ? Math.max(amount, 0) : 0;
+  const cents = Math.round(safeAmount * 100);
+  const ringgit = Math.floor(cents / 100);
+  const sen = cents % 100;
+
+  return {
+    ringgit: numberToMalayWords(ringgit),
+    sen: numberToMalayWords(sen),
+  };
+}
+
 function normalizePaymentRows(rows = []) {
   return rows.map((row) => ({
     ...row,
@@ -8085,15 +8144,134 @@ function normalizePaymentRows(rows = []) {
   }));
 }
 
+function hasHtmlMarkup(value) {
+  return /<\/?[a-z][\s\S]*>/i.test(String(value || ""));
+}
+
+function plainTextToHtml(value) {
+  const text = String(value || "").replace(/\r\n/g, "\n").trim();
+  if (!text) return "";
+
+  return text
+    .split(/\n{2,}/)
+    .map((block) =>
+      `<p>${escapeHtml(block.trim()).replace(/\n/g, "<br />")}</p>`
+    )
+    .join("");
+}
+
+function normalizeManualRichTextValue(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  if (source === MANUAL_DEFAULT_TERMS_TEXT.trim() || isLegacyManualTermsHtml(source)) {
+    return MANUAL_DEFAULT_TERMS_HTML;
+  }
+
+  return hasHtmlMarkup(source) ? source : plainTextToHtml(source);
+}
+
+function normalizeHtmlForComparison(value) {
+  return String(value || "").replace(/\s+/g, "").toLowerCase();
+}
+
+function isLegacyManualTermsHtml(value) {
+  const normalized = normalizeHtmlForComparison(value);
+  return [
+    MANUAL_LEGACY_TERMS_HTML_WITH_START,
+    MANUAL_LEGACY_TERMS_HTML_WITHOUT_START,
+  ].some((html) => normalizeHtmlForComparison(html) === normalized);
+}
+
+function getSafeManualRichTextHtml(value) {
+  const html = normalizeManualRichTextValue(value);
+  if (!html) return "";
+
+  return sanitizeMemoHtml(html) || plainTextToHtml(html);
+}
+
 const MANUAL_ATTACHMENT_PARAGRAPH =
   "3.         Dilampirkan bersama ini syarat-syarat lesen yang mesti dipatuhi. Sebarang pelanggaran syarat lesen boleh menyebabkan lesen puan/tuan ditarik balik.";
+const MANUAL_APPENDIX_LABEL = "Lampiran";
+const MANUAL_APPENDIX_TITLE =
+  "Syarat-Syarat Lesen Iklan Dalam Kawasan Dewan Bandaraya Kuching Utara (DBKU)";
 const MANUAL_CONTACT_PARAGRAPH =
-  "4.         Sekiranya pihak puan/tuan memerlukan keterangan lanjut, sila hubungi Bahagian Pelesenan DBKU.";
+  "4.         Sekiranya pihak puan/tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955";
 const MANUAL_FOOTER_TEXT =
   "\"UNTUK MEMPERTINGKAT KUALITI KEHIDUPAN DENGAN MEWUJUDKAN PERSEKITARAN KONDUSIF,\nPENGLIBATAN WARGA KOTA DAN PENYAMPAIAN PERKHIDMATAN TERUNGGUL\"";
+const MANUAL_LETTERHEAD_TITLE = "Dewan Bandaraya Kuching Utara";
+const MANUAL_LETTERHEAD_SUBTITLE = "Commission of the City of Kuching North";
+const MANUAL_LETTERHEAD_ADDRESS =
+  "Bukit Siol, Jalan Semariang, Petra Jaya,";
+const MANUAL_LETTERHEAD_ADDRESS_LINE_2 = "93050 Kuching, Sarawak.";
+const MANUAL_LETTERHEAD_PHONE_LINE =
+  "Tel : 082-512200/512201    Hotline : 082-446644    Faks : 082-446414";
+const MANUAL_LETTERHEAD_WEB_LINE =
+  "Laman Web: dbku.sarawak.gov.my    E-mel : prd@dbku.gov.my";
+const MANUAL_LETTERHEAD_COMPLAINT_LINE = "aduandbku@dbku.gov.my";
+const MANUAL_LETTERHEAD_FACEBOOK_LINE = "f : Dewan Bandaraya Kuching Utara";
+const BOOTSTRAP_AT_ICON_URL =
+  "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/at.svg";
+const BOOTSTRAP_FACEBOOK_ICON_URL =
+  "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/facebook.svg";
+const MANUAL_DEFAULT_TERMS_TEXT = [
+  "1. TEMPOH KELULUSAN",
+  "1.1 Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.",
+  "1.2 Pemohon hendaklah memastikan iklan berkaitan ditanggalkan selepas tamat tempoh kelulusan.",
+  "1.3 Pemohon boleh memohon untuk melanjutkan tempoh berkaitan melalui surat sekurang-kurangnya tiga (3) bulan sebelum tarikh luput kelulusan.",
+  "",
+  "2. PEMBINAAN DAN PENYELENGGARAAN",
+  "2.1 Pemohon hendaklah menjaga aspek keselamatan dan mengambil polisi insurans perlindungan awam sebelum kerja dijalankan.",
+  "2.2 Kerja-kerja pembinaan hendaklah mendapat permit daripada DBKU sekiranya berkaitan.",
+  "2.3 Pemohon hendaklah memastikan tidak berlaku kesesakan lalu lintas dan gangguan ketenteraman awam.",
+  "2.4 Pemohon hendaklah memelihara kebersihan kawasan semasa dan selepas kerja dijalankan.",
+  "2.5 Bahan yang digunakan hendaklah tahan lama dan berkualiti.",
+  "2.6 Pemohon hendaklah menjalankan pemeriksaan dan penyelenggaraan dari masa ke semasa sepanjang tempoh kelulusan.",
+].join("\n");
+const MANUAL_DEFAULT_TERMS_HTML = [
+  "<ol>",
+  "<li><strong>TEMPOH KELULUSAN</strong><br />",
+  "1.1 Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.<br />",
+  "1.2 Pemohon hendaklah memastikan iklan berkaitan ditanggalkan selepas tamat tempoh kelulusan.<br />",
+  "1.3 Pemohon boleh memohon untuk melanjutkan tempoh berkaitan melalui surat sekurang-kurangnya tiga (3) bulan sebelum tarikh luput kelulusan.",
+  "</li>",
+  '<li style="margin-top:24px;"><strong>PEMBINAAN DAN PENYELENGGARAAN</strong><br />',
+  "2.1 Pemohon hendaklah menjaga aspek keselamatan dan mengambil polisi insurans perlindungan awam sebelum kerja dijalankan.<br />",
+  "2.2 Kerja-kerja pembinaan hendaklah mendapat permit daripada DBKU sekiranya berkaitan.<br />",
+  "2.3 Pemohon hendaklah memastikan tidak berlaku kesesakan lalu lintas dan gangguan ketenteraman awam.<br />",
+  "2.4 Pemohon hendaklah memelihara kebersihan kawasan semasa dan selepas kerja dijalankan.<br />",
+  "2.5 Bahan yang digunakan hendaklah tahan lama dan berkualiti.<br />",
+  "2.6 Pemohon hendaklah menjalankan pemeriksaan dan penyelenggaraan dari masa ke semasa sepanjang tempoh kelulusan.",
+  "</li>",
+  "</ol>",
+].join("");
+const MANUAL_LEGACY_TERMS_HTML_WITH_START = [
+  "<ol>",
+  "<li><strong>TEMPOH KELULUSAN</strong><br />",
+  "1.1 Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.<br />",
+  "1.2 Pemohon hendaklah memastikan iklan berkaitan ditanggalkan selepas tamat tempoh kelulusan.<br />",
+  "1.3 Pemohon boleh memohon untuk melanjutkan tempoh berkaitan melalui surat sekurang-kurangnya tiga (3) bulan sebelum tarikh luput kelulusan.",
+  "</li>",
+  "</ol>",
+  "<p>&nbsp;</p>",
+  '<ol start="2">',
+  "<li><strong>PEMBINAAN DAN PENYELENGGARAAN</strong><br />",
+  "2.1 Pemohon hendaklah menjaga aspek keselamatan dan mengambil polisi insurans perlindungan awam sebelum kerja dijalankan.<br />",
+  "2.2 Kerja-kerja pembinaan hendaklah mendapat permit daripada DBKU sekiranya berkaitan.<br />",
+  "2.3 Pemohon hendaklah memastikan tidak berlaku kesesakan lalu lintas dan gangguan ketenteraman awam.<br />",
+  "2.4 Pemohon hendaklah memelihara kebersihan kawasan semasa dan selepas kerja dijalankan.<br />",
+  "2.5 Bahan yang digunakan hendaklah tahan lama dan berkualiti.<br />",
+  "2.6 Pemohon hendaklah menjalankan pemeriksaan dan penyelenggaraan dari masa ke semasa sepanjang tempoh kelulusan.",
+  "</li>",
+  "</ol>",
+].join("");
+const MANUAL_LEGACY_TERMS_HTML_WITHOUT_START = MANUAL_LEGACY_TERMS_HTML_WITH_START.replace(
+  '<ol start="2">',
+  "<ol>"
+);
 
 function getDefaultManualPaymentDraft(app) {
   const amount = getBillAmount(app);
+  const amountWords = getCurrencyAmountWords(amount);
   const applicationType = getApplicationType(app);
   const paymentRows = getPaymentBillRows(app).map((row) => ({
     label: row.label,
@@ -8125,12 +8303,22 @@ function getDefaultManualPaymentDraft(app) {
       signatoryDepartment: "Bahagian Pelesenan",
       signatoryAuthority: "b.p. Pengarah, Dewan Bandaraya Kuching Utara",
       footerText: MANUAL_FOOTER_TEXT,
+      letterheadTitle: MANUAL_LETTERHEAD_TITLE,
+      letterheadSubtitle: MANUAL_LETTERHEAD_SUBTITLE,
+      letterheadAddress: MANUAL_LETTERHEAD_ADDRESS,
+      letterheadAddressLine2: MANUAL_LETTERHEAD_ADDRESS_LINE_2,
+      letterheadPhoneLine: MANUAL_LETTERHEAD_PHONE_LINE,
+      letterheadWebLine: MANUAL_LETTERHEAD_WEB_LINE,
+      letterheadComplaintLine: MANUAL_LETTERHEAD_COMPLAINT_LINE,
+      letterheadFacebookLine: MANUAL_LETTERHEAD_FACEBOOK_LINE,
+      appendixLabel: MANUAL_APPENDIX_LABEL,
+      appendixTitle: MANUAL_APPENDIX_TITLE,
       billCopyLabel: "Salinan Pelanggan",
       billReceiptTitle: "Official Receipt",
       billStation: "ALiS",
       billReceivedFrom: getBillingRecipientName(app),
-      billAmountText: formatCurrency(amount),
-      billSenText: "-",
+      billAmountText: amountWords.ringgit,
+      billSenText: amountWords.sen,
       billPaymentLine1: "Cash",
       billPaymentLine2: "Cheque No.",
       billBankNote:
@@ -8141,20 +8329,7 @@ function getDefaultManualPaymentDraft(app) {
       billRemarkLine3: "",
     },
     paymentRows,
-    terms: [
-      "1. TEMPOH KELULUSAN",
-      "1.1 Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.",
-      "1.2 Pemohon hendaklah memastikan iklan berkaitan ditanggalkan selepas tamat tempoh kelulusan.",
-      "1.3 Pemohon boleh memohon untuk melanjutkan tempoh berkaitan melalui surat sekurang-kurangnya tiga (3) bulan sebelum tarikh luput kelulusan.",
-      "",
-      "2. PEMBINAAN DAN PENYELENGGARAAN",
-      "2.1 Pemohon hendaklah menjaga aspek keselamatan dan mengambil polisi insurans perlindungan awam sebelum kerja dijalankan.",
-      "2.2 Kerja-kerja pembinaan hendaklah mendapat permit daripada DBKU sekiranya berkaitan.",
-      "2.3 Pemohon hendaklah memastikan tidak berlaku kesesakan lalu lintas dan gangguan ketenteraman awam.",
-      "2.4 Pemohon hendaklah memelihara kebersihan kawasan semasa dan selepas kerja dijalankan.",
-      "2.5 Bahan yang digunakan hendaklah tahan lama dan berkualiti.",
-      "2.6 Pemohon hendaklah menjalankan pemeriksaan dan penyelenggaraan dari masa ke semasa sepanjang tempoh kelulusan.",
-    ].join("\n"),
+    terms: MANUAL_DEFAULT_TERMS_HTML,
     amount,
   };
 }
@@ -8187,10 +8362,37 @@ function getManualPaymentFields(app, savedFields = {}) {
   }
 
   if (
+    nextFields.contactParagraph ===
+    "4.         Sekiranya pihak puan/tuan memerlukan keterangan lanjut, sila hubungi Bahagian Pelesenan DBKU."
+  ) {
+    nextFields.contactParagraph = MANUAL_CONTACT_PARAGRAPH;
+  }
+
+  if (
     nextFields.footerText ===
     "UNTUK MEMPERTINGKAT KUALITI KEHIDUPAN DENGAN MEWUJUDKAN PERSEKITARAN KONDUSIF, PENGLIBATAN WARGA KOTA DAN PENYAMPAIAN PERKHIDMATAN TERUNGGUL"
   ) {
     nextFields.footerText = MANUAL_FOOTER_TEXT;
+  }
+
+  if (!nextFields.letterheadComplaintLine && !nextFields.letterheadFacebookLine) {
+    const socialLine = String(nextFields.letterheadSocialLine || "").trim();
+    if (socialLine) {
+      const [complaintLine, facebookLine] = socialLine.split(/\s{2,}/);
+      nextFields.letterheadComplaintLine =
+        complaintLine || MANUAL_LETTERHEAD_COMPLAINT_LINE;
+      nextFields.letterheadFacebookLine =
+        facebookLine || MANUAL_LETTERHEAD_FACEBOOK_LINE;
+    }
+  }
+
+  if (!nextFields.letterheadAddressLine2) {
+    const address = String(nextFields.letterheadAddress || "").trim();
+    const match = address.match(/^(.*?)(93050\s+Kuching,\s*Sarawak\.?)$/i);
+    if (match) {
+      nextFields.letterheadAddress = match[1].replace(/,\s*$/, ",").trim();
+      nextFields.letterheadAddressLine2 = match[2].trim();
+    }
   }
 
   return nextFields;
@@ -8309,6 +8511,20 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     ? t("workspace.payment.billDocument", "Bill")
     : manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
   const terms = manualLetter.terms || defaultDraft.terms;
+  const termsHtml = getSafeManualRichTextHtml(terms);
+  const appendixLabel = fields.appendixLabel || MANUAL_APPENDIX_LABEL;
+  const appendixTitle = fields.appendixTitle || MANUAL_APPENDIX_TITLE;
+  const letterheadTitle = fields.letterheadTitle || MANUAL_LETTERHEAD_TITLE;
+  const letterheadSubtitle = fields.letterheadSubtitle || MANUAL_LETTERHEAD_SUBTITLE;
+  const letterheadAddress = fields.letterheadAddress || MANUAL_LETTERHEAD_ADDRESS;
+  const letterheadAddressLine2 =
+    fields.letterheadAddressLine2 || MANUAL_LETTERHEAD_ADDRESS_LINE_2;
+  const letterheadPhoneLine = fields.letterheadPhoneLine || MANUAL_LETTERHEAD_PHONE_LINE;
+  const letterheadWebLine = fields.letterheadWebLine || MANUAL_LETTERHEAD_WEB_LINE;
+  const letterheadComplaintLine =
+    fields.letterheadComplaintLine || MANUAL_LETTERHEAD_COMPLAINT_LINE;
+  const letterheadFacebookLine =
+    fields.letterheadFacebookLine || MANUAL_LETTERHEAD_FACEBOOK_LINE;
 
   return `<!doctype html>
 <html>
@@ -8323,11 +8539,19 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     .letterhead { display: grid; grid-template-columns: 86px 1fr 104px; gap: 14px; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 8px; }
     .crest { height: 68px; display: flex; align-items: center; justify-content: center; }
     .crest img { max-width: 100%; max-height: 68px; object-fit: contain; }
-    h1 { margin: 0; font-size: 18px; line-height: 1.1; text-transform: uppercase; }
-    .subhead { font-size: 11px; line-height: 1.35; }
+    h1 { margin: 0; font-size: 16px; line-height: 1.05; text-align: left; text-transform: uppercase; }
+    .letterhead-text { width: fit-content; max-width: 100%; margin: 0 auto; }
+    .subhead { text-align: left; font-size: 10px; line-height: 1.2; }
+    .subhead .subtitle { font-size: 10px; font-style: italic; font-weight: 700; color: #111827; }
+    .subhead .address { margin: 2px 0 0; font-weight: 700; text-transform: uppercase; color: #111827; }
+    .subhead .contact { margin: 2px 0 0; font-size: 10px; font-weight: 700; color: #111827; }
+    .subhead .phone { font-style: italic; }
+    .subhead .icon-row { display: flex; justify-content: flex-start; align-items: center; gap: 16px; margin-top: 2px; }
+    .subhead .icon-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .subhead .contact-icon { width: 12px; height: 12px; object-fit: contain; }
     .topline { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 12px; font-size: 12px; }
     .right { text-align: right; }
-    .address { margin: 14px 0 18px 72px; white-space: pre-line; font-size: 12px; line-height: 1.35; }
+    .recipient-address { margin: 14px 0 18px 72px; white-space: pre-line; font-size: 12px; line-height: 1.35; }
     .subject { margin: 12px 0; font-weight: 700; text-transform: uppercase; text-decoration: underline; }
     .details { margin: 8px 0 14px; font-size: 12px; }
     .details div { display: grid; grid-template-columns: 145px 12px 1fr; line-height: 1.45; }
@@ -8341,7 +8565,13 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     .footer { margin-top: 42px; border-top: 2px solid #111827; padding-top: 6px; text-align: center; font-size: 10px; font-weight: 700; white-space: pre-wrap; }
     .appendix h2 { margin: 10px 0 24px; text-align: right; font-size: 14px; }
     .appendix h3 { text-align: center; font-size: 13px; text-transform: uppercase; }
-    .terms { margin-top: 28px; white-space: pre-line; font-size: 12px; line-height: 1.45; }
+    .terms { margin-top: 28px; font-size: 12px; line-height: 1.45; }
+    .terms p { margin: 8px 0; }
+    .terms ol, .terms ul { margin: 8px 0 8px 20px; padding-left: 18px; }
+    .terms ol + p { min-height: 12px; margin: 12px 0; }
+    .terms li { margin: 4px 0; }
+    .terms table { margin: 10px 0; }
+    .terms figure { margin: 10px 0; }
     .print-actions { position: fixed; right: 18px; top: 18px; }
     .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
     @media print { body { background: white; } .page { box-shadow: none; margin: 0; } .print-actions { display: none; } }
@@ -8352,11 +8582,18 @@ function buildManualPaymentDocumentHtml(app, type, t) {
   <section class="page">
     <header class="letterhead">
       <div class="crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
-      <div>
-        <h1>Dewan Bandaraya Kuching Utara</h1>
+      <div class="letterhead-text">
+        <h1>${escapeHtml(letterheadTitle)}</h1>
         <div class="subhead">
-          Commission of the City of Kuching North<br />
-          Bukit Siol, Jalan Semariang, Petra Jaya, 93050 Kuching, Sarawak.
+          <div class="subtitle">${escapeHtml(letterheadSubtitle)}</div>
+          <div class="address">${escapeHtml(letterheadAddress)}</div>
+          <div class="address">${escapeHtml(letterheadAddressLine2)}</div>
+          <div class="contact phone">${escapeHtml(letterheadPhoneLine)}</div>
+          <div class="contact">${escapeHtml(letterheadWebLine)}</div>
+          <div class="contact icon-row">
+            <span class="icon-item"><img class="contact-icon" src="${escapeHtml(BOOTSTRAP_AT_ICON_URL)}" alt="" />${escapeHtml(letterheadComplaintLine)}</span>
+            <span class="icon-item"><img class="contact-icon" src="${escapeHtml(BOOTSTRAP_FACEBOOK_ICON_URL)}" alt="" />${escapeHtml(letterheadFacebookLine)}</span>
+          </div>
         </div>
       </div>
       <div class="crest"><img src="/ALiS.png" alt="ALiS" /></div>
@@ -8364,22 +8601,22 @@ function buildManualPaymentDocumentHtml(app, type, t) {
 
     <div class="topline">
       <div>
-        <div>Bil. Tuan : ${escapeHtml(fields.yourRef || "")}</div>
-        <div>Bil. Kami : <strong>${escapeHtml(fields.ourRef)}</strong></div>
+        <div>${escapeHtml(t("workspace.payment.manual.yourRef", "Your Ref."))} : ${escapeHtml(fields.yourRef || "")}</div>
+        <div>${escapeHtml(t("workspace.payment.manual.ourRef", "Our Ref."))} : <strong>${escapeHtml(fields.ourRef)}</strong></div>
       </div>
-      <div class="right">Tarikh : <strong>${escapeHtml(formatDate(fields.letterDate))}</strong></div>
+      <div class="right">${escapeHtml(t("workspace.payment.manual.date", "Date"))} : <strong>${escapeHtml(formatDate(fields.letterDate))}</strong></div>
     </div>
 
-    <div class="address">${escapeHtml(fields.recipientName)}<br />${escapeHtml(fields.recipientAddress)}</div>
+    <div class="recipient-address">${escapeHtml(fields.recipientName)}<br />${escapeHtml(fields.recipientAddress)}</div>
 
     <p class="manual-copy">${escapeHtml(fields.salutation)}</p>
     <p class="subject">${escapeHtml(title)}</p>
 
     <div class="details">
-      <div><span>Jenis Iklan</span><span>:</span><strong>${escapeHtml(fields.adType)}</strong></div>
-      <div><span>Nama Iklan</span><span>:</span><strong>${escapeHtml(fields.adName)}</strong></div>
-      <div><span>Nama Pemohon</span><span>:</span><strong>${escapeHtml(fields.applicantName)}</strong></div>
-      <div><span>Tempat Iklan Dipamer</span><span>:</span><strong>${escapeHtml(fields.displayLocation)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.adType", "Advertisement Type"))}</span><span>:</span><strong>${escapeHtml(fields.adType)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.adName", "Advertisement Name"))}</span><span>:</span><strong>${escapeHtml(fields.adName)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.applicantName", "Applicant Name"))}</span><span>:</span><strong>${escapeHtml(fields.applicantName)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.displayLocation", "Advertisement Display Location"))}</span><span>:</span><strong>${escapeHtml(fields.displayLocation)}</strong></div>
     </div>
 
     <p class="manual-copy">${escapeHtml(fields.approvalParagraph)}</p>
@@ -8387,9 +8624,9 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     <table>
       <thead>
         <tr>
-          <th>Butir Bayaran</th>
-          <th>Tempoh Lesen Berkuatkuasa</th>
-          <th class="amount">Jumlah (RM)</th>
+          <th>${escapeHtml(t("workspace.payment.manual.paymentDetails", "Payment Details"))}</th>
+          <th>${escapeHtml(t("workspace.payment.manual.licenseValidityPeriod", "License Validity Period"))}</th>
+          <th class="amount">${escapeHtml(t("workspace.payment.manual.totalAmountRm", "Total (RM)"))}</th>
         </tr>
       </thead>
       <tbody>
@@ -8401,7 +8638,7 @@ function buildManualPaymentDocumentHtml(app, type, t) {
           </tr>
         `).join("")}
         <tr>
-          <td colspan="2" class="amount"><strong>Jumlah Keseluruhan</strong></td>
+          <td colspan="2" class="amount"><strong>${escapeHtml(t("workspace.payment.manual.grandTotal", "Grand Total"))}</strong></td>
           <td class="amount"><strong>${escapeHtml(formatCurrency(total))}</strong></td>
         </tr>
       </tbody>
@@ -8419,9 +8656,9 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     <div class="footer">${escapeHtml(fields.footerText)}</div>
   </section>
   <section class="page appendix">
-    <h2>Lampiran</h2>
-    <h3>Syarat-Syarat Lesen Iklan Dalam Kawasan Dewan Bandaraya Kuching Utara (DBKU)</h3>
-    <div class="terms">${escapeHtml(terms)}</div>
+    <h2>${escapeHtml(appendixLabel)}</h2>
+    <h3>${escapeHtml(appendixTitle)}</h3>
+    <div class="terms">${termsHtml}</div>
   </section>
 </body>
 </html>`;
@@ -8477,29 +8714,29 @@ function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, t
     <header class="header">
       <div class="crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
       <div class="heading">
-        <h1>Datuk Bandar Kuching Utara</h1>
-        <p><strong>(The Commissioner of The City of Kuching North)</strong></p>
-        <p>Dewan Bandaraya Kuching Utara<br />Bukit Siol, Jalan Semariang, Petra Jaya,<br />93050 Kuching, Sarawak, Malaysia.</p>
+        <h1>${escapeHtml(t("workspace.payment.manual.billHeaderTitle", "Mayor of North Kuching"))}</h1>
+        <p><strong>${escapeHtml(t("workspace.payment.manual.billHeaderSubtitle", "(The Commissioner of The City of Kuching North)"))}</strong></p>
+        <p>${escapeHtml(t("workspace.payment.manual.billHeaderAddressLine1", "Dewan Bandaraya Kuching Utara"))}<br />${escapeHtml(t("workspace.payment.manual.billHeaderAddressLine2", "Bukit Siol, Jalan Semariang, Petra Jaya,"))}<br />${escapeHtml(t("workspace.payment.manual.billHeaderAddressLine3", "93050 Kuching, Sarawak, Malaysia."))}</p>
       </div>
       <div class="copy">${escapeHtml(fields.billCopyLabel)}</div>
     </header>
 
     <div class="title-row">
       <div class="title">${escapeHtml(fields.billReceiptTitle)}</div>
-      <div class="number">No. <strong>${escapeHtml(invoiceNo)}</strong></div>
+      <div class="number">${escapeHtml(t("workspace.payment.manual.receiptNoShort", "No."))} <strong>${escapeHtml(invoiceNo)}</strong></div>
     </div>
 
     <div class="meta-grid">
       <div>
-        <div class="line-row"><span>Station</span><span class="line">${escapeHtml(fields.billStation)}</span></div>
-        <div class="line-row"><span>Date</span><span class="line">${escapeHtml(formatDate(billDate))}</span></div>
+        <div class="line-row"><span>${escapeHtml(t("workspace.payment.manual.station", "Station"))}</span><span class="line">${escapeHtml(fields.billStation)}</span></div>
+        <div class="line-row"><span>${escapeHtml(t("workspace.payment.manual.date", "Date"))}</span><span class="line">${escapeHtml(formatDate(billDate))}</span></div>
       </div>
       <table>
         <thead>
           <tr>
-            <th>For credit of</th>
-            <th>Amount<br />RM</th>
-            <th>Sen</th>
+            <th>${escapeHtml(t("workspace.payment.manual.forCredit", "For Credit"))}</th>
+            <th>${escapeHtml(t("workspace.payment.manual.amount", "Amount"))}<br />RM</th>
+            <th>${escapeHtml(t("workspace.payment.manual.sen", "Sen"))}</th>
           </tr>
         </thead>
         <tbody>
@@ -8516,7 +8753,7 @@ function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, t
             `;
           }).join("")}
           <tr>
-            <td class="amount"><strong>TOTAL RM</strong></td>
+            <td class="amount"><strong>${escapeHtml(t("workspace.payment.manual.totalRm", "Total RM"))}</strong></td>
             <td class="amount" colspan="2"><strong>${escapeHtml(totalDisplay)}</strong></td>
           </tr>
         </tbody>
@@ -8524,9 +8761,9 @@ function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, t
     </div>
 
     <div class="received">
-      <div>RECEIVED from <span class="fill">${escapeHtml(fields.billReceivedFrom)}</span></div>
-      <div>the sum of Ringgit <span class="fill">${escapeHtml(fields.billAmountText || totalDisplay)}</span></div>
-      <div>and Sen <span class="fill">${escapeHtml(fields.billSenText)}</span></div>
+      <div>${escapeHtml(t("workspace.payment.manual.receivedFromLine", "RECEIVED from"))} <span class="fill">${escapeHtml(fields.billReceivedFrom)}</span></div>
+      <div>${escapeHtml(t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit"))} <span class="fill">${escapeHtml(fields.billAmountText || totalDisplay)}</span></div>
+      <div>${escapeHtml(t("workspace.payment.manual.andSenLine", "and Sen"))} <span class="fill">${escapeHtml(fields.billSenText)}</span></div>
       <div class="sum-line">${escapeHtml(fields.billRemarkLine1)}</div>
       <div class="sum-line">${escapeHtml(fields.billRemarkLine2)}</div>
       <div class="sum-line">${escapeHtml(fields.billRemarkLine3)}</div>
@@ -8583,13 +8820,13 @@ function buildApprovalLetterBillHtml(app, t) {
   const total = hasValue(amount)
     ? formatCurrency(amount)
     : formatCurrency(paymentRows.reduce((sum, row) => sum + row.amount, 0));
-  const validityText = getApprovalValidityText(app);
+  const validityText = getApprovalValidityText(app, t);
 
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(reference)} Approval Letter and Bill</title>
+  <title>${escapeHtml(reference)} ${escapeHtml(t("workspace.payment.generated.previewTitle", "Approval Letter and Bill"))}</title>
   <style>
     @page { size: A4; margin: 16mm; }
     * { box-sizing: border-box; }
@@ -8639,32 +8876,32 @@ function buildApprovalLetterBillHtml(app, t) {
 
     <div class="topline">
       <div>
-        <div>Bil. Tuan :</div>
-        <div>Bil. Kami : <strong>${escapeHtml(letterRef)}</strong></div>
+        <div>${escapeHtml(t("workspace.payment.manual.yourRef", "Your Ref."))} :</div>
+        <div>${escapeHtml(t("workspace.payment.manual.ourRef", "Our Ref."))} : <strong>${escapeHtml(letterRef)}</strong></div>
       </div>
-      <div class="right">Tarikh : <strong>${escapeHtml(formatDate(generatedDate))}</strong></div>
+      <div class="right">${escapeHtml(t("workspace.payment.manual.date", "Date"))} : <strong>${escapeHtml(formatDate(generatedDate))}</strong></div>
     </div>
 
     <div class="address">${escapeHtml(applicant)}<br />${escapeHtml(applicantAddress)}</div>
 
-    <p>Tuan/Puan,</p>
-    <p class="subject">Permohonan Lesen Tandanama Perniagaan/Iklan</p>
+    <p>${escapeHtml(t("workspace.payment.generated.salutation", "Dear Sir/Madam,"))}</p>
+    <p class="subject">${escapeHtml(t("workspace.payment.generated.subject", "Application for Business Signage/Advertisement License"))}</p>
 
     <div class="details">
-      <div><span>Jenis Iklan</span><span>:</span><strong>${escapeHtml(applicationType)}</strong></div>
-      <div><span>Nama Iklan</span><span>:</span><strong>${escapeHtml(projectName)}</strong></div>
-      <div><span>Nama Pemohon</span><span>:</span><strong>${escapeHtml(applicant)}</strong></div>
-      <div><span>Tempat Iklan Dipamer</span><span>:</span><strong>${escapeHtml(location)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.adType", "Advertisement Type"))}</span><span>:</span><strong>${escapeHtml(applicationType)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.adName", "Advertisement Name"))}</span><span>:</span><strong>${escapeHtml(projectName)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.applicantName", "Applicant Name"))}</span><span>:</span><strong>${escapeHtml(applicant)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.displayLocation", "Advertisement Display Location"))}</span><span>:</span><strong>${escapeHtml(location)}</strong></div>
     </div>
 
-    <p>Adalah dimaklumkan bahawa permohonan tuan/puan untuk perkara di atas telah diluluskan. Sila buat pembayaran seperti di bawah kepada Dewan Bandaraya Kuching Utara dalam tempoh empat belas (14) hari bekerja dari tarikh surat ini diterima.</p>
+    <p>${escapeHtml(t("workspace.payment.generated.approvalParagraph", "Please be informed that your application for the above matter has been approved. Please make payment as below to Dewan Bandaraya Kuching Utara within fourteen (14) working days from the date this letter is received."))}</p>
 
     <table>
       <thead>
         <tr>
-          <th>Butir Bayaran</th>
-          <th>Tempoh Lesen Berkuatkuasa</th>
-          <th class="amount">Jumlah (RM)</th>
+          <th>${escapeHtml(t("workspace.payment.manual.paymentDetails", "Payment Details"))}</th>
+          <th>${escapeHtml(t("workspace.payment.manual.licenseValidityPeriod", "License Validity Period"))}</th>
+          <th class="amount">${escapeHtml(t("workspace.payment.manual.totalAmountRm", "Total (RM)"))}</th>
         </tr>
       </thead>
       <tbody>
@@ -8676,33 +8913,33 @@ function buildApprovalLetterBillHtml(app, t) {
           </tr>
         `).join("")}
         <tr>
-          <td colspan="2" class="amount"><strong>Jumlah Keseluruhan</strong></td>
+          <td colspan="2" class="amount"><strong>${escapeHtml(t("workspace.payment.manual.grandTotal", "Grand Total"))}</strong></td>
           <td class="amount"><strong>${escapeHtml(total)}</strong></td>
         </tr>
       </tbody>
     </table>
 
-    <p>Dilampirkan bersama ini syarat-syarat lesen yang mesti dipatuhi. Sebarang pelanggaran syarat lesen boleh menyebabkan lesen puan/tuan ditarik balik.</p>
-    <p>Sekian, terima kasih.</p>
+    <p>${escapeHtml(t("workspace.payment.generated.attachmentParagraph", "Attached herewith are the license conditions that must be complied with. Any breach of the license conditions may cause your license to be revoked."))}</p>
+    <p>${escapeHtml(t("workspace.payment.generated.closingText", "Thank you."))}</p>
 
     <div class="signature">
       <p><strong>"AN HONOUR TO SERVE"<br />"TOGETHER WE CARE"</strong></p>
       <br /><br />
-      <p><strong>(KETUA BAHAGIAN)</strong><br />Bahagian Pelesenan<br />b.p. Pengarah, Dewan Bandaraya Kuching Utara</p>
+      <p><strong>${escapeHtml(t("workspace.payment.generated.signatoryTitle", "(HEAD OF DIVISION)"))}</strong><br />${escapeHtml(t("workspace.payment.generated.signatoryDepartment", "Licensing Division"))}<br />${escapeHtml(t("workspace.payment.generated.signatoryAuthority", "for Director, Dewan Bandaraya Kuching Utara"))}</p>
     </div>
-    <div class="footer">UNTUK MEMPERTINGKAT KUALITI KEHIDUPAN DENGAN MEWUJUDKAN PERSEKITARAN KONDUSIF, PENGLIBATAN WARGA KOTA DAN PENYAMPAIAN PERKHIDMATAN TERUNGGUL</div>
+    <div class="footer">${escapeHtml(t("workspace.payment.generated.footerText", "TO ENHANCE QUALITY OF LIFE BY CREATING A CONDUCIVE ENVIRONMENT, CITIZEN PARTICIPATION AND EXCELLENT SERVICE DELIVERY"))}</div>
   </section>
 
   <section class="page appendix">
-    <h2>Lampiran</h2>
-    <h3>Syarat-Syarat Lesen Iklan Dalam Kawasan Dewan Bandaraya Kuching Utara (DBKU)</h3>
+    <h2>${escapeHtml(t("workspace.payment.manual.appendix", "Appendix"))}</h2>
+    <h3>${escapeHtml(t("workspace.payment.generated.appendixTitle", "Advertisement License Conditions Within Dewan Bandaraya Kuching Utara (DBKU) Area"))}</h3>
     <ol class="terms">
-      <li>Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.</li>
-      <li>Pemohon hendaklah memastikan papan iklan dipasang, dipamer, dan diselenggara dengan sempurna sepanjang tempoh kelulusan.</li>
-      <li>Sebarang kerja pembinaan atau pemasangan hendaklah mendapat permit dan kebenaran yang berkaitan sebelum kerja dijalankan.</li>
-      <li>Pemohon hendaklah memastikan tiada gangguan keselamatan, lalu lintas, atau ketenteraman awam disebabkan pemasangan iklan.</li>
-      <li>DBKU boleh mengarahkan pindaan, penurunan, atau pembatalan lesen sekiranya syarat lesen tidak dipatuhi.</li>
-      <li>Kos pembetulan, pemadaman, atau penurunan iklan yang diarahkan oleh DBKU adalah tanggungjawab pemohon.</li>
+      <li>${escapeHtml(t("workspace.payment.generated.term1", "The approval period is subject to the license period approved by DBKU."))}</li>
+      <li>${escapeHtml(t("workspace.payment.generated.term2", "The applicant shall ensure that the advertisement board is installed, displayed, and maintained properly throughout the approval period."))}</li>
+      <li>${escapeHtml(t("workspace.payment.generated.term3", "Any construction or installation work shall obtain the relevant permit and approval before work commences."))}</li>
+      <li>${escapeHtml(t("workspace.payment.generated.term4", "The applicant shall ensure there is no disruption to safety, traffic, or public order caused by the advertisement installation."))}</li>
+      <li>${escapeHtml(t("workspace.payment.generated.term5", "DBKU may instruct amendment, removal, or cancellation of the license if the license conditions are not complied with."))}</li>
+      <li>${escapeHtml(t("workspace.payment.generated.term6", "The cost of correction, erasure, or removal of advertisements instructed by DBKU shall be borne by the applicant."))}</li>
     </ol>
   </section>
 </body>
@@ -8873,13 +9110,13 @@ function getPaymentBillRows(app) {
   return rows;
 }
 
-function getApprovalValidityText(app) {
+function getApprovalValidityText(app, t) {
   const license = app?.form_data?.license || {};
   if (license.issue_date || license.expiry_date) {
-    return `${formatDate(license.issue_date || new Date())} hingga ${formatDate(license.expiry_date)}`;
+    return `${formatDate(license.issue_date || new Date())} ${t?.("workspace.payment.generated.until", "to") || "hingga"} ${formatDate(license.expiry_date)}`;
   }
 
-  return "Tertakluk kepada tempoh kelulusan";
+  return t?.("workspace.payment.generated.subjectToApprovalPeriod", "Subject to the approval period") || "Tertakluk kepada tempoh kelulusan";
 }
 
 function LicenseDetails({
