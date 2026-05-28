@@ -160,6 +160,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showVerificationReport, setShowVerificationReport] = useState(false);
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
+  const manualPaymentDraftSaveIdRef = useRef(0);
+  const manualPaymentDraftTimerRef = useRef(null);
+  const manualPaymentDraftSavePromiseRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     fee_date: "",
@@ -316,6 +319,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       window.clearInterval(interval);
     };
   }, [selectedId]);
+
+  useEffect(() => {
+    return () => {
+      if (manualPaymentDraftTimerRef.current) {
+        window.clearTimeout(manualPaymentDraftTimerRef.current);
+      }
+    };
+  }, []);
 
   const isIklWorkspace = config.key === "screening";
   const isDepartmentTechnicalWorkspace = config.key === "technical";
@@ -785,31 +796,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
       const now = new Date().toISOString();
-      const nextApprovalLetter = {
-        ...savedApprovalLetter,
-        creation_mode: "manual",
-        status: "Ready for KU(IKL) Confirmation",
-        manual_letter: {
-          ...(savedApprovalLetter.manual_letter || {}),
-          fields: data.fields,
-          subject: data.subject,
-          body: data.letterBody,
-          terms: data.terms,
-          saved_by: userDepartment,
-          saved_at: now,
-        },
-        manual_bill: {
-          ...(savedApprovalLetter.manual_bill || {}),
-          invoice_no: data.invoiceNo,
-          amount: data.amount,
-          rows: data.paymentRows,
-          notes: data.billNotes,
-          saved_by: userDepartment,
-          saved_at: now,
-        },
-        uploaded_by: userDepartment,
-        uploaded_at: now,
-      };
+      const nextApprovalLetter = buildManualPaymentApprovalLetter(
+        savedApprovalLetter,
+        data,
+        userDepartment,
+        now,
+        { submitted: true }
+      );
 
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
         method: "PATCH",
@@ -821,6 +814,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       });
 
       setSelectedDetail(response?.data || response || selectedRecord);
+      removeStoredManualPaymentDraft(selectedRecord.id);
       await fetchApplications({ silent: true });
       setSuccess(t("workspace.payment.manualSaved", "Manual letter and bill saved."));
     } catch (err) {
@@ -830,33 +824,78 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function saveManualPaymentDraft(applicationId, baseRecord, data, saveId) {
+    if (!applicationId || !baseRecord) return;
+
+    const savedApprovalLetter = baseRecord.form_data?.approval_letter || {};
+    const now = new Date().toISOString();
+    const nextApprovalLetter = buildManualPaymentApprovalLetter(
+      savedApprovalLetter,
+      data,
+      userDepartment,
+      now,
+      { submitted: false }
+    );
+
+    try {
+      await apiRequest(`/applications/${applicationId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(baseRecord, {
+            approval_letter: nextApprovalLetter,
+          }),
+        }),
+      });
+
+      if (manualPaymentDraftSaveIdRef.current === saveId) {
+        removeStoredManualPaymentDraft(applicationId);
+      }
+    } catch (err) {
+      console.error("Failed to autosave manual payment draft:", err);
+    }
+  }
+
   const updateManualPaymentDraft = useCallback((data) => {
+    const applicationId = selectedRecord?.id;
+    if (!applicationId) return;
+    const draftSavedAt = new Date().toISOString();
+
+    storeManualPaymentDraft(applicationId, {
+      ...data,
+      draftSavedAt,
+    });
+
+    if (manualPaymentDraftTimerRef.current) {
+      window.clearTimeout(manualPaymentDraftTimerRef.current);
+    }
+
+    const saveId = manualPaymentDraftSaveIdRef.current + 1;
+    manualPaymentDraftSaveIdRef.current = saveId;
+    const baseRecord = selectedRecord;
+    manualPaymentDraftTimerRef.current = window.setTimeout(() => {
+      manualPaymentDraftSavePromiseRef.current = saveManualPaymentDraft(
+        applicationId,
+        baseRecord,
+        data,
+        saveId
+      ).finally(() => {
+        if (manualPaymentDraftSaveIdRef.current === saveId) {
+          manualPaymentDraftSavePromiseRef.current = null;
+        }
+      });
+    }, 900);
+
     setSelectedDetail((current) => {
-      if (!current || current.id !== selectedRecord?.id) return current;
+      if (!current || current.id !== applicationId) return current;
 
       const savedApprovalLetter = current.form_data?.approval_letter || {};
-      const now = new Date().toISOString();
-      const nextApprovalLetter = {
-        ...savedApprovalLetter,
-        creation_mode: "manual",
-        status: "Ready for KU(IKL) Confirmation",
-        manual_letter: {
-          ...(savedApprovalLetter.manual_letter || {}),
-          fields: data.fields,
-          subject: data.subject,
-          body: data.letterBody,
-          terms: data.terms,
-          saved_at: savedApprovalLetter.manual_letter?.saved_at || now,
-        },
-        manual_bill: {
-          ...(savedApprovalLetter.manual_bill || {}),
-          invoice_no: data.invoiceNo,
-          amount: data.amount,
-          rows: data.paymentRows,
-          notes: data.billNotes,
-          saved_at: savedApprovalLetter.manual_bill?.saved_at || now,
-        },
-      };
+      const nextApprovalLetter = buildManualPaymentApprovalLetter(
+        savedApprovalLetter,
+        data,
+        userDepartment,
+        draftSavedAt,
+        { submitted: false }
+      );
 
       return {
         ...current,
@@ -866,7 +905,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         },
       };
     });
-  }, [selectedRecord?.id]);
+  }, [selectedRecord, userDepartment]);
 
   async function saveTechnicalSiteVisitDraft(nextSite) {
     if (!selectedRecord?.id) return;
@@ -1219,6 +1258,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSaving(true);
       setError("");
       setSuccess("");
+
+      if (action.requiresPaymentDocuments) {
+        if (manualPaymentDraftTimerRef.current) {
+          window.clearTimeout(manualPaymentDraftTimerRef.current);
+          manualPaymentDraftTimerRef.current = null;
+        }
+
+        if (manualPaymentDraftSavePromiseRef.current) {
+          await manualPaymentDraftSavePromiseRef.current;
+        }
+      }
+
       const current = selectedRecord;
       const body = action.buildPayload(current, {
         decision: actionDecision,
@@ -1241,6 +1292,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         method: requestMethod,
         body: JSON.stringify(body),
       });
+
+      if (action.requiresPaymentDocuments) {
+        removeStoredManualPaymentDraft(selectedRecord.id);
+      }
 
       if (tableFirstWorkspace && config.key === "approval" && isApprovalHistoryRecord(body)) {
         setSuccess(t(action.successKey, action.success));
@@ -7080,7 +7135,8 @@ function PaymentDetails({
   const billFile = approvalLetter.bill_file;
   const letterReady = Boolean(letterFile);
   const billReady = Boolean(billFile);
-  const manualReady = hasManualPaymentDocuments(app);
+  const hasLocalManualDraft = Boolean(getInitialManualPaymentDraft(app));
+  const manualReady = hasManualPaymentDocuments(app) || hasLocalManualDraft;
   const canUploadDocuments =
     userDepartment === "PT(IKL)" && normalizeStatus(app?.status) === "approved";
   const showReceiptDetails = Boolean(
@@ -7282,20 +7338,30 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
   const defaultDraft = getDefaultManualPaymentDraft(app);
+  const storedDraft = getInitialManualPaymentDraft(app);
   const savedFields = getManualPaymentFields(app, manualLetter.fields);
+  const initialFields = storedDraft?.fields
+    ? getManualPaymentFields(app, storedDraft.fields)
+    : savedFields;
   const [subject, setSubject] = useState(() =>
-    manualLetter.subject || defaultDraft.subject
+    storedDraft?.subject || manualLetter.subject || defaultDraft.subject
   );
-  const [fields, setFields] = useState(() => savedFields);
+  const [fields, setFields] = useState(() => initialFields);
   const [paymentRows, setPaymentRows] = useState(() =>
-    normalizePaymentRows(manualBill.rows?.length ? manualBill.rows : defaultDraft.paymentRows)
+    normalizePaymentRows(
+      storedDraft?.paymentRows?.length
+        ? storedDraft.paymentRows
+        : manualBill.rows?.length
+          ? manualBill.rows
+          : defaultDraft.paymentRows
+    )
   );
   const [terms, setTerms] = useState(() =>
-    normalizeManualRichTextValue(manualLetter.terms || defaultDraft.terms)
+    normalizeManualRichTextValue(storedDraft?.terms || manualLetter.terms || defaultDraft.terms)
   );
   const amount = getBillAmount(app);
   const [invoiceNo, setInvoiceNo] = useState(() =>
-    manualBill.invoice_no || getInvoiceNo(app)
+    storedDraft?.invoiceNo || manualBill.invoice_no || getInvoiceNo(app)
   );
   const totalAmount = paymentRows.reduce(
     (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
@@ -7330,11 +7396,20 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
 
   useEffect(() => {
     const nextDefault = getDefaultManualPaymentDraft(app);
-    setSubject(manualLetter.subject || nextDefault.subject);
-    setFields(getManualPaymentFields(app, manualLetter.fields));
-    setPaymentRows(normalizePaymentRows(manualBill.rows?.length ? manualBill.rows : nextDefault.paymentRows));
-    setInvoiceNo(manualBill.invoice_no || getInvoiceNo(app));
-    setTerms(normalizeManualRichTextValue(manualLetter.terms || nextDefault.terms));
+    const nextStoredDraft = getInitialManualPaymentDraft(app);
+    setSubject(nextStoredDraft?.subject || manualLetter.subject || nextDefault.subject);
+    setFields(getManualPaymentFields(app, nextStoredDraft?.fields || manualLetter.fields));
+    setPaymentRows(
+      normalizePaymentRows(
+        nextStoredDraft?.paymentRows?.length
+          ? nextStoredDraft.paymentRows
+          : manualBill.rows?.length
+            ? manualBill.rows
+            : nextDefault.paymentRows
+      )
+    );
+    setInvoiceNo(nextStoredDraft?.invoiceNo || manualBill.invoice_no || getInvoiceNo(app));
+    setTerms(normalizeManualRichTextValue(nextStoredDraft?.terms || manualLetter.terms || nextDefault.terms));
   }, [app?.id, app?.updated_at]);
 
   useEffect(() => {
@@ -8068,6 +8143,122 @@ function hasManualPaymentDocuments(app) {
     approvalLetter.manual_letter?.saved_at &&
     approvalLetter.manual_bill?.saved_at
   );
+}
+
+function buildManualPaymentApprovalLetter(
+  savedApprovalLetter = {},
+  data,
+  userDepartment,
+  timestamp,
+  { submitted = false } = {}
+) {
+  const savedManualLetter = savedApprovalLetter.manual_letter || {};
+  const savedManualBill = savedApprovalLetter.manual_bill || {};
+  const savedAt = submitted ? timestamp : savedManualLetter.saved_at || timestamp;
+  const billSavedAt = submitted ? timestamp : savedManualBill.saved_at || timestamp;
+
+  return {
+    ...savedApprovalLetter,
+    creation_mode: "manual",
+    status: submitted
+      ? "Ready for KU(IKL) Confirmation"
+      : savedApprovalLetter.status || "Ready for KU(IKL) Confirmation",
+    manual_letter: {
+      ...savedManualLetter,
+      fields: data.fields,
+      subject: data.subject,
+      body: data.letterBody,
+      terms: data.terms,
+      saved_by: submitted ? userDepartment : savedManualLetter.saved_by,
+      saved_at: savedAt,
+      draft_saved_by: userDepartment,
+      draft_saved_at: timestamp,
+    },
+    manual_bill: {
+      ...savedManualBill,
+      invoice_no: data.invoiceNo,
+      amount: data.amount,
+      rows: data.paymentRows,
+      notes: data.billNotes,
+      saved_by: submitted ? userDepartment : savedManualBill.saved_by,
+      saved_at: billSavedAt,
+      draft_saved_by: userDepartment,
+      draft_saved_at: timestamp,
+    },
+    ...(submitted
+      ? {
+          uploaded_by: userDepartment,
+          uploaded_at: timestamp,
+        }
+      : {}),
+  };
+}
+
+const MANUAL_PAYMENT_DRAFT_STORAGE_PREFIX = "fastrack_manual_payment_draft:";
+
+function getManualPaymentDraftStorageKey(applicationId) {
+  return `${MANUAL_PAYMENT_DRAFT_STORAGE_PREFIX}${applicationId}`;
+}
+
+function getStoredManualPaymentDraft(applicationId) {
+  if (!applicationId || typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(getManualPaymentDraftStorageKey(applicationId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeManualPaymentDraft(applicationId, draft) {
+  if (!applicationId || typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      getManualPaymentDraftStorageKey(applicationId),
+      JSON.stringify(draft)
+    );
+  } catch {
+    // Local storage can be unavailable in private browsing or full-disk scenarios.
+  }
+}
+
+function removeStoredManualPaymentDraft(applicationId) {
+  if (!applicationId || typeof window === "undefined") return;
+
+  try {
+    window.localStorage.removeItem(getManualPaymentDraftStorageKey(applicationId));
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
+function getManualPaymentBackendSavedAt(app) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualLetter = approvalLetter.manual_letter || {};
+  const manualBill = approvalLetter.manual_bill || {};
+  const timestamps = [
+    manualLetter.draft_saved_at,
+    manualLetter.saved_at,
+    manualBill.draft_saved_at,
+    manualBill.saved_at,
+    approvalLetter.uploaded_at,
+  ]
+    .map((value) => Date.parse(value || ""))
+    .filter(Number.isFinite);
+
+  return timestamps.length > 0 ? Math.max(...timestamps) : 0;
+}
+
+function getInitialManualPaymentDraft(app) {
+  const storedDraft = getStoredManualPaymentDraft(app?.id);
+  if (!storedDraft?.draftSavedAt) return null;
+
+  const storedTime = Date.parse(storedDraft.draftSavedAt);
+  if (!Number.isFinite(storedTime)) return null;
+
+  return storedTime > getManualPaymentBackendSavedAt(app) ? storedDraft : null;
 }
 
 function formatPaymentRowAmount(value) {
