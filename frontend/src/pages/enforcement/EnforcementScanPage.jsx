@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
-import { apiRequest } from "../../services/api";
+import { fetchApplicationList } from "../../services/api";
 import {
   formatDate,
   getApplicantName,
@@ -41,8 +41,9 @@ function EnforcementScanPage() {
       setApplication(null);
 
       const licenseId = extractLicenseId(value);
-      const data = await apiRequest("/applications/");
-      const list = Array.isArray(data) ? data : data?.results || [];
+      const list = await fetchApplicationList({
+        params: { status: ["license_issued", "license_revoked"] },
+      });
 
       const found = list.find(
         (app) => app.form_data?.license?.license_id === licenseId

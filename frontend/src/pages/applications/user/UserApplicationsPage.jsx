@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../../../context/LanguageContext";
 import UserDashboardLayout from "../../../layout/UserDashboardLayout";
-import { apiRequest } from "../../../services/api";
+import { fetchApplicationList } from "../../../services/api";
 import {
   DataTable,
   Field,
@@ -35,8 +35,8 @@ function UserApplicationsPage() {
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await apiRequest("/applications/");
-      setApplications(Array.isArray(data) ? data : data?.results || []);
+      const list = await fetchApplicationList();
+      setApplications(list);
     } catch (err) {
       console.error("Failed to load applications:", err);
     } finally {

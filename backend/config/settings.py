@@ -158,6 +158,30 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.getenv("DRF_THROTTLE_ANON", "120/min"),
+        'user': os.getenv("DRF_THROTTLE_USER", "1000/min"),
+        'login_ip': os.getenv("DRF_THROTTLE_LOGIN_IP", "120/min"),
+        'login': os.getenv("DRF_THROTTLE_LOGIN", "10/min"),
+        'registration': os.getenv("DRF_THROTTLE_REGISTRATION", "20/hour"),
+        'password_reset_request': os.getenv(
+            "DRF_THROTTLE_PASSWORD_RESET_REQUEST",
+            "5/hour",
+        ),
+        'password_reset_verify': os.getenv(
+            "DRF_THROTTLE_PASSWORD_RESET_VERIFY",
+            "30/hour",
+        ),
+        'password_reset_confirm': os.getenv(
+            "DRF_THROTTLE_PASSWORD_RESET_CONFIRM",
+            "10/hour",
+        ),
+        'upload': os.getenv("DRF_THROTTLE_UPLOAD", "60/hour"),
+    },
 }
 
 SIMPLE_JWT = {

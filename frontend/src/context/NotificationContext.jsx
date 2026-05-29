@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   apiRequest,
+  fetchApplicationList,
   getNormalizedRole,
   getStoredUser,
   isAdminUser,
@@ -1075,17 +1076,13 @@ export function NotificationProvider({ children }) {
       if (deliveryNotifications.length > 0 || isSuperAdminUser(user)) {
         setNotifications(deliveryNotifications);
       } else {
-        const fallbackData = await apiRequest("/applications/");
-        const fallbackList = Array.isArray(fallbackData)
-          ? fallbackData
-          : fallbackData?.results || [];
+        const fallbackList = await fetchApplicationList();
         setNotifications(buildNotifications(fallbackList, user));
       }
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
       try {
-        const data = await apiRequest("/applications/");
-        const list = Array.isArray(data) ? data : data?.results || [];
+        const list = await fetchApplicationList();
         setNotifications(buildNotifications(list, user));
         setLastSyncedAt(new Date().toISOString());
       } catch {

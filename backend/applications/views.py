@@ -14,6 +14,8 @@ from .serializers import (
     ApplicationDetailSerializer,
     SupportingDocumentSerializer,
 )
+from config.pagination import ApplicationPagination
+from config.throttles import UploadRateThrottle
 from notifications.services import (
     apply_license_renewal_action,
     normalize_department,
@@ -26,6 +28,14 @@ STAFF_ROLES = ["admin", "supervisor", "staff"]
 class ApplicationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
+    pagination_class = ApplicationPagination
+
+    def get_throttles(self):
+        throttles = super().get_throttles()
+        if getattr(self, "action", None) == "upload_document":
+            return [UploadRateThrottle(), *throttles]
+
+        return throttles
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -43,10 +53,42 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         queryset = queryset.select_related("applicant").order_by("-updated_at")
 
+        statuses = self.get_list_values("status") or self.get_list_values("statuses")
+        if statuses:
+            queryset = queryset.filter(status__in=statuses)
+
+        application_types = self.get_list_values("application_type")
+        if application_types:
+            queryset = queryset.filter(application_type__in=application_types)
+
+        search = str(self.request.query_params.get("search", "") or "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(reference_no__icontains=search)
+                | Q(title__icontains=search)
+                | Q(project_location__icontains=search)
+                | Q(applicant__username__icontains=search)
+                | Q(applicant__first_name__icontains=search)
+                | Q(applicant__last_name__icontains=search)
+                | Q(applicant__email__icontains=search)
+            )
+
         if self.action == "list":
             return queryset
 
         return queryset.prefetch_related("supporting_documents")
+
+    def get_list_values(self, key):
+        values = []
+
+        for item in self.request.query_params.getlist(key):
+            values.extend(
+                part.strip()
+                for part in str(item or "").split(",")
+                if part.strip()
+            )
+
+        return values
 
     def perform_create(self, serializer):
         if self.request.user.role not in ["applicant", "user"]:

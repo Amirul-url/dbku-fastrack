@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../../layout/AdminDashboardLayout";
-import { apiRequest, getStoredUser } from "../../../services/api";
+import { apiRequest, fetchApplicationList, getStoredUser } from "../../../services/api";
 import {
   Alert,
   Button,
@@ -64,8 +64,8 @@ function AdminApplicationsPage() {
         setLoading(true);
       }
       setError("");
-      const data = await apiRequest("/applications/");
-      setApplications(Array.isArray(data) ? data : data?.results || []);
+      const list = await fetchApplicationList();
+      setApplications(list);
     } catch (err) {
       setError(err.message || "Failed to load applications.");
     } finally {

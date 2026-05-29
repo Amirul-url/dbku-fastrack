@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { apiRequest } from "../../services/api";
+import { fetchApplicationList } from "../../services/api";
 import {
   formatDate,
   getApplicantName,
@@ -22,8 +22,9 @@ function LicenseVerificationPage() {
   async function fetchApplications() {
     try {
       setLoading(true);
-      const data = await apiRequest("/applications/");
-      const list = Array.isArray(data) ? data : data?.results || [];
+      const list = await fetchApplicationList({
+        params: { status: ["license_issued", "license_revoked"] },
+      });
       setApplications(list);
     } catch (error) {
       console.error("Failed to verify license:", error);

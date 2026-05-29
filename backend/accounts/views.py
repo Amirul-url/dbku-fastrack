@@ -15,11 +15,19 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework import status
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from config.throttles import (
+    LoginIdentifierRateThrottle,
+    LoginIPRateThrottle,
+    PasswordResetConfirmRateThrottle,
+    PasswordResetRequestRateThrottle,
+    PasswordResetVerifyRateThrottle,
+    RegistrationRateThrottle,
+)
 from notifications.services import notify_account_created
 
 User = get_user_model()
@@ -391,6 +399,7 @@ def friendly_password_validation(password, password2):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([RegistrationRateThrottle])
 def register_view(request):
     data = request.data
 
@@ -493,6 +502,7 @@ def register_view(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([LoginIPRateThrottle, LoginIdentifierRateThrottle])
 def login_view(request):
     username = str(request.data.get("username", "")).strip()
     password = request.data.get("password", "")
@@ -516,6 +526,7 @@ def login_view(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetRequestRateThrottle])
 def password_reset_request_view(request):
     channel = normalize_reset_channel(request.data.get("channel"))
     raw_identifier = request.data.get("identifier", request.data.get("email", ""))
@@ -595,6 +606,7 @@ def password_reset_request_view(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetVerifyRateThrottle])
 def password_reset_verify_view(request):
     identifier = str(request.data.get("identifier", request.data.get("email", ""))).strip().lower()
     otp = re.sub(r"\D", "", str(request.data.get("otp", "")))
@@ -662,6 +674,7 @@ def password_reset_verify_view(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
+@throttle_classes([PasswordResetConfirmRateThrottle])
 def password_reset_confirm_view(request):
     token = str(request.data.get("reset_token", "")).strip()
     password = request.data.get("password", "")

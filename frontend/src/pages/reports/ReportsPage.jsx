@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
-import { apiRequest } from "../../services/api";
+import { fetchApplicationList } from "../../services/api";
 import {
   DataTable,
   PageHeader,
@@ -29,8 +29,8 @@ function ReportsPage() {
   async function fetchApplications() {
     try {
       setLoading(true);
-      const data = await apiRequest("/applications/");
-      setApplications(Array.isArray(data) ? data : data?.results || []);
+      const list = await fetchApplicationList();
+      setApplications(list);
     } catch (err) {
       console.error("Failed to load report data:", err);
     } finally {

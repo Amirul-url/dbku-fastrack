@@ -6,6 +6,7 @@ import SimpleWysiwygEditor from "../../components/SimpleWysiwygEditor";
 import {
   apiRequest,
   deleteApplicationDocument,
+  fetchApplicationList,
   fetchAuthenticatedBlob,
   getApplicationDocumentUrl,
   getStoredUser,
@@ -277,8 +278,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       if (!silent) setLoading(true);
       setError("");
-      const data = await apiRequest("/applications/");
-      const list = Array.isArray(data) ? data : data?.results || [];
+      const list = await fetchApplicationList({
+        params: getWorkspaceFetchParams(config, userDepartment, fromCompletedApprovals),
+      });
       const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
         apiRequest(`/applications/${id}/`)
       );
@@ -4919,6 +4921,13 @@ function getWorkspaceStatusScope(config, department) {
   }
 
   return Array.isArray(config?.statuses) ? config.statuses : [];
+}
+
+function getWorkspaceFetchParams(config, department, includeCompletedFallback = false) {
+  if (includeCompletedFallback) return {};
+
+  const statuses = getWorkspaceStatusScope(config, department);
+  return statuses.length > 0 ? { status: statuses } : {};
 }
 
 function hasAttachment(row) {

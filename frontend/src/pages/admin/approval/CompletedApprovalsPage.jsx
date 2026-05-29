@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminDashboardLayout from "../../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../../context/LanguageContext";
-import { apiRequest, getStoredUser } from "../../../services/api";
+import { apiRequest, fetchApplicationList, getStoredUser } from "../../../services/api";
 import { enrichApplicationListApplicantNames } from "../../../utils/applicationList";
 import {
   Alert,
@@ -70,8 +70,11 @@ function CompletedApprovalsPage() {
       try {
         if (!silent) setLoading(true);
         setError("");
-        const data = await apiRequest("/applications/");
-        const list = Array.isArray(data) ? data : data?.results || [];
+        const list = await fetchApplicationList({
+          params: {
+            status: Array.from(APPROVED_WORKFLOW_STATUSES),
+          },
+        });
         const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
           apiRequest(`/applications/${id}/`)
         );

@@ -69,6 +69,12 @@ class Application(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "-updated_at"], name="app_status_updated_idx"),
+            models.Index(fields=["applicant", "-updated_at"], name="app_applicant_updated_idx"),
+            models.Index(fields=["application_type"], name="app_type_idx"),
+            models.Index(fields=["-updated_at"], name="app_updated_idx"),
+        ]
 
     @classmethod
     def next_reference_no(cls):
@@ -129,6 +135,12 @@ class SupportingDocument(models.Model):
     )
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["application", "title"], name="doc_app_title_idx"),
+            models.Index(fields=["application", "-uploaded_at"], name="doc_app_uploaded_idx"),
+        ]
 
     def __str__(self):
         return self.title

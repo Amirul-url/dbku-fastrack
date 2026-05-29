@@ -43,6 +43,42 @@ function getRequestUrl(path) {
   return `${API_URL}${path}`;
 }
 
+function getRequestPathFromApiUrl(url) {
+  try {
+    const apiUrl = new URL(API_URL, window.location.origin);
+    const parsed = new URL(url, apiUrl.origin);
+    const apiPath = apiUrl.pathname.replace(/\/+$/, "");
+    let path = `${parsed.pathname}${parsed.search}`;
+
+    if (apiPath && path.startsWith(`${apiPath}/`)) {
+      path = path.slice(apiPath.length);
+    }
+
+    return path || "/";
+  } catch {
+    return "";
+  }
+}
+
+function getPathWithQuery(path, params = {}) {
+  const [basePath, rawQuery = ""] = String(path || "").split("?");
+  const query = new URLSearchParams(rawQuery);
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+
+    if (Array.isArray(value)) {
+      if (value.length > 0) query.set(key, value.join(","));
+      return;
+    }
+
+    query.set(key, String(value));
+  });
+
+  const queryString = query.toString();
+  return queryString ? `${basePath}?${queryString}` : basePath;
+}
+
 function isLocalHostName(hostname = "") {
   const normalized = hostname.toLowerCase();
 
@@ -480,6 +516,42 @@ export async function apiRequest(path, options = {}) {
   }
 
   return data;
+}
+
+export async function fetchPaginatedList(path, { params = {}, pageSize = 200, maxPages = 25 } = {}) {
+  const results = [];
+  let nextPath = getPathWithQuery(path, {
+    ...params,
+    page_size: pageSize,
+  });
+  let pageCount = 0;
+  let totalCount = null;
+
+  while (nextPath && pageCount < maxPages) {
+    const data = await apiRequest(nextPath);
+
+    if (Array.isArray(data)) {
+      results.push(...data);
+      return { results, count: results.length, next: null };
+    }
+
+    const pageResults = Array.isArray(data?.results) ? data.results : [];
+    results.push(...pageResults);
+    totalCount = Number.isFinite(Number(data?.count)) ? Number(data.count) : totalCount;
+    nextPath = data?.next ? getRequestPathFromApiUrl(data.next) : "";
+    pageCount += 1;
+  }
+
+  return {
+    results,
+    count: totalCount ?? results.length,
+    next: nextPath || null,
+  };
+}
+
+export async function fetchApplicationList(options = {}) {
+  const data = await fetchPaginatedList("/applications/", options);
+  return data.results;
 }
 
 export async function uploadApplicationDocument(applicationId, title, file) {

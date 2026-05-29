@@ -4,6 +4,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
 import {
   apiRequest,
+  fetchApplicationList,
   fetchAuthenticatedBlob,
   uploadApplicationDocument,
 } from "../../services/api";
@@ -61,8 +62,7 @@ function UserDashboard() {
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const data = await apiRequest("/applications/");
-      const list = Array.isArray(data) ? data : data?.results || [];
+      const list = await fetchApplicationList();
       setApplications(list);
       setSelectedId((current) => current || (list.length > 0 ? String(list[0].id) : ""));
     } catch (err) {

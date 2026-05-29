@@ -4,7 +4,7 @@ import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
 import CompletedApprovalsPage from "../admin/approval/CompletedApprovalsPage";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest, getStoredUser } from "../../services/api";
+import { apiRequest, fetchApplicationList, getStoredUser } from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
 import {
   Alert,
@@ -247,8 +247,7 @@ function PersonalTaskDashboard() {
     try {
       if (!silent) setLoading(true);
       setError("");
-      const data = await apiRequest("/applications/");
-      const list = Array.isArray(data) ? data : data?.results || [];
+      const list = await fetchApplicationList();
       const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
         apiRequest(`/applications/${id}/`)
       );

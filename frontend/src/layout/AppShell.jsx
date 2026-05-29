@@ -4,7 +4,7 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useLanguage } from "../context/LanguageContext";
 import { useNotifications } from "../context/NotificationContext";
 import { Icon } from "../components/ui/SystemUI";
-import { apiRequest, clearAuthSession, getStoredUser } from "../services/api";
+import { apiRequest, clearAuthSession, fetchApplicationList, getStoredUser } from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
@@ -272,8 +272,7 @@ function AppShell({ children, role = "admin" }) {
     if (role !== "admin") return;
 
     try {
-      const data = await apiRequest("/applications/");
-      const applications = Array.isArray(data) ? data : data?.results || [];
+      const applications = await fetchApplicationList();
       setAdminTaskCounts(getAdminTaskCounts(applications, user));
     } catch {
       if (!silent) setAdminTaskCounts({ personal: 0, approval: 0 });
