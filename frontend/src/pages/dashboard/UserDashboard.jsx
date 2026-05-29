@@ -44,10 +44,17 @@ function UserDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { language, t } = useLanguage();
+  const queryTab = searchParams.get("tab");
+  const querySelectedId = searchParams.get("id") || "";
+  const activeSection = VALID_SECTIONS.includes(queryTab)
+    ? queryTab
+    : "overview";
   const [applications, setApplications] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(querySelectedId);
   const [selectedApplication, setSelectedApplication] = useState(null);
-  const [licensePanelOpen, setLicensePanelOpen] = useState(false);
+  const [licensePanelOpen, setLicensePanelOpen] = useState(
+    activeSection === "license" && Boolean(querySelectedId)
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
@@ -56,10 +63,6 @@ function UserDashboard() {
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterYear, setFilterYear] = useState("all");
   const licenseCardRef = useRef(null);
-
-  const activeSection = VALID_SECTIONS.includes(searchParams.get("tab"))
-    ? searchParams.get("tab")
-    : "overview";
 
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -121,6 +124,21 @@ function UserDashboard() {
     }
   }, [activeSection, fetchApplicationDetails, licensePanelOpen, selectedId]);
 
+  useEffect(() => {
+    if (activeSection !== "license") return;
+
+    if (querySelectedId) {
+      setSelectedId(querySelectedId);
+      setLicensePanelOpen(true);
+      return;
+    }
+
+    setLicensePanelOpen(false);
+    setSelectedApplication(null);
+    setPaymentReceipt(null);
+    setMessage({ type: "", text: "" });
+  }, [activeSection, querySelectedId]);
+
   const submittedApplications = useMemo(
     () => applications.filter((app) => normalizeStatus(app.status) !== "draft"),
     [applications]
@@ -166,13 +184,22 @@ function UserDashboard() {
   }, [applications]);
 
   const latest = applications[0];
-  const activeApplication = selectedApplication || latest;
+  const selectedListApplication = applications.find(
+    (app) => String(app.id) === String(selectedId)
+  );
+  const activeApplication = selectedApplication || selectedListApplication || latest;
   const payment = activeApplication?.form_data?.payment || {};
   const license = activeApplication?.form_data?.license || {};
   const pageHeader = getDashboardHeader(activeSection, t);
 
   function showSection(tab) {
     setSearchParams({ tab });
+    if (tab !== "license") {
+      setLicensePanelOpen(false);
+      setSelectedApplication(null);
+      setPaymentReceipt(null);
+      setMessage({ type: "", text: "" });
+    }
   }
 
   function openApplication(app) {
@@ -183,6 +210,7 @@ function UserDashboard() {
     setSelectedId(String(app.id));
     setSelectedApplication(app);
     setLicensePanelOpen(true);
+    setSearchParams({ tab: "license", id: String(app.id) });
     fetchApplicationDetails(app.id);
   }
 
@@ -191,6 +219,7 @@ function UserDashboard() {
     setSelectedApplication(null);
     setPaymentReceipt(null);
     setMessage({ type: "", text: "" });
+    setSearchParams({ tab: "license" });
   }
 
   async function submitPayment() {
@@ -933,9 +962,7 @@ function ApplicantPaymentDocuments({ app, t }) {
                   <span className="material-symbols-outlined text-[16px]">
                     download
                   </span>
-                  {item.file
-                    ? t("common.download", "Download")
-                    : t("common.printSavePdf", "Print / Save PDF")}
+                  {t("common.download", "Download")}
                 </button>
               </div>
             )}
@@ -986,7 +1013,7 @@ function LicenseListSection({ applications, loading, t, onOpen }) {
           {
             key: "payment",
             label: t("common.paymentStatus", "Payment Status"),
-            render: (app) => app.form_data?.payment?.status || getPaymentHint(app, t),
+            render: (app) => getPaymentStatusText(app, t),
           },
           {
             key: "license",
@@ -2031,10 +2058,25 @@ function getPaymentHint(app, t) {
   if (payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") {
     return t("applicant.paymentHintReceiptRejected");
   }
+  if (status === "invoice_generated") return t("applicant.paymentHintProceed");
   if (status === "payment_submitted") return t("applicant.paymentHintSubmitted");
   if (status === "payment_verified") return t("applicant.paymentHintVerified");
   if (status === "license_issued") return t("applicant.paymentHintIssued");
   return t("applicant.paymentHintDefault");
+}
+
+function getPaymentStatusText(app, t) {
+  const status = normalizeStatus(app?.status);
+  const payment = app?.form_data?.payment || {};
+
+  if (payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") {
+    return t("applicant.paymentStatusReceiptRejected");
+  }
+  if (status === "invoice_generated") return t("applicant.paymentStatusProceed");
+  if (status === "payment_submitted") return t("applicant.paymentStatusSubmitted");
+  if (status === "payment_verified") return t("applicant.paymentStatusVerified");
+  if (status === "license_issued") return t("applicant.paymentStatusCompleted");
+  return t("applicant.paymentStatusPending");
 }
 
 function getDashboardHeader(activeSection, t) {

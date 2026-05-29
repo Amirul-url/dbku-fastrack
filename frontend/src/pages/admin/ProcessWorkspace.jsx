@@ -5223,7 +5223,7 @@ const configs = {
     listDescriptionKey: "workspace.payment.listDescription",
     eyebrow: "Payment",
     eyebrowKey: "workspace.payment.eyebrow",
-    title: "Invoice and Payment",
+    title: "Bill and Payment",
     titleKey: "workspace.payment.title",
     description: "PT(IKL) uploads approval letters and bills, KU(IKL) confirms bills, and PT(IKL) verifies uploaded payment proof.",
     descriptionKey: "workspace.payment.description",
@@ -5239,7 +5239,7 @@ const configs = {
     stats: (apps) => [
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !app.form_data?.payment), icon: "pending", tone: "amber" },
       { label: "Bill Review", labelKey: "workspace.stat.billReview", value: countBy(apps, (app) => normalizeStatus(app.status) === "bill_pending_ku"), icon: "fact_check", tone: "amber" },
-      { label: "Invoiced", labelKey: "workspace.stat.invoiced", value: countBy(apps, (app) => normalizeStatus(app.status) === "invoice_generated"), icon: "receipt_long", tone: "blue" },
+      { label: "Bill Generated", labelKey: "workspace.stat.invoiced", value: countBy(apps, (app) => normalizeStatus(app.status) === "invoice_generated"), icon: "receipt_long", tone: "blue" },
       { label: "Submitted", labelKey: "workspace.stat.submitted", value: countBy(apps, (app) => normalizeStatus(app.status) === "payment_submitted"), icon: "payments" },
       { label: "Verified", labelKey: "workspace.stat.verified", value: countBy(apps, (app) => normalizeStatus(app.status) === "payment_verified"), icon: "verified" },
     ],
