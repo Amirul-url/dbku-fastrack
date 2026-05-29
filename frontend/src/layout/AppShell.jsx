@@ -658,14 +658,14 @@ function AppShell({ children, role = "admin" }) {
                         <Link
                           key={child.path}
                           to={child.path}
-                          className={`flex items-center justify-between gap-2 rounded-md px-3 py-2.5 text-sm font-medium ${
+                          className={`grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium ${
                             childActive
                               ? "bg-emerald-700 text-white"
                               : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                           }`}
                         >
-                          <span className="min-w-0 break-words leading-snug">
-                            {t(child.labelKey, child.fallback)}
+                          <span className="min-w-0 whitespace-normal break-normal leading-snug">
+                            <SidebarChildLabel child={child} t={t} />
                           </span>
                           <NavBadge count={child.badge} />
                         </Link>
@@ -764,6 +764,24 @@ function NavBadge({ count }) {
       {value > 99 ? "99+" : value}
     </span>
   );
+}
+
+function SidebarChildLabel({ child, t }) {
+  const label = t(child.labelKey, child.fallback);
+
+  if (
+    child.labelKey === "nav.advertisementLicenseQr" &&
+    label === "Advertisement License / QR"
+  ) {
+    return (
+      <span className="block">
+        <span className="block">Advertisement</span>
+        <span className="block">License / QR</span>
+      </span>
+    );
+  }
+
+  return label;
 }
 
 function getAdminTaskCounts(applications, user) {

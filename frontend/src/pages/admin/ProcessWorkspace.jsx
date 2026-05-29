@@ -41,6 +41,12 @@ import {
   getProjectName,
   normalizeStatus,
 } from "../../utils/workflow";
+import {
+  DEFAULT_ADVERTISEMENT_LICENSE_TERMS,
+  buildAdvertisementLicenseHtml as buildAdvertisementLicenseDocumentHtml,
+  buildManualAdvertisementLicenseForIssuance,
+  getAdvertisementLicenseDraftFields,
+} from "../../utils/advertisementLicenseDocument";
 
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const MEMO_EDITOR_ENABLED = false;
@@ -165,6 +171,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const manualPaymentDraftSaveIdRef = useRef(0);
   const manualPaymentDraftTimerRef = useRef(null);
   const manualPaymentDraftSavePromiseRef = useRef(null);
+  const manualLicenseDraftSaveIdRef = useRef(0);
+  const manualLicenseDraftTimerRef = useRef(null);
+  const manualLicenseDraftSavePromiseRef = useRef(null);
+  const manualLicenseDraftDataRef = useRef(null);
   const formViewFallbackTimerRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
@@ -210,6 +220,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   useEffect(() => {
     if (querySelectedId) setSelectedId(querySelectedId);
   }, [querySelectedId]);
+
+  useEffect(() => {
+    manualLicenseDraftDataRef.current = null;
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -328,6 +342,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     return () => {
       if (manualPaymentDraftTimerRef.current) {
         window.clearTimeout(manualPaymentDraftTimerRef.current);
+      }
+      if (manualLicenseDraftTimerRef.current) {
+        window.clearTimeout(manualLicenseDraftTimerRef.current);
       }
       if (formViewFallbackTimerRef.current) {
         window.clearTimeout(formViewFallbackTimerRef.current);
@@ -1004,6 +1021,95 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     });
   }, [selectedRecord, userDepartment]);
 
+  async function saveManualLicenseDraft(applicationId, baseRecord, data, saveId) {
+    if (!applicationId || !baseRecord) return;
+
+    const savedLicense = baseRecord.form_data?.license || {};
+    const now = new Date().toISOString();
+    const nextManualLicense = {
+      ...(savedLicense.manual_license || {}),
+      status: "Draft",
+      fields: data.fields,
+      terms: data.terms,
+      draft_saved_by: userDepartment,
+      draft_saved_at: now,
+      saved_at: savedLicense.manual_license?.saved_at || now,
+    };
+
+    try {
+      await apiRequest(`/applications/${applicationId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(baseRecord, {
+            license: {
+              ...savedLicense,
+              manual_license: nextManualLicense,
+            },
+          }),
+        }),
+      });
+
+      if (manualLicenseDraftSaveIdRef.current === saveId) {
+        manualLicenseDraftSavePromiseRef.current = null;
+      }
+    } catch (err) {
+      console.error("Failed to autosave manual license draft:", err);
+    }
+  }
+
+  const updateManualLicenseDraft = useCallback((data) => {
+    const applicationId = selectedRecord?.id;
+    if (!applicationId) return;
+    const draftSavedAt = new Date().toISOString();
+    manualLicenseDraftDataRef.current = data;
+
+    if (manualLicenseDraftTimerRef.current) {
+      window.clearTimeout(manualLicenseDraftTimerRef.current);
+    }
+
+    const saveId = manualLicenseDraftSaveIdRef.current + 1;
+    manualLicenseDraftSaveIdRef.current = saveId;
+    const baseRecord = selectedRecord;
+    manualLicenseDraftTimerRef.current = window.setTimeout(() => {
+      manualLicenseDraftSavePromiseRef.current = saveManualLicenseDraft(
+        applicationId,
+        baseRecord,
+        data,
+        saveId
+      ).finally(() => {
+        if (manualLicenseDraftSaveIdRef.current === saveId) {
+          manualLicenseDraftSavePromiseRef.current = null;
+        }
+      });
+    }, 900);
+
+    setSelectedDetail((current) => {
+      if (!current || current.id !== applicationId) return current;
+
+      const savedLicense = current.form_data?.license || {};
+      const nextManualLicense = {
+        ...(savedLicense.manual_license || {}),
+        status: "Draft",
+        fields: data.fields,
+        terms: data.terms,
+        draft_saved_by: userDepartment,
+        draft_saved_at: draftSavedAt,
+        saved_at: savedLicense.manual_license?.saved_at || draftSavedAt,
+      };
+
+      return {
+        ...current,
+        form_data: {
+          ...(current.form_data || {}),
+          license: {
+            ...savedLicense,
+            manual_license: nextManualLicense,
+          },
+        },
+      };
+    });
+  }, [selectedRecord, userDepartment]);
+
   async function saveTechnicalSiteVisitDraft(nextSite) {
     if (!selectedRecord?.id) return;
 
@@ -1376,7 +1482,47 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         }
       }
 
-      const current = selectedRecord;
+      if (action.key === "issue_license") {
+        if (manualLicenseDraftTimerRef.current) {
+          window.clearTimeout(manualLicenseDraftTimerRef.current);
+          manualLicenseDraftTimerRef.current = null;
+
+          if (manualLicenseDraftDataRef.current) {
+            const saveId = manualLicenseDraftSaveIdRef.current + 1;
+            manualLicenseDraftSaveIdRef.current = saveId;
+            await saveManualLicenseDraft(
+              selectedRecord.id,
+              selectedRecord,
+              manualLicenseDraftDataRef.current,
+              saveId
+            );
+          }
+        }
+
+        if (manualLicenseDraftSavePromiseRef.current) {
+          await manualLicenseDraftSavePromiseRef.current;
+        }
+      }
+
+      let current = selectedRecord;
+      if (action.key === "issue_license" && manualLicenseDraftDataRef.current) {
+        const savedLicense = selectedRecord.form_data?.license || {};
+        current = {
+          ...selectedRecord,
+          form_data: {
+            ...(selectedRecord.form_data || {}),
+            license: {
+              ...savedLicense,
+              manual_license: {
+                ...(savedLicense.manual_license || {}),
+                status: "Draft",
+                fields: manualLicenseDraftDataRef.current.fields,
+                terms: manualLicenseDraftDataRef.current.terms,
+              },
+            },
+          },
+        };
+      }
       const body = action.buildPayload(current, {
         decision: actionDecision,
         comment: cleanedComment,
@@ -1893,6 +2039,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onPaymentDocumentUpload={uploadPaymentDocument}
                           onPaymentDocumentDelete={deletePaymentDocument}
                           onManualPaymentDraftChange={updateManualPaymentDraft}
+                          onManualLicenseDraftChange={updateManualLicenseDraft}
                           officialReceiptMode={officialReceiptMode}
                           setOfficialReceiptMode={setOfficialReceiptMode}
                         />
@@ -2053,6 +2200,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onPaymentDocumentUpload={uploadPaymentDocument}
                         onPaymentDocumentDelete={deletePaymentDocument}
                         onManualPaymentDraftChange={updateManualPaymentDraft}
+                        onManualLicenseDraftChange={updateManualLicenseDraft}
                         officialReceiptMode={officialReceiptMode}
                         setOfficialReceiptMode={setOfficialReceiptMode}
                       />
@@ -5519,6 +5667,7 @@ const configs = {
             status: "license_issued",
             form_data: mergeFormData(app, {
               license: {
+                ...(app.form_data?.license || {}),
                 license_id: licenseId,
                 status: "Active",
                 holder: getApplicantName(app),
@@ -5529,6 +5678,10 @@ const configs = {
                 validity_years: validityYears,
                 verification_url: getLicenseVerificationUrl(licenseId),
                 issued_at: new Date().toISOString(),
+                manual_license: buildManualAdvertisementLicenseForIssuance(app, {
+                  issueDate: today.toISOString(),
+                  expiryDate: expiry.toISOString(),
+                }),
                 renewal_reminders: [
                   { months_before_expiry: 3, status: "Scheduled" },
                   { months_before_expiry: 2, status: "Scheduled" },
@@ -10642,111 +10795,7 @@ function buildApprovalLetterBillHtml(app, t) {
 }
 
 function buildAdvertisementLicenseHtml(app, t) {
-  const license = app?.form_data?.license || {};
-  const payment = app?.form_data?.payment || {};
-  const reference = getApplicationReference(app);
-  const licenseId = license.license_id || getLicenseId(app);
-  const applicant = getApplicantName(app);
-  const applicantAddress = getApplicantPostalAddress(app);
-  const projectName = getProjectName(app);
-  const applicationType = getApplicationType(app);
-  const location = getApplicationLocation(app);
-  const receiptNo = payment.receipt_reference || payment.invoice_no || getInvoiceNo(app);
-  const amount = getBillAmount(app);
-  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
-
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(reference)} Advertisement License</title>
-  <style>
-    @page { size: A4; margin: 18mm; }
-    body { margin: 0; font-family: "Times New Roman", serif; color: #111827; background: #f8fafc; }
-    .page { width: 210mm; min-height: 297mm; margin: 0 auto 12px; background: #fff; padding: 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
-    .center { text-align: center; }
-    h1 { margin: 10px 0 0; font-size: 22px; text-transform: uppercase; }
-    h2 { margin: 8px 0 20px; font-size: 17px; }
-    .crest { width: 78px; height: 58px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; }
-    .crest img { max-width: 100%; max-height: 58px; object-fit: contain; }
-    .row { display: grid; grid-template-columns: 92px 12px 1fr 92px 12px 1fr; gap: 0 8px; margin: 12px 0; font-size: 15px; }
-    .line { border-bottom: 1px dotted #111827; min-height: 20px; font-weight: 700; }
-    .wide { grid-column: span 4; }
-    p { font-size: 15px; line-height: 1.5; }
-    .signature { display: grid; grid-template-columns: 1fr 180px; gap: 20px; margin-top: 40px; align-items: end; }
-    .terms li { margin: 14px 0; font-size: 17px; line-height: 1.35; }
-    .payment { margin-top: 90px; text-align: right; font-size: 16px; font-weight: 700; }
-    .amount { display: inline-block; min-width: 132px; border: 1px solid #111827; padding: 6px 16px; text-align: center; }
-    .print-actions { position: fixed; right: 18px; top: 18px; }
-    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial; cursor: pointer; }
-    @media print { body { background: white; } .page { box-shadow: none; margin: 0; } .print-actions { display: none; } }
-  </style>
-</head>
-<body>
-  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
-  <section class="page">
-    <div class="center">
-      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
-      <h1>Dewan Bandaraya Kuching Utara</h1>
-      <p><strong>(Commission of the City of Kuching North)</strong><br />The Local Authorities (Advertisements) By-Laws, 2012</p>
-      <h2>Borang B<br />(Undang-undang Kecil 7)<br />Lesen Pengiklanan</h2>
-    </div>
-
-    <div class="row">
-      <span>No. Resit</span><span>:</span><span class="line">${escapeHtml(receiptNo)}</span>
-      <span>Rujukan</span><span>:</span><span class="line">${escapeHtml(licenseId)}</span>
-    </div>
-    <div class="row">
-      <span>Nama</span><span>:</span><span class="line wide">${escapeHtml(applicant)}</span>
-    </div>
-    <div class="row">
-      <span>Alamat</span><span>:</span><span class="line wide">${escapeHtml(applicantAddress)}</span>
-    </div>
-
-    <p>Adalah dengan ini diberi lesen oleh <strong><u>Pengarah, Dewan Bandaraya Kuching Utara</u></strong> di bawah undang-undang kecil untuk mempamer iklan seperti berikut:-</p>
-
-    <div class="row">
-      <span>Papan Iklan</span><span>:</span><span class="line wide">${escapeHtml(projectName)}</span>
-    </div>
-    <div class="row">
-      <span>Jenis Iklan</span><span>:</span><span class="line wide">${escapeHtml(applicationType)}</span>
-    </div>
-    <div class="row">
-      <span>Tempat</span><span>:</span><span class="line wide">${escapeHtml(location)}</span>
-    </div>
-    <div class="row">
-      <span>Tempoh Lesen Iklan</span><span>:</span><span class="line">${escapeHtml(formatDate(license.issue_date || new Date()))}</span>
-      <span>hingga</span><span>:</span><span class="line">${escapeHtml(formatDate(license.expiry_date))}</span>
-    </div>
-
-    <p>Tertakluk kepada syarat-syarat dalam <strong><u>Lampiran A.</u></strong></p>
-
-    <div class="signature">
-      <div>
-        <br /><br />
-        <p>............................................................<br />b.p : Dewan Bandaraya Kuching Utara</p>
-      </div>
-      <p>Tarikh : ${escapeHtml(formatDate(license.issued_at || license.issue_date || new Date()))}</p>
-    </div>
-  </section>
-
-  <section class="page">
-    <h2><u>Lampiran A</u></h2>
-    <ol class="terms">
-      <li>Lesen ini dikeluarkan tertakluk di bawah peruntukan The Local Authorities (Advertisements) By-Laws, 2012.</li>
-      <li>Lesen ini akan tamat tempoh dengan sendirinya jika tidak diperbaharui.</li>
-      <li>Lesen ini tidak boleh dipindah milik tanpa kebenaran bertulis dari DBKU.</li>
-      <li>Lesen ini hendaklah dipamer dan digantung dengan sempurna sepanjang tempoh lesen pengiklanan ini.</li>
-      <li>Papan tanda hendaklah sentiasa diselenggara dalam keadaan sempurna dan memuaskan.</li>
-      <li>Sebarang pengubahsuaian papan tanda tidak boleh dilakukan setelah diluluskan.</li>
-      <li>Lesen ini hendaklah dikembalikan kepada Pejabat Bahagian Pelesenan DBKU jika pelesen berhenti berniaga.</li>
-      <li>Pelesen hendaklah mematuhi mana-mana syarat atau arahan DBKU dari masa ke semasa.</li>
-      <li>Sila bawa salinan asal lesen untuk pembaharuan lesen.</li>
-    </ol>
-    <div class="payment">Bayaran : <span class="amount">${escapeHtml(hasValue(amount) ? formatCurrency(amount) : "-")}</span></div>
-  </section>
-</body>
-</html>`;
+  return buildAdvertisementLicenseDocumentHtml(app, t);
 }
 
 function getApplicantPostalAddress(app) {
@@ -10821,12 +10870,64 @@ function LicenseDetails({
   canChooseLicenseExpiry,
   licenseExpiryYears,
   setLicenseExpiryYears,
+  onManualLicenseDraftChange,
 }) {
   const license = app.form_data?.license || {};
+  const manualLicense = license.manual_license || {};
   const renewal = getLicenseRenewal(app);
   const reminders = getLicenseRenewalReminders(app);
   const cancellation = renewal.cancellation || {};
   const previewExpiryDate = getLicenseExpiryPreviewDate(licenseExpiryYears);
+  const licenseEditable =
+    canChooseLicenseExpiry && normalizeStatus(app?.status) === "payment_verified";
+  const [draftFields, setDraftFields] = useState(() =>
+    getAdvertisementLicenseDraftFields(app, manualLicense.fields, {
+      expiryDate: licenseEditable ? previewExpiryDate : license.expiry_date,
+    })
+  );
+  const [termsText, setTermsText] = useState(() =>
+    (Array.isArray(manualLicense.terms) && manualLicense.terms.length
+      ? manualLicense.terms
+      : DEFAULT_ADVERTISEMENT_LICENSE_TERMS
+    ).join("\n")
+  );
+
+  useEffect(() => {
+    setDraftFields(
+      getAdvertisementLicenseDraftFields(app, manualLicense.fields, {
+        expiryDate: licenseEditable ? previewExpiryDate : license.expiry_date,
+      })
+    );
+    setTermsText(
+      (Array.isArray(manualLicense.terms) && manualLicense.terms.length
+        ? manualLicense.terms
+        : DEFAULT_ADVERTISEMENT_LICENSE_TERMS
+      ).join("\n")
+    );
+  }, [app.id, licenseEditable, license.expiry_date, manualLicense.draft_saved_at, manualLicense.issued_at, previewExpiryDate]);
+
+  function pushLicenseDraft(nextFields, nextTermsText = termsText) {
+    const terms = nextTermsText
+      .split("\n")
+      .map((term) => term.replace(/^\s*\d+[\).]\s*/, "").trim())
+      .filter(Boolean);
+
+    onManualLicenseDraftChange?.({
+      fields: nextFields,
+      terms: terms.length ? terms : DEFAULT_ADVERTISEMENT_LICENSE_TERMS,
+    });
+  }
+
+  function updateLicenseField(name, value) {
+    const nextFields = { ...draftFields, [name]: value };
+    setDraftFields(nextFields);
+    pushLicenseDraft(nextFields);
+  }
+
+  function updateLicenseTerms(value) {
+    setTermsText(value);
+    pushLicenseDraft(draftFields, value);
+  }
 
   return (
     <div className="space-y-4 text-sm">
@@ -10867,18 +10968,137 @@ function LicenseDetails({
         />
       </div>
 
-      {normalizeStatus(app?.status) === "license_issued" && (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="secondary"
-            icon="visibility"
-            onClick={() => openAdvertisementLicensePreview(app, t)}
-          >
-            {t("workspace.license.viewLicense", "View Advertisement License")}
-          </Button>
+      <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+              {t("workspace.license.manualTitle", "Create Manually")}
+            </p>
+            <p className="mt-1 text-[14px] leading-5 text-slate-600">
+              {t("workspace.license.manualDesc", "Edit the advertisement license that will be issued with the QR verification link.")}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {licenseEditable && (
+              <span className="inline-flex min-h-9 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+                <Icon name="cloud_done" className="text-[17px]" />
+                {t("workspace.payment.manual.autoSaveDraft", "Auto-saves as draft")}
+              </span>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              onClick={() => openAdvertisementLicensePreview(app, t)}
+            >
+              {t("workspace.license.viewLicense", "View Advertisement License")}
+            </Button>
+          </div>
         </div>
-      )}
+
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+          <ManualLicenseField
+            label={t("workspace.license.receiptNo", "Receipt No.")}
+            value={draftFields.receiptNo}
+            onChange={(value) => updateLicenseField("receiptNo", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.referenceNo", "Reference No.")}
+            value={draftFields.referenceNo}
+            onChange={(value) => updateLicenseField("referenceNo", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.formCode", "Form Code")}
+            value={draftFields.formCode}
+            onChange={(value) => updateLicenseField("formCode", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.applicantName", "Applicant Name")}
+            value={draftFields.applicantName}
+            onChange={(value) => updateLicenseField("applicantName", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.boardName", "Papan Iklan")}
+            value={draftFields.boardName}
+            onChange={(value) => updateLicenseField("boardName", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.advertisementType", "Jenis Iklan")}
+            value={draftFields.advertisementType}
+            onChange={(value) => updateLicenseField("advertisementType", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.startDate", "Start Date")}
+            type="date"
+            value={toDateInputValue(draftFields.issueDate)}
+            onChange={(value) => updateLicenseField("issueDate", fromDateInputValue(value))}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.endDate", "End Date")}
+            type="date"
+            value={toDateInputValue(draftFields.expiryDate)}
+            onChange={(value) => updateLicenseField("expiryDate", fromDateInputValue(value))}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.paymentAmount", "Payment Amount")}
+            value={draftFields.paymentAmount}
+            onChange={(value) => updateLicenseField("paymentAmount", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.signatoryName", "Signatory Name")}
+            value={draftFields.signatoryName}
+            onChange={(value) => updateLicenseField("signatoryName", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.signatoryTitle", "Signatory Title")}
+            value={draftFields.signatoryTitle}
+            onChange={(value) => updateLicenseField("signatoryTitle", value)}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.signedDate", "Signed Date")}
+            type="date"
+            value={toDateInputValue(draftFields.signedDate)}
+            onChange={(value) => updateLicenseField("signedDate", fromDateInputValue(value))}
+            readOnly={!licenseEditable}
+          />
+          <ManualLicenseField
+            label={t("workspace.license.applicantAddress", "Applicant Address")}
+            value={draftFields.applicantAddress}
+            onChange={(value) => updateLicenseField("applicantAddress", value)}
+            readOnly={!licenseEditable}
+            textarea
+            className="md:col-span-2"
+          />
+          <ManualLicenseField
+            label={t("workspace.license.displayLocation", "Display Location")}
+            value={draftFields.displayLocation}
+            onChange={(value) => updateLicenseField("displayLocation", value)}
+            readOnly={!licenseEditable}
+            textarea
+            className="md:col-span-2"
+          />
+          <ManualLicenseField
+            label={t("workspace.license.terms", "Lampiran A Terms")}
+            value={termsText}
+            onChange={updateLicenseTerms}
+            readOnly={!licenseEditable}
+            textarea
+            className="md:col-span-2 xl:col-span-3"
+            rows={7}
+          />
+        </div>
+      </section>
 
       {Object.keys(renewal).length > 0 && (
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -10902,6 +11122,54 @@ function LicenseDetails({
       )}
     </div>
   );
+}
+
+function ManualLicenseField({
+  label,
+  value,
+  onChange,
+  readOnly = false,
+  textarea = false,
+  type = "text",
+  className = "",
+  rows = 3,
+}) {
+  return (
+    <label className={`block ${className}`}>
+      <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-700">
+        {label}
+      </span>
+      {textarea ? (
+        <textarea
+          value={value || ""}
+          onChange={(event) => onChange(event.target.value)}
+          readOnly={readOnly}
+          rows={rows}
+          className="form-input text-[14px] disabled:bg-slate-100"
+        />
+      ) : (
+        <input
+          type={type}
+          value={value || ""}
+          onChange={(event) => onChange(event.target.value)}
+          readOnly={readOnly}
+          className="form-input h-10 text-[14px] disabled:bg-slate-100"
+        />
+      )}
+    </label>
+  );
+}
+
+function toDateInputValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function fromDateInputValue(value) {
+  if (!value) return "";
+  return new Date(`${value}T00:00:00`).toISOString();
 }
 
 function getLicenseExpiryPreviewDate(years) {

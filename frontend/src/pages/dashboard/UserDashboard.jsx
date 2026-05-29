@@ -37,6 +37,7 @@ import {
   getProjectName,
   normalizeStatus,
 } from "../../utils/workflow";
+import { openAdvertisementLicenseDocument } from "../../utils/advertisementLicenseDocument";
 
 const VALID_SECTIONS = ["applications", "status", "license"];
 
@@ -870,6 +871,14 @@ function LicenseSection({
               <div ref={licenseCardRef}>
                 <LicenseQrCard application={app} license={license} />
               </div>
+              <Button
+                onClick={() => openAdvertisementLicenseDocument(app, t)}
+                icon="visibility"
+                variant="secondary"
+                className="w-full"
+              >
+                {t("workspace.license.viewLicense", "View Advertisement License")}
+              </Button>
               <Button onClick={onDownload} icon="download" className="w-full">
                 {t("applicant.downloadQrELicense")}
               </Button>

@@ -8,6 +8,7 @@ import {
   getApplicationReference,
   getApplicationType,
 } from "../../utils/workflow";
+import { openAdvertisementLicenseDocument } from "../../utils/advertisementLicenseDocument";
 
 function LicenseVerificationPage() {
   const { licenseId } = useParams();
@@ -89,6 +90,18 @@ function LicenseVerificationPage() {
                 <Info label="Issue Date" value={formatDate(license.issue_date)} />
                 <Info label="Expiry Date" value={formatDate(license.expiry_date)} />
                 <Info label="License Status" value={license.status || "Not provided"} />
+              </div>
+              <div className="mt-5 flex justify-end border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => openAdvertisementLicenseDocument(application)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#006d32] bg-white px-4 text-sm font-bold text-[#006d32] hover:bg-green-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    visibility
+                  </span>
+                  View Advertisement License
+                </button>
               </div>
             </Panel>
           </>
