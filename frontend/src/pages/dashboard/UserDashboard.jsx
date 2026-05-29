@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
@@ -935,7 +933,9 @@ function ApplicantPaymentDocuments({ app, t }) {
                   <span className="material-symbols-outlined text-[16px]">
                     download
                   </span>
-                  {t("common.download", "Download")}
+                  {item.file
+                    ? t("common.download", "Download")
+                    : t("common.printSavePdf", "Print / Save PDF")}
                 </button>
               </div>
             )}
@@ -1281,14 +1281,19 @@ function openApplicantManualPaymentDocument(app, type, t) {
 }
 
 async function downloadApplicantManualPaymentDocument(app, type, t) {
+  const isBill = type === "bill";
   const html = getApplicantManualPaymentDocumentHtml(app, type, t);
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualLetter = approvalLetter.manual_letter || {};
   const label = type === "bill"
     ? t("workspace.payment.billDocument", "Bill")
     : t("workspace.payment.approvalLetter", "Approval Letter");
-  const filename = getDownloadFilename(`${getApplicationReference(app)} ${label}`, "pdf");
+  const title = isBill
+    ? label
+    : manualLetter.subject || label;
 
   try {
-    await downloadHtmlAsPdf(html, filename);
+    await printHtmlDocument(html, `${getApplicationReference(app)} ${title}`);
   } catch (err) {
     console.error("Failed to download manual payment document:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
@@ -1303,6 +1308,59 @@ function getApplicantManualPaymentDocumentHtml(app, type, t) {
   return type === "bill"
     ? buildApplicantManualBillHtml(app, t, manualLetter, manualBill)
     : buildApplicantManualLetterHtml(app, t, manualLetter, manualBill);
+}
+
+async function printHtmlDocument(html, title) {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+
+  const frameDocument = iframe.contentDocument;
+  const frameWindow = iframe.contentWindow;
+  if (!frameDocument || !frameWindow) {
+    iframe.remove();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+  frameDocument.title = title;
+
+  await waitForDocumentImages(frameDocument);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const cleanup = () => {
+    setTimeout(() => iframe.remove(), 500);
+  };
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+
+  frameWindow.focus();
+  frameWindow.print();
+}
+
+function waitForDocumentImages(frameDocument) {
+  const images = Array.from(frameDocument.images || []);
+  if (images.length === 0) return Promise.resolve();
+
+  return Promise.all(
+    images.map((image) => {
+      if (image.complete) return Promise.resolve();
+
+      return new Promise((resolve) => {
+        image.onload = resolve;
+        image.onerror = resolve;
+      });
+    })
+  );
 }
 
 function buildApplicantManualLetterHtml(app, t, manualLetter, manualBill) {
@@ -1695,98 +1753,6 @@ function getPublicAssetUrl(path) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   return origin ? `${origin}${cleanPath}` : cleanPath;
-}
-
-async function downloadHtmlAsPdf(html, filename) {
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.left = "-10000px";
-  iframe.style.top = "0";
-  iframe.style.width = "210mm";
-  iframe.style.height = "297mm";
-  iframe.style.border = "0";
-  iframe.setAttribute("aria-hidden", "true");
-  document.body.appendChild(iframe);
-
-  try {
-    const frameDocument = iframe.contentDocument;
-    if (!frameDocument) throw new Error("Unable to prepare PDF document.");
-
-    frameDocument.open();
-    frameDocument.write(html);
-    frameDocument.close();
-
-    await waitForPrintableDocument(frameDocument);
-
-    frameDocument.querySelectorAll(".print-actions").forEach((element) => {
-      element.remove();
-    });
-    frameDocument.body.style.background = "#ffffff";
-
-    const pageElements = Array.from(
-      frameDocument.querySelectorAll(".page, .receipt")
-    );
-    if (pageElements.length === 0) throw new Error("No printable pages found.");
-
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-      compress: true,
-    });
-    const pageWidth = 210;
-    const pageHeight = 297;
-
-    for (let index = 0; index < pageElements.length; index += 1) {
-      const pageElement = pageElements[index];
-      pageElement.style.boxShadow = "none";
-      pageElement.style.margin = "0";
-
-      const canvas = await html2canvas(pageElement, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        windowWidth: pageElement.scrollWidth,
-        windowHeight: pageElement.scrollHeight,
-      });
-      const imageHeight = Math.min(
-        pageHeight,
-        (canvas.height * pageWidth) / canvas.width
-      );
-
-      if (index > 0) pdf.addPage("a4", "portrait");
-      pdf.addImage(
-        canvas.toDataURL("image/jpeg", 0.96),
-        "JPEG",
-        0,
-        0,
-        pageWidth,
-        imageHeight,
-        undefined,
-        "MEDIUM"
-      );
-    }
-
-    pdf.save(filename);
-  } finally {
-    iframe.remove();
-  }
-}
-
-async function waitForPrintableDocument(frameDocument) {
-  const fontReady = frameDocument.fonts?.ready?.catch(() => undefined) ||
-    Promise.resolve();
-  const imagesReady = Array.from(frameDocument.images || []).map((image) => {
-    if (image.complete) return Promise.resolve();
-
-    return new Promise((resolve) => {
-      image.onload = resolve;
-      image.onerror = resolve;
-    });
-  });
-
-  await Promise.all([fontReady, ...imagesReady]);
-  await new Promise((resolve) => window.requestAnimationFrame(resolve));
 }
 
 function triggerDownload(url, filename) {
