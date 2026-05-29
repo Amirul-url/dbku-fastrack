@@ -7571,15 +7571,15 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     <div className="rounded-md border border-slate-200 bg-white px-4 py-4">
       <div className="mb-4 flex flex-col gap-1 border-b border-slate-200 pb-3">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          {t("workspace.payment.manual.billReceiptTitle", "Bill / Official Receipt")}
+          {t("workspace.payment.manual.billReceiptTitle", "Bill")}
         </p>
         <p className="text-sm text-slate-500">
-          {t("workspace.payment.manual.billReceiptDesc", "Prepare separate bill payment information for KU(IKL) confirmation.")}
+          {t("workspace.payment.manual.billReceiptDesc", "Prepare bill payment information for KU(IKL) confirmation.")}
         </p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
-        <Field label={t("workspace.payment.manual.billReceiptNo", "Bill / Receipt No.")}>
+        <Field label={t("workspace.payment.manual.billReceiptNo", "Bill No.")}>
           <input
             value={invoiceNo}
             onChange={(event) => setInvoiceNo(event.target.value)}
@@ -7606,7 +7606,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-        <Field label={t("workspace.payment.manual.receivedFrom", "Received From")}>
+        <Field label={t("workspace.payment.manual.receivedFrom", "Bill To")}>
           <input
             value={fields.billReceivedFrom || ""}
             onChange={(event) => updateField("billReceivedFrom", event.target.value)}
@@ -7633,7 +7633,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label={t("workspace.payment.manual.receiptTitle", "Receipt Title")}>
+        <Field label={t("workspace.payment.manual.receiptTitle", "Bill Title")}>
           <input
             value={fields.billReceiptTitle || ""}
             onChange={(event) => updateField("billReceiptTitle", event.target.value)}
@@ -7672,9 +7672,9 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
 
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
         {[
-          ["billRemarkLine1", t("workspace.payment.manual.receiptNote1", "Receipt Note 1")],
-          ["billRemarkLine2", t("workspace.payment.manual.receiptNote2", "Receipt Note 2")],
-          ["billRemarkLine3", t("workspace.payment.manual.receiptNote3", "Receipt Note 3")],
+          ["billRemarkLine1", t("workspace.payment.manual.receiptNote1", "Bill Note 1")],
+          ["billRemarkLine2", t("workspace.payment.manual.receiptNote2", "Bill Note 2")],
+          ["billRemarkLine3", t("workspace.payment.manual.receiptNote3", "Bill Note 3")],
         ].map(([key, label]) => (
           <Field key={key} label={label}>
             <input
@@ -7739,7 +7739,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       </div>
 
       <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <Field label={t("workspace.payment.manual.paymentMethodLine1", "Payment Method Line 1")}>
+        <Field label={t("workspace.payment.manual.paymentMethodLine1", "Payment Instruction Line 1")}>
           <input
             value={fields.billPaymentLine1 || ""}
             onChange={(event) => updateField("billPaymentLine1", event.target.value)}
@@ -7747,7 +7747,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label={t("workspace.payment.manual.paymentMethodLine2", "Payment Method Line 2")}>
+        <Field label={t("workspace.payment.manual.paymentMethodLine2", "Payment Instruction Line 2")}>
           <input
             value={fields.billPaymentLine2 || ""}
             onChange={(event) => updateField("billPaymentLine2", event.target.value)}
@@ -7755,7 +7755,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
             readOnly={readOnly}
           />
         </Field>
-        <Field label={t("workspace.payment.manual.bankNote", "Bank Note")}>
+        <Field label={t("workspace.payment.manual.bankNote", "Payment Note")}>
           <textarea
             value={fields.billBankNote || ""}
             onChange={(event) => updateField("billBankNote", event.target.value)}
@@ -8769,15 +8769,14 @@ function getDefaultManualPaymentDraft(app) {
       appendixLabel: MANUAL_APPENDIX_LABEL,
       appendixTitle: MANUAL_APPENDIX_TITLE,
       billCopyLabel: "Salinan Pelanggan",
-      billReceiptTitle: "Official Receipt",
+      billReceiptTitle: "Bil Bayaran",
       billStation: "ALiS",
       billReceivedFrom: getBillingRecipientName(app),
       billAmountText: amountWords.ringgit,
       billSenText: amountWords.sen,
-      billPaymentLine1: "Cash",
-      billPaymentLine2: "Cheque No.",
-      billBankNote:
-        "Pembayaran ini hanya dianggap sah setelah cek dijelaskan oleh bank\nPayment valid only upon clearance of cheque",
+      billPaymentLine1: "Sila jelaskan bayaran di Kaunter Bahagian Pelesenan, Aras 1, DBKU.",
+      billPaymentLine2: "Bayaran hendaklah dibuat dalam tempoh empat belas (14) hari bekerja.",
+      billBankNote: "",
       billSignatureText: "b.p. Datuk Bandar",
       billRemarkLine1: "",
       billRemarkLine2: "",
@@ -8789,7 +8788,7 @@ function getDefaultManualPaymentDraft(app) {
   };
 }
 
-function getManualPaymentFields(app, savedFields = {}) {
+function getManualPaymentFields(app, savedFields = {}, options = {}) {
   const defaultFields = getDefaultManualPaymentDraft(app).fields;
   const nextFields = {
     ...defaultFields,
@@ -8848,6 +8847,57 @@ function getManualPaymentFields(app, savedFields = {}) {
       nextFields.letterheadAddress = match[1].replace(/,\s*$/, ",").trim();
       nextFields.letterheadAddressLine2 = match[2].trim();
     }
+  }
+
+  if (options.preserveReceiptFields) {
+    if (!savedFields?.billReceiptTitle || nextFields.billReceiptTitle === "Bil Bayaran") {
+      nextFields.billReceiptTitle = "Official Receipt";
+    }
+    if (
+      !savedFields?.billPaymentLine1 ||
+      nextFields.billPaymentLine1 ===
+        "Sila jelaskan bayaran di Kaunter Bahagian Pelesenan, Aras 1, DBKU."
+    ) {
+      nextFields.billPaymentLine1 = "Cash";
+    }
+    if (
+      !savedFields?.billPaymentLine2 ||
+      nextFields.billPaymentLine2 ===
+        "Bayaran hendaklah dibuat dalam tempoh empat belas (14) hari bekerja."
+    ) {
+      nextFields.billPaymentLine2 = "Cheque No.";
+    }
+    if (!savedFields?.billBankNote && !nextFields.billBankNote) {
+      nextFields.billBankNote =
+        "Pembayaran ini hanya dianggap sah setelah cek dijelaskan oleh bank\nPayment valid only upon clearance of cheque";
+    }
+
+    return nextFields;
+  }
+
+  if (
+    ["official receipt", "resit rasmi"].includes(
+      String(nextFields.billReceiptTitle || "").trim().toLowerCase()
+    )
+  ) {
+    nextFields.billReceiptTitle = "Bil Bayaran";
+  }
+
+  if (String(nextFields.billPaymentLine1 || "").trim().toLowerCase() === "cash") {
+    nextFields.billPaymentLine1 =
+      "Sila jelaskan bayaran di Kaunter Bahagian Pelesenan, Aras 1, DBKU.";
+  }
+
+  if (String(nextFields.billPaymentLine2 || "").trim().toLowerCase() === "cheque no.") {
+    nextFields.billPaymentLine2 =
+      "Bayaran hendaklah dibuat dalam tempoh empat belas (14) hari bekerja.";
+  }
+
+  if (
+    String(nextFields.billBankNote || "").replace(/\r\n/g, "\n").trim() ===
+    "Pembayaran ini hanya dianggap sah setelah cek dijelaskan oleh bank\nPayment valid only upon clearance of cheque"
+  ) {
+    nextFields.billBankNote = "";
   }
 
   return nextFields;
@@ -8944,12 +8994,25 @@ function buildManualPaymentDocumentHtml(app, type, t) {
   const manualLetter = approvalLetter.manual_letter || {};
   const manualBill = approvalLetter.manual_bill || {};
   const defaultDraft = getDefaultManualPaymentDraft(app);
-  const fields = getManualPaymentFields(app, manualLetter.fields);
+  const fields = getManualPaymentFields(app, manualLetter.fields, {
+    preserveReceiptFields: type === "receipt",
+  });
   const paymentRows = manualBill.rows?.length ? manualBill.rows : defaultDraft.paymentRows;
   const total = paymentRows.reduce(
     (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
     0
   );
+  if (type === "receipt") {
+    return buildManualOfficialReceiptDocumentHtml({
+      app,
+      t,
+      fields,
+      paymentRows,
+      invoiceNo: manualBill.invoice_no || getInvoiceNo(app),
+      total,
+    });
+  }
+
   const isBill = type === "bill";
   if (isBill) {
     return buildManualBillDocumentHtml({
@@ -9122,6 +9185,150 @@ function buildManualPaymentDocumentHtml(app, type, t) {
 }
 
 function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, total }) {
+  const billDate = fields.letterDate || new Date().toISOString().slice(0, 10);
+  const totalDisplay = formatCurrency(total);
+  const billTitle = fields.billReceiptTitle || t("workspace.payment.billDocument", "Bill");
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
+  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
+  const noteLines = [
+    fields.billRemarkLine1,
+    fields.billRemarkLine2,
+    fields.billRemarkLine3,
+  ].filter((line) => String(line || "").trim());
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(t("workspace.payment.billDocument", "Bill"))}</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .bill { width: 210mm; min-height: 297mm; margin: 0 auto 12px; background: #fff; padding: 16mm 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+    .letterhead { display: grid; grid-template-columns: 74px 1fr 90px; gap: 14px; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 8px; }
+    .crest { height: 62px; display: flex; align-items: center; justify-content: center; }
+    .crest img { max-width: 100%; max-height: 62px; object-fit: contain; }
+    .heading { width: fit-content; max-width: 100%; margin: 0 auto; text-align: left; }
+    .heading h1 { margin: 0; font-size: 20px; line-height: 1.05; text-transform: uppercase; }
+    .heading p { margin: 1px 0 0; font-size: 12px; line-height: 1.2; }
+    .heading .subtitle { font-style: italic; }
+    .heading .strong { font-weight: 700; text-transform: uppercase; }
+    .heading .contact { font-weight: 700; font-style: italic; }
+    .heading .social { display: flex; gap: 14px; align-items: center; font-weight: 700; }
+    .heading .social span { white-space: nowrap; }
+    .copy { margin-top: 10px; text-align: right; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #475569; }
+    .title-row { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: end; margin: 18px 0 16px; }
+    .title { margin: 0; font-size: 24px; line-height: 1.1; text-transform: uppercase; letter-spacing: .08em; }
+    .number { border: 1px solid #111827; padding: 8px 12px; min-width: 190px; font-size: 12px; }
+    .number strong { display: block; margin-top: 3px; color: #b91c1c; font-size: 18px; letter-spacing: .04em; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; margin-bottom: 16px; font-size: 12px; }
+    .meta div { display: grid; grid-template-columns: 120px 10px 1fr; }
+    .party { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 14px 0 18px; }
+    .box { border: 1px solid #111827; padding: 10px 12px; min-height: 96px; font-size: 12px; line-height: 1.45; }
+    .box-title { margin: 0 0 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #475569; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+    th, td { border: 1px solid #111827; padding: 7px 8px; vertical-align: top; }
+    th { background: #f1f5f9; text-align: left; text-transform: uppercase; font-size: 11px; }
+    .center { text-align: center; }
+    .amount { text-align: right; white-space: nowrap; }
+    tfoot td { font-weight: 700; background: #f8fafc; }
+    .instructions { margin-top: 18px; }
+    .note { width: 100%; border: 1px solid #cbd5e1; padding: 10px 12px; min-height: 92px; font-size: 12px; line-height: 1.45; }
+    .note p { margin: 0 0 6px; }
+    .footer { margin-top: 24px; border-top: 1px solid #111827; padding-top: 7px; font-size: 10px; color: #475569; text-align: center; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
+    @media print { body { background: white; } .bill { box-shadow: none; margin: 0; } .print-actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
+  <section class="bill">
+    <header class="letterhead">
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
+      <div class="heading">
+        <h1>${escapeHtml(fields.letterheadTitle || MANUAL_LETTERHEAD_TITLE)}</h1>
+        <p class="subtitle">${escapeHtml(fields.letterheadSubtitle || MANUAL_LETTERHEAD_SUBTITLE)}</p>
+        <p class="strong">${escapeHtml(fields.letterheadAddress || MANUAL_LETTERHEAD_ADDRESS)}<br />${escapeHtml(fields.letterheadAddressLine2 || MANUAL_LETTERHEAD_ADDRESS_LINE_2)}</p>
+        <p class="contact">${escapeHtml(fields.letterheadPhoneLine || MANUAL_LETTERHEAD_PHONE_LINE)}</p>
+        <p><strong>${escapeHtml(fields.letterheadWebLine || MANUAL_LETTERHEAD_WEB_LINE)}</strong></p>
+        <p class="social"><span>@ ${escapeHtml(fields.letterheadComplaintLine || MANUAL_LETTERHEAD_COMPLAINT_LINE)}</span><span>f ${escapeHtml(fields.letterheadFacebookLine || MANUAL_LETTERHEAD_FACEBOOK_LINE)}</span></p>
+      </div>
+      <div class="crest"><img src="${escapeHtml(alisLogoUrl)}" alt="ALiS" /></div>
+    </header>
+    <div class="copy">${escapeHtml(fields.billCopyLabel)}</div>
+
+    <div class="title-row">
+      <h2 class="title">${escapeHtml(billTitle)}</h2>
+      <div class="number">${escapeHtml(t("workspace.payment.manual.billReceiptNo", "Bill No."))}<strong>${escapeHtml(invoiceNo)}</strong></div>
+    </div>
+
+    <div class="meta">
+      <div><span>${escapeHtml(t("workspace.payment.manual.billDate", "Bill Date"))}</span><span>:</span><strong>${escapeHtml(formatDate(billDate))}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.ourRef", "Our Ref."))}</span><span>:</span><strong>${escapeHtml(fields.ourRef)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.station", "Station"))}</span><span>:</span><strong>${escapeHtml(fields.billStation)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.applicationReference", "Application Ref."))}</span><span>:</span><strong>${escapeHtml(getApplicationReference(app))}</strong></div>
+    </div>
+
+    <div class="party">
+      <div class="box">
+        <p class="box-title">${escapeHtml(t("workspace.payment.manual.billToLine", "Bill To"))}</p>
+        <strong>${escapeHtml(fields.billReceivedFrom)}</strong><br />
+        ${escapeHtml(fields.recipientAddress || getApplicantPostalAddress(app)).replace(/\n/g, "<br />")}
+      </div>
+      <div class="box">
+        <p class="box-title">${escapeHtml(t("workspace.payment.manual.billFor", "Bill For"))}</p>
+        <strong>${escapeHtml(fields.adName)}</strong><br />
+        ${escapeHtml(fields.adType)}<br />
+        ${escapeHtml(fields.displayLocation)}
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="center" style="width:44px;">${escapeHtml(t("workspace.payment.manual.no", "No."))}</th>
+          <th>${escapeHtml(t("workspace.payment.manual.paymentDetails", "Payment Details"))}</th>
+          <th>${escapeHtml(t("workspace.payment.manual.periodNotes", "Period / Notes"))}</th>
+          <th class="amount" style="width:130px;">${escapeHtml(t("workspace.payment.manual.amountRm", "Amount (RM)"))}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${paymentRows.map((row, index) => `
+          <tr>
+            <td class="center">${index + 1}</td>
+            <td>${escapeHtml(row.label)}</td>
+            <td>${escapeHtml(row.validity || "-")}</td>
+            <td class="amount">${escapeHtml(formatCurrency(row.amount))}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" class="amount">${escapeHtml(t("workspace.payment.manual.grandTotal", "Grand Total"))}</td>
+          <td class="amount">${escapeHtml(totalDisplay)}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="instructions">
+      <div class="note">
+        <p><strong>${escapeHtml(t("workspace.payment.manual.paymentInstructions", "Payment Instructions"))}</strong></p>
+        <p>${escapeHtml(fields.billPaymentLine1)}</p>
+        <p>${escapeHtml(fields.billPaymentLine2)}</p>
+        ${fields.billBankNote ? `<p>${escapeHtml(fields.billBankNote).replace(/\n/g, "<br />")}</p>` : ""}
+        ${noteLines.length ? `<p>${noteLines.map((line) => escapeHtml(line)).join("<br />")}</p>` : ""}
+      </div>
+    </div>
+
+    <div class="footer">${escapeHtml(t("workspace.payment.manual.billFooterNote", "This bill is computer generated for payment processing and is not an official receipt."))}</div>
+  </section>
+</body>
+</html>`;
+}
+
+function buildManualOfficialReceiptDocumentHtml({ app, t, fields, paymentRows, invoiceNo, total }) {
   const billDate = fields.letterDate || new Date().toISOString().slice(0, 10);
   const totalDisplay = formatCurrency(total);
   const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
