@@ -3612,6 +3612,22 @@ function getPublicAssetUrl(path) {
   return origin ? `${origin}${cleanPath}` : cleanPath;
 }
 
+function getManualDocumentAssetUrl(value) {
+  const source = String(value || "").trim();
+  if (/^(data:|blob:|https?:)/i.test(source)) return source;
+
+  return getPublicAssetUrl(source);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Unable to read file."));
+    reader.readAsDataURL(file);
+  });
+}
+
 function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const status = normalizeStatus(app?.status);
   const isIklWorkspace = config?.key === "screening";
@@ -7549,6 +7565,13 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     setFields((current) => ({ ...current, [key]: value }));
   }
 
+  async function handleBillLogoUpload(key, file) {
+    if (!file) return;
+
+    const dataUrl = await readFileAsDataUrl(file);
+    updateField(key, dataUrl);
+  }
+
   function updatePaymentRow(index, key, value) {
     setPaymentRows((current) =>
       current.map((row, rowIndex) =>
@@ -7578,192 +7601,348 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </p>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        <Field label={t("workspace.payment.manual.billReceiptNo", "Bill No.")}>
-          <input
-            value={invoiceNo}
-            onChange={(event) => setInvoiceNo(event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-        <Field label={t("workspace.payment.manual.billDate", "Bill Date")}>
-          <input
-            type="date"
-            value={fields.letterDate}
-            onChange={(event) => updateField("letterDate", event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-        <Field label={t("workspace.payment.manual.paymentAmount", "Payment Amount")}>
-          <input
-            value={formatCurrency(totalAmount || amount)}
-            className="form-input font-semibold"
-            readOnly
-          />
-        </Field>
-      </div>
+      <div className="mx-auto max-w-[940px] rounded border border-slate-300 bg-white p-5 text-sm text-slate-950">
+        <div className="grid items-center gap-4 border-b-2 border-slate-900 pb-3 lg:grid-cols-[100px_minmax(0,1fr)_110px]">
+          <div className="space-y-2">
+            <div className="flex h-16 items-center justify-center">
+              <img
+                src={fields.billDbkuLogoPath || "/logo-dbku.png"}
+                alt="DBKU"
+                className="max-h-16 max-w-full object-contain"
+              />
+            </div>
+            <label className="inline-flex min-h-8 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <Icon name="upload_file" className="text-[15px]" />
+              <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={readOnly}
+                onChange={(event) => {
+                  handleBillLogoUpload("billDbkuLogoPath", event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
-        <Field label={t("workspace.payment.manual.receivedFrom", "Bill To")}>
-          <input
-            value={fields.billReceivedFrom || ""}
-            onChange={(event) => updateField("billReceivedFrom", event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-        <Field label={t("workspace.payment.manual.station", "Station")}>
-          <input
-            value={fields.billStation || ""}
-            onChange={(event) => updateField("billStation", event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-      </div>
+          <div className="mx-auto w-fit max-w-full text-left">
+            <input
+              value={fields.letterheadTitle || ""}
+              onChange={(event) => updateField("letterheadTitle", event.target.value)}
+              placeholder={MANUAL_LETTERHEAD_TITLE}
+              className="form-input h-8 border-transparent bg-transparent px-0 text-left text-xl font-extrabold uppercase leading-6 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadSubtitle || ""}
+              onChange={(event) => updateField("letterheadSubtitle", event.target.value)}
+              placeholder={MANUAL_LETTERHEAD_SUBTITLE}
+              className="form-input h-7 border-transparent bg-transparent px-0 text-left text-sm italic leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadAddress || ""}
+              onChange={(event) => updateField("letterheadAddress", event.target.value)}
+              placeholder={MANUAL_LETTERHEAD_ADDRESS}
+              className="form-input h-7 border-transparent bg-transparent px-0 text-left text-sm font-bold uppercase leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadAddressLine2 || ""}
+              onChange={(event) => updateField("letterheadAddressLine2", event.target.value)}
+              placeholder={MANUAL_LETTERHEAD_ADDRESS_LINE_2}
+              className="form-input h-7 border-transparent bg-transparent px-0 text-left text-sm font-bold uppercase leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadPhoneLine || ""}
+              onChange={(event) => updateField("letterheadPhoneLine", event.target.value)}
+              placeholder={MANUAL_LETTERHEAD_PHONE_LINE}
+              className="form-input h-7 border-transparent bg-transparent px-0 text-left text-sm font-bold italic leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.letterheadWebLine || ""}
+              onChange={(event) => updateField("letterheadWebLine", event.target.value)}
+              placeholder={MANUAL_LETTERHEAD_WEB_LINE}
+              className="form-input h-7 border-transparent bg-transparent px-0 text-left text-sm font-bold leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <input
+                value={fields.letterheadComplaintLine || ""}
+                onChange={(event) => updateField("letterheadComplaintLine", event.target.value)}
+                placeholder={MANUAL_LETTERHEAD_COMPLAINT_LINE}
+                className="form-input h-7 min-w-[210px] flex-1 border-transparent bg-transparent px-0 text-left text-sm font-bold leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+                readOnly={readOnly}
+              />
+              <input
+                value={fields.letterheadFacebookLine || ""}
+                onChange={(event) => updateField("letterheadFacebookLine", event.target.value)}
+                placeholder={MANUAL_LETTERHEAD_FACEBOOK_LINE}
+                className="form-input h-7 min-w-[240px] flex-1 border-transparent bg-transparent px-0 text-left text-sm font-bold leading-5 text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
+                readOnly={readOnly}
+              />
+            </div>
+          </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <Field label={t("workspace.payment.manual.copyLabel", "Copy Label")}>
+          <div className="space-y-2">
+            <div className="flex h-16 items-center justify-center">
+              <img
+                src={fields.billAlisLogoPath || "/ALiS.png"}
+                alt="ALiS"
+                className="max-h-14 max-w-full object-contain"
+              />
+            </div>
+            <label className="inline-flex min-h-8 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <Icon name="upload_file" className="text-[15px]" />
+              <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={readOnly}
+                onChange={(event) => {
+                  handleBillLogoUpload("billAlisLogoPath", event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-3 flex justify-end">
           <input
             value={fields.billCopyLabel || ""}
             onChange={(event) => updateField("billCopyLabel", event.target.value)}
-            className="form-input"
+            placeholder="Salinan Pelanggan"
+            className="form-input h-8 max-w-56 border-transparent bg-transparent px-0 text-right text-xs font-bold uppercase tracking-wide text-slate-700 shadow-none focus:border-slate-300 focus:bg-white"
             readOnly={readOnly}
           />
-        </Field>
-        <Field label={t("workspace.payment.manual.receiptTitle", "Bill Title")}>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
           <input
             value={fields.billReceiptTitle || ""}
             onChange={(event) => updateField("billReceiptTitle", event.target.value)}
-            className="form-input"
+            placeholder="Bil Bayaran"
+            className="form-input h-12 border-transparent bg-transparent px-0 text-left text-3xl font-extrabold uppercase tracking-[0.18em] text-slate-950 shadow-none focus:border-slate-300 focus:bg-white"
             readOnly={readOnly}
           />
-        </Field>
-        <Field label={t("workspace.payment.manual.billSignature", "Bill Signature")}>
-          <input
-            value={fields.billSignatureText || ""}
-            onChange={(event) => updateField("billSignatureText", event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        <Field label={t("workspace.payment.manual.amountInWords", "Amount In Words")}>
-          <input
-            value={fields.billAmountText || ""}
-            onChange={(event) => updateField("billAmountText", event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-        <Field label={t("workspace.payment.manual.senInWords", "Sen In Words")}>
-          <input
-            value={fields.billSenText || ""}
-            onChange={(event) => updateField("billSenText", event.target.value)}
-            className="form-input"
-            readOnly={readOnly}
-          />
-        </Field>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {[
-          ["billRemarkLine1", t("workspace.payment.manual.receiptNote1", "Bill Note 1")],
-          ["billRemarkLine2", t("workspace.payment.manual.receiptNote2", "Bill Note 2")],
-          ["billRemarkLine3", t("workspace.payment.manual.receiptNote3", "Bill Note 3")],
-        ].map(([key, label]) => (
-          <Field key={key} label={label}>
+          <div className="border border-slate-900 px-3 py-2">
+            <label className="block text-sm text-slate-700">
+              {t("workspace.payment.manual.billReceiptNo", "Bill No.")}
+            </label>
             <input
-              value={fields[key] || ""}
-              onChange={(event) => updateField(key, event.target.value)}
-              className="form-input"
+              value={invoiceNo}
+              onChange={(event) => setInvoiceNo(event.target.value)}
+              placeholder="INV-00001"
+              className="form-input h-9 border-transparent bg-transparent px-0 text-lg font-extrabold tracking-wide text-red-700 shadow-none focus:border-slate-300 focus:bg-white"
               readOnly={readOnly}
             />
-          </Field>
-        ))}
-      </div>
+          </div>
+        </div>
 
-      <div className="mt-4 overflow-x-auto rounded-md border border-slate-300">
-        <table className="w-full min-w-[760px] border-collapse text-sm">
-          <thead className="bg-slate-50 text-slate-600">
-            <tr>
-              <th className="border border-slate-300 px-3 py-2 text-left uppercase">{t("workspace.payment.manual.forCredit", "For Credit")}</th>
-              <th className="border border-slate-300 px-3 py-2 text-left uppercase">{t("workspace.payment.manual.periodNotes", "Period / Notes")}</th>
-              <th className="border border-slate-300 px-3 py-2 text-right uppercase">{t("workspace.payment.manual.amountRm", "Amount (RM)")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paymentRows.map((row, index) => (
-              <tr key={index}>
-                <td className="border border-slate-300 px-2 py-2">
-                  <input
-                    value={row.label}
-                    onChange={(event) => updatePaymentRow(index, "label", event.target.value)}
-                    className="form-input h-9"
-                    readOnly={readOnly}
-                  />
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-[124px_10px_1fr] items-center gap-x-2">
+            <span>{t("workspace.payment.manual.billDate", "Bill Date")}</span>
+            <span>:</span>
+            <input
+              type="date"
+              value={fields.letterDate}
+              onChange={(event) => updateField("letterDate", event.target.value)}
+              className="form-input h-8 font-bold"
+              readOnly={readOnly}
+            />
+          </div>
+          <div className="grid grid-cols-[124px_10px_1fr] items-center gap-x-2">
+            <span>{t("workspace.payment.manual.ourRef", "Our Ref.")}</span>
+            <span>:</span>
+            <input
+              value={fields.ourRef || ""}
+              onChange={(event) => updateField("ourRef", event.target.value)}
+              placeholder={`DBKU/LES/IKL/${getApplicationReference(app)}`}
+              className="form-input h-8 font-bold"
+              readOnly={readOnly}
+            />
+          </div>
+          <div className="grid grid-cols-[124px_10px_1fr] items-center gap-x-2">
+            <span>{t("workspace.payment.manual.station", "Station")}</span>
+            <span>:</span>
+            <input
+              value={fields.billStation || ""}
+              onChange={(event) => updateField("billStation", event.target.value)}
+              placeholder="ALiS"
+              className="form-input h-8 font-bold"
+              readOnly={readOnly}
+            />
+          </div>
+          <div className="grid grid-cols-[124px_10px_1fr] items-center gap-x-2">
+            <span>{t("workspace.payment.manual.applicationReference", "Application Ref.")}</span>
+            <span>:</span>
+            <input
+              value={getApplicationReference(app)}
+              className="form-input h-8 font-bold"
+              readOnly
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div className="min-h-36 border border-slate-900 p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              {t("workspace.payment.manual.billToLine", "Bill To")}
+            </p>
+            <input
+              value={fields.billReceivedFrom || ""}
+              onChange={(event) => updateField("billReceivedFrom", event.target.value)}
+              placeholder={getBillingRecipientName(app)}
+              className="form-input h-9 border-transparent bg-transparent px-0 font-bold shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <textarea
+              value={fields.recipientAddress || ""}
+              onChange={(event) => updateField("recipientAddress", event.target.value)}
+              placeholder={getApplicantPostalAddress(app)}
+              rows="3"
+              className="form-input mt-1 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+          </div>
+          <div className="min-h-36 border border-slate-900 p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+              {t("workspace.payment.manual.billFor", "Bill For")}
+            </p>
+            <input
+              value={fields.adName || ""}
+              onChange={(event) => updateField("adName", event.target.value)}
+              placeholder={getProjectName(app)}
+              className="form-input h-9 border-transparent bg-transparent px-0 font-bold uppercase shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <input
+              value={fields.adType || ""}
+              onChange={(event) => updateField("adType", event.target.value)}
+              placeholder={getApplicationType(app)}
+              className="form-input mt-1 h-8 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+            <textarea
+              value={fields.displayLocation || ""}
+              onChange={(event) => updateField("displayLocation", event.target.value)}
+              placeholder={getApplicationLocation(app)}
+              rows="2"
+              className="form-input mt-1 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 overflow-x-auto border border-slate-900">
+          <table className="w-full min-w-[760px] border-collapse text-sm">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="border border-slate-900 px-3 py-2 text-center uppercase">
+                  {t("workspace.payment.manual.no", "No.")}
+                </th>
+                <th className="border border-slate-900 px-3 py-2 text-left uppercase">
+                  {t("workspace.payment.manual.paymentDetails", "Payment Details")}
+                </th>
+                <th className="border border-slate-900 px-3 py-2 text-left uppercase">
+                  {t("workspace.payment.manual.periodNotes", "Period / Notes")}
+                </th>
+                <th className="border border-slate-900 px-3 py-2 text-right uppercase">
+                  {t("workspace.payment.manual.amountRm", "Amount (RM)")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {paymentRows.map((row, index) => (
+                <tr key={index}>
+                  <td className="border border-slate-900 px-2 py-2 text-center">
+                    {index + 1}
+                  </td>
+                  <td className="border border-slate-900 px-2 py-2">
+                    <input
+                      value={row.label}
+                      onChange={(event) => updatePaymentRow(index, "label", event.target.value)}
+                      placeholder={t("workspace.payment.manual.paymentDetails", "Payment Details")}
+                      className="form-input h-8 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
+                      readOnly={readOnly}
+                    />
+                  </td>
+                  <td className="border border-slate-900 px-2 py-2">
+                    <input
+                      value={row.validity}
+                      onChange={(event) => updatePaymentRow(index, "validity", event.target.value)}
+                      placeholder={t("workspace.payment.manual.periodNotes", "Period / Notes")}
+                      className="form-input h-8 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
+                      readOnly={readOnly}
+                    />
+                  </td>
+                  <td className="border border-slate-900 px-2 py-2">
+                    <input
+                      value={row.amount}
+                      onChange={(event) => updatePaymentRow(index, "amount", event.target.value)}
+                      onBlur={() => normalizePaymentRowAmount(index)}
+                      placeholder="0.00"
+                      className="form-input h-8 border-transparent bg-transparent px-0 text-right shadow-none focus:border-slate-300 focus:bg-white"
+                      readOnly={readOnly}
+                    />
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-slate-100 font-bold">
+                <td className="border border-slate-900 px-3 py-2 text-right" colSpan="3">
+                  {t("workspace.payment.manual.grandTotal", "Grand Total")}
                 </td>
-                <td className="border border-slate-300 px-2 py-2">
-                  <input
-                    value={row.validity}
-                    onChange={(event) => updatePaymentRow(index, "validity", event.target.value)}
-                    className="form-input h-9"
-                    readOnly={readOnly}
-                  />
-                </td>
-                <td className="border border-slate-300 px-2 py-2">
-                  <input
-                    value={row.amount}
-                    onChange={(event) => updatePaymentRow(index, "amount", event.target.value)}
-                    onBlur={() => normalizePaymentRowAmount(index)}
-                    className="form-input h-9 text-right"
-                    readOnly={readOnly}
-                  />
+                <td className="border border-slate-900 px-3 py-2 text-right">
+                  {formatCurrency(totalAmount || amount)}
                 </td>
               </tr>
-            ))}
-            <tr className="bg-slate-50 font-bold">
-              <td className="border border-slate-300 px-3 py-2 text-right" colSpan="2">
-                {t("workspace.payment.manual.totalRm", "Total RM")}
-              </td>
-              <td className="border border-slate-300 px-3 py-2 text-right">
-                {formatCurrency(totalAmount || amount)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <Field label={t("workspace.payment.manual.paymentMethodLine1", "Payment Instruction Line 1")}>
+        <div className="mt-5 border border-slate-300 p-3">
+          <p className="mb-2 font-bold">
+            {t("workspace.payment.manual.paymentInstructions", "Payment Instructions")}
+          </p>
           <input
             value={fields.billPaymentLine1 || ""}
             onChange={(event) => updateField("billPaymentLine1", event.target.value)}
-            className="form-input"
+            placeholder="Sila jelaskan bayaran di Kaunter Bahagian Pelesenan, Aras 1, DBKU."
+            className="form-input h-8 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
             readOnly={readOnly}
           />
-        </Field>
-        <Field label={t("workspace.payment.manual.paymentMethodLine2", "Payment Instruction Line 2")}>
           <input
             value={fields.billPaymentLine2 || ""}
             onChange={(event) => updateField("billPaymentLine2", event.target.value)}
-            className="form-input"
+            placeholder="Bayaran hendaklah dibuat dalam tempoh empat belas (14) hari bekerja."
+            className="form-input mt-1 h-8 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
             readOnly={readOnly}
           />
-        </Field>
-        <Field label={t("workspace.payment.manual.bankNote", "Payment Note")}>
           <textarea
             value={fields.billBankNote || ""}
             onChange={(event) => updateField("billBankNote", event.target.value)}
+            placeholder={t("workspace.payment.manual.bankNotePlaceholder", "Optional payment note")}
             rows="2"
-            className="form-input"
+            className="form-input mt-1 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
             readOnly={readOnly}
           />
-        </Field>
+        </div>
+
+        <div className="mt-6 border-t border-slate-900 pt-2 text-center text-xs text-slate-500">
+          <input
+            value={fields.billFooterNote || ""}
+            onChange={(event) => updateField("billFooterNote", event.target.value)}
+            placeholder={t("workspace.payment.manual.billFooterNote", "This bill is computer generated for payment processing and is not an official receipt.")}
+            className="form-input h-8 border-transparent bg-transparent px-0 text-center text-xs text-slate-500 shadow-none focus:border-slate-300 focus:bg-white"
+            readOnly={readOnly}
+          />
+        </div>
       </div>
     </div>
   );
@@ -7803,15 +7982,29 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white px-4 py-4">
+      <div className="mx-auto max-w-[940px] rounded-md border border-slate-300 bg-white px-5 py-5">
         <div className="grid gap-4 border-b-2 border-slate-900 pb-3 lg:grid-cols-[120px_minmax(0,1fr)_120px]">
           <div className="flex h-20 items-center justify-center">
             <img
-              src="/logo-dbku.png"
+              src={fields.letterDbkuLogoPath || "/logo-dbku.png"}
               alt="DBKU"
               className="max-h-20 max-w-full object-contain"
             />
           </div>
+          <label className="inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 self-center rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:col-start-1 lg:row-start-2">
+            <Icon name="upload_file" className="text-[15px]" />
+            <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={readOnly}
+              onChange={(event) => {
+                handleBillLogoUpload("letterDbkuLogoPath", event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </label>
           <div className="mx-auto w-fit max-w-full text-left">
             <input
               value={fields.letterheadTitle || ""}
@@ -7872,11 +8065,25 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
           </div>
           <div className="flex h-20 items-center justify-center">
             <img
-              src="/ALiS.png"
+              src={fields.letterAlisLogoPath || "/ALiS.png"}
               alt="ALiS"
               className="max-h-20 max-w-full object-contain"
             />
           </div>
+          <label className="inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 self-center rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:col-start-3 lg:row-start-2">
+            <Icon name="upload_file" className="text-[15px]" />
+            <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={readOnly}
+              onChange={(event) => {
+                handleBillLogoUpload("letterAlisLogoPath", event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </label>
         </div>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -8766,6 +8973,12 @@ function getDefaultManualPaymentDraft(app) {
       letterheadWebLine: MANUAL_LETTERHEAD_WEB_LINE,
       letterheadComplaintLine: MANUAL_LETTERHEAD_COMPLAINT_LINE,
       letterheadFacebookLine: MANUAL_LETTERHEAD_FACEBOOK_LINE,
+      letterDbkuLogoPath: "/logo-dbku.png",
+      letterAlisLogoPath: "/ALiS.png",
+      billDbkuLogoPath: "/logo-dbku.png",
+      billAlisLogoPath: "/ALiS.png",
+      billFooterNote:
+        "This bill is computer generated for payment processing and is not an official receipt.",
       appendixLabel: MANUAL_APPENDIX_LABEL,
       appendixTitle: MANUAL_APPENDIX_TITLE,
       billCopyLabel: "Salinan Pelanggan",
@@ -9043,8 +9256,8 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     fields.letterheadComplaintLine || MANUAL_LETTERHEAD_COMPLAINT_LINE;
   const letterheadFacebookLine =
     fields.letterheadFacebookLine || MANUAL_LETTERHEAD_FACEBOOK_LINE;
-  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
-  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
+  const dbkuLogoUrl = getManualDocumentAssetUrl(fields.letterDbkuLogoPath || "/logo-dbku.png");
+  const alisLogoUrl = getManualDocumentAssetUrl(fields.letterAlisLogoPath || "/ALiS.png");
 
   return `<!doctype html>
 <html>
@@ -9188,8 +9401,8 @@ function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, t
   const billDate = fields.letterDate || new Date().toISOString().slice(0, 10);
   const totalDisplay = formatCurrency(total);
   const billTitle = fields.billReceiptTitle || t("workspace.payment.billDocument", "Bill");
-  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
-  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
+  const dbkuLogoUrl = getManualDocumentAssetUrl(fields.billDbkuLogoPath || "/logo-dbku.png");
+  const alisLogoUrl = getManualDocumentAssetUrl(fields.billAlisLogoPath || "/ALiS.png");
   const noteLines = [
     fields.billRemarkLine1,
     fields.billRemarkLine2,
@@ -9322,7 +9535,7 @@ function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, t
       </div>
     </div>
 
-    <div class="footer">${escapeHtml(t("workspace.payment.manual.billFooterNote", "This bill is computer generated for payment processing and is not an official receipt."))}</div>
+    <div class="footer">${escapeHtml(fields.billFooterNote || t("workspace.payment.manual.billFooterNote", "This bill is computer generated for payment processing and is not an official receipt."))}</div>
   </section>
 </body>
 </html>`;

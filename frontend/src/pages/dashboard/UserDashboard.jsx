@@ -1375,8 +1375,8 @@ function buildApplicantManualLetterHtml(app, t, manualLetter, manualBill) {
     0
   );
   const termsHtml = getApplicantManualRichTextHtml(manualLetter.terms);
-  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
-  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
+  const dbkuLogoUrl = getManualDocumentAssetUrl(fields.letterDbkuLogoPath || "/logo-dbku.png");
+  const alisLogoUrl = getManualDocumentAssetUrl(fields.letterAlisLogoPath || "/ALiS.png");
   const title = manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
 
   return `<!doctype html>
@@ -1399,6 +1399,7 @@ function buildApplicantManualLetterHtml(app, t, manualLetter, manualBill) {
     .subhead .address { margin: 2px 0 0; font-weight: 700; text-transform: uppercase; color: #111827; }
     .subhead .contact { margin: 2px 0 0; font-size: 10px; font-weight: 700; color: #111827; }
     .subhead .phone { font-style: italic; }
+    .subhead .social { display: flex; justify-content: flex-start; gap: 16px; margin-top: 2px; font-size: 10px; font-weight: 700; }
     .topline { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 12px; font-size: 12px; }
     .right { text-align: right; }
     .recipient-address { margin: 14px 0 18px 72px; white-space: pre-line; font-size: 12px; line-height: 1.35; }
@@ -1437,6 +1438,7 @@ function buildApplicantManualLetterHtml(app, t, manualLetter, manualBill) {
           <div class="address">${escapeHtml(fields.letterheadAddressLine2)}</div>
           <div class="contact phone">${escapeHtml(fields.letterheadPhoneLine)}</div>
           <div class="contact">${escapeHtml(fields.letterheadWebLine)}</div>
+          <div class="social"><span>@ ${escapeHtml(fields.letterheadComplaintLine || "aduandbku@dbku.gov.my")}</span><span>f ${escapeHtml(fields.letterheadFacebookLine || "Dewan Bandaraya Kuching Utara")}</span></div>
         </div>
       </div>
       <div class="crest"><img src="${escapeHtml(alisLogoUrl)}" alt="ALiS" /></div>
@@ -1522,8 +1524,8 @@ function buildApplicantManualBillHtml(app, t, manualLetter, manualBill) {
   const totalDisplay = formatCurrency(billTotal);
   const billDate = fields.letterDate || manualBill.saved_at || new Date().toISOString();
   const billTitle = fields.billReceiptTitle || t("workspace.payment.billDocument", "Bill");
-  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
-  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
+  const dbkuLogoUrl = getManualDocumentAssetUrl(fields.billDbkuLogoPath || "/logo-dbku.png");
+  const alisLogoUrl = getManualDocumentAssetUrl(fields.billAlisLogoPath || "/ALiS.png");
   const noteLines = [
     fields.billRemarkLine1,
     fields.billRemarkLine2,
@@ -1656,7 +1658,7 @@ function buildApplicantManualBillHtml(app, t, manualLetter, manualBill) {
       </div>
     </div>
 
-    <div class="footer">${escapeHtml(t("workspace.payment.manual.billFooterNote", "This bill is computer generated for payment processing and is not an official receipt."))}</div>
+    <div class="footer">${escapeHtml(fields.billFooterNote || t("workspace.payment.manual.billFooterNote", "This bill is computer generated for payment processing and is not an official receipt."))}</div>
   </section>
 </body>
 </html>`;
@@ -1843,6 +1845,14 @@ function getApplicantManualFields(app, savedFields = {}, options = {}) {
       "Tel : 082-512200/512201    Hotline : 082-446644    Faks : 082-446414",
     letterheadWebLine:
       "Laman Web: dbku.sarawak.gov.my    E-mel : prd@dbku.gov.my",
+    letterheadComplaintLine: "aduandbku@dbku.gov.my",
+    letterheadFacebookLine: "Dewan Bandaraya Kuching Utara",
+    letterDbkuLogoPath: "/logo-dbku.png",
+    letterAlisLogoPath: "/ALiS.png",
+    billDbkuLogoPath: "/logo-dbku.png",
+    billAlisLogoPath: "/ALiS.png",
+    billFooterNote:
+      "This bill is computer generated for payment processing and is not an official receipt.",
     billReceivedFrom: applicant,
     billStation: "ALiS",
     billCopyLabel: "Salinan Pelanggan",
@@ -1966,6 +1976,13 @@ function getPublicAssetUrl(path) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   return origin ? `${origin}${cleanPath}` : cleanPath;
+}
+
+function getManualDocumentAssetUrl(value) {
+  const source = String(value || "").trim();
+  if (/^(data:|blob:|https?:)/i.test(source)) return source;
+
+  return getPublicAssetUrl(source);
 }
 
 function triggerDownload(url, filename) {
