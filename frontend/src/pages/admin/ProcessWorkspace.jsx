@@ -7251,6 +7251,9 @@ function PaymentDetails({
   const manualReady = hasManualPaymentDocuments(app) || hasLocalManualDraft;
   const canUploadDocuments =
     userDepartment === "PT(IKL)" && normalizeStatus(app?.status) === "approved";
+  const hasUploadedPaymentDocuments = letterReady || billReady;
+  const showUploadDocumentSlots =
+    canUploadDocuments || hasUploadedPaymentDocuments || !manualReady;
   const showReceiptDetails = Boolean(
     receiptFile?.name ||
     payment.receipt_reference ||
@@ -7294,12 +7297,6 @@ function PaymentDetails({
             <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
               {t("workspace.payment.documents", "Approval Letter and Bill")}
             </p>
-            <p className="mt-1 text-[14px] leading-5 text-slate-500">
-              {t(
-                "workspace.payment.documentsDesc",
-                "PT(IKL) uploads the approval letter and bill before KU(IKL) confirms the bill."
-              )}
-            </p>
             </div>
 
             {canUploadDocuments && (
@@ -7335,24 +7332,28 @@ function PaymentDetails({
           />
         ) : (
           <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
-            <PaymentDocumentSlot
-              label={t("workspace.payment.approvalLetter", "Approval Letter")}
-              file={letterFile}
-              t={t}
-              canUpload={canUploadDocuments}
-              saving={saving}
-              onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
-              onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-            />
-            <PaymentDocumentSlot
-              label={t("workspace.payment.billDocument", "Bill")}
-              file={billFile}
-              t={t}
-              canUpload={canUploadDocuments}
-              saving={saving}
-              onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
-              onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-            />
+            {showUploadDocumentSlots && (
+              <>
+                <PaymentDocumentSlot
+                  label={t("workspace.payment.approvalLetter", "Approval Letter")}
+                  file={letterFile}
+                  t={t}
+                  canUpload={canUploadDocuments}
+                  saving={saving}
+                  onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
+                  onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+                />
+                <PaymentDocumentSlot
+                  label={t("workspace.payment.billDocument", "Bill")}
+                  file={billFile}
+                  t={t}
+                  canUpload={canUploadDocuments}
+                  saving={saving}
+                  onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
+                  onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+                />
+              </>
+            )}
             {manualReady && (
               <ManualPaymentDocumentsSummary app={app} t={t} />
             )}

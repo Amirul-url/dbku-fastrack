@@ -216,13 +216,16 @@ function getApplicationStepPath(applicationId, route) {
   return `/applications/${applicationId}/${route}?id=${applicationId}`;
 }
 
-function buildApplicantNav() {
+function buildApplicantNav(taskCounts = {}) {
+  const invoiceGeneratedBadge = Number(taskCounts.invoiceGenerated || 0);
+
   return [
     {
       labelKey: "nav.dashboard",
       fallback: "Dashboard",
       path: "/user/dashboard",
       icon: "dashboard",
+      badge: invoiceGeneratedBadge,
       children: [
         {
           labelKey: "applicant.tabApplications",
@@ -231,7 +234,13 @@ function buildApplicantNav() {
           tab: "applications",
         },
         { labelKey: "applicant.tabStatus", fallback: "Status", path: "/user/dashboard?tab=status", tab: "status" },
-        { labelKey: "applicant.tabLicense", fallback: "E-Licenses", path: "/user/dashboard?tab=license", tab: "license" },
+        {
+          labelKey: "applicant.tabLicense",
+          fallback: "E-Licenses",
+          path: "/user/dashboard?tab=license",
+          tab: "license",
+          badge: invoiceGeneratedBadge,
+        },
       ],
     },
   ];
@@ -254,6 +263,7 @@ function AppShell({ children, role = "admin" }) {
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const [adminTaskCounts, setAdminTaskCounts] = useState({ personal: 0, approval: 0 });
+  const [applicantTaskCounts, setApplicantTaskCounts] = useState({ invoiceGenerated: 0 });
   const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
   const stepApplicationId = currentApplicationId;
@@ -263,9 +273,9 @@ function AppShell({ children, role = "admin" }) {
       if (role === "admin") {
         return buildAdminNav(adminTaskCounts, user);
       }
-      return buildApplicantNav();
+      return buildApplicantNav(applicantTaskCounts);
     },
-    [role, adminTaskCounts, user]
+    [role, adminTaskCounts, applicantTaskCounts, user]
   );
 
   const refreshAdminTaskCounts = useCallback(async ({ silent = false } = {}) => {
@@ -278,6 +288,17 @@ function AppShell({ children, role = "admin" }) {
       if (!silent) setAdminTaskCounts({ personal: 0, approval: 0 });
     }
   }, [role, user]);
+
+  const refreshApplicantTaskCounts = useCallback(async ({ silent = false } = {}) => {
+    if (role !== "applicant") return;
+
+    try {
+      const applications = await fetchApplicationList();
+      setApplicantTaskCounts(getApplicantTaskCounts(applications));
+    } catch {
+      if (!silent) setApplicantTaskCounts({ invoiceGenerated: 0 });
+    }
+  }, [role]);
 
   useEffect(() => {
     let active = true;
@@ -321,6 +342,27 @@ function AppShell({ children, role = "admin" }) {
       window.removeEventListener("fastrack:applications-changed", handleRefresh);
     };
   }, [role, refreshAdminTaskCounts]);
+
+  useEffect(() => {
+    if (role !== "applicant") {
+      return undefined;
+    }
+
+    const initialTimerId = window.setTimeout(refreshApplicantTaskCounts, 0);
+    const intervalId = window.setInterval(
+      () => refreshApplicantTaskCounts({ silent: true }),
+      15000
+    );
+    const handleRefresh = () => refreshApplicantTaskCounts({ silent: true });
+
+    window.addEventListener("fastrack:applications-changed", handleRefresh);
+
+    return () => {
+      window.clearTimeout(initialTimerId);
+      window.clearInterval(intervalId);
+      window.removeEventListener("fastrack:applications-changed", handleRefresh);
+    };
+  }, [role, refreshApplicantTaskCounts]);
 
   useEffect(() => {
     if (role !== "admin" || !location.pathname.startsWith("/admin/e-licenses")) {
@@ -752,6 +794,19 @@ function getAdminTaskCounts(applications, user) {
       return counts;
     },
     { personal: 0, approval: 0, eLicensePayment: 0, eLicenseLicense: 0 }
+  );
+}
+
+function getApplicantTaskCounts(applications) {
+  return applications.reduce(
+    (counts, application) => {
+      if (normalizeWorkflowStatus(application?.status) === "invoice_generated") {
+        counts.invoiceGenerated += 1;
+      }
+
+      return counts;
+    },
+    { invoiceGenerated: 0 }
   );
 }
 

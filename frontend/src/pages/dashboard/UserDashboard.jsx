@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
@@ -22,6 +24,7 @@ import {
   canSubmitPayment,
   canViewLicense,
   formatCompactDateTime,
+  formatCurrency,
   formatDate,
   formatWorkflowStatus,
   getApplicantActionKey,
@@ -29,6 +32,7 @@ import {
   getApplicantDisplayStatus,
   getApplicantName,
   getApplicationReference,
+  getApplicationLocation,
   getApplicationType,
   getInvoiceNo,
   getLicenseId,
@@ -894,28 +898,43 @@ function ApplicantPaymentDocuments({ app, t }) {
               <p className="text-xs font-semibold uppercase text-slate-500">
                 {item.label}
               </p>
-              <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                {item.file?.name ||
-                  (item.manual?.saved_at
-                    ? t("workspace.payment.createdManually", "Created manually")
-                    : t("workspace.info.notUploaded", "Not uploaded"))}
-              </p>
+              {item.file?.name && (
+                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                  {item.file.name}
+                </p>
+              )}
             </div>
             {(getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
-              <button
-                type="button"
-                onClick={() =>
-                  item.file
-                    ? openApplicantPaymentDocument(item.file, t)
-                    : openApplicantManualPaymentDocument(app, item.type, t)
-                }
-                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <span className="material-symbols-outlined text-[16px]">
-                  visibility
-                </span>
-                {t("common.view", "View")}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    item.file
+                      ? openApplicantPaymentDocument(item.file, t)
+                      : openApplicantManualPaymentDocument(app, item.type, t)
+                  }
+                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    visibility
+                  </span>
+                  {t("common.view", "View")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    item.file
+                      ? downloadApplicantPaymentDocument(item.file, item.label, t)
+                      : downloadApplicantManualPaymentDocument(app, item.type, t)
+                  }
+                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    download
+                  </span>
+                  {t("common.download", "Download")}
+                </button>
+              </div>
             )}
           </div>
         ))}
@@ -1218,64 +1237,37 @@ async function openApplicantPaymentDocument(file, t) {
   }
 }
 
+async function downloadApplicantPaymentDocument(file, fallbackLabel, t) {
+  const source = getPaymentDocumentSource(file);
+  if (!source) return;
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+    const filename = getDownloadFilename(file?.name || fallbackLabel, "document");
+
+    triggerDownload(url, filename);
+
+    if (!isInlineFile) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (err) {
+    console.error("Failed to download payment document:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
 function openApplicantManualPaymentDocument(app, type, t) {
+  const isBill = type === "bill";
+  const html = getApplicantManualPaymentDocumentHtml(app, type, t);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualLetter = approvalLetter.manual_letter || {};
-  const manualBill = approvalLetter.manual_bill || {};
-  const isBill = type === "bill";
   const title = isBill
     ? t("workspace.payment.billDocument", "Bill")
     : manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
-  const body = isBill
-    ? manualBill.notes || ""
-    : manualLetter.body || "";
-  const amount = app?.form_data?.payment?.amount || manualBill.amount || "";
-  const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(title)}</title>
-  <style>
-    @page { size: A4; margin: 18mm; }
-    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
-    .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
-    .header { border-bottom: 2px solid #111827; padding-bottom: 10px; }
-    h1 { margin: 0; font-size: 18px; text-transform: uppercase; }
-    .meta { display: grid; grid-template-columns: 140px 1fr; gap: 8px 14px; margin-top: 18px; font-size: 13px; }
-    .body { margin-top: 22px; white-space: pre-line; font-size: 13px; line-height: 1.6; }
-    table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
-    th, td { border: 1px solid #111827; padding: 8px; text-align: left; }
-    td.amount { text-align: right; font-weight: 700; }
-    .print-actions { position: fixed; right: 18px; top: 18px; }
-    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
-    @media print { body { background: white; } .page { box-shadow: none; } .print-actions { display: none; } }
-  </style>
-</head>
-<body>
-  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
-  <section class="page">
-    <div class="header">
-      <h1>Dewan Bandaraya Kuching Utara</h1>
-      <p>${escapeHtml(title)}</p>
-    </div>
-    <div class="meta">
-      <strong>Rujukan</strong><span>${escapeHtml(getApplicationReference(app))}</span>
-      <strong>Pemohon</strong><span>${escapeHtml(getApplicantName(app))}</span>
-      <strong>Projek</strong><span>${escapeHtml(getProjectName(app))}</span>
-      <strong>Tarikh</strong><span>${escapeHtml(formatDate(new Date()))}</span>
-    </div>
-    <div class="body">${escapeHtml(body)}</div>
-    ${isBill ? `
-      <table>
-        <tbody>
-          <tr><th>No. Bil</th><td>${escapeHtml(manualBill.invoice_no || getInvoiceNo(app))}</td></tr>
-          <tr><th>Jumlah Bayaran</th><td class="amount">${escapeHtml(amount ? `RM ${Number(amount).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-")}</td></tr>
-        </tbody>
-      </table>
-    ` : ""}
-  </section>
-</body>
-</html>`;
+
   const preview = window.open("", "_blank");
   if (!preview) return;
   preview.opener = null;
@@ -1283,6 +1275,539 @@ function openApplicantManualPaymentDocument(app, type, t) {
   preview.document.write(html);
   preview.document.close();
   preview.document.title = `${getApplicationReference(app)} ${title}`;
+}
+
+async function downloadApplicantManualPaymentDocument(app, type, t) {
+  const html = getApplicantManualPaymentDocumentHtml(app, type, t);
+  const label = type === "bill"
+    ? t("workspace.payment.billDocument", "Bill")
+    : t("workspace.payment.approvalLetter", "Approval Letter");
+  const filename = getDownloadFilename(`${getApplicationReference(app)} ${label}`, "pdf");
+
+  try {
+    await downloadHtmlAsPdf(html, filename);
+  } catch (err) {
+    console.error("Failed to download manual payment document:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function getApplicantManualPaymentDocumentHtml(app, type, t) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualLetter = approvalLetter.manual_letter || {};
+  const manualBill = approvalLetter.manual_bill || {};
+
+  return type === "bill"
+    ? buildApplicantManualBillHtml(app, t, manualLetter, manualBill)
+    : buildApplicantManualLetterHtml(app, t, manualLetter, manualBill);
+}
+
+function buildApplicantManualLetterHtml(app, t, manualLetter, manualBill) {
+  const fields = getApplicantManualFields(app, manualLetter.fields);
+  const paymentRows = getApplicantManualPaymentRows(app, manualBill);
+  const total = paymentRows.reduce(
+    (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
+    0
+  );
+  const termsHtml = getApplicantManualRichTextHtml(manualLetter.terms);
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
+  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
+  const title = manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .page { width: 210mm; min-height: 297mm; margin: 0 auto 12px; background: #fff; padding: 16mm 18mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+    .letterhead { display: grid; grid-template-columns: 86px 1fr 104px; gap: 14px; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 8px; }
+    .crest { height: 68px; display: flex; align-items: center; justify-content: center; }
+    .crest img { max-width: 100%; max-height: 68px; object-fit: contain; }
+    h1 { margin: 0; font-size: 16px; line-height: 1.05; text-align: left; text-transform: uppercase; }
+    .letterhead-text { width: fit-content; max-width: 100%; margin: 0 auto; }
+    .subhead { text-align: left; font-size: 10px; line-height: 1.2; }
+    .subhead .subtitle { font-size: 10px; font-style: italic; font-weight: 700; color: #111827; }
+    .subhead .address { margin: 2px 0 0; font-weight: 700; text-transform: uppercase; color: #111827; }
+    .subhead .contact { margin: 2px 0 0; font-size: 10px; font-weight: 700; color: #111827; }
+    .subhead .phone { font-style: italic; }
+    .topline { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 12px; font-size: 12px; }
+    .right { text-align: right; }
+    .recipient-address { margin: 14px 0 18px 72px; white-space: pre-line; font-size: 12px; line-height: 1.35; }
+    .subject { margin: 12px 0; font-weight: 700; text-transform: uppercase; text-decoration: underline; }
+    .details { margin: 8px 0 14px; font-size: 12px; }
+    .details div { display: grid; grid-template-columns: 145px 12px 1fr; line-height: 1.45; }
+    p { font-size: 12px; line-height: 1.45; margin: 8px 0; }
+    .manual-copy { white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+    th, td { border: 1px solid #111827; padding: 6px 8px; vertical-align: top; }
+    th { text-align: left; background: #f1f5f9; }
+    td.amount, th.amount { text-align: right; white-space: nowrap; }
+    .signature { margin-top: 28px; font-size: 12px; }
+    .footer { margin-top: 42px; border-top: 2px solid #111827; padding-top: 6px; text-align: center; font-size: 10px; font-weight: 700; white-space: pre-wrap; }
+    .appendix h2 { margin: 10px 0 24px; text-align: right; font-size: 14px; }
+    .appendix h3 { text-align: center; font-size: 13px; text-transform: uppercase; }
+    .terms { margin-top: 28px; font-size: 12px; line-height: 1.45; }
+    .terms p { margin: 8px 0; }
+    .terms ol, .terms ul { margin: 8px 0 8px 20px; padding-left: 18px; }
+    .terms li { margin: 4px 0; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    @media print { body { background: white; } .page { box-shadow: none; margin: 0; } .print-actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
+  <section class="page">
+    <header class="letterhead">
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
+      <div class="letterhead-text">
+        <h1>${escapeHtml(fields.letterheadTitle)}</h1>
+        <div class="subhead">
+          <div class="subtitle">${escapeHtml(fields.letterheadSubtitle)}</div>
+          <div class="address">${escapeHtml(fields.letterheadAddress)}</div>
+          <div class="address">${escapeHtml(fields.letterheadAddressLine2)}</div>
+          <div class="contact phone">${escapeHtml(fields.letterheadPhoneLine)}</div>
+          <div class="contact">${escapeHtml(fields.letterheadWebLine)}</div>
+        </div>
+      </div>
+      <div class="crest"><img src="${escapeHtml(alisLogoUrl)}" alt="ALiS" /></div>
+    </header>
+
+    <div class="topline">
+      <div>
+        <div>${escapeHtml(t("workspace.payment.manual.yourRef", "Your Ref."))} : ${escapeHtml(fields.yourRef || "")}</div>
+        <div>${escapeHtml(t("workspace.payment.manual.ourRef", "Our Ref."))} : <strong>${escapeHtml(fields.ourRef)}</strong></div>
+      </div>
+      <div class="right">${escapeHtml(t("workspace.payment.manual.date", "Date"))} : <strong>${escapeHtml(formatDate(fields.letterDate))}</strong></div>
+    </div>
+
+    <div class="recipient-address">${escapeHtml(fields.recipientName)}<br />${escapeHtml(fields.recipientAddress)}</div>
+
+    <p class="manual-copy">${escapeHtml(fields.salutation)}</p>
+    <p class="subject">${escapeHtml(title)}</p>
+
+    <div class="details">
+      <div><span>${escapeHtml(t("workspace.payment.manual.adType", "Advertisement Type"))}</span><span>:</span><strong>${escapeHtml(fields.adType)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.adName", "Advertisement Name"))}</span><span>:</span><strong>${escapeHtml(fields.adName)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.applicantName", "Applicant Name"))}</span><span>:</span><strong>${escapeHtml(fields.applicantName)}</strong></div>
+      <div><span>${escapeHtml(t("workspace.payment.manual.displayLocation", "Advertisement Display Location"))}</span><span>:</span><strong>${escapeHtml(fields.displayLocation)}</strong></div>
+    </div>
+
+    <p class="manual-copy">${escapeHtml(fields.approvalParagraph)}</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>${escapeHtml(t("workspace.payment.manual.paymentDetails", "Payment Details"))}</th>
+          <th>${escapeHtml(t("workspace.payment.manual.licenseValidityPeriod", "License Validity Period"))}</th>
+          <th class="amount">${escapeHtml(t("workspace.payment.manual.totalAmountRm", "Total (RM)"))}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${paymentRows.map((row) => `
+          <tr>
+            <td>${escapeHtml(row.label)}</td>
+            <td>${escapeHtml(row.validity || "-")}</td>
+            <td class="amount">${escapeHtml(formatCurrency(parseCurrencyAmount(row.amount)))}</td>
+          </tr>
+        `).join("")}
+        <tr>
+          <td colspan="2" class="amount"><strong>${escapeHtml(t("workspace.payment.manual.grandTotal", "Grand Total"))}</strong></td>
+          <td class="amount"><strong>${escapeHtml(formatCurrency(total))}</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="manual-copy">${escapeHtml(fields.attachmentParagraph)}</p>
+    <p class="manual-copy">${escapeHtml(fields.contactParagraph)}</p>
+    <p class="manual-copy">${escapeHtml(fields.closingText)}</p>
+
+    <div class="signature">
+      <p><strong>${escapeHtml(fields.mottoLine1)}<br />${escapeHtml(fields.mottoLine2)}</strong></p>
+      <br /><br />
+      <p><strong>${escapeHtml(fields.signatoryTitle)}</strong><br />${escapeHtml(fields.signatoryDepartment)}<br />${escapeHtml(fields.signatoryAuthority)}</p>
+    </div>
+    <div class="footer">${escapeHtml(fields.footerText)}</div>
+  </section>
+  <section class="page appendix">
+    <h2>${escapeHtml(fields.appendixLabel)}</h2>
+    <h3>${escapeHtml(fields.appendixTitle)}</h3>
+    <div class="terms">${termsHtml}</div>
+  </section>
+</body>
+</html>`;
+}
+
+function buildApplicantManualBillHtml(app, t, manualLetter, manualBill) {
+  const fields = getApplicantManualFields(app, manualLetter.fields);
+  const paymentRows = getApplicantManualPaymentRows(app, manualBill);
+  const invoiceNo = manualBill.invoice_no || getInvoiceNo(app);
+  const total = paymentRows.reduce(
+    (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
+    0
+  );
+  const fallbackTotal =
+    parseCurrencyAmount(manualBill.amount) ||
+    parseCurrencyAmount(app?.form_data?.payment?.amount);
+  const totalDisplay = formatCurrency(total || fallbackTotal);
+  const billDate = fields.letterDate || manualBill.saved_at || new Date().toISOString();
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(t("workspace.payment.billDocument", "Bill"))}</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Times New Roman", serif; color: #111827; background: #f8fafc; }
+    .receipt { width: 210mm; min-height: 148mm; margin: 0 auto 12px; background: #fff; padding: 14mm 16mm; box-shadow: 0 1px 4px rgba(15,23,42,.12); }
+    .header { display: grid; grid-template-columns: 86px 1fr 130px; gap: 14px; align-items: start; }
+    .crest { height: 72px; display: flex; align-items: center; justify-content: center; }
+    .crest img { max-width: 100%; max-height: 72px; object-fit: contain; }
+    .heading { text-align: center; }
+    .heading h1 { margin: 0; font-size: 15px; line-height: 1.12; text-transform: uppercase; }
+    .heading p { margin: 3px 0 0; font-size: 12px; line-height: 1.25; }
+    .copy { text-align: right; font: 700 12px Arial, sans-serif; }
+    .title-row { display: grid; grid-template-columns: 1fr 160px; align-items: end; margin: 14px 0 18px; }
+    .title { text-align: center; font: 700 26px "Times New Roman", serif; text-transform: uppercase; letter-spacing: .04em; }
+    .number { font-size: 18px; font-weight: 700; white-space: nowrap; }
+    .number strong { color: #b91c1c; font-size: 24px; letter-spacing: .05em; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 280px; gap: 28px; align-items: start; }
+    .line-row { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: end; margin: 12px 0; font-size: 13px; }
+    .line { display: block; border-bottom: 1px dotted #111827; min-height: 22px; line-height: 20px; padding: 0 6px 2px; font-weight: 700; }
+    .line-value { display: inline-block; background: #fff; padding-right: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #111827; padding: 5px 7px; }
+    th { text-align: center; font-weight: 700; }
+    td.amount { text-align: right; white-space: nowrap; }
+    .received { margin-top: 22px; font-size: 13px; line-height: 1.4; }
+    .received-line { display: grid; grid-template-columns: max-content 1fr; column-gap: 6px; align-items: end; min-height: 24px; }
+    .received .fill { display: block; min-width: 0; border-bottom: 1px dotted #111827; line-height: 20px; padding: 0 6px 2px; font-weight: 700; }
+    .fill-value { display: inline-block; background: #fff; padding-right: 6px; }
+    .sum-line { margin-top: 10px; border-bottom: 1px dotted #111827; min-height: 22px; line-height: 20px; padding: 0 6px 2px; }
+    .footer { display: grid; grid-template-columns: 150px 1fr 190px; gap: 24px; align-items: end; margin-top: 46px; font-size: 12px; }
+    .payment-box { border-top: 1px dotted #111827; padding-top: 4px; text-transform: uppercase; font-weight: 700; }
+    .bank-note { text-align: center; font-size: 10px; }
+    .signature { border-top: 1px dotted #111827; padding-top: 4px; text-align: center; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
+    @media print { body { background: white; } .receipt { box-shadow: none; margin: 0; } .print-actions { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
+  <section class="receipt">
+    <header class="header">
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
+      <div class="heading">
+        <h1>${escapeHtml(t("workspace.payment.manual.billHeaderTitle", "Mayor of North Kuching"))}</h1>
+        <p><strong>${escapeHtml(t("workspace.payment.manual.billHeaderSubtitle", "(The Commissioner of The City of Kuching North)"))}</strong></p>
+        <p>${escapeHtml(t("workspace.payment.manual.billHeaderAddressLine1", "Dewan Bandaraya Kuching Utara"))}<br />${escapeHtml(t("workspace.payment.manual.billHeaderAddressLine2", "Bukit Siol, Jalan Semariang, Petra Jaya,"))}<br />${escapeHtml(t("workspace.payment.manual.billHeaderAddressLine3", "93050 Kuching, Sarawak, Malaysia."))}</p>
+      </div>
+      <div class="copy">${escapeHtml(fields.billCopyLabel)}</div>
+    </header>
+
+    <div class="title-row">
+      <div class="title">${escapeHtml(fields.billReceiptTitle)}</div>
+      <div class="number">${escapeHtml(t("workspace.payment.manual.receiptNoShort", "No."))} <strong>${escapeHtml(invoiceNo)}</strong></div>
+    </div>
+
+    <div class="meta-grid">
+      <div>
+        <div class="line-row"><span>${escapeHtml(t("workspace.payment.manual.station", "Station"))}</span><span class="line"><span class="line-value">${escapeHtml(fields.billStation)}</span></span></div>
+        <div class="line-row"><span>${escapeHtml(t("workspace.payment.manual.date", "Date"))}</span><span class="line"><span class="line-value">${escapeHtml(formatDate(billDate))}</span></span></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>${escapeHtml(t("workspace.payment.manual.forCredit", "For Credit"))}</th>
+            <th>${escapeHtml(t("workspace.payment.manual.amount", "Amount"))}<br />RM</th>
+            <th>${escapeHtml(t("workspace.payment.manual.sen", "Sen"))}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${paymentRows.map((row) => {
+            const amount = parseCurrencyAmount(row.amount) || 0;
+            const ringgit = Math.floor(amount);
+            const sen = Math.round((amount - ringgit) * 100);
+            return `
+              <tr>
+                <td>${escapeHtml(row.label)}</td>
+                <td class="amount">${escapeHtml(String(ringgit))}</td>
+                <td class="amount">${escapeHtml(String(sen).padStart(2, "0"))}</td>
+              </tr>
+            `;
+          }).join("")}
+          <tr>
+            <td class="amount"><strong>${escapeHtml(t("workspace.payment.manual.totalRm", "Total RM"))}</strong></td>
+            <td class="amount" colspan="2"><strong>${escapeHtml(totalDisplay)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="received">
+      <div class="received-line"><span>${escapeHtml(t("workspace.payment.manual.receivedFromLine", "RECEIVED from"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billReceivedFrom)}</span></span></div>
+      <div class="received-line"><span>${escapeHtml(t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billAmountText || totalDisplay)}</span></span></div>
+      <div class="received-line"><span>${escapeHtml(t("workspace.payment.manual.andSenLine", "and Sen"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billSenText)}</span></span></div>
+      <div class="sum-line">${escapeHtml(fields.billRemarkLine1)}</div>
+      <div class="sum-line">${escapeHtml(fields.billRemarkLine2)}</div>
+      <div class="sum-line">${escapeHtml(fields.billRemarkLine3)}</div>
+    </div>
+
+    <footer class="footer">
+      <div class="payment-box">${escapeHtml(fields.billPaymentLine1)}<br />${escapeHtml(fields.billPaymentLine2)}</div>
+      <div class="bank-note">${escapeHtml(fields.billBankNote).replace(/\n/g, "<br />")}</div>
+      <div class="signature">${escapeHtml(fields.billSignatureText)}</div>
+    </footer>
+  </section>
+</body>
+</html>`;
+}
+
+function getApplicantManualFields(app, savedFields = {}) {
+  const applicant = getApplicantName(app);
+  const projectName = getProjectName(app);
+  const applicationType = getApplicationType(app);
+  const location = getApplicationLocation(app);
+  const reference = getApplicationReference(app);
+  const payment = app?.form_data?.payment || {};
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const letterDate =
+    savedFields.letterDate ||
+    approvalLetter.manual_letter?.saved_at ||
+    payment.generated_at ||
+    new Date().toISOString();
+
+  return {
+    yourRef: "",
+    ourRef: `DBKU/LES/IKL/${reference}`,
+    letterDate,
+    recipientName: applicant,
+    recipientAddress: location,
+    salutation: "Puan/Tuan,",
+    adType: applicationType,
+    adName: projectName,
+    applicantName: applicant,
+    displayLocation: location,
+    approvalParagraph:
+      "Sukacita dimaklumkan bahawa permohonan puan/tuan untuk perkara di atas telah diluluskan. Sila buat pembayaran seperti di bawah di Kaunter Bahagian Pelesenan, Aras 1, DBKU dalam tempoh empat belas (14) hari bekerja dari tarikh surat ini diterima.",
+    attachmentParagraph:
+      "3. Dilampirkan bersama ini syarat-syarat lesen yang mesti dipatuhi. Sebarang pelanggaran syarat lesen boleh menyebabkan lesen puan/tuan ditarik balik.",
+    contactParagraph:
+      "4. Sekiranya pihak puan/tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955",
+    closingText: "Sekian, terima kasih.",
+    mottoLine1: "\"AN HONOUR TO SERVE\"",
+    mottoLine2: "\"TOGETHER WE CARE\"",
+    signatoryTitle: "(KETUA BAHAGIAN)",
+    signatoryDepartment: "Bahagian Pelesenan",
+    signatoryAuthority: "b.p. Pengarah, Dewan Bandaraya Kuching Utara",
+    footerText:
+      "\"UNTUK MEMPERTINGKAT KUALITI KEHIDUPAN DENGAN MEWUJUDKAN PERSEKITARAN KONDUSIF,\nPENGLIBATAN WARGA KOTA DAN PENYAMPAIAN PERKHIDMATAN TERUNGGUL\"",
+    appendixLabel: "Lampiran",
+    appendixTitle:
+      "Syarat-Syarat Lesen Iklan Dalam Kawasan Dewan Bandaraya Kuching Utara (DBKU)",
+    letterheadTitle: "Dewan Bandaraya Kuching Utara",
+    letterheadSubtitle: "Commission of the City of Kuching North",
+    letterheadAddress: "Bukit Siol, Jalan Semariang, Petra Jaya,",
+    letterheadAddressLine2: "93050 Kuching, Sarawak.",
+    letterheadPhoneLine:
+      "Tel : 082-512200/512201    Hotline : 082-446644    Faks : 082-446414",
+    letterheadWebLine:
+      "Laman Web: dbku.sarawak.gov.my    E-mel : prd@dbku.gov.my",
+    billReceivedFrom: applicant,
+    billStation: "ALiS",
+    billCopyLabel: "Salinan Pelanggan",
+    billReceiptTitle: "Official Receipt",
+    billSignatureText: "b.p. Datuk Bandar",
+    billAmountText: "",
+    billSenText: "",
+    billRemarkLine1: "",
+    billRemarkLine2: "",
+    billRemarkLine3: "",
+    billPaymentLine1: "Cash",
+    billPaymentLine2: "Cheque No.",
+    billBankNote:
+      "Pembayaran ini hanya dianggap sah setelah cek dijelaskan oleh bank\nPayment valid only upon clearance of cheque",
+    ...savedFields,
+  };
+}
+
+function getApplicantManualPaymentRows(app, manualBill = {}) {
+  if (Array.isArray(manualBill.rows) && manualBill.rows.length > 0) {
+    return manualBill.rows;
+  }
+
+  const amount =
+    parseCurrencyAmount(manualBill.amount) ||
+    parseCurrencyAmount(app?.form_data?.payment?.amount);
+
+  return [
+    {
+      label: `Lesen Iklan - ${getApplicationType(app)}`,
+      amount: Number.isFinite(amount) ? amount : 0,
+      validity: "Tertakluk kepada tempoh kelulusan",
+    },
+  ];
+}
+
+function getApplicantManualRichTextHtml(value) {
+  const source = String(value || "").trim();
+  if (!source) return getDefaultApplicantTermsHtml();
+
+  if (/<\/?[a-z][\s\S]*>/i.test(source)) {
+    return source;
+  }
+
+  return source
+    .split(/\n{2,}/)
+    .map((block) =>
+      `<p>${escapeHtml(block.trim()).replace(/\n/g, "<br />")}</p>`
+    )
+    .join("");
+}
+
+function getDefaultApplicantTermsHtml() {
+  return [
+    "<ol>",
+    "<li><strong>TEMPOH KELULUSAN</strong><br />Tempoh kelulusan adalah tertakluk kepada tempoh lesen yang diluluskan oleh DBKU.</li>",
+    "<li><strong>PEMBINAAN DAN PENYELENGGARAAN</strong><br />Pemohon hendaklah memastikan iklan berkaitan diselenggara dengan baik sepanjang tempoh kelulusan.</li>",
+    "</ol>",
+  ].join("");
+}
+
+function parseCurrencyAmount(value) {
+  const numeric = Number(String(value || "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getPublicAssetUrl(path) {
+  const cleanPath = `/${String(path || "").replace(/^\/+/, "")}`;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  return origin ? `${origin}${cleanPath}` : cleanPath;
+}
+
+async function downloadHtmlAsPdf(html, filename) {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
+  iframe.style.border = "0";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+
+  try {
+    const frameDocument = iframe.contentDocument;
+    if (!frameDocument) throw new Error("Unable to prepare PDF document.");
+
+    frameDocument.open();
+    frameDocument.write(html);
+    frameDocument.close();
+
+    await waitForPrintableDocument(frameDocument);
+
+    frameDocument.querySelectorAll(".print-actions").forEach((element) => {
+      element.remove();
+    });
+    frameDocument.body.style.background = "#ffffff";
+
+    const pageElements = Array.from(
+      frameDocument.querySelectorAll(".page, .receipt")
+    );
+    if (pageElements.length === 0) throw new Error("No printable pages found.");
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+    });
+    const pageWidth = 210;
+    const pageHeight = 297;
+
+    for (let index = 0; index < pageElements.length; index += 1) {
+      const pageElement = pageElements[index];
+      pageElement.style.boxShadow = "none";
+      pageElement.style.margin = "0";
+
+      const canvas = await html2canvas(pageElement, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        windowWidth: pageElement.scrollWidth,
+        windowHeight: pageElement.scrollHeight,
+      });
+      const imageHeight = Math.min(
+        pageHeight,
+        (canvas.height * pageWidth) / canvas.width
+      );
+
+      if (index > 0) pdf.addPage("a4", "portrait");
+      pdf.addImage(
+        canvas.toDataURL("image/jpeg", 0.96),
+        "JPEG",
+        0,
+        0,
+        pageWidth,
+        imageHeight,
+        undefined,
+        "MEDIUM"
+      );
+    }
+
+    pdf.save(filename);
+  } finally {
+    iframe.remove();
+  }
+}
+
+async function waitForPrintableDocument(frameDocument) {
+  const fontReady = frameDocument.fonts?.ready?.catch(() => undefined) ||
+    Promise.resolve();
+  const imagesReady = Array.from(frameDocument.images || []).map((image) => {
+    if (image.complete) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      image.onload = resolve;
+      image.onerror = resolve;
+    });
+  });
+
+  await Promise.all([fontReady, ...imagesReady]);
+  await new Promise((resolve) => window.requestAnimationFrame(resolve));
+}
+
+function triggerDownload(url, filename) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function getDownloadFilename(value, fallbackExtension) {
+  const raw = String(value || "document").trim() || "document";
+  const normalized = raw
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  const extension = String(fallbackExtension || "").replace(/^\./, "");
+
+  if (!extension || /\.[a-z0-9]{2,8}$/i.test(normalized)) {
+    return normalized || `document.${extension}`;
+  }
+
+  return `${normalized}.${extension}`;
 }
 
 function escapeHtml(value) {
