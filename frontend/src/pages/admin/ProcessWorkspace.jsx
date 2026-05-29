@@ -10924,6 +10924,21 @@ function LicenseDetails({
     pushLicenseDraft(nextFields);
   }
 
+  async function uploadLicenseLogo(file) {
+    if (!file) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    updateLicenseField("dbkuLogoPath", dataUrl);
+  }
+
+  function normalizeLicenseAmount() {
+    const nextFields = {
+      ...draftFields,
+      paymentAmount: formatPaymentRowAmount(draftFields.paymentAmount),
+    };
+    setDraftFields(nextFields);
+    pushLicenseDraft(nextFields);
+  }
+
   function updateLicenseTerms(value) {
     setTermsText(value);
     pushLicenseDraft(draftFields, value);
@@ -10997,6 +11012,35 @@ function LicenseDetails({
         </div>
 
         <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="md:col-span-2 xl:col-span-3">
+            <p className="mb-1 text-[13px] font-semibold leading-5 text-slate-700">
+              {t("workspace.license.dbkuLogo", "DBKU Logo")}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="flex h-16 w-24 items-center justify-center rounded border border-slate-200 bg-white p-2">
+                <img
+                  src={draftFields.dbkuLogoPath || "/logo-dbku.png"}
+                  alt="DBKU"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              {licenseEditable && (
+                <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <Icon name="upload_file" className="text-[16px]" />
+                  <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      uploadLicenseLogo(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
           <ManualLicenseField
             label={t("workspace.license.receiptNo", "Receipt No.")}
             value={draftFields.receiptNo}
@@ -11051,6 +11095,7 @@ function LicenseDetails({
             label={t("workspace.license.paymentAmount", "Payment Amount")}
             value={draftFields.paymentAmount}
             onChange={(value) => updateLicenseField("paymentAmount", value)}
+            onBlur={normalizeLicenseAmount}
             readOnly={!licenseEditable}
           />
           <ManualLicenseField
@@ -11128,6 +11173,7 @@ function ManualLicenseField({
   label,
   value,
   onChange,
+  onBlur,
   readOnly = false,
   textarea = false,
   type = "text",
@@ -11143,6 +11189,7 @@ function ManualLicenseField({
         <textarea
           value={value || ""}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           readOnly={readOnly}
           rows={rows}
           className="form-input text-[14px] disabled:bg-slate-100"
@@ -11152,6 +11199,7 @@ function ManualLicenseField({
           type={type}
           value={value || ""}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={onBlur}
           readOnly={readOnly}
           className="form-input h-10 text-[14px] disabled:bg-slate-100"
         />

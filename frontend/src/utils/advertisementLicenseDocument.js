@@ -27,6 +27,7 @@ export function getAdvertisementLicenseDraftFields(app, savedFields = {}, option
   const payment = app?.form_data?.payment || {};
   const applicant = getApplicantName(app);
   const reference = getApplicationReference(app);
+  const paymentAmount = getBillAmount(app);
   const now = new Date();
   const issueDate =
     options.issueDate ||
@@ -41,7 +42,7 @@ export function getAdvertisementLicenseDraftFields(app, savedFields = {}, option
 
   const fields = {
     formCode: "DBKU/LES/38-09 (Pind. 3/18)",
-    receiptNo: payment.receipt_reference || payment.receipt_no || payment.invoice_no || getInvoiceNo(app),
+    receiptNo: getOfficialReceiptNumber(app),
     referenceNo: getDefaultLicenseReference(app),
     applicantName: applicant,
     applicantAddress: getApplicantPostalAddress(app),
@@ -53,13 +54,17 @@ export function getAdvertisementLicenseDraftFields(app, savedFields = {}, option
     signatoryName: "",
     signatoryTitle: "b.p : Dewan Bandaraya Kuching Utara",
     signedDate: issueDate,
-    paymentAmount: getBillAmount(app),
+    paymentAmount: Number.isFinite(paymentAmount) ? paymentAmount.toFixed(2) : "",
     dbkuLogoPath: "/logo-dbku.png",
     ...savedFields,
   };
 
   if (options.issueDate) fields.issueDate = options.issueDate;
   if (options.expiryDate) fields.expiryDate = options.expiryDate;
+  if (looksLikeFilename(fields.receiptNo)) {
+    fields.receiptNo = getOfficialReceiptNumber(app);
+  }
+  fields.paymentAmount = formatPlainAmount(fields.paymentAmount);
 
   return fields;
 }
@@ -117,7 +122,7 @@ export function buildAdvertisementLicenseHtml(app, t) {
     .dotted { min-height: 21px; border-bottom: 2px dotted #111; line-height: 19px; padding: 0 7px 1px; font-weight: 700; }
     .dotted.blank { color: transparent; }
     .field-span { grid-column: 3 / -1; }
-    .paragraph { margin: 24px 0 18px; font-size: 16px; line-height: 1.28; text-align: left; }
+    .paragraph { margin: 24px 0 18px; font-size: 16px; line-height: 1.28; text-align: justify; text-align-last: left; }
     .indent { display: inline-block; width: 220px; }
     .license-lines { margin-top: 10px; }
     .period { display: grid; grid-template-columns: 88px 10px 1fr 55px 1fr; column-gap: 7px; row-gap: 9px; font-size: 16px; align-items: end; }
@@ -129,7 +134,7 @@ export function buildAdvertisementLicenseHtml(app, t) {
     .date-line { display: grid; grid-template-columns: 48px 1fr; gap: 6px; align-items: end; }
     .terms-title { margin: 0 0 28px; font-size: 18px; font-weight: 700; text-decoration: underline; }
     .terms { margin: 0; padding-left: 0; list-style: none; counter-reset: term; font-size: 17px; line-height: 1.22; }
-    .terms li { counter-increment: term; display: grid; grid-template-columns: 28px 1fr; gap: 15px; margin: 0 0 18px; }
+    .terms li { counter-increment: term; display: grid; grid-template-columns: 28px 1fr; gap: 15px; margin: 0 0 18px; text-align: justify; text-align-last: left; }
     .terms li::before { content: counter(term) "."; }
     .payment-row { display: flex; justify-content: flex-end; align-items: center; gap: 16px; margin-top: 95px; font-size: 16px; font-weight: 700; }
     .amount-box { min-width: 144px; border: 1px solid #111; padding: 5px 18px; text-align: center; }
@@ -223,6 +228,27 @@ function getDefaultLicenseReference(app) {
   return `DBKU/LES/Adv.Les/${year}/(${suffix})`;
 }
 
+function getOfficialReceiptNumber(app) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const payment = app?.form_data?.payment || {};
+  const candidates = [
+    manualReceipt.receipt_no,
+    manualReceipt.invoice_no,
+    payment.official_receipt_no,
+    payment.receipt_no,
+    payment.receipt_reference,
+    payment.invoice_no,
+    getInvoiceNo(app),
+  ];
+
+  return candidates.find((value) => hasValue(value) && !looksLikeFilename(value)) || getInvoiceNo(app);
+}
+
+function looksLikeFilename(value) {
+  return /\.[a-z0-9]{2,5}$/i.test(String(value || "").trim());
+}
+
 function normalizeLicenseTerms(terms) {
   if (Array.isArray(terms) && terms.length > 0) {
     return terms.map((term) => String(term || "").trim()).filter(Boolean);
@@ -271,6 +297,12 @@ function parseCurrencyAmount(value) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function formatPlainAmount(value) {
+  if (!hasValue(value)) return "";
+  const amount = parseCurrencyAmount(value);
+  return Number.isFinite(amount) ? amount.toFixed(2) : "";
+}
+
 function hasValue(value) {
   return String(value ?? "").trim().length > 0;
 }
@@ -299,7 +331,12 @@ function getManualDocumentAssetUrl(value) {
   if (/^(https?:|data:|blob:)/i.test(value)) return value;
 
   const base = String(import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
-  return `${base}${value.startsWith("/") ? value : `/${value}`}`;
+  const path = `${base}${value.startsWith("/") ? value : `/${value}`}`;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return new URL(path, window.location.origin).toString();
+  }
+
+  return path;
 }
 
 function openPrintablePreview(title, html) {
