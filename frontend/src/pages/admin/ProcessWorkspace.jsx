@@ -5274,10 +5274,10 @@ const configs = {
         }),
       },
       {
-        label: "Confirm Bill",
+        label: "Confirm Letter & Bill",
         labelKey: "workspace.action.confirmBill",
         icon: "task_alt",
-        success: "Bill confirmed and sent to applicant.",
+        success: "Approval letter, appendix, and bill confirmed and sent to applicant.",
         successKey: "workspace.message.billConfirmed",
         isAvailable: (app, department) =>
           department === "KU(IKL)" && normalizeStatus(app?.status) === "bill_pending_ku",
@@ -7267,9 +7267,8 @@ function PaymentDetails({
   const manualReady = hasManualPaymentDocuments(app) || hasLocalManualDraft;
   const canUploadDocuments =
     userDepartment === "PT(IKL)" && normalizeStatus(app?.status) === "approved";
+  const uploadReady = letterReady && billReady;
   const hasUploadedPaymentDocuments = letterReady || billReady;
-  const showUploadDocumentSlots =
-    canUploadDocuments || hasUploadedPaymentDocuments || !manualReady;
   const showReceiptDetails = Boolean(
     receiptFile?.name ||
     payment.receipt_reference ||
@@ -7280,8 +7279,8 @@ function PaymentDetails({
   const [documentMode, setDocumentMode] = useState("upload");
 
   useEffect(() => {
-    setDocumentMode("upload");
-  }, [app?.id]);
+    setDocumentMode(manualReady && !hasUploadedPaymentDocuments ? "manual" : "upload");
+  }, [app?.id, hasUploadedPaymentDocuments, manualReady]);
 
   async function viewReceipt() {
     if (!receiptSource) return;
@@ -7316,23 +7315,51 @@ function PaymentDetails({
             </div>
 
             {canUploadDocuments && (
-              <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-1">
+              <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
                 {[
-                  ["upload", t("workspace.payment.modeUpload", "Upload")],
-                  ["manual", t("workspace.payment.modeManual", "Create manually")],
-                ].map(([mode, label]) => (
-                  <button
+                  [
+                    "upload",
+                    t("workspace.payment.modeUpload", "Upload"),
+                    t("workspace.payment.modeUploadDesc", "Submit by uploading the approval letter and bill files."),
+                    uploadReady,
+                  ],
+                  [
+                    "manual",
+                    t("workspace.payment.modeManual", "Create manually"),
+                    t("workspace.payment.modeManualDesc", "Submit the manual letter, appendix, and bill created here."),
+                    manualReady,
+                  ],
+                ].map(([mode, label, description, ready]) => (
+                  <label
                     key={mode}
-                    type="button"
-                    onClick={() => setDocumentMode(mode)}
-                    className={`min-h-9 rounded px-3 text-sm font-semibold ${
+                    className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 transition ${
                       documentMode === mode
-                        ? "bg-emerald-700 text-white"
-                        : "text-slate-700 hover:bg-white"
+                        ? "border-emerald-700 bg-emerald-50"
+                        : "border-slate-200 bg-white hover:bg-slate-50"
                     }`}
                   >
-                    {label}
-                  </button>
+                    <input
+                      type="radio"
+                      name={`payment-document-mode-${app.id}`}
+                      value={mode}
+                      checked={documentMode === mode}
+                      onChange={() => setDocumentMode(mode)}
+                      className="mt-1 h-4 w-4 accent-emerald-700"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-slate-950">
+                        {label}
+                      </span>
+                      <span className="block text-xs leading-5 text-slate-500">
+                        {description}
+                      </span>
+                      {ready && (
+                        <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                          {t("workspace.payment.methodReady", "Ready")}
+                        </span>
+                      )}
+                    </span>
+                  </label>
                 ))}
               </div>
             )}
@@ -7340,37 +7367,39 @@ function PaymentDetails({
         </div>
 
         {documentMode === "manual" ? (
-          <ManualPaymentDocumentsForm
-            app={app}
-            t={t}
-            readOnly={!canUploadDocuments}
-            onDraftChange={onManualPaymentDraftChange}
-          />
+          canUploadDocuments ? (
+            <ManualPaymentDocumentsForm
+              app={app}
+              t={t}
+              readOnly={false}
+              onDraftChange={onManualPaymentDraftChange}
+            />
+          ) : (
+            <div className="px-3 py-3">
+              <ManualPaymentDocumentsSummary app={app} t={t} />
+            </div>
+          )
         ) : (
           <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
-            {showUploadDocumentSlots && (
-              <>
-                <PaymentDocumentSlot
-                  label={t("workspace.payment.approvalLetter", "Approval Letter")}
-                  file={letterFile}
-                  t={t}
-                  canUpload={canUploadDocuments}
-                  saving={saving}
-                  onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
-                  onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-                />
-                <PaymentDocumentSlot
-                  label={t("workspace.payment.billDocument", "Bill")}
-                  file={billFile}
-                  t={t}
-                  canUpload={canUploadDocuments}
-                  saving={saving}
-                  onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
-                  onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-                />
-              </>
-            )}
-            {manualReady && (
+            <PaymentDocumentSlot
+              label={t("workspace.payment.approvalLetter", "Approval Letter")}
+              file={letterFile}
+              t={t}
+              canUpload={canUploadDocuments}
+              saving={saving}
+              onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
+              onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+            />
+            <PaymentDocumentSlot
+              label={t("workspace.payment.billDocument", "Bill")}
+              file={billFile}
+              t={t}
+              canUpload={canUploadDocuments}
+              saving={saving}
+              onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
+              onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+            />
+            {!canUploadDocuments && manualReady && !hasUploadedPaymentDocuments && (
               <ManualPaymentDocumentsSummary app={app} t={t} />
             )}
           </div>
@@ -7487,6 +7516,7 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
   const [terms, setTerms] = useState(() => initialState.terms);
   const amount = getBillAmount(app);
   const [invoiceNo, setInvoiceNo] = useState(() => initialState.invoiceNo);
+  const [activeManualDocumentTab, setActiveManualDocumentTab] = useState("letter");
   const totalAmount = useMemo(
     () => paymentRows.reduce(
       (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
@@ -7947,16 +7977,38 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     </div>
   );
 
+  const manualDocumentTabs = [
+    {
+      key: "letter",
+      label: t("workspace.payment.approvalLetter", "Approval Letter"),
+      icon: "description",
+    },
+    {
+      key: "appendix",
+      label: t("workspace.payment.manual.appendix", "Appendix"),
+      icon: "subject",
+    },
+    {
+      key: "bill",
+      label: t("workspace.payment.billDocument", "Bill"),
+      icon: "receipt_long",
+    },
+  ];
+
   return (
     <div className="space-y-3 px-3 py-3">
       <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.payment.manualSection", "Create Manually")}
+              {readOnly
+                ? t("workspace.payment.manualReviewSection", "Submitted Manual Documents")
+                : t("workspace.payment.manualSection", "Create Manually")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              {t("workspace.payment.manualSectionDesc", "Edit the approval letter and bill content here, then save before submitting to KU(IKL).")}
+              {readOnly
+                ? t("workspace.payment.manualReviewSectionDesc", "Review the submitted approval letter, appendix, and bill.")
+                : t("workspace.payment.manualSectionDesc", "Edit the approval letter, appendix, and bill content here, then save before submitting to KU(IKL).")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -7982,6 +8034,30 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         </div>
       </div>
 
+      <div className="inline-flex w-full flex-wrap gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
+        {manualDocumentTabs.map((tab) => {
+          const selected = activeManualDocumentTab === tab.key;
+
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-3 py-2 text-sm font-semibold transition ${
+                selected
+                  ? "bg-emerald-700 text-white shadow-sm"
+                  : "bg-transparent text-slate-700 hover:bg-white"
+              }`}
+              aria-pressed={selected}
+              onClick={() => setActiveManualDocumentTab(tab.key)}
+            >
+              <Icon name={tab.icon} className="text-[18px]" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeManualDocumentTab === "letter" && (
       <div className="mx-auto max-w-[940px] rounded-md border border-slate-300 bg-white px-5 py-5">
         <div className="grid gap-4 border-b-2 border-slate-900 pb-3 lg:grid-cols-[120px_minmax(0,1fr)_120px]">
           <div className="flex h-20 items-center justify-center">
@@ -8324,7 +8400,9 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
           </div>
         </div>
       </div>
+      )}
 
+      {activeManualDocumentTab === "appendix" && (
       <div className="rounded-md border border-slate-200 bg-white px-4 py-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -8361,46 +8439,63 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
           </div>
         </div>
       </div>
+      )}
 
-      {billReceiptSection}
+      {activeManualDocumentTab === "bill" && billReceiptSection}
     </div>
   );
 }
 
 function ManualPaymentDocumentsSummary({ app, t }) {
   const previewApp = useMemo(() => getManualPaymentPreviewApp(app), [app]);
+  const documents = [
+    {
+      key: "letter",
+      label: t("workspace.payment.approvalLetter", "Approval Letter"),
+      buttonLabel: t("workspace.payment.viewApprovalLetter", "View Approval Letter"),
+      onClick: () => openManualPaymentDocument(previewApp, "letter", t),
+    },
+    {
+      key: "bill",
+      label: t("workspace.payment.billDocument", "Bill"),
+      buttonLabel: t("workspace.payment.viewManualBill", "View Bill"),
+      onClick: () => openManualPaymentDocument(previewApp, "bill", t),
+    },
+  ];
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 xl:col-span-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-            {t("workspace.payment.manualDocuments", "Manual Documents")}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {t("workspace.payment.manualSaved", "Manual letter and bill saved.")}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            icon="visibility"
-            className="min-h-9 px-3 py-1 text-xs"
-            onClick={() => openManualPaymentDocument(previewApp, "letter", t)}
+      <div className="mb-3">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          {t("workspace.payment.manualDocuments", "Manual Documents")}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("workspace.payment.manualConfirmHint", "KU(IKL) can review the documents, then confirm using the action button.")}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {documents.map((document) => (
+          <div
+            key={document.key}
+            className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
           >
-            {t("workspace.payment.viewManualLetter", "View Letter")}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            icon="visibility"
-            className="min-h-9 px-3 py-1 text-xs"
-            onClick={() => openManualPaymentDocument(previewApp, "bill", t)}
-          >
-            {t("workspace.payment.viewManualBill", "View Bill")}
-          </Button>
-        </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                {document.label}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs sm:w-auto"
+              onClick={document.onClick}
+            >
+              {document.buttonLabel}
+            </Button>
+          </div>
+        ))}
       </div>
     </div>
   );
