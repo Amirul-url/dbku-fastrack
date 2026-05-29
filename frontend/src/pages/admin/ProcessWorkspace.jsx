@@ -159,6 +159,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [savedApprovalDecisionDraft, setSavedApprovalDecisionDraft] = useState("");
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [showVerificationReport, setShowVerificationReport] = useState(false);
+  const [officialReceiptMode, setOfficialReceiptMode] = useState("manual");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualPaymentDraftSaveIdRef = useRef(0);
@@ -528,6 +529,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         action.requiresSubmittedReceipt
       )
     );
+  const showDetailsBeforeComment =
+    config.key === "payment" &&
+    workspaceActions.some((action) => action.requiresSubmittedReceipt);
+  const showPaymentReceiptDecision =
+    config.key === "payment" &&
+    userDepartment === "PT(IKL)" &&
+    normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
+    workspaceActions.some((action) => action.requiresSubmittedReceipt);
+  const paymentReceiptDecisionOptions = showPaymentReceiptDecision
+    ? workspaceActions.filter((action) => action.requiresSubmittedReceipt)
+    : [];
+  const selectedPaymentReceiptAction = showPaymentReceiptDecision
+    ? paymentReceiptDecisionOptions.find((action) => action.label === decision)
+    : null;
   const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
@@ -583,6 +598,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     setShowVerificationReport(false);
+  }, [selectedRecord?.id]);
+
+  useEffect(() => {
+    const officialReceiptFile = selectedRecord?.form_data?.approval_letter?.official_receipt_file;
+    setOfficialReceiptMode(getPaymentDocumentSource(officialReceiptFile) ? "upload" : "manual");
   }, [selectedRecord?.id]);
 
   useEffect(() => {
@@ -741,7 +761,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (!selectedRecord?.id || !file) return;
 
     const documentLabel =
-      kind === "bill"
+      kind === "official_receipt"
+        ? t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")
+        : kind === "bill"
         ? t("workspace.payment.billDocument", "Bill")
         : t("workspace.payment.approvalLetter", "Approval Letter");
 
@@ -757,10 +779,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       );
       const uploadedForUi = withLocalPaymentDocumentPreview(selectedRecord.id, kind, uploaded, file);
       const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
-      const fieldName = kind === "bill" ? "bill_file" : "letter_file";
+      const fieldName = getPaymentDocumentFieldName(kind);
       const nextApprovalLetter = {
         ...savedApprovalLetter,
         [fieldName]: uploadedForUi,
+        ...(kind === "official_receipt" ? { official_receipt_mode: "upload" } : {}),
         uploaded_by: userDepartment,
         uploaded_at: new Date().toISOString(),
       };
@@ -794,6 +817,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           uploadedForUi
         )
       );
+      if (kind === "official_receipt") {
+        setOfficialReceiptMode("upload");
+      }
       await fetchApplications({ silent: true });
       setSuccess(t("workspace.payment.documentUploaded", "Document uploaded."));
     } catch (err) {
@@ -806,7 +832,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   async function deletePaymentDocument(kind, file) {
     if (!selectedRecord?.id || !file) return;
 
-    const fieldName = kind === "bill" ? "bill_file" : "letter_file";
+    const fieldName = getPaymentDocumentFieldName(kind);
 
     try {
       setSaving(true);
@@ -823,6 +849,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const nextApprovalLetter = {
         ...savedApprovalLetter,
         [fieldName]: null,
+        ...(kind === "official_receipt" ? { official_receipt_mode: "manual" } : {}),
       };
       nextApprovalLetter.status = hasPaymentDocuments({
         ...selectedRecord,
@@ -844,6 +871,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       });
 
       setSelectedDetail(response?.data || response || selectedRecord);
+      if (kind === "official_receipt") {
+        setOfficialReceiptMode("manual");
+      }
       await fetchApplications({ silent: true });
       setSuccess(t("workspace.payment.documentDeleted", "Document deleted."));
     } catch (err) {
@@ -1174,6 +1204,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
+    if (
+      action.requiresOfficialReceipt &&
+      officialReceiptMode === "upload" &&
+      !getPaymentDocumentSource(selectedRecord.form_data?.approval_letter?.official_receipt_file)
+    ) {
+      setError(t("workspace.payment.officialReceiptRequired", "Please upload the official receipt or switch to create manually."));
+      return;
+    }
+
     if (action.requiresPaymentDocuments && !hasPaymentDocuments(selectedRecord)) {
       setError(t(
         "workspace.payment.documentsRequired",
@@ -1326,7 +1365,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setError("");
       setSuccess("");
 
-      if (action.requiresPaymentDocuments) {
+      if (action.requiresPaymentDocuments || action.requiresOfficialReceipt) {
         if (manualPaymentDraftTimerRef.current) {
           window.clearTimeout(manualPaymentDraftTimerRef.current);
           manualPaymentDraftTimerRef.current = null;
@@ -1347,6 +1386,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
         kuChecks: overrides.kuChecks,
+        officialReceiptMode,
       });
 
       const requestPath =
@@ -1360,7 +1400,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         body: JSON.stringify(body),
       });
 
-      if (action.requiresPaymentDocuments) {
+      if (action.requiresPaymentDocuments || action.requiresOfficialReceipt) {
         removeStoredManualPaymentDraft(selectedRecord.id);
       }
 
@@ -1837,6 +1877,51 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </Field>
                   )}
 
+                  {showDetailsBeforeComment && (
+                    detailLoading ? (
+                      <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
+                    ) : (
+                      config.details && (
+                        <config.details
+                          app={selectedRecord}
+                          t={t}
+                          canChooseLicenseExpiry={canChooseLicenseExpiry}
+                          licenseExpiryYears={licenseExpiryYears}
+                          setLicenseExpiryYears={setLicenseExpiryYears}
+                          userDepartment={userDepartment}
+                          saving={saving}
+                          onPaymentDocumentUpload={uploadPaymentDocument}
+                          onPaymentDocumentDelete={deletePaymentDocument}
+                          onManualPaymentDraftChange={updateManualPaymentDraft}
+                          officialReceiptMode={officialReceiptMode}
+                          setOfficialReceiptMode={setOfficialReceiptMode}
+                        />
+                      )
+                    )
+                  )}
+
+                  {showPaymentReceiptDecision && (
+                    <Field label={t("common.decision", "Decision")}>
+                      <select
+                        value={decision}
+                        onChange={(event) => {
+                          setDecision(event.target.value);
+                          if (commentError) setCommentError("");
+                        }}
+                        className="form-input max-w-xs"
+                      >
+                        <option value="">
+                          {t("workspace.decision.selectDecision", "Select decision")}
+                        </option>
+                        {paymentReceiptDecisionOptions.map((action) => (
+                          <option key={action.label} value={action.label}>
+                            {t(action.labelKey, action.label)}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+
                   {showWorkspaceCommentField && (
                     <Field
                       label={
@@ -1952,9 +2037,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   )}
 
                   {detailLoading ? (
-                    <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
+                    !showDetailsBeforeComment && (
+                      <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
+                    )
                   ) : (
-                    config.details && (
+                    !showDetailsBeforeComment && config.details && (
                       <config.details
                         app={selectedRecord}
                         t={t}
@@ -1966,6 +2053,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onPaymentDocumentUpload={uploadPaymentDocument}
                         onPaymentDocumentDelete={deletePaymentDocument}
                         onManualPaymentDraftChange={updateManualPaymentDraft}
+                        officialReceiptMode={officialReceiptMode}
+                        setOfficialReceiptMode={setOfficialReceiptMode}
                       />
                     )
                   )}
@@ -2008,6 +2097,26 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           {saving ? t("workspace.saving") : t("workspace.memo.send", "Send")}
                         </Button>
                       </>
+                    ) : showPaymentReceiptDecision ? (
+                      <Button
+                        onClick={() => {
+                          if (!selectedPaymentReceiptAction) {
+                            setError(t("workspace.decision.required", "Please select a decision."));
+                            return;
+                          }
+
+                          submitAction(selectedPaymentReceiptAction, {
+                            decision,
+                            checkDecisionRemark: false,
+                          });
+                        }}
+                        disabled={saving || !selectedPaymentReceiptAction}
+                        variant={selectedPaymentReceiptAction?.variant || "primary"}
+                        icon="send"
+                        className="min-w-40"
+                      >
+                        {saving ? t("workspace.saving") : t("common.submit", "Submit")}
+                      </Button>
                     ) : showApprovalDecisionButtons ? (
                       <>
                         {!isSutApprovalWorkspace && (
@@ -3701,6 +3810,10 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
 
   if (config?.key === "payment") {
     if (userDepartment === "PT(IKL)") {
+      if (normalizeStatus(selectedRecord?.status) === "payment_submitted") {
+        return t("workspace.payment.ptReceiptAction", "Review the uploaded receipt, then verify or reject it.");
+      }
+
       return t("workspace.payment.ptAction", "Generate the approval letter and bill, then verify uploaded payment proof.");
     }
 
@@ -5310,11 +5423,19 @@ const configs = {
         successKey: "workspace.message.paymentVerified",
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
+        requiresOfficialReceipt: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
         buildPayload: (app, data) => ({
           status: "payment_verified",
           form_data: mergeFormData(app, {
+            approval_letter: {
+              ...buildOfficialReceiptApprovalLetterForSending(
+                app,
+                data.department,
+                data.officialReceiptMode
+              ),
+            },
             payment: {
               ...(app.form_data?.payment || {}),
               status: "Payment Verified",
@@ -5330,7 +5451,6 @@ const configs = {
         labelKey: "workspace.action.rejectReceipt",
         icon: "report",
         variant: "danger",
-        requiresComment: true,
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
         isAvailable: (app, department) =>
@@ -7261,6 +7381,8 @@ function PaymentDetails({
   onPaymentDocumentUpload,
   onPaymentDocumentDelete,
   onManualPaymentDraftChange,
+  officialReceiptMode = "manual",
+  setOfficialReceiptMode,
 }) {
   const payment = app.form_data?.payment || {};
   const approvalLetter = app.form_data?.approval_letter || {};
@@ -7268,12 +7390,17 @@ function PaymentDetails({
   const receiptSource = getPaymentReceiptSource(receiptFile);
   const letterFile = approvalLetter.letter_file;
   const billFile = approvalLetter.bill_file;
+  const officialReceiptFile = approvalLetter.official_receipt_file;
+  const officialReceiptReady = Boolean(getPaymentDocumentSource(officialReceiptFile));
+  const status = normalizeStatus(app?.status);
   const letterReady = Boolean(letterFile);
   const billReady = Boolean(billFile);
   const hasLocalManualDraft = Boolean(getInitialManualPaymentDraft(app));
   const manualReady = hasManualPaymentDocuments(app) || hasLocalManualDraft;
   const canUploadDocuments =
-    userDepartment === "PT(IKL)" && normalizeStatus(app?.status) === "approved";
+    userDepartment === "PT(IKL)" && status === "approved";
+  const isReceiptVerification =
+    userDepartment === "PT(IKL)" && status === "payment_submitted";
   const uploadReady = letterReady && billReady;
   const hasUploadedPaymentDocuments = letterReady || billReady;
   const showReceiptDetails = Boolean(
@@ -7310,136 +7437,241 @@ function PaymentDetails({
     }
   }
 
-  return (
-    <div className="space-y-4 text-sm">
-      <section className="rounded-md border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-3 py-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
+  const manualSummaryHint = isReceiptVerification
+    ? t("workspace.payment.sentDocumentsHint", "These are the documents sent to the applicant.")
+    : t("workspace.payment.manualConfirmHint", "KU(IKL) can review the documents, then confirm using the action button.");
+  const receiptEditorSection = isReceiptVerification ? (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
             <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.payment.documents", "Approval Letter and Bill")}
+              {t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
             </p>
-            </div>
-
-            {canUploadDocuments && (
-              <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
-                {[
-                  [
-                    "upload",
-                    t("workspace.payment.modeUpload", "Upload"),
-                    t("workspace.payment.modeUploadDesc", "Submit by uploading the approval letter and bill files."),
-                    uploadReady,
-                  ],
-                  [
-                    "manual",
-                    t("workspace.payment.modeManual", "Create manually"),
-                    t("workspace.payment.modeManualDesc", "Submit the manual letter, appendix, and bill created here."),
-                    manualReady,
-                  ],
-                ].map(([mode, label, description, ready]) => (
-                  <label
-                    key={mode}
-                    className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 transition ${
-                      documentMode === mode
-                        ? "border-emerald-700 bg-emerald-50"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`payment-document-mode-${app.id}`}
-                      value={mode}
-                      checked={documentMode === mode}
-                      onChange={() => setDocumentMode(mode)}
-                      className="mt-1 h-4 w-4 accent-emerald-700"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-slate-950">
-                        {label}
-                      </span>
-                      <span className="block text-xs leading-5 text-slate-500">
-                        {description}
-                      </span>
-                      {ready && (
-                        <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                          {t("workspace.payment.methodReady", "Ready")}
-                        </span>
-                      )}
+            <p className="mt-1 text-sm text-slate-500">
+              {t("workspace.payment.officialReceiptChoiceDesc", "Upload the official receipt file or create it manually here.")}
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
+            {[
+              [
+                "upload",
+                t("workspace.payment.modeUpload", "Upload"),
+                t("workspace.payment.officialReceiptUploadDesc", "Send an uploaded official receipt file to the applicant."),
+                officialReceiptReady,
+              ],
+              [
+                "manual",
+                t("workspace.payment.modeManual", "Create manually"),
+                t("workspace.payment.officialReceiptManualDesc", "Use the editable official receipt draft below."),
+                true,
+              ],
+            ].map(([mode, label, description, ready]) => (
+              <label
+                key={mode}
+                className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 transition ${
+                  officialReceiptMode === mode
+                    ? "border-emerald-700 bg-emerald-50"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={`official-receipt-mode-${app.id}`}
+                  value={mode}
+                  checked={officialReceiptMode === mode}
+                  onChange={() => setOfficialReceiptMode?.(mode)}
+                  className="mt-1 h-4 w-4 accent-emerald-700"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-950">
+                    {label}
+                  </span>
+                  <span className="block text-xs leading-5 text-slate-500">
+                    {description}
+                  </span>
+                  {ready && (
+                    <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                      {t("workspace.payment.methodReady", "Ready")}
                     </span>
-                  </label>
-                ))}
-              </div>
-            )}
+                  )}
+                </span>
+              </label>
+            ))}
           </div>
         </div>
+      </div>
 
-        {documentMode === "manual" ? (
-          canUploadDocuments ? (
-            <ManualPaymentDocumentsForm
-              app={app}
-              t={t}
-              readOnly={false}
-              onDraftChange={onManualPaymentDraftChange}
-            />
-          ) : (
-            <div className="px-3 py-3">
-              <ManualPaymentDocumentsSummary app={app} t={t} />
+      {officialReceiptMode === "upload" ? (
+        <div className="px-3 py-3">
+          <PaymentDocumentSlot
+            label={t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
+            file={officialReceiptFile}
+            t={t}
+            canUpload
+            saving={saving}
+            onFileChange={(file) => onPaymentDocumentUpload?.("official_receipt", file)}
+            onDelete={() => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile)}
+          />
+        </div>
+      ) : (
+        <ManualPaymentDocumentsForm
+          app={app}
+          t={t}
+          readOnly={false}
+          receiptOnly
+          initialTab="receipt"
+          onDraftChange={onManualPaymentDraftChange}
+        />
+      )}
+    </section>
+  ) : null;
+
+  const documentSection = (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+            {t("workspace.payment.documents", "Approval Letter and Bill")}
+          </p>
+          </div>
+
+          {canUploadDocuments && (
+            <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
+              {[
+                [
+                  "upload",
+                  t("workspace.payment.modeUpload", "Upload"),
+                  t("workspace.payment.modeUploadDesc", "Submit by uploading the approval letter and bill files."),
+                  uploadReady,
+                ],
+                [
+                  "manual",
+                  t("workspace.payment.modeManual", "Create manually"),
+                  t("workspace.payment.modeManualDesc", "Submit the manual letter, appendix, and bill created here."),
+                  manualReady,
+                ],
+              ].map(([mode, label, description, ready]) => (
+                <label
+                  key={mode}
+                  className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 transition ${
+                    documentMode === mode
+                      ? "border-emerald-700 bg-emerald-50"
+                      : "border-slate-200 bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={`payment-document-mode-${app.id}`}
+                    value={mode}
+                    checked={documentMode === mode}
+                    onChange={() => setDocumentMode(mode)}
+                    className="mt-1 h-4 w-4 accent-emerald-700"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-slate-950">
+                      {label}
+                    </span>
+                    <span className="block text-xs leading-5 text-slate-500">
+                      {description}
+                    </span>
+                    {ready && (
+                      <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        {t("workspace.payment.methodReady", "Ready")}
+                        </span>
+                    )}
+                  </span>
+                </label>
+              ))}
             </div>
-          )
-        ) : (
-          <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
-            <PaymentDocumentSlot
-              label={t("workspace.payment.approvalLetter", "Approval Letter")}
-              file={letterFile}
-              t={t}
-              canUpload={canUploadDocuments}
-              saving={saving}
-              onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
-              onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-            />
-            <PaymentDocumentSlot
-              label={t("workspace.payment.billDocument", "Bill")}
-              file={billFile}
-              t={t}
-              canUpload={canUploadDocuments}
-              saving={saving}
-              onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
-              onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-            />
-            {!canUploadDocuments && manualReady && !hasUploadedPaymentDocuments && (
-              <ManualPaymentDocumentsSummary app={app} t={t} />
-            )}
-          </div>
-        )}
-
-      </section>
-
-      {showReceiptDetails && (
-        <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Info
-              label={t("workspace.info.receipt")}
-              value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
-            />
-            {payment.verification_result && (
-              <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
-            )}
-            {payment.verification_notes && (
-              <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
-            )}
-          </div>
-
-          {receiptSource && (
-            <button
-              type="button"
-              onClick={viewReceipt}
-              className="mt-3 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
-            >
-              <Icon name="visibility" className="text-base" />
-              {t("workspace.info.viewReceipt")}
-            </button>
           )}
-        </section>
+        </div>
+      </div>
+
+      {documentMode === "manual" ? (
+        canUploadDocuments ? (
+          <ManualPaymentDocumentsForm
+            app={app}
+            t={t}
+            readOnly={false}
+            onDraftChange={onManualPaymentDraftChange}
+          />
+        ) : (
+          <div className="px-3 py-3">
+            <ManualPaymentDocumentsSummary app={app} t={t} hint={manualSummaryHint} />
+          </div>
+        )
+      ) : (
+        <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
+          <PaymentDocumentSlot
+            label={t("workspace.payment.approvalLetter", "Approval Letter")}
+            file={letterFile}
+            t={t}
+            canUpload={canUploadDocuments}
+            saving={saving}
+            onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
+            onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+          />
+          <PaymentDocumentSlot
+            label={t("workspace.payment.billDocument", "Bill")}
+            file={billFile}
+            t={t}
+            canUpload={canUploadDocuments}
+            saving={saving}
+            onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
+            onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+          />
+          {!canUploadDocuments && manualReady && !hasUploadedPaymentDocuments && (
+            <ManualPaymentDocumentsSummary app={app} t={t} hint={manualSummaryHint} />
+          )}
+        </div>
+      )}
+
+    </section>
+  );
+
+  const receiptSection = showReceiptDetails ? (
+    <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Info
+          label={t("workspace.info.receipt")}
+          value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
+        />
+        {payment.verification_result && (
+          <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
+        )}
+        {payment.verification_notes && (
+          <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
+        )}
+      </div>
+
+      {receiptSource && (
+        <button
+          type="button"
+          onClick={viewReceipt}
+          className="mt-3 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
+        >
+          <Icon name="visibility" className="text-base" />
+          {t("workspace.info.viewReceipt")}
+        </button>
+      )}
+    </section>
+  ) : null;
+
+  return (
+    <div className="space-y-4 text-sm">
+      {isReceiptVerification ? (
+        <>
+          {receiptSection}
+          {documentSection}
+          {receiptEditorSection}
+        </>
+      ) : (
+        <>
+          {documentSection}
+          {receiptSection}
+        </>
       )}
     </div>
   );
@@ -7513,17 +7745,26 @@ function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange, 
   );
 }
 
-function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
+function ManualPaymentDocumentsForm({
+  app,
+  t,
+  readOnly,
+  onDraftChange,
+  receiptOnly = false,
+  initialTab = "letter",
+}) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
   const initialState = getCachedManualPaymentFormState(app);
   const [subject, setSubject] = useState(() => initialState.subject);
   const [fields, setFields] = useState(() => initialState.fields);
+  const [receiptFields, setReceiptFields] = useState(() => initialState.receiptFields);
   const [paymentRows, setPaymentRows] = useState(() => initialState.paymentRows);
   const [terms, setTerms] = useState(() => initialState.terms);
   const amount = getBillAmount(app);
   const [invoiceNo, setInvoiceNo] = useState(() => initialState.invoiceNo);
-  const [activeManualDocumentTab, setActiveManualDocumentTab] = useState("letter");
+  const [receiptNo, setReceiptNo] = useState(() => initialState.receiptNo);
+  const [activeManualDocumentTab, setActiveManualDocumentTab] = useState(initialTab);
   const totalAmount = useMemo(
     () => paymentRows.reduce(
       (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
@@ -7547,13 +7788,15 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
   const previewApp = useMemo(
     () => buildManualPaymentPreviewApp(app, {
       fields,
+      receiptFields,
       subject,
       paymentRows,
       terms,
       invoiceNo,
+      receiptNo,
       amount: totalAmount || amount,
     }),
-    [app, fields, subject, paymentRows, terms, invoiceNo, totalAmount, amount]
+    [app, fields, receiptFields, subject, paymentRows, terms, invoiceNo, receiptNo, totalAmount, amount]
   );
 
   useEffect(() => {
@@ -7563,21 +7806,29 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       letterBody,
       billNotes,
       fields,
+      receiptFields,
       paymentRows,
       terms,
       invoiceNo,
+      receiptNo,
       amount: totalAmount || amount,
     });
-  }, [readOnly, subject, letterBody, billNotes, fields, paymentRows, terms, invoiceNo, totalAmount, amount, onDraftChange]);
+  }, [readOnly, subject, letterBody, billNotes, fields, receiptFields, paymentRows, terms, invoiceNo, receiptNo, totalAmount, amount, onDraftChange]);
 
   useEffect(() => {
     const nextState = getCachedManualPaymentFormState(app);
     setSubject(nextState.subject);
     setFields(nextState.fields);
+    setReceiptFields(nextState.receiptFields);
     setPaymentRows(nextState.paymentRows);
     setInvoiceNo(nextState.invoiceNo);
+    setReceiptNo(nextState.receiptNo);
     setTerms(nextState.terms);
   }, [app?.id, app?.updated_at]);
+
+  useEffect(() => {
+    setActiveManualDocumentTab(initialTab);
+  }, [app?.id, initialTab]);
 
   useEffect(() => {
     if (readOnly) return;
@@ -7596,10 +7847,28 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
         billSenText: amountInWords.sen,
       };
     });
+    setReceiptFields((current) => {
+      if (
+        current.billAmountText === amountInWords.ringgit &&
+        current.billSenText === amountInWords.sen
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        billAmountText: amountInWords.ringgit,
+        billSenText: amountInWords.sen,
+      };
+    });
   }, [amountInWords.ringgit, amountInWords.sen, readOnly]);
 
   function updateField(key, value) {
     setFields((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateReceiptField(key, value) {
+    setReceiptFields((current) => ({ ...current, [key]: value }));
   }
 
   async function handleBillLogoUpload(key, file) {
@@ -7984,23 +8253,253 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
     </div>
   );
 
+  const officialReceiptSection = (
+    <div className="rounded-md border border-slate-200 bg-white px-4 py-4">
+      <div className="mb-4 flex flex-col gap-1 border-b border-slate-200 pb-3">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          {t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
+        </p>
+        <p className="text-sm text-slate-500">
+          {t("workspace.payment.manual.officialReceiptDesc", "Prepare the official receipt that will be sent to the applicant after payment verification.")}
+        </p>
+      </div>
+
+      <div className="mx-auto max-w-[940px] rounded border border-slate-300 bg-white p-5 text-sm text-slate-950">
+        <div className="grid items-start gap-4 lg:grid-cols-[100px_minmax(0,1fr)_160px]">
+          <div className="flex h-20 items-center justify-center">
+            <img
+              src="/logo-dbku.png"
+              alt="DBKU"
+              className="max-h-20 max-w-full object-contain"
+            />
+          </div>
+          <div className="text-center">
+            <p className="text-base font-extrabold uppercase leading-5">
+              {t("workspace.payment.manual.billHeaderTitle", "Mayor of North Kuching")}
+            </p>
+            <p className="mt-1 font-semibold">
+              {t("workspace.payment.manual.billHeaderSubtitle", "(The Commissioner of The City of Kuching North)")}
+            </p>
+            <p className="mt-1 text-xs leading-5">
+              {t("workspace.payment.manual.billHeaderAddressLine1", "Dewan Bandaraya Kuching Utara")}<br />
+              {t("workspace.payment.manual.billHeaderAddressLine2", "Bukit Siol, Jalan Semariang, Petra Jaya,")}<br />
+              {t("workspace.payment.manual.billHeaderAddressLine3", "93050 Kuching, Sarawak, Malaysia.")}
+            </p>
+          </div>
+          <input
+            value={receiptFields.billCopyLabel || ""}
+            onChange={(event) => updateReceiptField("billCopyLabel", event.target.value)}
+            placeholder="Salinan Pelanggan"
+            className="form-input h-8 border-transparent bg-transparent px-0 text-right text-xs font-bold uppercase tracking-wide text-slate-700 shadow-none focus:border-slate-300 focus:bg-white"
+            readOnly={readOnly}
+          />
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+          <input
+            value={receiptFields.billReceiptTitle || ""}
+            onChange={(event) => updateReceiptField("billReceiptTitle", event.target.value)}
+            placeholder="Official Receipt"
+            className="form-input h-12 border-transparent bg-transparent px-0 text-center text-3xl font-extrabold uppercase tracking-[0.12em] text-slate-950 shadow-none focus:border-slate-300 focus:bg-white lg:text-left"
+            readOnly={readOnly}
+          />
+          <div className="px-3 py-2">
+            <label className="block text-lg font-bold text-slate-950">
+              {t("workspace.payment.manual.receiptNoShort", "No.")}
+            </label>
+            <input
+              value={receiptNo}
+              onChange={(event) => setReceiptNo(event.target.value)}
+              placeholder="OR-00001"
+              className="form-input h-10 border-transparent bg-transparent px-0 text-xl font-extrabold tracking-wide text-red-700 shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-3">
+            <div className="grid grid-cols-[84px_1fr] items-center gap-3">
+              <span>{t("workspace.payment.manual.station", "Station")}</span>
+              <input
+                value={receiptFields.billStation || ""}
+                onChange={(event) => updateReceiptField("billStation", event.target.value)}
+                placeholder="ALiS"
+                className="form-input h-9 border-0 border-b border-dotted border-slate-900 rounded-none px-1 font-bold shadow-none focus:border-slate-900 focus:shadow-none"
+                readOnly={readOnly}
+              />
+            </div>
+            <div className="grid grid-cols-[84px_1fr] items-center gap-3">
+              <span>{t("workspace.payment.manual.date", "Date")}</span>
+              <input
+                type="date"
+                value={receiptFields.letterDate || fields.letterDate}
+                onChange={(event) => updateReceiptField("letterDate", event.target.value)}
+                className="form-input h-9 border-0 border-b border-dotted border-slate-900 rounded-none px-1 font-bold shadow-none focus:border-slate-900 focus:shadow-none"
+                readOnly={readOnly}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[320px] border-collapse text-sm">
+              <thead>
+                <tr>
+                  <th className="border border-slate-900 px-2 py-2 text-center">
+                    {t("workspace.payment.manual.forCredit", "For Credit")}
+                  </th>
+                  <th className="border border-slate-900 px-2 py-2 text-center">
+                    {t("workspace.payment.manual.amount", "Amount")}<br />RM
+                  </th>
+                  <th className="border border-slate-900 px-2 py-2 text-center">
+                    {t("workspace.payment.manual.sen", "Sen")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentRows.map((row, index) => {
+                  const rowAmount = parseCurrencyAmount(row.amount) || 0;
+                  const ringgit = Math.floor(rowAmount);
+                  const sen = Math.round((rowAmount - ringgit) * 100);
+
+                  return (
+                    <tr key={index}>
+                      <td className="border border-slate-900 px-2 py-2">
+                        <input
+                          value={row.label}
+                          onChange={(event) => updatePaymentRow(index, "label", event.target.value)}
+                          className="form-input h-8 border-transparent bg-transparent px-0 shadow-none focus:border-slate-300 focus:bg-white"
+                          readOnly={readOnly}
+                        />
+                      </td>
+                      <td className="border border-slate-900 px-2 py-2 text-right">{ringgit}</td>
+                      <td className="border border-slate-900 px-2 py-2 text-right">{String(sen).padStart(2, "0")}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-slate-50 font-bold">
+                  <td className="border border-slate-900 px-2 py-2 text-right">
+                    {t("workspace.payment.manual.totalRm", "Total RM")}
+                  </td>
+                  <td className="border border-slate-900 px-2 py-2 text-right" colSpan="2">
+                    {formatCurrency(totalAmount || amount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-2">
+          <div className="grid grid-cols-[132px_1fr] items-center gap-3">
+            <span>{t("workspace.payment.manual.receivedFromLine", "RECEIVED from")}</span>
+            <input
+              value={receiptFields.billReceivedFrom || ""}
+              onChange={(event) => updateReceiptField("billReceivedFrom", event.target.value)}
+              placeholder={getBillingRecipientName(app)}
+              className="form-input h-9 border-0 border-b border-dotted border-slate-900 rounded-none px-1 font-bold shadow-none focus:border-slate-900 focus:shadow-none"
+              readOnly={readOnly}
+            />
+          </div>
+          <div className="grid grid-cols-[132px_1fr] items-center gap-3">
+            <span>{t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit")}</span>
+            <input
+              value={receiptFields.billAmountText || ""}
+              onChange={(event) => updateReceiptField("billAmountText", event.target.value)}
+              className="form-input h-9 border-0 border-b border-dotted border-slate-900 rounded-none px-1 font-bold shadow-none focus:border-slate-900 focus:shadow-none"
+              readOnly={readOnly}
+            />
+          </div>
+          <div className="grid grid-cols-[132px_1fr] items-center gap-3">
+            <span>{t("workspace.payment.manual.andSenLine", "and Sen")}</span>
+            <input
+              value={receiptFields.billSenText || ""}
+              onChange={(event) => updateReceiptField("billSenText", event.target.value)}
+              className="form-input h-9 border-0 border-b border-dotted border-slate-900 rounded-none px-1 font-bold shadow-none focus:border-slate-900 focus:shadow-none"
+              readOnly={readOnly}
+            />
+          </div>
+          {["billRemarkLine1", "billRemarkLine2", "billRemarkLine3"].map((key) => (
+            <input
+              key={key}
+              value={receiptFields[key] || ""}
+              onChange={(event) => updateReceiptField(key, event.target.value)}
+              className="form-input h-9 border-0 border-b border-dotted border-slate-900 rounded-none px-1 shadow-none focus:border-slate-900 focus:shadow-none"
+              readOnly={readOnly}
+            />
+          ))}
+        </div>
+
+        <div className="mt-8 grid gap-4 lg:grid-cols-[170px_minmax(0,1fr)_220px] lg:items-end">
+          <div>
+            <input
+              value={receiptFields.billPaymentLine1 || ""}
+              onChange={(event) => updateReceiptField("billPaymentLine1", event.target.value)}
+              placeholder="Cash"
+              className="form-input h-8 border-0 border-b border-dotted border-slate-900 rounded-none px-1 text-center font-bold uppercase shadow-none focus:border-slate-900 focus:shadow-none"
+              readOnly={readOnly}
+            />
+            <input
+              value={receiptFields.billPaymentLine2 || ""}
+              onChange={(event) => updateReceiptField("billPaymentLine2", event.target.value)}
+              placeholder="Cheque No."
+              className="form-input h-8 border-0 px-1 text-center font-bold uppercase shadow-none focus:border-slate-300 focus:bg-white"
+              readOnly={readOnly}
+            />
+          </div>
+          <textarea
+            value={receiptFields.billBankNote || ""}
+            onChange={(event) => updateReceiptField("billBankNote", event.target.value)}
+            rows="2"
+            className="form-input min-h-16 text-center text-xs"
+            readOnly={readOnly}
+          />
+          <input
+            value={receiptFields.billSignatureText || ""}
+            onChange={(event) => updateReceiptField("billSignatureText", event.target.value)}
+            placeholder="b.p. Datuk Bandar"
+            className="form-input h-8 border-0 border-b border-dotted border-slate-900 rounded-none px-1 text-center shadow-none focus:border-slate-900 focus:shadow-none"
+            readOnly={readOnly}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const showManualReceiptTab =
+    receiptOnly ||
+    hasSentManualOfficialReceipt(app);
   const manualDocumentTabs = [
-    {
-      key: "letter",
-      label: t("workspace.payment.approvalLetter", "Approval Letter"),
-      icon: "description",
-    },
-    {
-      key: "appendix",
-      label: t("workspace.payment.manual.appendix", "Appendix"),
-      icon: "subject",
-    },
-    {
-      key: "bill",
-      label: t("workspace.payment.billDocument", "Bill"),
-      icon: "receipt_long",
-    },
+    ...(!receiptOnly
+      ? [
+          {
+            key: "letter",
+            label: t("workspace.payment.approvalLetter", "Approval Letter"),
+            icon: "description",
+          },
+          {
+            key: "appendix",
+            label: t("workspace.payment.manual.appendix", "Appendix"),
+            icon: "subject",
+          },
+          {
+            key: "bill",
+            label: t("workspace.payment.billDocument", "Bill"),
+            icon: "receipt_long",
+          },
+        ]
+      : []),
+    ...(showManualReceiptTab
+      ? [
+          {
+            key: "receipt",
+            label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+            icon: "payments",
+          },
+        ]
+      : []),
   ];
+  const showManualDocumentTabs = manualDocumentTabs.length > 1;
 
   return (
     <div className="space-y-3 px-3 py-3">
@@ -8013,56 +8512,79 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
                 : t("workspace.payment.manualSection", "Create Manually")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              {readOnly
-                ? t("workspace.payment.manualReviewSectionDesc", "Review the submitted approval letter, appendix, and bill.")
-                : t("workspace.payment.manualSectionDesc", "Edit the approval letter, appendix, and bill content here, then save before submitting to KU(IKL).")}
+              {receiptOnly
+                ? t("workspace.payment.manualReceiptSectionDesc", "Edit the official receipt here before verifying payment and sending it to the applicant.")
+                : readOnly
+                  ? t("workspace.payment.manualReviewSectionDesc", "Review the submitted approval letter, appendix, and bill.")
+                  : t("workspace.payment.manualSectionDesc", "Edit the approval letter, appendix, and bill content here, then save before submitting to KU(IKL).")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {!readOnly && (
+              <span className="inline-flex min-h-9 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <Icon name="cloud_done" className="text-[16px]" />
+                {t("workspace.payment.manual.autoSaveDraft", "Auto-saves as draft")}
+              </span>
+            )}
+            {!receiptOnly && (
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="visibility"
+                  className="min-h-9 px-3 py-1 text-xs"
+                  onClick={() => openManualPaymentDocument(previewApp, "letter", t)}
+                >
+                  {t("workspace.payment.viewManualLetter", "View Letter")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="visibility"
+                  className="min-h-9 px-3 py-1 text-xs"
+                  onClick={() => openManualPaymentDocument(previewApp, "bill", t)}
+                >
+                  {t("workspace.payment.viewManualBill", "View Bill")}
+                </Button>
+              </>
+            )}
             <Button
               type="button"
               variant="secondary"
               icon="visibility"
               className="min-h-9 px-3 py-1 text-xs"
-              onClick={() => openManualPaymentDocument(previewApp, "letter", t)}
+              onClick={() => openManualPaymentDocument(previewApp, "receipt", t)}
             >
-              {t("workspace.payment.viewManualLetter", "View Letter")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              icon="visibility"
-              className="min-h-9 px-3 py-1 text-xs"
-              onClick={() => openManualPaymentDocument(previewApp, "bill", t)}
-            >
-              {t("workspace.payment.viewManualBill", "View Bill")}
+              {t("workspace.payment.viewManualReceipt", "View Receipt")}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="inline-flex w-full flex-wrap gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
-        {manualDocumentTabs.map((tab) => {
-          const selected = activeManualDocumentTab === tab.key;
+      {showManualDocumentTabs && (
+        <div className="inline-flex w-full flex-wrap gap-1 rounded-md border border-slate-200 bg-slate-50 p-1">
+          {manualDocumentTabs.map((tab) => {
+            const selected = activeManualDocumentTab === tab.key;
 
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-3 py-2 text-sm font-semibold transition ${
-                selected
-                  ? "bg-emerald-700 text-white shadow-sm"
-                  : "bg-transparent text-slate-700 hover:bg-white"
-              }`}
-              aria-pressed={selected}
-              onClick={() => setActiveManualDocumentTab(tab.key)}
-            >
-              <Icon name={tab.icon} className="text-[18px]" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                className={`inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded px-3 py-2 text-sm font-semibold transition ${
+                  selected
+                    ? "bg-emerald-700 text-white shadow-sm"
+                    : "bg-transparent text-slate-700 hover:bg-white"
+                }`}
+                aria-pressed={selected}
+                onClick={() => setActiveManualDocumentTab(tab.key)}
+              >
+                <Icon name={tab.icon} className="text-[18px]" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {activeManualDocumentTab === "letter" && (
       <div className="mx-auto max-w-[940px] rounded-md border border-slate-300 bg-white px-5 py-5">
@@ -8449,11 +8971,12 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
       )}
 
       {activeManualDocumentTab === "bill" && billReceiptSection}
+      {activeManualDocumentTab === "receipt" && officialReceiptSection}
     </div>
   );
 }
 
-function ManualPaymentDocumentsSummary({ app, t }) {
+function ManualPaymentDocumentsSummary({ app, t, hint = "" }) {
   const previewApp = useMemo(() => getManualPaymentPreviewApp(app), [app]);
   const documents = [
     {
@@ -8468,6 +8991,16 @@ function ManualPaymentDocumentsSummary({ app, t }) {
       buttonLabel: t("common.view", "View"),
       onClick: () => openManualPaymentDocument(previewApp, "bill", t),
     },
+    ...(hasSentManualOfficialReceipt(app)
+      ? [
+          {
+            key: "receipt",
+            label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+            buttonLabel: t("common.view", "View"),
+            onClick: () => openManualPaymentDocument(previewApp, "receipt", t),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -8477,7 +9010,7 @@ function ManualPaymentDocumentsSummary({ app, t }) {
           {t("workspace.payment.reviewDocuments", "Documents")}
         </p>
         <p className="mt-1 text-sm text-slate-500">
-          {t("workspace.payment.manualConfirmHint", "KU(IKL) can review the documents, then confirm using the action button.")}
+          {hint || t("workspace.payment.manualConfirmHint", "KU(IKL) can review the documents, then confirm using the action button.")}
         </p>
       </div>
 
@@ -8528,6 +9061,12 @@ function getPaymentDocumentSource(file) {
   );
 }
 
+function getPaymentDocumentFieldName(kind) {
+  if (kind === "bill") return "bill_file";
+  if (kind === "official_receipt") return "official_receipt_file";
+  return "letter_file";
+}
+
 async function openPaymentDocument(file, t) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
@@ -8568,6 +9107,30 @@ function hasManualPaymentDocuments(app) {
   );
 }
 
+function hasSentManualOfficialReceipt(app) {
+  const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
+  return Boolean(
+    manualReceipt.sent_at ||
+    manualReceipt.status === "Sent to Applicant" ||
+    (normalizeStatus(app?.status) === "payment_verified" && manualReceipt.saved_at)
+  );
+}
+
+function getSentOfficialReceiptFile(app) {
+  const file = app?.form_data?.approval_letter?.official_receipt_file || null;
+  if (!getPaymentDocumentSource(file)) return null;
+
+  if (
+    file.sent_at ||
+    file.status === "Sent to Applicant" ||
+    normalizeStatus(app?.status) === "payment_verified"
+  ) {
+    return file;
+  }
+
+  return null;
+}
+
 function buildManualPaymentApprovalLetter(
   savedApprovalLetter = {},
   data,
@@ -8577,8 +9140,11 @@ function buildManualPaymentApprovalLetter(
 ) {
   const savedManualLetter = savedApprovalLetter.manual_letter || {};
   const savedManualBill = savedApprovalLetter.manual_bill || {};
+  const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
   const savedAt = submitted ? timestamp : savedManualLetter.saved_at || timestamp;
   const billSavedAt = submitted ? timestamp : savedManualBill.saved_at || timestamp;
+  const receiptSavedAt = savedManualReceipt.saved_at || timestamp;
+  const receiptNo = data.receiptNo || savedManualReceipt.receipt_no || savedManualReceipt.invoice_no || data.invoiceNo;
 
   return {
     ...savedApprovalLetter,
@@ -8608,12 +9174,100 @@ function buildManualPaymentApprovalLetter(
       draft_saved_by: userDepartment,
       draft_saved_at: timestamp,
     },
+    manual_receipt: {
+      ...savedManualReceipt,
+      receipt_no: receiptNo,
+      invoice_no: receiptNo,
+      amount: data.amount,
+      rows: data.paymentRows,
+      notes: buildManualBillNotes({
+        invoiceNo: receiptNo,
+        paymentRows: data.paymentRows,
+      }),
+      fields: data.receiptFields || savedManualReceipt.fields,
+      saved_by: savedManualReceipt.saved_by || userDepartment,
+      saved_at: receiptSavedAt,
+      draft_saved_by: userDepartment,
+      draft_saved_at: timestamp,
+    },
     ...(submitted
       ? {
           uploaded_by: userDepartment,
           uploaded_at: timestamp,
         }
       : {}),
+  };
+}
+
+function buildManualOfficialReceiptForSending(app, userDepartment) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualLetter = approvalLetter.manual_letter || {};
+  const manualBill = approvalLetter.manual_bill || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const defaultDraft = getDefaultManualPaymentDraft(app);
+  const rows = normalizePaymentRows(
+    manualReceipt.rows?.length
+      ? manualReceipt.rows
+      : manualBill.rows?.length
+        ? manualBill.rows
+        : defaultDraft.paymentRows
+  );
+  const receiptNo =
+    manualReceipt.receipt_no ||
+    manualReceipt.invoice_no ||
+    manualBill.invoice_no ||
+    getInvoiceNo(app);
+  const amount = rows.reduce(
+    (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
+    0
+  ) || parseCurrencyAmount(getBillAmount(app)) || 0;
+  const sentAt = new Date().toISOString();
+
+  return {
+    ...manualReceipt,
+    receipt_no: receiptNo,
+    invoice_no: receiptNo,
+    amount,
+    rows,
+    notes: buildManualBillNotes({
+      invoiceNo: receiptNo,
+      paymentRows: rows,
+    }),
+    fields: getManualPaymentFields(
+      app,
+      manualReceipt.fields || manualLetter.fields,
+      { preserveReceiptFields: true }
+    ),
+    status: "Sent to Applicant",
+    saved_by: manualReceipt.saved_by || userDepartment,
+    saved_at: manualReceipt.saved_at || sentAt,
+    sent_by: userDepartment,
+    sent_at: sentAt,
+  };
+}
+
+function buildOfficialReceiptApprovalLetterForSending(app, userDepartment, mode) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const officialReceiptFile = approvalLetter.official_receipt_file || null;
+  const sentAt = new Date().toISOString();
+
+  if (mode === "upload" && getPaymentDocumentSource(officialReceiptFile)) {
+    return {
+      ...approvalLetter,
+      official_receipt_mode: "upload",
+      official_receipt_file: {
+        ...officialReceiptFile,
+        status: "Sent to Applicant",
+        sent_by: userDepartment,
+        sent_at: sentAt,
+      },
+    };
+  }
+
+  return {
+    ...approvalLetter,
+    official_receipt_mode: "manual",
+    manual_receipt: buildManualOfficialReceiptForSending(app, userDepartment),
   };
 }
 
@@ -8738,11 +9392,15 @@ function getManualPaymentBackendSavedAt(app) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualLetter = approvalLetter.manual_letter || {};
   const manualBill = approvalLetter.manual_bill || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
   const timestamps = [
     manualLetter.draft_saved_at,
     manualLetter.saved_at,
     manualBill.draft_saved_at,
     manualBill.saved_at,
+    manualReceipt.draft_saved_at,
+    manualReceipt.saved_at,
+    manualReceipt.sent_at,
     approvalLetter.uploaded_at,
   ]
     .map((value) => Date.parse(value || ""))
@@ -8786,6 +9444,7 @@ function rememberManualPaymentFormState(cacheKey, state) {
 function getCachedManualPaymentFormState(app) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
+  const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
   const storedDraft = getInitialManualPaymentDraft(app);
   const cacheKey = getManualPaymentFormStateCacheKey(app, storedDraft);
   const cachedState = MANUAL_PAYMENT_FORM_STATE_CACHE.get(cacheKey);
@@ -8794,15 +9453,25 @@ function getCachedManualPaymentFormState(app) {
 
   const defaultDraft = getDefaultManualPaymentDraft(app);
   const savedFields = getManualPaymentFields(app, manualLetter.fields);
+  const savedReceiptFields = getManualPaymentFields(
+    app,
+    manualReceipt.fields || manualLetter.fields,
+    { preserveReceiptFields: true }
+  );
   const state = {
     subject: storedDraft?.subject || manualLetter.subject || defaultDraft.subject,
     fields: storedDraft?.fields
       ? getManualPaymentFields(app, storedDraft.fields)
       : savedFields,
+    receiptFields: storedDraft?.receiptFields
+      ? getManualPaymentFields(app, storedDraft.receiptFields, { preserveReceiptFields: true })
+      : savedReceiptFields,
     paymentRows: normalizePaymentRows(
       storedDraft?.paymentRows?.length
         ? storedDraft.paymentRows
-        : manualBill.rows?.length
+        : manualReceipt.rows?.length
+          ? manualReceipt.rows
+          : manualBill.rows?.length
           ? manualBill.rows
           : defaultDraft.paymentRows
     ),
@@ -8810,6 +9479,12 @@ function getCachedManualPaymentFormState(app) {
       storedDraft?.terms || manualLetter.terms || defaultDraft.terms
     ),
     invoiceNo: storedDraft?.invoiceNo || manualBill.invoice_no || getInvoiceNo(app),
+    receiptNo:
+      storedDraft?.receiptNo ||
+      manualReceipt.receipt_no ||
+      manualReceipt.invoice_no ||
+      manualBill.invoice_no ||
+      getInvoiceNo(app),
   };
 
   rememberManualPaymentFormState(cacheKey, state);
@@ -8826,10 +9501,12 @@ function getManualPaymentPreviewApp(app) {
 
   return buildManualPaymentPreviewApp(app, {
     fields: initialState.fields,
+    receiptFields: initialState.receiptFields,
     subject: initialState.subject,
     paymentRows: initialState.paymentRows,
     terms: initialState.terms,
     invoiceNo: initialState.invoiceNo,
+    receiptNo: initialState.receiptNo,
     amount: totalAmount || amount,
   });
 }
@@ -9292,6 +9969,19 @@ function buildManualPaymentPreviewApp(app, draft) {
           }),
           saved_at: approvalLetter.manual_bill?.saved_at || new Date().toISOString(),
         },
+        manual_receipt: {
+          ...(approvalLetter.manual_receipt || {}),
+          receipt_no: draft.receiptNo || draft.invoiceNo,
+          invoice_no: draft.receiptNo || draft.invoiceNo,
+          amount: draft.amount,
+          rows: draft.paymentRows,
+          notes: buildManualBillNotes({
+            invoiceNo: draft.receiptNo || draft.invoiceNo,
+            paymentRows: draft.paymentRows,
+          }),
+          fields: draft.receiptFields,
+          saved_at: approvalLetter.manual_receipt?.saved_at || new Date().toISOString(),
+        },
       },
     },
   };
@@ -9299,7 +9989,9 @@ function buildManualPaymentPreviewApp(app, draft) {
 
 function openManualPaymentDocument(app, type, t) {
   openPrintablePreview(
-    `${getApplicationReference(app)} ${type === "bill" ? "bill" : "approval letter"}`,
+    `${getApplicationReference(app)} ${
+      type === "receipt" ? "official receipt" : type === "bill" ? "bill" : "approval letter"
+    }`,
     buildManualPaymentDocumentHtml(app, type, t)
   );
 }
@@ -9308,11 +10000,23 @@ function buildManualPaymentDocumentHtml(app, type, t) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualLetter = approvalLetter.manual_letter || {};
   const manualBill = approvalLetter.manual_bill || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
   const defaultDraft = getDefaultManualPaymentDraft(app);
-  const fields = getManualPaymentFields(app, manualLetter.fields, {
-    preserveReceiptFields: type === "receipt",
-  });
-  const paymentRows = manualBill.rows?.length ? manualBill.rows : defaultDraft.paymentRows;
+  const fields = getManualPaymentFields(
+    app,
+    type === "receipt"
+      ? manualReceipt.fields || manualLetter.fields
+      : manualLetter.fields,
+    {
+      preserveReceiptFields: type === "receipt",
+    }
+  );
+  const paymentRows =
+    type === "receipt" && manualReceipt.rows?.length
+      ? manualReceipt.rows
+      : manualBill.rows?.length
+        ? manualBill.rows
+        : defaultDraft.paymentRows;
   const total = paymentRows.reduce(
     (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
     0
@@ -9323,7 +10027,7 @@ function buildManualPaymentDocumentHtml(app, type, t) {
       t,
       fields,
       paymentRows,
-      invoiceNo: manualBill.invoice_no || getInvoiceNo(app),
+      invoiceNo: manualReceipt.receipt_no || manualReceipt.invoice_no || manualBill.invoice_no || getInvoiceNo(app),
       total,
     });
   }
@@ -9652,7 +10356,7 @@ function buildManualOfficialReceiptDocumentHtml({ app, t, fields, paymentRows, i
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(t("workspace.payment.billDocument", "Bill"))}</title>
+  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"))}</title>
   <style>
     @page { size: A4; margin: 16mm; }
     * { box-sizing: border-box; }
@@ -9676,9 +10380,11 @@ function buildManualOfficialReceiptDocumentHtml({ app, t, fields, paymentRows, i
     th, td { border: 1px solid #111827; padding: 5px 7px; }
     th { text-align: center; font-weight: 700; }
     td.amount { text-align: right; white-space: nowrap; }
-    .received { margin-top: 18px; font-size: 13px; line-height: 1.5; }
-    .received .fill { display: inline-block; min-width: 520px; border-bottom: 1px dotted #111827; padding: 0 4px; font-weight: 700; }
-    .sum-line { margin-top: 10px; border-bottom: 1px dotted #111827; min-height: 22px; }
+    .received { margin-top: 22px; font-size: 13px; line-height: 1.4; }
+    .received-line { display: grid; grid-template-columns: 132px 1fr; column-gap: 8px; align-items: end; min-height: 24px; }
+    .received-label { white-space: nowrap; }
+    .received .fill { display: block; min-width: 0; border-bottom: 1px dotted #111827; line-height: 20px; padding: 0 6px 2px; font-weight: 700; }
+    .fill-value { display: inline-block; background: #fff; padding-right: 6px; }
     .footer { display: grid; grid-template-columns: 150px 1fr 190px; gap: 24px; align-items: end; margin-top: 46px; font-size: 12px; }
     .payment-box { border-top: 1px dotted #111827; padding-top: 4px; text-transform: uppercase; font-weight: 700; }
     .bank-note { text-align: center; font-size: 10px; }
@@ -9741,12 +10447,12 @@ function buildManualOfficialReceiptDocumentHtml({ app, t, fields, paymentRows, i
     </div>
 
     <div class="received">
-      <div>${escapeHtml(t("workspace.payment.manual.receivedFromLine", "RECEIVED from"))} <span class="fill">${escapeHtml(fields.billReceivedFrom)}</span></div>
-      <div>${escapeHtml(t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit"))} <span class="fill">${escapeHtml(fields.billAmountText || totalDisplay)}</span></div>
-      <div>${escapeHtml(t("workspace.payment.manual.andSenLine", "and Sen"))} <span class="fill">${escapeHtml(fields.billSenText)}</span></div>
-      <div class="sum-line">${escapeHtml(fields.billRemarkLine1)}</div>
-      <div class="sum-line">${escapeHtml(fields.billRemarkLine2)}</div>
-      <div class="sum-line">${escapeHtml(fields.billRemarkLine3)}</div>
+      <div class="received-line"><span class="received-label">${escapeHtml(t("workspace.payment.manual.receivedFromLine", "RECEIVED from"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billReceivedFrom)}</span></span></div>
+      <div class="received-line"><span class="received-label">${escapeHtml(t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billAmountText || totalDisplay)}</span></span></div>
+      <div class="received-line"><span class="received-label">${escapeHtml(t("workspace.payment.manual.andSenLine", "and Sen"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billSenText)}</span></span></div>
+      <div class="received-line"><span class="received-label"></span><span class="fill"><span class="fill-value">${escapeHtml(fields.billRemarkLine1)}</span></span></div>
+      <div class="received-line"><span class="received-label"></span><span class="fill"><span class="fill-value">${escapeHtml(fields.billRemarkLine2)}</span></span></div>
+      <div class="received-line"><span class="received-label"></span><span class="fill"><span class="fill-value">${escapeHtml(fields.billRemarkLine3)}</span></span></div>
     </div>
 
     <footer class="footer">

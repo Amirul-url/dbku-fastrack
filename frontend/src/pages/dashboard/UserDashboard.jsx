@@ -887,6 +887,14 @@ function LicenseSection({
 
 function ApplicantPaymentDocuments({ app, t }) {
   const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const officialReceiptFile = getSentOfficialReceiptFile(app);
+  const showOfficialReceipt = Boolean(
+    officialReceiptFile ||
+    manualReceipt.sent_at ||
+    manualReceipt.status === "Sent to Applicant" ||
+    (normalizeStatus(app?.status) === "payment_verified" && manualReceipt.saved_at)
+  );
   const documents = [
     {
       label: t("workspace.payment.approvalLetter", "Approval Letter"),
@@ -900,6 +908,16 @@ function ApplicantPaymentDocuments({ app, t }) {
       manual: approvalLetter.manual_bill,
       type: "bill",
     },
+    ...(showOfficialReceipt
+      ? [
+          {
+            label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+            file: officialReceiptFile,
+            manual: manualReceipt,
+            type: "receipt",
+          },
+        ]
+      : []),
   ];
   const hasAnyDocument = documents.some((item) =>
     getPaymentDocumentSource(item.file) || item.manual?.saved_at
@@ -1291,12 +1309,15 @@ async function downloadApplicantPaymentDocument(file, fallbackLabel, t) {
 
 function openApplicantManualPaymentDocument(app, type, t) {
   const isBill = type === "bill";
+  const isReceipt = type === "receipt";
   const html = getApplicantManualPaymentDocumentHtml(app, type, t);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualLetter = approvalLetter.manual_letter || {};
-  const title = isBill
-    ? t("workspace.payment.billDocument", "Bill")
-    : manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
+  const title = isReceipt
+    ? t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")
+    : isBill
+      ? t("workspace.payment.billDocument", "Bill")
+      : manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
 
   const preview = window.open("", "_blank");
   if (!preview) return;
@@ -1309,15 +1330,16 @@ function openApplicantManualPaymentDocument(app, type, t) {
 
 async function downloadApplicantManualPaymentDocument(app, type, t) {
   const isBill = type === "bill";
+  const isReceipt = type === "receipt";
   const html = getApplicantManualPaymentDocumentHtml(app, type, t);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualLetter = approvalLetter.manual_letter || {};
-  const label = type === "bill"
-    ? t("workspace.payment.billDocument", "Bill")
-    : t("workspace.payment.approvalLetter", "Approval Letter");
-  const title = isBill
-    ? label
-    : manualLetter.subject || label;
+  const label = isReceipt
+    ? t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")
+    : isBill
+      ? t("workspace.payment.billDocument", "Bill")
+      : t("workspace.payment.approvalLetter", "Approval Letter");
+  const title = isReceipt || isBill ? label : manualLetter.subject || label;
 
   try {
     await printHtmlDocument(html, `${getApplicationReference(app)} ${title}`);
@@ -1331,14 +1353,30 @@ function getApplicantManualPaymentDocumentHtml(app, type, t) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualLetter = approvalLetter.manual_letter || {};
   const manualBill = approvalLetter.manual_bill || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
 
   if (type === "receipt") {
-    return buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill);
+    return buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt);
   }
 
   return type === "bill"
     ? buildApplicantManualBillHtml(app, t, manualLetter, manualBill)
     : buildApplicantManualLetterHtml(app, t, manualLetter, manualBill);
+}
+
+function getSentOfficialReceiptFile(app) {
+  const file = app?.form_data?.approval_letter?.official_receipt_file || null;
+  if (!getPaymentDocumentSource(file)) return null;
+
+  if (
+    file.sent_at ||
+    file.status === "Sent to Applicant" ||
+    normalizeStatus(app?.status) === "payment_verified"
+  ) {
+    return file;
+  }
+
+  return null;
 }
 
 async function printHtmlDocument(html, title) {
@@ -1691,28 +1729,41 @@ function buildApplicantManualBillHtml(app, t, manualLetter, manualBill) {
 </html>`;
 }
 
-function buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill) {
-  const fields = getApplicantManualFields(app, manualLetter.fields, {
+function buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt = {}) {
+  const fields = getApplicantManualFields(app, manualReceipt.fields || manualLetter.fields, {
     preserveReceiptFields: true,
   });
-  const paymentRows = getApplicantManualPaymentRows(app, manualBill);
-  const invoiceNo = manualBill.invoice_no || getInvoiceNo(app);
+  const paymentRows = getApplicantManualPaymentRows(
+    app,
+    manualReceipt.rows?.length ? manualReceipt : manualBill
+  );
+  const invoiceNo =
+    manualReceipt.receipt_no ||
+    manualReceipt.invoice_no ||
+    manualBill.invoice_no ||
+    getInvoiceNo(app);
   const total = paymentRows.reduce(
     (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
     0
   );
   const fallbackTotal =
+    parseCurrencyAmount(manualReceipt.amount) ||
     parseCurrencyAmount(manualBill.amount) ||
     parseCurrencyAmount(app?.form_data?.payment?.amount);
   const totalDisplay = formatCurrency(total || fallbackTotal);
-  const billDate = fields.letterDate || manualBill.saved_at || new Date().toISOString();
+  const billDate =
+    fields.letterDate ||
+    manualReceipt.sent_at ||
+    manualReceipt.saved_at ||
+    manualBill.saved_at ||
+    new Date().toISOString();
   const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
 
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(t("workspace.payment.billDocument", "Bill"))}</title>
+  <title>${escapeHtml(getApplicationReference(app))} ${escapeHtml(t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"))}</title>
   <style>
     @page { size: A4; margin: 16mm; }
     * { box-sizing: border-box; }
@@ -1738,10 +1789,10 @@ function buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBil
     th { text-align: center; font-weight: 700; }
     td.amount { text-align: right; white-space: nowrap; }
     .received { margin-top: 22px; font-size: 13px; line-height: 1.4; }
-    .received-line { display: grid; grid-template-columns: max-content 1fr; column-gap: 6px; align-items: end; min-height: 24px; }
+    .received-line { display: grid; grid-template-columns: 132px 1fr; column-gap: 8px; align-items: end; min-height: 24px; }
+    .received-label { white-space: nowrap; }
     .received .fill { display: block; min-width: 0; border-bottom: 1px dotted #111827; line-height: 20px; padding: 0 6px 2px; font-weight: 700; }
     .fill-value { display: inline-block; background: #fff; padding-right: 6px; }
-    .sum-line { margin-top: 10px; border-bottom: 1px dotted #111827; min-height: 22px; line-height: 20px; padding: 0 6px 2px; }
     .footer { display: grid; grid-template-columns: 150px 1fr 190px; gap: 24px; align-items: end; margin-top: 46px; font-size: 12px; }
     .payment-box { border-top: 1px dotted #111827; padding-top: 4px; text-transform: uppercase; font-weight: 700; }
     .bank-note { text-align: center; font-size: 10px; }
@@ -1804,12 +1855,12 @@ function buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBil
     </div>
 
     <div class="received">
-      <div class="received-line"><span>${escapeHtml(t("workspace.payment.manual.receivedFromLine", "RECEIVED from"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billReceivedFrom)}</span></span></div>
-      <div class="received-line"><span>${escapeHtml(t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billAmountText || totalDisplay)}</span></span></div>
-      <div class="received-line"><span>${escapeHtml(t("workspace.payment.manual.andSenLine", "and Sen"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billSenText)}</span></span></div>
-      <div class="sum-line">${escapeHtml(fields.billRemarkLine1)}</div>
-      <div class="sum-line">${escapeHtml(fields.billRemarkLine2)}</div>
-      <div class="sum-line">${escapeHtml(fields.billRemarkLine3)}</div>
+      <div class="received-line"><span class="received-label">${escapeHtml(t("workspace.payment.manual.receivedFromLine", "RECEIVED from"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billReceivedFrom)}</span></span></div>
+      <div class="received-line"><span class="received-label">${escapeHtml(t("workspace.payment.manual.sumRinggitLine", "the sum of Ringgit"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billAmountText || totalDisplay)}</span></span></div>
+      <div class="received-line"><span class="received-label">${escapeHtml(t("workspace.payment.manual.andSenLine", "and Sen"))}</span><span class="fill"><span class="fill-value">${escapeHtml(fields.billSenText)}</span></span></div>
+      <div class="received-line"><span class="received-label"></span><span class="fill"><span class="fill-value">${escapeHtml(fields.billRemarkLine1)}</span></span></div>
+      <div class="received-line"><span class="received-label"></span><span class="fill"><span class="fill-value">${escapeHtml(fields.billRemarkLine2)}</span></span></div>
+      <div class="received-line"><span class="received-label"></span><span class="fill"><span class="fill-value">${escapeHtml(fields.billRemarkLine3)}</span></span></div>
     </div>
 
     <footer class="footer">
