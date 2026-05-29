@@ -5274,7 +5274,7 @@ const configs = {
         }),
       },
       {
-        label: "Confirm Letter & Bill",
+        label: "Confirm Approval Letter & Bill",
         labelKey: "workspace.action.confirmBill",
         icon: "task_alt",
         success: "Approval letter, appendix, and bill confirmed and sent to applicant.",
@@ -5284,6 +5284,13 @@ const configs = {
         buildPayload: (app) => ({
           status: "invoice_generated",
           form_data: mergeFormData(app, {
+            approval_letter: {
+              ...(app.form_data?.approval_letter || {}),
+              status: "Confirmed and Sent to Applicant",
+              confirmed_by: "KU(IKL)",
+              confirmed_at: new Date().toISOString(),
+              sent_to_applicant_at: new Date().toISOString(),
+            },
             payment: {
               ...(app.form_data?.payment || {}),
               invoice_no: getInvoiceNo(app),
@@ -8452,13 +8459,13 @@ function ManualPaymentDocumentsSummary({ app, t }) {
     {
       key: "letter",
       label: t("workspace.payment.approvalLetter", "Approval Letter"),
-      buttonLabel: t("workspace.payment.viewApprovalLetter", "View Approval Letter"),
+      buttonLabel: t("common.view", "View"),
       onClick: () => openManualPaymentDocument(previewApp, "letter", t),
     },
     {
       key: "bill",
       label: t("workspace.payment.billDocument", "Bill"),
-      buttonLabel: t("workspace.payment.viewManualBill", "View Bill"),
+      buttonLabel: t("common.view", "View"),
       onClick: () => openManualPaymentDocument(previewApp, "bill", t),
     },
   ];
@@ -8467,7 +8474,7 @@ function ManualPaymentDocumentsSummary({ app, t }) {
     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 xl:col-span-2">
       <div className="mb-3">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-          {t("workspace.payment.manualDocuments", "Manual Documents")}
+          {t("workspace.payment.reviewDocuments", "Documents")}
         </p>
         <p className="mt-1 text-sm text-slate-500">
           {t("workspace.payment.manualConfirmHint", "KU(IKL) can review the documents, then confirm using the action button.")}
