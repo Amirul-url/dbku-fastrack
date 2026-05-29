@@ -65,6 +65,7 @@ import {
   isSuperAdminUser,
   refreshAccessToken,
 } from "./services/api";
+import { useLanguage } from "./context/LanguageContext";
 
 const SESSION_WARNING_MS = 5 * 60 * 1000;
 const SESSION_RESPONSE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -204,6 +205,7 @@ function RedirectAdminStep({ toStep }) {
 function SessionManager() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
   const timerRef = useRef(null);
   const responseTimerRef = useRef(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -314,16 +316,24 @@ function SessionManager() {
             <span className="material-symbols-outlined text-[24px]">schedule</span>
           </span>
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-slate-950">Session expiring soon</h2>
+            <h2 className="text-lg font-semibold text-slate-950">
+              {t("session.expiringTitle", "Session expiring soon")}
+            </h2>
             <p className="mt-1 text-sm leading-5 text-slate-500">
-              Your login session is about to expire. Extend it to continue working without signing in again.
+              {t(
+                "session.expiringDescription",
+                "Your login session is about to expire. Extend it to continue working without signing in again."
+              )}
             </p>
           </div>
         </div>
 
         <div className="px-5 py-4">
           <p className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-            Choose Extend session to keep using ALiS, or Logout to end this session now.
+            {t(
+              "session.expiringInstruction",
+              "Choose Extend session to keep using ALiS, or Logout to end this session now."
+            )}
           </p>
         </div>
 
@@ -334,7 +344,7 @@ function SessionManager() {
             disabled={extending}
             className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Logout
+            {t("common.logout", "Logout")}
           </button>
           <button
             type="button"
@@ -343,7 +353,9 @@ function SessionManager() {
             className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="material-symbols-outlined text-[18px]">update</span>
-            {extending ? "Extending..." : "Extend session"}
+            {extending
+              ? t("session.extending", "Extending...")
+              : t("session.extend", "Extend session")}
           </button>
         </div>
       </div>

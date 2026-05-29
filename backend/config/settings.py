@@ -165,7 +165,7 @@ SIMPLE_JWT = {
         hours=int(os.getenv("JWT_ACCESS_TOKEN_HOURS", "1"))
     ),
     'REFRESH_TOKEN_LIFETIME': timedelta(
-        days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "7"))
+        days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "1"))
     ),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }

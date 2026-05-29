@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
@@ -81,6 +81,7 @@ function SittingApplicationPage({
   const tx = (key) => stepText(language, key);
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
+  const prefetchedApplication = location.state?.prefetchedApplication || null;
 
   const applicationIdRaw =
     routeApplicationId || location.state?.applicationId || queryParams.get("id");
@@ -119,64 +120,76 @@ function SittingApplicationPage({
     longitude: 110.334028,
   });
 
+  useLayoutEffect(() => {
+    if (prefetchedApplication && String(prefetchedApplication.id) === String(applicationId)) {
+      applyDraftData(prefetchedApplication);
+    }
+  }, [applicationId, prefetchedApplication]);
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability
-    if (applicationId) loadDraft();
-  }, [applicationId]);
+    if (!applicationId) return;
+    if (prefetchedApplication && String(prefetchedApplication.id) === String(applicationId)) return;
+
+    loadDraft();
+  }, [applicationId, prefetchedApplication]);
+
+  function applyDraftData(data) {
+    const step1 = data.form_data?.step_1 || {};
+
+    setApplicationRecord(data);
+    setProjectName(step1.project_name || "");
+    setApplicant(step1.applicant || "");
+    setContactPerson(step1.contact_person || "");
+    setTelNo(step1.tel_no || "");
+    setLocalityAddress(step1.locality_address || "");
+    setAreaRequired(step1.area_required || "");
+    setTotalSchemeValue(step1.total_scheme_value || "");
+    setMalaysiaPlan(step1.malaysia_plan || "");
+    setAmountFundApproved(step1.amount_fund_approved || "");
+    setAmountFundAvailable(step1.amount_fund_available || "");
+    setProjectJustification(step1.project_justification || "");
+    setSiteSelectionReason(step1.site_selection_reason || "");
+    setDesignation(step1.designation || "");
+    setOfficerName(step1.officer_name || "");
+    setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
+    setApplicationTypeOptions(
+      normalizeApplicationTypeOptions(step1.application_type_options).length > 0
+        ? normalizeApplicationTypeOptions(step1.application_type_options)
+        : ["open_space"]
+    );
+
+    const siteImageDocument =
+      data.supporting_documents
+        ?.slice()
+        .reverse()
+        .find((document) => document.title === "Site Image") || null;
+    const savedSiteImage = siteImageDocument || step1.site_image || null;
+    const savedSiteImageUrl = getSiteImageUrl(
+      applicationId,
+      savedSiteImage,
+      step1
+    );
+    setSiteImageName(
+      savedSiteImage?.name ||
+        savedSiteImage?.file?.split("/")?.pop() ||
+        step1.site_image_name ||
+        ""
+    );
+    setSiteImagePreview(savedSiteImageUrl);
+    setSiteImageFile(null);
+    setSiteImageAttachment(savedSiteImage);
+
+    setMapData({
+      address: step1.map_address || step1.locality_address || "",
+      latitude: Number(step1.latitude || 1.586684),
+      longitude: Number(step1.longitude || 110.334028),
+    });
+  }
 
   async function loadDraft() {
     try {
       const data = await apiRequest(`/applications/${applicationId}/`);
-      const step1 = data.form_data?.step_1 || {};
-
-      setApplicationRecord(data);
-      setProjectName(step1.project_name || "");
-      setApplicant(step1.applicant || "");
-      setContactPerson(step1.contact_person || "");
-      setTelNo(step1.tel_no || "");
-      setLocalityAddress(step1.locality_address || "");
-      setAreaRequired(step1.area_required || "");
-      setTotalSchemeValue(step1.total_scheme_value || "");
-      setMalaysiaPlan(step1.malaysia_plan || "");
-      setAmountFundApproved(step1.amount_fund_approved || "");
-      setAmountFundAvailable(step1.amount_fund_available || "");
-      setProjectJustification(step1.project_justification || "");
-      setSiteSelectionReason(step1.site_selection_reason || "");
-      setDesignation(step1.designation || "");
-      setOfficerName(step1.officer_name || "");
-      setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
-      setApplicationTypeOptions(
-        normalizeApplicationTypeOptions(step1.application_type_options).length > 0
-          ? normalizeApplicationTypeOptions(step1.application_type_options)
-          : ["open_space"]
-      );
-
-      const siteImageDocument =
-        data.supporting_documents
-          ?.slice()
-          .reverse()
-          .find((document) => document.title === "Site Image") || null;
-      const savedSiteImage = siteImageDocument || step1.site_image || null;
-      const savedSiteImageUrl = getSiteImageUrl(
-        applicationId,
-        savedSiteImage,
-        step1
-      );
-      setSiteImageName(
-        savedSiteImage?.name ||
-          savedSiteImage?.file?.split("/")?.pop() ||
-          step1.site_image_name ||
-          ""
-      );
-      setSiteImagePreview(savedSiteImageUrl);
-      setSiteImageFile(null);
-      setSiteImageAttachment(savedSiteImage);
-
-      setMapData({
-        address: step1.map_address || step1.locality_address || "",
-        latitude: Number(step1.latitude || 1.586684),
-        longitude: Number(step1.longitude || 110.334028),
-      });
+      applyDraftData(data);
     } catch (err) {
       console.error("Failed to load draft:", err);
     }

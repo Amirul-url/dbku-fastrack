@@ -163,6 +163,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const manualPaymentDraftSaveIdRef = useRef(0);
   const manualPaymentDraftTimerRef = useRef(null);
   const manualPaymentDraftSavePromiseRef = useRef(null);
+  const formViewFallbackTimerRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
     site_photos: [],
     fee_date: "",
@@ -324,6 +325,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     return () => {
       if (manualPaymentDraftTimerRef.current) {
         window.clearTimeout(manualPaymentDraftTimerRef.current);
+      }
+      if (formViewFallbackTimerRef.current) {
+        window.clearTimeout(formViewFallbackTimerRef.current);
       }
     };
   }, []);
@@ -749,13 +753,74 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         documentLabel,
         file
       );
+      const uploadedForUi = withLocalPaymentDocumentPreview(selectedRecord.id, kind, uploaded, file);
       const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
       const fieldName = kind === "bill" ? "bill_file" : "letter_file";
       const nextApprovalLetter = {
         ...savedApprovalLetter,
-        [fieldName]: uploaded,
+        [fieldName]: uploadedForUi,
         uploaded_by: userDepartment,
         uploaded_at: new Date().toISOString(),
+      };
+      nextApprovalLetter.status = hasPaymentDocuments({
+        ...selectedRecord,
+        form_data: {
+          ...(selectedRecord.form_data || {}),
+          approval_letter: nextApprovalLetter,
+        },
+      })
+        ? "Ready for KU(IKL) Confirmation"
+        : "Draft";
+      const nextApprovalLetterForSave = {
+        ...nextApprovalLetter,
+        [fieldName]: stripLocalPaymentDocumentPreview(uploadedForUi),
+      };
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            approval_letter: nextApprovalLetterForSave,
+          }),
+        }),
+      });
+
+      setSelectedDetail(
+        mergeLocalPaymentDocumentPreview(
+          response?.data || response || selectedRecord,
+          fieldName,
+          uploadedForUi
+        )
+      );
+      await fetchApplications({ silent: true });
+      setSuccess(t("workspace.payment.documentUploaded", "Document uploaded."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.documentUploadFailed", "Document upload failed."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deletePaymentDocument(kind, file) {
+    if (!selectedRecord?.id || !file) return;
+
+    const fieldName = kind === "bill" ? "bill_file" : "letter_file";
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      if (file.document_id || file.id) {
+        await deleteApplicationDocument(selectedRecord.id, file.document_id || file.id);
+      }
+
+      forgetLocalPaymentDocumentPreview(selectedRecord.id, kind, file);
+
+      const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
+      const nextApprovalLetter = {
+        ...savedApprovalLetter,
+        [fieldName]: null,
       };
       nextApprovalLetter.status = hasPaymentDocuments({
         ...selectedRecord,
@@ -778,9 +843,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       setSelectedDetail(response?.data || response || selectedRecord);
       await fetchApplications({ silent: true });
-      setSuccess(t("workspace.payment.documentUploaded", "Document uploaded."));
+      setSuccess(t("workspace.payment.documentDeleted", "Document deleted."));
     } catch (err) {
-      setError(err.message || t("workspace.payment.documentUploadFailed", "Document upload failed."));
+      setError(err.message || t("workspace.payment.documentDeleteFailed", "Document delete failed."));
     } finally {
       setSaving(false);
     }
@@ -1419,6 +1484,29 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     return `/admin/applications/${applicationId}/view/step-1?${params.toString()}`;
   }
 
+  function openSelectedFormView(applicationId) {
+    if (!applicationId) return;
+
+    const path = getSelectedFormViewPath(applicationId);
+    const prefetchedApplication =
+      String(selectedDetail?.id || "") === String(applicationId)
+        ? selectedDetail
+        : selectedRecord;
+
+    if (formViewFallbackTimerRef.current) {
+      window.clearTimeout(formViewFallbackTimerRef.current);
+    }
+
+    navigate(path, {
+      flushSync: true,
+      state: { prefetchedApplication },
+    });
+
+    formViewFallbackTimerRef.current = window.setTimeout(() => {
+      window.location.assign(path);
+    }, 150);
+  }
+
   return (
     <AdminDashboardLayout>
       {!isFocusedPersonalWorkspace && !tableFirstWorkspace && (
@@ -1638,13 +1726,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Button
                       variant="secondary"
                       icon="visibility"
-                      onClick={() =>
-                        navigate(
-                          isFocusedPersonalWorkspace || tableFirstWorkspace
-                            ? getSelectedFormViewPath(selectedRecord.id)
-                            : `/admin/applications/${selectedRecord.id}`
-                        )
-                      }
+                      onClick={() => openSelectedFormView(selectedRecord.id)}
                     >
                       {t("workspace.openForm")}
                     </Button>
@@ -1880,6 +1962,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         userDepartment={userDepartment}
                         saving={saving}
                         onPaymentDocumentUpload={uploadPaymentDocument}
+                        onPaymentDocumentDelete={deletePaymentDocument}
                         onManualPaymentDraftChange={updateManualPaymentDraft}
                       />
                     )
@@ -1896,7 +1979,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <Button
                         variant="secondary"
                         className="w-full"
-                        onClick={() => navigate(`/admin/applications/${selectedRecord.id}`)}
+                        icon="visibility"
+                        onClick={() => openSelectedFormView(selectedRecord.id)}
                       >
                         {t("workspace.openForm")}
                       </Button>
@@ -7125,6 +7209,7 @@ function PaymentDetails({
   userDepartment,
   saving,
   onPaymentDocumentUpload,
+  onPaymentDocumentDelete,
   onManualPaymentDraftChange,
 }) {
   const payment = app.form_data?.payment || {};
@@ -7146,13 +7231,11 @@ function PaymentDetails({
     payment.verification_result ||
     payment.verification_notes
   );
-  const [documentMode, setDocumentMode] = useState(() =>
-    manualReady && !letterReady && !billReady ? "manual" : "upload"
-  );
+  const [documentMode, setDocumentMode] = useState("upload");
 
   useEffect(() => {
-    setDocumentMode(manualReady && !letterReady && !billReady ? "manual" : "upload");
-  }, [app?.id, letterReady, billReady, manualReady]);
+    setDocumentMode("upload");
+  }, [app?.id]);
 
   async function viewReceipt() {
     if (!receiptSource) return;
@@ -7232,6 +7315,7 @@ function PaymentDetails({
               canUpload={canUploadDocuments}
               saving={saving}
               onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
+              onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
             />
             <PaymentDocumentSlot
               label={t("workspace.payment.billDocument", "Bill")}
@@ -7240,6 +7324,7 @@ function PaymentDetails({
               canUpload={canUploadDocuments}
               saving={saving}
               onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
+              onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
             />
             {manualReady && (
               <ManualPaymentDocumentsSummary app={app} t={t} />
@@ -7280,7 +7365,7 @@ function PaymentDetails({
   );
 }
 
-function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange }) {
+function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange, onDelete }) {
   const fileSource = getPaymentDocumentSource(file);
 
   return (
@@ -7312,22 +7397,36 @@ function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange }
           </Button>
         )}
         {canUpload && (
-          <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            <Icon name="upload_file" className="text-[16px]" />
-            <span>
-              {file ? t("common.replace", "Replace") : t("common.uploadFile", "Upload File")}
-            </span>
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              className="hidden"
-              disabled={saving}
-              onChange={(event) => {
-                onFileChange?.(event.target.files?.[0] || null);
-                event.target.value = "";
-              }}
-            />
-          </label>
+          <>
+            <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <Icon name="upload_file" className="text-[16px]" />
+              <span>
+                {file ? t("common.replace", "Replace") : t("common.uploadFile", "Upload File")}
+              </span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                disabled={saving}
+                onChange={(event) => {
+                  onFileChange?.(event.target.files?.[0] || null);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            {fileSource && (
+              <Button
+                type="button"
+                variant="danger"
+                icon="delete"
+                className="min-h-9 px-3 py-1 text-xs"
+                disabled={saving}
+                onClick={onDelete}
+              >
+                {t("common.delete", "Delete")}
+              </Button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -7337,48 +7436,44 @@ function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange }
 function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
-  const defaultDraft = getDefaultManualPaymentDraft(app);
-  const storedDraft = getInitialManualPaymentDraft(app);
-  const savedFields = getManualPaymentFields(app, manualLetter.fields);
-  const initialFields = storedDraft?.fields
-    ? getManualPaymentFields(app, storedDraft.fields)
-    : savedFields;
-  const [subject, setSubject] = useState(() =>
-    storedDraft?.subject || manualLetter.subject || defaultDraft.subject
-  );
-  const [fields, setFields] = useState(() => initialFields);
-  const [paymentRows, setPaymentRows] = useState(() =>
-    normalizePaymentRows(
-      storedDraft?.paymentRows?.length
-        ? storedDraft.paymentRows
-        : manualBill.rows?.length
-          ? manualBill.rows
-          : defaultDraft.paymentRows
-    )
-  );
-  const [terms, setTerms] = useState(() =>
-    normalizeManualRichTextValue(storedDraft?.terms || manualLetter.terms || defaultDraft.terms)
-  );
+  const initialState = getCachedManualPaymentFormState(app);
+  const [subject, setSubject] = useState(() => initialState.subject);
+  const [fields, setFields] = useState(() => initialState.fields);
+  const [paymentRows, setPaymentRows] = useState(() => initialState.paymentRows);
+  const [terms, setTerms] = useState(() => initialState.terms);
   const amount = getBillAmount(app);
-  const [invoiceNo, setInvoiceNo] = useState(() =>
-    storedDraft?.invoiceNo || manualBill.invoice_no || getInvoiceNo(app)
-  );
-  const totalAmount = paymentRows.reduce(
-    (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
-    0
+  const [invoiceNo, setInvoiceNo] = useState(() => initialState.invoiceNo);
+  const totalAmount = useMemo(
+    () => paymentRows.reduce(
+      (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
+      0
+    ),
+    [paymentRows]
   );
   const totalForWords = totalAmount || parseCurrencyAmount(amount) || 0;
-  const amountInWords = getCurrencyAmountWords(totalForWords);
-  const letterBody = buildManualLetterBody({ fields, subject });
-  const billNotes = buildManualBillNotes({ invoiceNo, paymentRows });
-  const previewApp = buildManualPaymentPreviewApp(app, {
-    fields,
-    subject,
-    paymentRows,
-    terms,
-    invoiceNo,
-    amount: totalAmount || amount,
-  });
+  const amountInWords = useMemo(
+    () => getCurrencyAmountWords(totalForWords),
+    [totalForWords]
+  );
+  const letterBody = useMemo(
+    () => buildManualLetterBody({ fields, subject }),
+    [fields, subject]
+  );
+  const billNotes = useMemo(
+    () => buildManualBillNotes({ invoiceNo, paymentRows }),
+    [invoiceNo, paymentRows]
+  );
+  const previewApp = useMemo(
+    () => buildManualPaymentPreviewApp(app, {
+      fields,
+      subject,
+      paymentRows,
+      terms,
+      invoiceNo,
+      amount: totalAmount || amount,
+    }),
+    [app, fields, subject, paymentRows, terms, invoiceNo, totalAmount, amount]
+  );
 
   useEffect(() => {
     if (readOnly) return;
@@ -7395,21 +7490,12 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
   }, [readOnly, subject, letterBody, billNotes, fields, paymentRows, terms, invoiceNo, totalAmount, amount, onDraftChange]);
 
   useEffect(() => {
-    const nextDefault = getDefaultManualPaymentDraft(app);
-    const nextStoredDraft = getInitialManualPaymentDraft(app);
-    setSubject(nextStoredDraft?.subject || manualLetter.subject || nextDefault.subject);
-    setFields(getManualPaymentFields(app, nextStoredDraft?.fields || manualLetter.fields));
-    setPaymentRows(
-      normalizePaymentRows(
-        nextStoredDraft?.paymentRows?.length
-          ? nextStoredDraft.paymentRows
-          : manualBill.rows?.length
-            ? manualBill.rows
-            : nextDefault.paymentRows
-      )
-    );
-    setInvoiceNo(nextStoredDraft?.invoiceNo || manualBill.invoice_no || getInvoiceNo(app));
-    setTerms(normalizeManualRichTextValue(nextStoredDraft?.terms || manualLetter.terms || nextDefault.terms));
+    const nextState = getCachedManualPaymentFormState(app);
+    setSubject(nextState.subject);
+    setFields(nextState.fields);
+    setPaymentRows(nextState.paymentRows);
+    setInvoiceNo(nextState.invoiceNo);
+    setTerms(nextState.terms);
   }, [app?.id, app?.updated_at]);
 
   useEffect(() => {
@@ -7666,28 +7752,26 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
               {t("workspace.payment.manualSectionDesc", "Edit the approval letter and bill content here, then save before submitting to KU(IKL).")}
             </p>
           </div>
-          {hasManualPaymentDocuments(app) && (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                icon="visibility"
-                className="min-h-9 px-3 py-1 text-xs"
-                onClick={() => openManualPaymentDocument(previewApp, "letter", t)}
-              >
-                {t("workspace.payment.viewManualLetter", "View Letter")}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                icon="visibility"
-                className="min-h-9 px-3 py-1 text-xs"
-                onClick={() => openManualPaymentDocument(previewApp, "bill", t)}
-              >
-                {t("workspace.payment.viewManualBill", "View Bill")}
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => openManualPaymentDocument(previewApp, "letter", t)}
+            >
+              {t("workspace.payment.viewManualLetter", "View Letter")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => openManualPaymentDocument(previewApp, "bill", t)}
+            >
+              {t("workspace.payment.viewManualBill", "View Bill")}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -8049,6 +8133,8 @@ function ManualPaymentDocumentsForm({ app, t, readOnly, onDraftChange }) {
 }
 
 function ManualPaymentDocumentsSummary({ app, t }) {
+  const previewApp = useMemo(() => getManualPaymentPreviewApp(app), [app]);
+
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 xl:col-span-2">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -8066,7 +8152,7 @@ function ManualPaymentDocumentsSummary({ app, t }) {
             variant="secondary"
             icon="visibility"
             className="min-h-9 px-3 py-1 text-xs"
-            onClick={() => openManualPaymentDocument(app, "letter", t)}
+            onClick={() => openManualPaymentDocument(previewApp, "letter", t)}
           >
             {t("workspace.payment.viewManualLetter", "View Letter")}
           </Button>
@@ -8075,7 +8161,7 @@ function ManualPaymentDocumentsSummary({ app, t }) {
             variant="secondary"
             icon="visibility"
             className="min-h-9 px-3 py-1 text-xs"
-            onClick={() => openManualPaymentDocument(app, "bill", t)}
+            onClick={() => openManualPaymentDocument(previewApp, "bill", t)}
           >
             {t("workspace.payment.viewManualBill", "View Bill")}
           </Button>
@@ -8195,6 +8281,83 @@ function buildManualPaymentApprovalLetter(
 }
 
 const MANUAL_PAYMENT_DRAFT_STORAGE_PREFIX = "fastrack_manual_payment_draft:";
+const MANUAL_PAYMENT_FORM_STATE_CACHE = new Map();
+const MANUAL_PAYMENT_FORM_STATE_CACHE_LIMIT = 12;
+const LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS = new Map();
+const LOCAL_PAYMENT_DOCUMENT_PREVIEW_LIMIT = 24;
+
+function getLocalPaymentDocumentPreviewKey(applicationId, kind, file = {}) {
+  return [
+    applicationId || "",
+    kind || "",
+    file.document_id || file.id || file.name || "",
+  ].join("|");
+}
+
+function rememberLocalPaymentDocumentPreview(applicationId, kind, file, objectUrl) {
+  if (!objectUrl) return;
+
+  const cacheKey = getLocalPaymentDocumentPreviewKey(applicationId, kind, file);
+  const existingUrl = LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.get(cacheKey);
+
+  if (existingUrl && existingUrl !== objectUrl) {
+    URL.revokeObjectURL(existingUrl);
+  }
+
+  LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.set(cacheKey, objectUrl);
+
+  while (LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.size > LOCAL_PAYMENT_DOCUMENT_PREVIEW_LIMIT) {
+    const oldestKey = LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.keys().next().value;
+    const oldestUrl = LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.get(oldestKey);
+    if (oldestUrl) URL.revokeObjectURL(oldestUrl);
+    LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.delete(oldestKey);
+  }
+}
+
+function forgetLocalPaymentDocumentPreview(applicationId, kind, file = {}) {
+  const cacheKey = getLocalPaymentDocumentPreviewKey(applicationId, kind, file);
+  const existingUrl = LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.get(cacheKey);
+
+  if (existingUrl) URL.revokeObjectURL(existingUrl);
+  LOCAL_PAYMENT_DOCUMENT_PREVIEW_URLS.delete(cacheKey);
+}
+
+function withLocalPaymentDocumentPreview(applicationId, kind, uploaded, file) {
+  if (!file || typeof URL === "undefined") return uploaded;
+
+  const objectUrl = URL.createObjectURL(file);
+  rememberLocalPaymentDocumentPreview(applicationId, kind, uploaded, objectUrl);
+
+  return {
+    ...uploaded,
+    dataUrl: objectUrl,
+  };
+}
+
+function stripLocalPaymentDocumentPreview(file = {}) {
+  const { dataUrl, ...rest } = file;
+  return rest;
+}
+
+function mergeLocalPaymentDocumentPreview(app, fieldName, file) {
+  if (!app || !fieldName || !file?.dataUrl) return app;
+
+  const approvalLetter = app.form_data?.approval_letter || {};
+
+  return {
+    ...app,
+    form_data: {
+      ...(app.form_data || {}),
+      approval_letter: {
+        ...approvalLetter,
+        [fieldName]: {
+          ...(approvalLetter[fieldName] || {}),
+          ...file,
+        },
+      },
+    },
+  };
+}
 
 function getManualPaymentDraftStorageKey(applicationId) {
   return `${MANUAL_PAYMENT_DRAFT_STORAGE_PREFIX}${applicationId}`;
@@ -8259,6 +8422,79 @@ function getInitialManualPaymentDraft(app) {
   if (!Number.isFinite(storedTime)) return null;
 
   return storedTime > getManualPaymentBackendSavedAt(app) ? storedDraft : null;
+}
+
+function getManualPaymentFormStateCacheKey(app, storedDraft) {
+  return [
+    app?.id || "new",
+    app?.updated_at || "",
+    getManualPaymentBackendSavedAt(app),
+    storedDraft?.draftSavedAt || "",
+  ].join("|");
+}
+
+function rememberManualPaymentFormState(cacheKey, state) {
+  if (MANUAL_PAYMENT_FORM_STATE_CACHE.has(cacheKey)) {
+    MANUAL_PAYMENT_FORM_STATE_CACHE.delete(cacheKey);
+  }
+
+  MANUAL_PAYMENT_FORM_STATE_CACHE.set(cacheKey, state);
+
+  while (MANUAL_PAYMENT_FORM_STATE_CACHE.size > MANUAL_PAYMENT_FORM_STATE_CACHE_LIMIT) {
+    const oldestKey = MANUAL_PAYMENT_FORM_STATE_CACHE.keys().next().value;
+    MANUAL_PAYMENT_FORM_STATE_CACHE.delete(oldestKey);
+  }
+}
+
+function getCachedManualPaymentFormState(app) {
+  const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
+  const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
+  const storedDraft = getInitialManualPaymentDraft(app);
+  const cacheKey = getManualPaymentFormStateCacheKey(app, storedDraft);
+  const cachedState = MANUAL_PAYMENT_FORM_STATE_CACHE.get(cacheKey);
+
+  if (cachedState) return cachedState;
+
+  const defaultDraft = getDefaultManualPaymentDraft(app);
+  const savedFields = getManualPaymentFields(app, manualLetter.fields);
+  const state = {
+    subject: storedDraft?.subject || manualLetter.subject || defaultDraft.subject,
+    fields: storedDraft?.fields
+      ? getManualPaymentFields(app, storedDraft.fields)
+      : savedFields,
+    paymentRows: normalizePaymentRows(
+      storedDraft?.paymentRows?.length
+        ? storedDraft.paymentRows
+        : manualBill.rows?.length
+          ? manualBill.rows
+          : defaultDraft.paymentRows
+    ),
+    terms: normalizeManualRichTextValue(
+      storedDraft?.terms || manualLetter.terms || defaultDraft.terms
+    ),
+    invoiceNo: storedDraft?.invoiceNo || manualBill.invoice_no || getInvoiceNo(app),
+  };
+
+  rememberManualPaymentFormState(cacheKey, state);
+  return state;
+}
+
+function getManualPaymentPreviewApp(app) {
+  const initialState = getCachedManualPaymentFormState(app);
+  const amount = getBillAmount(app);
+  const totalAmount = initialState.paymentRows.reduce(
+    (sum, row) => sum + (parseCurrencyAmount(row.amount) || 0),
+    0
+  );
+
+  return buildManualPaymentPreviewApp(app, {
+    fields: initialState.fields,
+    subject: initialState.subject,
+    paymentRows: initialState.paymentRows,
+    terms: initialState.terms,
+    invoiceNo: initialState.invoiceNo,
+    amount: totalAmount || amount,
+  });
 }
 
 function formatPaymentRowAmount(value) {
@@ -8985,14 +9221,21 @@ function openAdvertisementLicensePreview(app, t) {
 }
 
 function openPrintablePreview(title, html) {
-  const preview = window.open("", "_blank");
-  if (!preview) return;
+  const titledHtml = html.replace(
+    /<title>[\s\S]*?<\/title>/i,
+    `<title>${escapeHtml(title)}</title>`
+  );
+  const previewUrl = URL.createObjectURL(
+    new Blob([titledHtml], { type: "text/html" })
+  );
+  const preview = window.open(previewUrl, "_blank", "noopener,noreferrer");
 
-  preview.opener = null;
-  preview.document.open();
-  preview.document.write(html);
-  preview.document.close();
-  preview.document.title = title;
+  if (!preview) {
+    URL.revokeObjectURL(previewUrl);
+    return;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
 }
 
 function buildApprovalLetterBillHtml(app, t) {
