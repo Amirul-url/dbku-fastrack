@@ -3594,6 +3594,24 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function getPublicOrigin() {
+  return PUBLIC_FRONTEND_URL || getRuntimeOrigin();
+}
+
+function getRuntimeOrigin() {
+  const fallbackOrigin =
+    typeof window !== "undefined" ? window.location.origin : "";
+
+  return fallbackOrigin;
+}
+
+function getPublicAssetUrl(path) {
+  const cleanPath = `/${String(path || "").replace(/^\/+/, "")}`;
+  const origin = getRuntimeOrigin() || PUBLIC_FRONTEND_URL;
+
+  return origin ? `${origin}${cleanPath}` : cleanPath;
+}
+
 function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const status = normalizeStatus(app?.status);
   const isIklWorkspace = config?.key === "screening";
@@ -8961,6 +8979,8 @@ function buildManualPaymentDocumentHtml(app, type, t) {
     fields.letterheadComplaintLine || MANUAL_LETTERHEAD_COMPLAINT_LINE;
   const letterheadFacebookLine =
     fields.letterheadFacebookLine || MANUAL_LETTERHEAD_FACEBOOK_LINE;
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
+  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
 
   return `<!doctype html>
 <html>
@@ -9017,7 +9037,7 @@ function buildManualPaymentDocumentHtml(app, type, t) {
   <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
   <section class="page">
     <header class="letterhead">
-      <div class="crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
       <div class="letterhead-text">
         <h1>${escapeHtml(letterheadTitle)}</h1>
         <div class="subhead">
@@ -9032,7 +9052,7 @@ function buildManualPaymentDocumentHtml(app, type, t) {
           </div>
         </div>
       </div>
-      <div class="crest"><img src="/ALiS.png" alt="ALiS" /></div>
+      <div class="crest"><img src="${escapeHtml(alisLogoUrl)}" alt="ALiS" /></div>
     </header>
 
     <div class="topline">
@@ -9103,6 +9123,7 @@ function buildManualPaymentDocumentHtml(app, type, t) {
 function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, total }) {
   const billDate = fields.letterDate || new Date().toISOString().slice(0, 10);
   const totalDisplay = formatCurrency(total);
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
 
   return `<!doctype html>
 <html>
@@ -9148,7 +9169,7 @@ function buildManualBillDocumentHtml({ app, t, fields, paymentRows, invoiceNo, t
   <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
   <section class="receipt">
     <header class="header">
-      <div class="crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
       <div class="heading">
         <h1>${escapeHtml(t("workspace.payment.manual.billHeaderTitle", "Mayor of North Kuching"))}</h1>
         <p><strong>${escapeHtml(t("workspace.payment.manual.billHeaderSubtitle", "(The Commissioner of The City of Kuching North)"))}</strong></p>
@@ -9264,6 +9285,8 @@ function buildApprovalLetterBillHtml(app, t) {
     ? formatCurrency(amount)
     : formatCurrency(paymentRows.reduce((sum, row) => sum + row.amount, 0));
   const validityText = getApprovalValidityText(app, t);
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
+  const alisLogoUrl = getPublicAssetUrl("/ALiS.png");
 
   return `<!doctype html>
 <html>
@@ -9306,7 +9329,7 @@ function buildApprovalLetterBillHtml(app, t) {
   <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
   <section class="page">
     <header class="letterhead">
-      <div class="crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
       <div>
         <h1>Dewan Bandaraya Kuching Utara</h1>
         <div class="subhead">
@@ -9314,7 +9337,7 @@ function buildApprovalLetterBillHtml(app, t) {
           Bukit Siol, Jalan Semariang, Petra Jaya, 93050 Kuching, Sarawak.
         </div>
       </div>
-      <div class="crest"><img src="/ALiS.png" alt="ALiS" /></div>
+      <div class="crest"><img src="${escapeHtml(alisLogoUrl)}" alt="ALiS" /></div>
     </header>
 
     <div class="topline">
@@ -9401,6 +9424,7 @@ function buildAdvertisementLicenseHtml(app, t) {
   const location = getApplicationLocation(app);
   const receiptNo = payment.receipt_reference || payment.invoice_no || getInvoiceNo(app);
   const amount = getBillAmount(app);
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku.png");
 
   return `<!doctype html>
 <html>
@@ -9433,7 +9457,7 @@ function buildAdvertisementLicenseHtml(app, t) {
   <div class="print-actions"><button onclick="window.print()">${escapeHtml(t("common.print", "Print"))}</button></div>
   <section class="page">
     <div class="center">
-      <div class="crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
       <h1>Dewan Bandaraya Kuching Utara</h1>
       <p><strong>(Commission of the City of Kuching North)</strong><br />The Local Authorities (Advertisements) By-Laws, 2012</p>
       <h2>Borang B<br />(Undang-undang Kecil 7)<br />Lesen Pengiklanan</h2>
@@ -9666,9 +9690,7 @@ function addCalendarYears(value, years) {
 }
 
 function getLicenseVerificationUrl(licenseId) {
-  const fallbackOrigin =
-    typeof window !== "undefined" ? window.location.origin : "";
-  const origin = PUBLIC_FRONTEND_URL || fallbackOrigin;
+  const origin = getPublicOrigin();
 
   return `${origin}/license/verify/${licenseId}`;
 }
