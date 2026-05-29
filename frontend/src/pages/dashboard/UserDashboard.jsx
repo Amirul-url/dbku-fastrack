@@ -823,14 +823,17 @@ function LicenseSection({
 
             {canSubmitPaymentProof && (
               <div className="flex justify-end border-t border-slate-200 bg-white px-3 py-3">
-                <Button
+                <button
+                  type="button"
                   onClick={onSubmitPayment}
                   disabled={saving || !paymentReceipt}
-                  icon="upload_file"
-                  className="w-full sm:w-auto"
+                  className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
+                  <span className="material-symbols-outlined text-[16px] text-white">
+                    upload_file
+                  </span>
                   {saving ? t("common.submitting") : t("applicant.submitPayment")}
-                </Button>
+                </button>
               </div>
             )}
           </section>
