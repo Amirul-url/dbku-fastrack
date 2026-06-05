@@ -56,6 +56,31 @@ export function getAdvertisementLicenseDraftFields(app, savedFields = {}, option
     signedDate: issueDate,
     paymentAmount: Number.isFinite(paymentAmount) ? paymentAmount.toFixed(2) : "",
     dbkuLogoPath: "/logo-dbku.png",
+    headerTitle: "DEWAN BANDARAYA KUCHING UTARA",
+    headerSubtitle: "(COMMISSION OF THE CITY OF KUCHING NORTH)",
+    bylawTitle: "The Local Authorities (Advertisements) By-Laws, 2012",
+    formTitle: "Borang B\n(Undang-undang Kecil 7)\nLESEN PENGIKLANAN",
+    receiptLabel: "No. Resit",
+    referenceLabel: "Rujukan",
+    nameLabel: "Nama",
+    addressLabel: "Alamat",
+    grantPrefix: "Adalah dengan ini diberi lesen oleh",
+    issuingAuthority: "PENGARAH, DEWAN BANDARAYA KUCHING UTARA",
+    grantSuffix:
+      "di bawah undang-undang kecil 7 The Local Authorities (Advertisements) By-Laws, 2012 untuk mempamer iklan seperti berikut:-",
+    grantText:
+      "Adalah dengan ini diberi lesen oleh PENGARAH, DEWAN BANDARAYA KUCHING UTARA di bawah undang-undang kecil 7 The Local Authorities (Advertisements) By-Laws, 2012 untuk mempamer iklan seperti berikut:-",
+    boardLabel: "Papan Iklan",
+    advertisementTypeLabel: "Jenis Iklan",
+    placeLabel: "Tempat",
+    periodLabel: "Tempoh\nLesen Iklan",
+    untilLabel: "hingga",
+    attachmentText: "Tertakluk kepada syarat-syarat dalam",
+    appendixLabel: "Lampiran A",
+    attachmentLine: "Tertakluk kepada syarat-syarat dalam Lampiran A.",
+    dateLabel: "Tarikh",
+    termsTitle: "Lampiran A",
+    paymentLabel: "Bayaran",
     ...savedFields,
   };
 
@@ -150,41 +175,41 @@ export function buildAdvertisementLicenseHtml(app, t) {
     <div class="top-code">${escapeHtml(fields.formCode)}</div>
     <div class="center">
       <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
-      <h1>DEWAN BANDARAYA KUCHING UTARA</h1>
-      <div class="subtitle">(COMMISSION OF THE CITY OF KUCHING NORTH)</div>
-      <div class="bylaw">The Local Authorities (Advertisements) By-Laws, 2012</div>
-      <div class="form-title">Borang B<br />(Undang-undang Kecil 7)<br />LESEN PENGIKLANAN</div>
+      <h1>${escapeHtml(fields.headerTitle)}</h1>
+      <div class="subtitle">${escapeHtml(fields.headerSubtitle)}</div>
+      <div class="bylaw">${escapeHtml(fields.bylawTitle)}</div>
+      <div class="form-title">${escapeHtml(fields.formTitle).replace(/\n/g, "<br />")}</div>
     </div>
 
     <div class="field-grid two">
-      <span class="label">No. Resit</span><span>:</span><span class="dotted">${escapeHtml(fields.receiptNo)}</span>
-      <span class="label">Rujukan</span><span>:</span><span class="dotted">${escapeHtml(fields.referenceNo || licenseId)}</span>
+      <span class="label">${escapeHtml(fields.receiptLabel)}</span><span>:</span><span class="dotted">${escapeHtml(fields.receiptNo)}</span>
+      <span class="label">${escapeHtml(fields.referenceLabel)}</span><span>:</span><span class="dotted">${escapeHtml(fields.referenceNo || licenseId)}</span>
     </div>
     <div class="field-grid license-lines">
-      <span class="label">Nama</span><span>:</span><span class="dotted">${escapeHtml(fields.applicantName)}</span>
-      <span class="label">Alamat</span><span>:</span><span class="dotted">${escapeHtml(firstAddressLine(fields.applicantAddress))}</span>
+      <span class="label">${escapeHtml(fields.nameLabel)}</span><span>:</span><span class="dotted">${escapeHtml(fields.applicantName)}</span>
+      <span class="label">${escapeHtml(fields.addressLabel)}</span><span>:</span><span class="dotted">${escapeHtml(firstAddressLine(fields.applicantAddress))}</span>
       <span></span><span></span><span class="dotted">${escapeHtml(secondAddressLine(fields.applicantAddress))}</span>
       <span></span><span></span><span class="dotted">${escapeHtml(thirdAddressLine(fields.applicantAddress))}</span>
     </div>
 
     <p class="paragraph">
-      Adalah dengan ini diberi lesen oleh <strong><u>PENGARAH, DEWAN BANDARAYA KUCHING UTARA</u></strong>
-      di bawah undang-undang kecil 7 The Local Authorities (Advertisements) By-Laws, 2012 untuk mempamer iklan seperti berikut:-
+      ${escapeHtml(fields.grantPrefix)} <strong><u>${escapeHtml(fields.issuingAuthority)}</u></strong>
+      ${escapeHtml(fields.grantSuffix)}
     </p>
 
     <div class="field-grid">
-      <span class="label">Papan Iklan</span><span>:</span><span class="dotted">${escapeHtml(fields.boardName)}</span>
+      <span class="label">${escapeHtml(fields.boardLabel)}</span><span>:</span><span class="dotted">${escapeHtml(fields.boardName)}</span>
       <span></span><span></span><span class="dotted blank">&nbsp;</span>
-      <span class="label">Jenis Iklan</span><span>:</span><span class="dotted">${escapeHtml(fields.advertisementType)}</span>
-      <span class="label">Tempat</span><span>:</span><span class="dotted">${escapeHtml(firstAddressLine(fields.displayLocation))}</span>
+      <span class="label">${escapeHtml(fields.advertisementTypeLabel)}</span><span>:</span><span class="dotted">${escapeHtml(fields.advertisementType)}</span>
+      <span class="label">${escapeHtml(fields.placeLabel)}</span><span>:</span><span class="dotted">${escapeHtml(firstAddressLine(fields.displayLocation))}</span>
       <span></span><span></span><span class="dotted">${escapeHtml(secondAddressLine(fields.displayLocation))}</span>
     </div>
     <div class="period license-lines">
-      <span class="label stack">Tempoh<br />Lesen Iklan</span><span>:</span><span class="dotted center">${escapeHtml(formatDate(fields.issueDate))}</span>
-      <span class="center">hingga</span><span class="dotted center">${escapeHtml(formatDate(fields.expiryDate))}</span>
+      <span class="label stack">${escapeHtml(fields.periodLabel).replace(/\n/g, "<br />")}</span><span>:</span><span class="dotted center">${escapeHtml(formatDate(fields.issueDate))}</span>
+      <span class="center">${escapeHtml(fields.untilLabel)}</span><span class="dotted center">${escapeHtml(formatDate(fields.expiryDate))}</span>
     </div>
 
-    <p class="attachment">Tertakluk kepada syarat-syarat dalam <strong><u>Lampiran A.</u></strong></p>
+    <p class="attachment">${escapeHtml(fields.attachmentText)} <strong><u>${escapeHtml(fields.appendixLabel)}</u></strong>.</p>
 
     <div class="signature-row">
       <div>
@@ -192,19 +217,19 @@ export function buildAdvertisementLicenseHtml(app, t) {
         <div class="signature-title">${escapeHtml(fields.signatoryTitle || "b.p : Dewan Bandaraya Kuching Utara")}</div>
       </div>
       <div class="date-line">
-        <span>Tarikh :</span>
+        <span>${escapeHtml(fields.dateLabel)} :</span>
         <span class="dotted center">${escapeHtml(formatDate(fields.signedDate || fields.issueDate))}</span>
       </div>
     </div>
   </section>
 
   <section class="page">
-    <h2 class="terms-title">Lampiran A</h2>
+    <h2 class="terms-title">${escapeHtml(fields.termsTitle)}</h2>
     <ol class="terms">
       ${terms.map((term) => `<li>${escapeHtml(term)}</li>`).join("")}
     </ol>
     <div class="payment-row">
-      <span>Bayaran :</span>
+      <span>${escapeHtml(fields.paymentLabel)} :</span>
       <span class="amount-box">${escapeHtml(paymentDisplay)}</span>
     </div>
   </section>

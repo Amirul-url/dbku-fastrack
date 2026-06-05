@@ -10948,6 +10948,16 @@ function LicenseDetails({
     pushLicenseDraft(draftFields, value);
   }
 
+  function updateLicenseTerm(index, value) {
+    const terms = termsText.split("\n");
+    terms[index] = value;
+    updateLicenseTerms(terms.join("\n"));
+  }
+
+  const licenseTerms = termsText
+    .split("\n")
+    .map((term) => term.replace(/^\s*\d+[\).]\s*/, "").trim());
+
   return (
     <div className="space-y-4 text-sm">
       <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -10978,13 +10988,17 @@ function LicenseDetails({
           </div>
         </div>
 
-        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="md:col-span-2 xl:col-span-3">
-            <p className="mb-1 text-[13px] font-semibold leading-5 text-slate-700">
-              {t("workspace.license.dbkuLogo", "DBKU Logo")}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-              <div className="flex h-16 w-24 items-center justify-center rounded border border-slate-200 bg-white p-2">
+        <div className="p-4">
+          <div className="mx-auto max-w-[900px] rounded border border-slate-300 bg-white px-10 py-8 text-[15px] leading-snug text-slate-950 shadow-sm" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+            <ManualLicensePlainInput
+              value={draftFields.formCode}
+              onChange={(value) => updateLicenseField("formCode", value)}
+              readOnly={!licenseEditable}
+              className="ml-auto block w-64 text-right font-bold"
+            />
+
+            <div className="mt-4 text-center">
+              <div className="mx-auto flex h-16 w-24 items-center justify-center">
                 <img
                   src={draftFields.dbkuLogoPath || "/logo-dbku.png"}
                   alt="DBKU"
@@ -10992,8 +11006,8 @@ function LicenseDetails({
                 />
               </div>
               {licenseEditable && (
-                <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                  <Icon name="upload_file" className="text-[16px]" />
+                <label className="mx-auto mt-2 inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <Icon name="upload_file" className="text-[15px]" />
                   <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
                   <input
                     type="file"
@@ -11006,109 +11020,153 @@ function LicenseDetails({
                   />
                 </label>
               )}
+              <ManualLicensePlainInput
+                value={draftFields.headerTitle}
+                onChange={(value) => updateLicenseField("headerTitle", value)}
+                readOnly={!licenseEditable}
+                className="mx-auto mt-4 block w-full text-center text-[18px] font-extrabold uppercase leading-tight"
+              />
+              <ManualLicensePlainInput
+                value={draftFields.headerSubtitle}
+                onChange={(value) => updateLicenseField("headerSubtitle", value)}
+                readOnly={!licenseEditable}
+                className="mx-auto block w-full text-center text-[13px] font-extrabold leading-tight"
+              />
+              <ManualLicensePlainInput
+                value={draftFields.bylawTitle}
+                onChange={(value) => updateLicenseField("bylawTitle", value)}
+                readOnly={!licenseEditable}
+                className="mx-auto block w-full text-center text-[15px] font-extrabold leading-tight"
+              />
+              <ManualLicensePlainArea
+                value={draftFields.formTitle}
+                onChange={(value) => updateLicenseField("formTitle", value)}
+                readOnly={!licenseEditable}
+                rows={3}
+                className="mx-auto mt-5 w-full resize-none text-center text-[16px] font-extrabold leading-tight"
+              />
+            </div>
+
+            <div className="mt-8 grid grid-cols-[86px_10px_minmax(0,1fr)_82px_10px_minmax(0,1fr)] items-end gap-x-2 gap-y-2">
+              <ManualLicensePlainInput value={draftFields.receiptLabel} onChange={(value) => updateLicenseField("receiptLabel", value)} readOnly={!licenseEditable} />
+              <span>:</span>
+              <ManualLicenseLineInput value={draftFields.receiptNo} onChange={(value) => updateLicenseField("receiptNo", value)} readOnly={!licenseEditable} />
+              <ManualLicensePlainInput value={draftFields.referenceLabel} onChange={(value) => updateLicenseField("referenceLabel", value)} readOnly={!licenseEditable} />
+              <span>:</span>
+              <ManualLicenseLineInput value={draftFields.referenceNo} onChange={(value) => updateLicenseField("referenceNo", value)} readOnly={!licenseEditable} />
+            </div>
+
+            <div className="mt-3 grid grid-cols-[86px_10px_minmax(0,1fr)] items-end gap-x-2">
+              <ManualLicensePlainInput value={draftFields.nameLabel} onChange={(value) => updateLicenseField("nameLabel", value)} readOnly={!licenseEditable} />
+              <span>:</span>
+              <ManualLicenseLineInput value={draftFields.applicantName} onChange={(value) => updateLicenseField("applicantName", value)} readOnly={!licenseEditable} />
+            </div>
+
+            <div className="mt-3 grid grid-cols-[86px_10px_minmax(0,1fr)] items-start gap-x-2">
+              <ManualLicensePlainInput value={draftFields.addressLabel} onChange={(value) => updateLicenseField("addressLabel", value)} readOnly={!licenseEditable} className="pt-1" />
+              <span className="pt-1">:</span>
+              <ManualLicenseLineArea value={draftFields.applicantAddress} onChange={(value) => updateLicenseField("applicantAddress", value)} readOnly={!licenseEditable} rows={3} />
+            </div>
+
+            <p className="mt-7 text-justify text-[15px] leading-snug">
+              <ManualLicenseEditableSpan
+                value={draftFields.grantPrefix}
+                onChange={(value) => updateLicenseField("grantPrefix", value)}
+                readOnly={!licenseEditable}
+              />{" "}
+              <ManualLicenseEditableSpan
+                value={draftFields.issuingAuthority}
+                onChange={(value) => updateLicenseField("issuingAuthority", value)}
+                readOnly={!licenseEditable}
+                className="font-extrabold underline"
+              />{" "}
+              <ManualLicenseEditableSpan
+                value={draftFields.grantSuffix}
+                onChange={(value) => updateLicenseField("grantSuffix", value)}
+                readOnly={!licenseEditable}
+              />
+            </p>
+
+            <div className="mt-5 grid grid-cols-[86px_10px_minmax(0,1fr)] items-end gap-x-2 gap-y-2">
+              <ManualLicensePlainInput value={draftFields.boardLabel} onChange={(value) => updateLicenseField("boardLabel", value)} readOnly={!licenseEditable} />
+              <span>:</span>
+              <ManualLicenseLineInput value={draftFields.boardName} onChange={(value) => updateLicenseField("boardName", value)} readOnly={!licenseEditable} className="text-center" />
+              <ManualLicensePlainInput value={draftFields.advertisementTypeLabel} onChange={(value) => updateLicenseField("advertisementTypeLabel", value)} readOnly={!licenseEditable} />
+              <span>:</span>
+              <ManualLicenseLineInput value={draftFields.advertisementType} onChange={(value) => updateLicenseField("advertisementType", value)} readOnly={!licenseEditable} />
+              <ManualLicensePlainInput value={draftFields.placeLabel} onChange={(value) => updateLicenseField("placeLabel", value)} readOnly={!licenseEditable} />
+              <span>:</span>
+              <ManualLicenseLineArea value={draftFields.displayLocation} onChange={(value) => updateLicenseField("displayLocation", value)} readOnly={!licenseEditable} rows={2} />
+            </div>
+
+            <div className="mt-3 grid grid-cols-[86px_10px_minmax(0,1fr)_55px_minmax(0,1fr)] items-end gap-x-2">
+              <ManualLicensePlainArea value={draftFields.periodLabel} onChange={(value) => updateLicenseField("periodLabel", value)} readOnly={!licenseEditable} rows={2} className="leading-tight" />
+              <span>:</span>
+              <ManualLicenseLineInput value={toDateDisplayValue(draftFields.issueDate)} onChange={(value) => updateLicenseField("issueDate", fromDateInputValue(value, draftFields.issueDate))} readOnly={!licenseEditable} className="text-center" />
+              <ManualLicensePlainInput value={draftFields.untilLabel} onChange={(value) => updateLicenseField("untilLabel", value)} readOnly={!licenseEditable} className="text-center" />
+              <ManualLicenseLineInput value={toDateDisplayValue(draftFields.expiryDate)} onChange={(value) => updateLicenseField("expiryDate", fromDateInputValue(value, draftFields.expiryDate))} readOnly={!licenseEditable} className="text-center" />
+            </div>
+
+            <p className="mt-6 text-[15px] leading-snug">
+              <ManualLicenseEditableSpan
+                value={draftFields.attachmentText}
+                onChange={(value) => updateLicenseField("attachmentText", value)}
+                readOnly={!licenseEditable}
+              />{" "}
+              <ManualLicenseEditableSpan
+                value={draftFields.appendixLabel}
+                onChange={(value) => updateLicenseField("appendixLabel", value)}
+                readOnly={!licenseEditable}
+                className="font-extrabold underline"
+              />
+              .
+            </p>
+
+            <div className="mt-20 grid grid-cols-[minmax(0,1fr)_320px] items-start gap-8">
+              <div>
+                <ManualLicenseLineInput value={draftFields.signatoryName} onChange={(value) => updateLicenseField("signatoryName", value)} readOnly={!licenseEditable} />
+                <ManualLicensePlainInput value={draftFields.signatoryTitle} onChange={(value) => updateLicenseField("signatoryTitle", value)} readOnly={!licenseEditable} className="mt-1 w-full" />
+              </div>
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-2">
+                <div className="flex items-end gap-1 whitespace-nowrap">
+                  <ManualLicensePlainInput value={draftFields.dateLabel} onChange={(value) => updateLicenseField("dateLabel", value)} readOnly={!licenseEditable} className="w-14" />
+                  <span>:</span>
+                </div>
+                <ManualLicenseLineInput value={toDateDisplayValue(draftFields.signedDate)} onChange={(value) => updateLicenseField("signedDate", fromDateInputValue(value, draftFields.signedDate))} readOnly={!licenseEditable} className="text-center" />
+              </div>
             </div>
           </div>
-          <ManualLicenseField
-            label={t("workspace.license.receiptNo", "Receipt No.")}
-            value={draftFields.receiptNo}
-            onChange={(value) => updateLicenseField("receiptNo", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.referenceNo", "Reference No.")}
-            value={draftFields.referenceNo}
-            onChange={(value) => updateLicenseField("referenceNo", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.formCode", "Form Code")}
-            value={draftFields.formCode}
-            onChange={(value) => updateLicenseField("formCode", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.applicantName", "Applicant Name")}
-            value={draftFields.applicantName}
-            onChange={(value) => updateLicenseField("applicantName", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.boardName", "Papan Iklan")}
-            value={draftFields.boardName}
-            onChange={(value) => updateLicenseField("boardName", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.advertisementType", "Jenis Iklan")}
-            value={draftFields.advertisementType}
-            onChange={(value) => updateLicenseField("advertisementType", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.startDate", "Start Date")}
-            type="date"
-            value={toDateInputValue(draftFields.issueDate)}
-            onChange={(value) => updateLicenseField("issueDate", fromDateInputValue(value))}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.endDate", "End Date")}
-            type="date"
-            value={toDateInputValue(draftFields.expiryDate)}
-            onChange={(value) => updateLicenseField("expiryDate", fromDateInputValue(value))}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.paymentAmount", "Payment Amount")}
-            value={draftFields.paymentAmount}
-            onChange={(value) => updateLicenseField("paymentAmount", value)}
-            onBlur={normalizeLicenseAmount}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.signatoryName", "Signatory Name")}
-            value={draftFields.signatoryName}
-            onChange={(value) => updateLicenseField("signatoryName", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.signatoryTitle", "Signatory Title")}
-            value={draftFields.signatoryTitle}
-            onChange={(value) => updateLicenseField("signatoryTitle", value)}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.signedDate", "Signed Date")}
-            type="date"
-            value={toDateInputValue(draftFields.signedDate)}
-            onChange={(value) => updateLicenseField("signedDate", fromDateInputValue(value))}
-            readOnly={!licenseEditable}
-          />
-          <ManualLicenseField
-            label={t("workspace.license.applicantAddress", "Applicant Address")}
-            value={draftFields.applicantAddress}
-            onChange={(value) => updateLicenseField("applicantAddress", value)}
-            readOnly={!licenseEditable}
-            textarea
-            className="md:col-span-2"
-          />
-          <ManualLicenseField
-            label={t("workspace.license.displayLocation", "Display Location")}
-            value={draftFields.displayLocation}
-            onChange={(value) => updateLicenseField("displayLocation", value)}
-            readOnly={!licenseEditable}
-            textarea
-            className="md:col-span-2"
-          />
-          <ManualLicenseField
-            label={t("workspace.license.terms", "Lampiran A Terms")}
-            value={termsText}
-            onChange={updateLicenseTerms}
-            readOnly={!licenseEditable}
-            textarea
-            className="md:col-span-2 xl:col-span-3"
-            rows={7}
-          />
+
+          <div className="mx-auto mt-4 max-w-[900px] rounded border border-slate-300 bg-white px-10 py-8 text-[15px] leading-snug text-slate-950 shadow-sm" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+            <ManualLicenseLineInput value={draftFields.termsTitle} onChange={(value) => updateLicenseField("termsTitle", value)} readOnly={!licenseEditable} className="mb-6 max-w-36 text-[17px] underline" />
+            <div className="space-y-3">
+              {licenseTerms.map((term, index) => (
+                <div key={index} className="grid grid-cols-[26px_minmax(0,1fr)] gap-4 text-[15px] leading-snug">
+                  <span>{index + 1}.</span>
+                  <ManualLicensePlainArea
+                    value={term}
+                    onChange={(value) => updateLicenseTerm(index, value)}
+                    readOnly={!licenseEditable}
+                    rows={term.length > 120 ? 2 : 1}
+                    className="resize-none text-justify leading-snug"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-4 font-extrabold">
+              <div className="flex items-center gap-1">
+                <ManualLicensePlainInput value={draftFields.paymentLabel} onChange={(value) => updateLicenseField("paymentLabel", value)} readOnly={!licenseEditable} className="w-20 text-right font-extrabold" />
+                <span>:</span>
+              </div>
+              <ManualLicenseLineInput
+                value={draftFields.paymentAmount}
+                onChange={(value) => updateLicenseField("paymentAmount", value)}
+                onBlur={normalizeLicenseAmount}
+                readOnly={!licenseEditable}
+                className="max-w-36 border border-slate-900 text-center"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -11136,42 +11194,123 @@ function LicenseDetails({
   );
 }
 
-function ManualLicenseField({
-  label,
+function ManualLicensePlainInput({
   value,
   onChange,
   onBlur,
   readOnly = false,
-  textarea = false,
-  type = "text",
   className = "",
-  rows = 3,
 }) {
   return (
-    <label className={`block ${className}`}>
-      <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-700">
-        {label}
-      </span>
-      {textarea ? (
-        <textarea
-          value={value || ""}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={onBlur}
-          readOnly={readOnly}
-          rows={rows}
-          className="form-input text-[14px] disabled:bg-slate-100"
-        />
-      ) : (
-        <input
-          type={type}
-          value={value || ""}
-          onChange={(event) => onChange(event.target.value)}
-          onBlur={onBlur}
-          readOnly={readOnly}
-          className="form-input h-10 text-[14px] disabled:bg-slate-100"
-        />
-      )}
-    </label>
+    <input
+      type="text"
+      value={value || ""}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onBlur}
+      readOnly={readOnly}
+      spellCheck={false}
+      className={`min-h-[22px] w-full min-w-0 border-0 bg-transparent p-0 text-[15px] leading-snug text-inherit outline-none read-only:cursor-default ${className}`}
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
+    />
+  );
+}
+
+function ManualLicensePlainArea({
+  value,
+  onChange,
+  onBlur,
+  readOnly = false,
+  rows = 2,
+  className = "",
+}) {
+  return (
+    <textarea
+      value={value || ""}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onBlur}
+      readOnly={readOnly}
+      rows={rows}
+      spellCheck={false}
+      className={`block w-full min-w-0 border-0 bg-transparent p-0 text-[15px] leading-snug text-inherit outline-none read-only:cursor-default ${className}`}
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
+    />
+  );
+}
+
+function ManualLicenseLineInput({
+  value,
+  onChange,
+  onBlur,
+  readOnly = false,
+  className = "",
+}) {
+  return (
+    <input
+      type="text"
+      value={value || ""}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onBlur}
+      readOnly={readOnly}
+      spellCheck={false}
+      className={`min-h-[22px] w-full min-w-0 border-0 border-b border-dotted border-slate-950 bg-transparent px-2 pb-[1px] pt-0 text-[15px] font-extrabold leading-snug text-inherit outline-none read-only:cursor-default ${className}`}
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
+    />
+  );
+}
+
+function ManualLicenseLineArea({
+  value,
+  onChange,
+  onBlur,
+  readOnly = false,
+  rows = 2,
+  bold = true,
+  className = "",
+}) {
+  return (
+    <textarea
+      value={value || ""}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={onBlur}
+      readOnly={readOnly}
+      rows={rows}
+      spellCheck={false}
+      className={`block w-full min-w-0 resize-none border-0 bg-transparent px-2 py-0 text-[15px] ${bold ? "font-extrabold" : "font-normal"} leading-[1.55] text-inherit outline-none read-only:cursor-default ${className}`}
+      style={{
+        fontFamily: '"Times New Roman", Times, serif',
+        backgroundImage:
+          "repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.55em - 1px), #0f172a calc(1.55em - 1px), #0f172a 1.55em)",
+      }}
+    />
+  );
+}
+
+function ManualLicenseEditableSpan({
+  value,
+  onChange,
+  readOnly = false,
+  className = "",
+}) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (ref.current && ref.current.textContent !== String(value || "")) {
+      ref.current.textContent = value || "";
+    }
+  }, [value]);
+
+  return (
+    <span
+      ref={ref}
+      contentEditable={!readOnly}
+      suppressContentEditableWarning
+      spellCheck={false}
+      onInput={(event) => onChange(event.currentTarget.textContent || "")}
+      className={`inline min-w-[1ch] rounded-sm outline-none focus:bg-amber-50 ${readOnly ? "cursor-default" : ""} ${className}`}
+      style={{ fontFamily: '"Times New Roman", Times, serif' }}
+    >
+      {value || ""}
+    </span>
   );
 }
 
@@ -11182,9 +11321,28 @@ function toDateInputValue(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function fromDateInputValue(value) {
+function toDateDisplayValue(value) {
   if (!value) return "";
-  return new Date(`${value}T00:00:00`).toISOString();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+function fromDateInputValue(value, fallback = "") {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  const displayMatch = normalized.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  const isoMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const date = displayMatch
+    ? new Date(Number(displayMatch[3]), Number(displayMatch[2]) - 1, Number(displayMatch[1]))
+    : isoMatch
+      ? new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]))
+      : new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toISOString();
 }
 
 function getLicenseExpiryPreviewDate(years) {
