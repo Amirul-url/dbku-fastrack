@@ -508,27 +508,32 @@ function PrintFormPage({
                     />
                     <PrintLine
                       no="12."
-                      label={`${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`}
-                      value={`${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`}
+                      label={tx("fundApprovedIn")}
+                      value={step1.malaysia_plan}
                     />
                     <PrintLine
                       no="13."
+                      label={tx("malaysiaPlanRm")}
+                      value={formatRM(step1.amount_fund_approved)}
+                    />
+                    <PrintLine
+                      no="14."
                       label={tx("fundAvailableNow")}
                       value={formatRM(step1.amount_fund_available)}
                     />
                     <PrintBlock
-                      no="14."
+                      no="15."
                       label={tx("projectJustification")}
                       value={stripHtml(step1.project_justification)}
                     />
                     <PrintBlock
-                      no="15."
+                      no="16."
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
-                    <PrintLine no="16." label={tx("designation")} value={step1.designation} />
-                    <PrintLine no="17." label={tx("officerName")} value={step1.officer_name} />
-                    <PrintLine no="18." label={tx("date")} value={formatDate(step1.application_date)} />
+                    <PrintLine no="17." label={tx("designation")} value={step1.designation} />
+                    <PrintLine no="18." label={tx("officerName")} value={step1.officer_name} />
+                    <PrintLine no="19." label={tx("date")} value={formatDate(step1.application_date)} />
                   </PrintSection>
                 </PrintPage>
 
@@ -769,11 +774,16 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
       },
       {
         no: "12.",
-        label: `${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`,
-        value: `${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`,
+        label: tx("fundApprovedIn"),
+        value: step1.malaysia_plan,
       },
       {
         no: "13.",
+        label: tx("malaysiaPlanRm"),
+        value: formatRM(step1.amount_fund_approved),
+      },
+      {
+        no: "14.",
         label: tx("fundAvailableNow"),
         value: formatRM(step1.amount_fund_available),
       },
@@ -782,13 +792,13 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
   );
 
   y = drawPdfBlock(pdf, {
-    no: "14.",
+    no: "15.",
     label: tx("projectJustification"),
     value: stripHtml(step1.project_justification),
     y,
   });
   y = drawPdfBlock(pdf, {
-    no: "15.",
+    no: "16.",
     label: tx("siteSelectionReason"),
     value: stripHtml(step1.site_selection_reason),
     y,
@@ -796,9 +806,9 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
   drawPdfFieldRows(
     pdf,
     [
-      { no: "16.", label: tx("designation"), value: step1.designation },
-      { no: "17.", label: tx("officerName"), value: step1.officer_name },
-      { no: "18.", label: tx("date"), value: formatDate(step1.application_date) },
+      { no: "17.", label: tx("designation"), value: step1.designation },
+      { no: "18.", label: tx("officerName"), value: step1.officer_name },
+      { no: "19.", label: tx("date"), value: formatDate(step1.application_date) },
     ],
     y
   );
@@ -1442,7 +1452,24 @@ function formatAdvertisementSize(step1 = {}) {
 
 function formatPhone(countryCode, phoneNumber) {
   if (!countryCode && !phoneNumber) return "-";
-  return [countryCode, phoneNumber].filter(Boolean).join(" ");
+
+  const codeDigits = String(countryCode || "").match(/\+?\d+/)?.[0] || "";
+  const normalizedCode = codeDigits.startsWith("+")
+    ? codeDigits
+    : codeDigits
+      ? `+${codeDigits}`
+      : "";
+  const localDigits = String(phoneNumber || "").replace(/\D/g, "");
+
+  if (normalizedCode === "+60" && localDigits) {
+    return `+60${localDigits.replace(/^0+/, "")}`;
+  }
+
+  if (normalizedCode && localDigits) {
+    return `${normalizedCode}${localDigits}`;
+  }
+
+  return normalizedCode || localDigits || "-";
 }
 
 function getAttachmentName(attachment) {
