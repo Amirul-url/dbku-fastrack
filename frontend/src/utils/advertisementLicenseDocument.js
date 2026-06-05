@@ -128,10 +128,11 @@ export function buildAdvertisementLicenseHtml(app, t) {
     .period { display: grid; grid-template-columns: 88px 10px 1fr 55px 1fr; column-gap: 7px; row-gap: 9px; font-size: 16px; align-items: end; }
     .period .stack { line-height: 1.06; }
     .attachment { margin: 24px 0 0; font-size: 16px; }
-    .signature-row { display: grid; grid-template-columns: 1fr 190px; gap: 28px; margin-top: 36px; align-items: end; font-size: 16px; }
-    .signature-space { min-height: 54px; }
-    .signature-line { border-bottom: 2px dotted #111; min-height: 20px; }
-    .date-line { display: grid; grid-template-columns: 48px 1fr; gap: 6px; align-items: end; }
+    .signature-row { display: grid; grid-template-columns: 1fr 320px; gap: 28px; margin-top: 88px; align-items: start; font-size: 16px; }
+    .signature-line { border-bottom: 2px dotted #111; min-height: 21px; line-height: 19px; padding: 0 7px 1px; font-weight: 700; }
+    .signature-title { margin-top: 2px; }
+    .date-line { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: end; }
+    .date-line span:first-child { white-space: nowrap; }
     .terms-title { margin: 0 0 28px; font-size: 18px; font-weight: 700; text-decoration: underline; }
     .terms { margin: 0; padding-left: 0; list-style: none; counter-reset: term; font-size: 17px; line-height: 1.22; }
     .terms li { counter-increment: term; display: grid; grid-template-columns: 28px 1fr; gap: 15px; margin: 0 0 18px; text-align: justify; text-align-last: left; }
@@ -187,9 +188,8 @@ export function buildAdvertisementLicenseHtml(app, t) {
 
     <div class="signature-row">
       <div>
-        <div class="signature-space">${fields.signatoryName ? escapeHtml(fields.signatoryName) : ""}</div>
-        <div class="signature-line"></div>
-        <div>${escapeHtml(fields.signatoryTitle || "b.p : Dewan Bandaraya Kuching Utara")}</div>
+        <div class="signature-line">${fields.signatoryName ? escapeHtml(fields.signatoryName) : ""}</div>
+        <div class="signature-title">${escapeHtml(fields.signatoryTitle || "b.p : Dewan Bandaraya Kuching Utara")}</div>
       </div>
       <div class="date-line">
         <span>Tarikh :</span>

@@ -5661,7 +5661,12 @@ const configs = {
         buildPayload: (app, data) => {
           const today = new Date();
           const validityYears = Number(data?.licenseExpiryYears) || 1;
-          const expiry = addCalendarYears(today, validityYears);
+          const manualLicenseFields = app.form_data?.license?.manual_license?.fields || {};
+          const issueDate = parseDateOrFallback(manualLicenseFields.issueDate, today);
+          const expiry = parseDateOrFallback(
+            manualLicenseFields.expiryDate,
+            addCalendarYears(issueDate, validityYears)
+          );
           const licenseId = getLicenseId(app);
           return {
             status: "license_issued",
@@ -5673,13 +5678,13 @@ const configs = {
                 holder: getApplicantName(app),
                 type: getApplicationType(app),
                 location: getApplicationLocation(app),
-                issue_date: today.toISOString(),
+                issue_date: issueDate.toISOString(),
                 expiry_date: expiry.toISOString(),
                 validity_years: validityYears,
                 verification_url: getLicenseVerificationUrl(licenseId),
                 issued_at: new Date().toISOString(),
                 manual_license: buildManualAdvertisementLicenseForIssuance(app, {
-                  issueDate: today.toISOString(),
+                  issueDate: issueDate.toISOString(),
                   expiryDate: expiry.toISOString(),
                 }),
                 renewal_reminders: [
@@ -10877,12 +10882,11 @@ function LicenseDetails({
   const renewal = getLicenseRenewal(app);
   const reminders = getLicenseRenewalReminders(app);
   const cancellation = renewal.cancellation || {};
-  const previewExpiryDate = getLicenseExpiryPreviewDate(licenseExpiryYears);
   const licenseEditable =
     canChooseLicenseExpiry && normalizeStatus(app?.status) === "payment_verified";
   const [draftFields, setDraftFields] = useState(() =>
     getAdvertisementLicenseDraftFields(app, manualLicense.fields, {
-      expiryDate: licenseEditable ? previewExpiryDate : license.expiry_date,
+      expiryDate: license.expiry_date,
     })
   );
   const [termsText, setTermsText] = useState(() =>
@@ -10895,7 +10899,7 @@ function LicenseDetails({
   useEffect(() => {
     setDraftFields(
       getAdvertisementLicenseDraftFields(app, manualLicense.fields, {
-        expiryDate: licenseEditable ? previewExpiryDate : license.expiry_date,
+        expiryDate: license.expiry_date,
       })
     );
     setTermsText(
@@ -10904,7 +10908,7 @@ function LicenseDetails({
         : DEFAULT_ADVERTISEMENT_LICENSE_TERMS
       ).join("\n")
     );
-  }, [app.id, licenseEditable, license.expiry_date, manualLicense.draft_saved_at, manualLicense.issued_at, previewExpiryDate]);
+  }, [app.id, license.expiry_date, manualLicense.draft_saved_at, manualLicense.issued_at]);
 
   function pushLicenseDraft(nextFields, nextTermsText = termsText) {
     const terms = nextTermsText
@@ -10946,43 +10950,6 @@ function LicenseDetails({
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-[220px_220px_360px_minmax(0,1fr)]">
-        <Info label={t("workspace.info.licenseId")} value={license.license_id || getLicenseId(app)} />
-        <Info label={t("common.status")} value={license.status || t("workspace.info.pendingIssuance")} />
-        {canChooseLicenseExpiry ? (
-          <div>
-            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.info.expiry", "Expiry")}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-3">
-              <select
-                value={licenseExpiryYears}
-                onChange={(event) => setLicenseExpiryYears(event.target.value)}
-                className="form-input h-10 !w-28 text-[14px]"
-              >
-                {LICENSE_EXPIRY_YEAR_OPTIONS.map((years) => (
-                  <option key={years} value={years}>
-                    {t(
-                      `workspace.license.validity.${years}`,
-                      `${years} ${years === 1 ? "year" : "years"}`
-                    )}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[14px] font-medium leading-5 text-slate-800">
-                {t("workspace.license.expiresOn", "Expires on")} {formatDateTime(previewExpiryDate)}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <Info label={t("workspace.info.expiry")} value={formatDateTime(license.expiry_date)} />
-        )}
-        <LicenseUrlInfo
-          label={t("workspace.info.verificationUrl")}
-          value={license.verification_url || t("workspace.info.notGenerated")}
-        />
-      </div>
-
       <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
         <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -11223,6 +11190,12 @@ function fromDateInputValue(value) {
 function getLicenseExpiryPreviewDate(years) {
   const issueDate = new Date();
   return addCalendarYears(issueDate, Number(years) || 1).toISOString();
+}
+
+function parseDateOrFallback(value, fallback) {
+  const parsed = value ? new Date(value) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) return parsed;
+  return fallback instanceof Date ? fallback : new Date(fallback);
 }
 
 function addCalendarYears(value, years) {
