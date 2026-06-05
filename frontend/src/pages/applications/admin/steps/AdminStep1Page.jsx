@@ -347,7 +347,7 @@ function AdminStep1Page() {
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label={tx("areaRequired")} required>
+                <Field label={tx("areaRequired")} required guideline={tx("areaRequiredGuideline")}>
                   <input
                     className="spa-input"
                     value={areaRequired}
@@ -355,7 +355,7 @@ function AdminStep1Page() {
                   />
                 </Field>
 
-                <Field label={tx("totalSchemeValue")}>
+                <Field label={tx("totalSchemeValue")} guideline={tx("totalSchemeValueGuideline")}>
                   <input
                     className="spa-input"
                     value={totalSchemeValue}
@@ -366,7 +366,7 @@ function AdminStep1Page() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label={tx("fundAvailableNowTitle")}>
+                <Field label={tx("fundAvailableNowTitle")} guideline={tx("fundAvailableNowGuideline")}>
                   <input
                     className="spa-input"
                     value={amountFundAvailable}
@@ -374,7 +374,7 @@ function AdminStep1Page() {
                   />
                 </Field>
 
-                <Field label={tx("fundApprovedMalaysiaPlan")} required>
+                <Field label={tx("fundApprovedMalaysiaPlan")} required guideline={tx("fundApprovedMalaysiaPlanGuideline")}>
                   <input
                     className="spa-input"
                     value={amountFundApproved}
@@ -1123,16 +1123,35 @@ function FormSection({ title, children }) {
   );
 }
 
-function Field({ label, children, required = false }) {
+function Field({ label, children, required = false, guideline = "" }) {
   return (
-    <div>
-      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-        {label}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
+    <div className="relative">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+        <span>
+          {label}
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </span>
+        {guideline && <GuidelineHint text={guideline} />}
+      </div>
 
       {children}
     </div>
+  );
+}
+
+function GuidelineHint({ text }) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={text}
+      className="group/icon inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-400 bg-white text-[10px] font-black leading-none text-slate-600 outline-none hover:border-[#006d32] hover:text-[#006d32] focus:border-[#006d32] focus:text-[#006d32]"
+    >
+      i
+      <span className="pointer-events-none absolute left-0 top-5 z-40 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block">
+        {text}
+      </span>
+    </span>
   );
 }
 
