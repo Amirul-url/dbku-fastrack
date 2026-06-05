@@ -71,7 +71,7 @@ function AdminStep1Page() {
       const step1 = data.form_data?.step_1 || {};
 
       setProjectName(step1.project_name || "");
-      setLocalityAddress(step1.locality_address || "");
+      setLocalityAddress(step1.locality_address || step1.map_address || "");
       setAreaRequired(step1.area_required || "");
       setAreaUnit(step1.area_unit || "Sq. M");
       setTotalSchemeValue(step1.total_scheme_value || "");
@@ -164,6 +164,21 @@ function AdminStep1Page() {
         body: JSON.stringify(payload),
       }
     );
+  }
+
+  function handleLocalityAddressChange(nextAddress) {
+    setLocalityAddress(nextAddress);
+    setMapData((prev) => ({
+      ...prev,
+      address: nextAddress,
+    }));
+  }
+
+  function handleMapDataChange(nextMapData) {
+    setMapData(nextMapData);
+    if (nextMapData?.address !== undefined) {
+      setLocalityAddress(nextMapData.address || "");
+    }
   }
 
   async function uploadPendingSiteImage(application, payload) {
@@ -307,17 +322,11 @@ function AdminStep1Page() {
                 <input
                   className="spa-input"
                   value={localityAddress}
-                  onChange={(e) => {
-                    setLocalityAddress(e.target.value);
-                    setMapData((prev) => ({
-                      ...prev,
-                      address: e.target.value,
-                    }));
-                  }}
+                  onChange={(e) => handleLocalityAddressChange(e.target.value)}
                 />
               </Field>
 
-              <LocationMap value={mapData} onChange={setMapData} language={language} />
+              <LocationMap value={mapData} onChange={handleMapDataChange} language={language} />
 
               <SiteImageUpload
                 imageName={siteImageName}

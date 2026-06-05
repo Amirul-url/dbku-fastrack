@@ -141,7 +141,7 @@ function SittingApplicationPage({
     setApplicant(step1.applicant || "");
     setContactPerson(step1.contact_person || "");
     setTelNo(step1.tel_no || "");
-    setLocalityAddress(step1.locality_address || "");
+    setLocalityAddress(step1.locality_address || step1.map_address || "");
     setAreaRequired(step1.area_required || "");
     setTotalSchemeValue(step1.total_scheme_value || "");
     setMalaysiaPlan(step1.malaysia_plan || "");
@@ -257,6 +257,21 @@ function SittingApplicationPage({
         body: JSON.stringify(payload),
       }
     );
+  }
+
+  function handleLocalityAddressChange(nextAddress) {
+    setLocalityAddress(nextAddress);
+    setMapData((prev) => ({
+      ...prev,
+      address: nextAddress,
+    }));
+  }
+
+  function handleMapDataChange(nextMapData) {
+    setMapData(nextMapData);
+    if (nextMapData?.address !== undefined) {
+      setLocalityAddress(nextMapData.address || "");
+    }
   }
 
   async function uploadPendingSiteImage(application, payload) {
@@ -476,19 +491,13 @@ function SittingApplicationPage({
                 <input
                   className="spa-input"
                   value={localityAddress}
-                  onChange={(e) => {
-                    setLocalityAddress(e.target.value);
-                    setMapData((prev) => ({
-                      ...prev,
-                      address: e.target.value,
-                    }));
-                  }}
+                  onChange={(e) => handleLocalityAddressChange(e.target.value)}
                 />
               </Field>
 
               <LocationMap
                 value={mapData}
-                onChange={setMapData}
+                onChange={handleMapDataChange}
                 readOnly={isReadOnly}
                 language={language}
               />
