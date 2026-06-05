@@ -34,9 +34,16 @@ const APPLICATION_TYPE_OPTIONS = [
 ];
 
 const APPLICATION_TYPE_DEPARTMENTS = {
-  open_space: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
-  building: ["IMT", "LNP", "GPM"],
+  open_space: ["GPM", "MNE", "IMT", "LNP", "ENG"],
+  building: ["BLG"],
 };
+
+const IKL_FIRST_AREA_SQM = 20;
+const IKL_FIRST_AREA_RATE = 100;
+const IKL_ADDITIONAL_AREA_RATE = 70;
+const IKL_FIXED_DEPOSIT = 5000;
+const IKL_PROCESSING_FEE = 10;
+const SQFT_TO_SQM = 0.092903;
 
 function normalizeApplicationTypeOptions(value) {
   const values = Array.isArray(value) ? value : value ? [value] : [];
@@ -63,6 +70,70 @@ function getApplicationTypeLabel(language, types) {
       return option ? stepText(language, option.labelKey) : type;
     })
     .join(", ");
+}
+
+function parsePositiveNumber(value) {
+  const number = Number(String(value || "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function formatCalculatedArea(value) {
+  return formatFlexibleDecimal(value, 10);
+}
+
+function formatCalculatedAmount(value) {
+  const rounded = Math.round((Number(value) || 0) * 100) / 100;
+  return rounded.toFixed(2);
+}
+
+function formatFlexibleDecimal(value, maxDecimals = 10) {
+  const number = Number(value) || 0;
+  return number
+    .toFixed(maxDecimals)
+    .replace(/(\.\d*?[1-9])0+$/, "$1")
+    .replace(/\.0+$/, "");
+}
+
+function formatWholeNumber(value) {
+  return String(Math.round(Number(value) || 0));
+}
+
+function calculateAreaSqmFromFt(widthFt, heightFt) {
+  const width = parsePositiveNumber(widthFt);
+  const height = parsePositiveNumber(heightFt);
+  return width && height ? width * height * SQFT_TO_SQM : 0;
+}
+
+function calculateIklTotalPayable(areaRequired) {
+  const breakdown = calculateIklFeeBreakdown(areaRequired);
+  return breakdown ? formatCalculatedAmount(breakdown.totalPayable) : "";
+}
+
+function calculateIklFeeBreakdown(areaRequired) {
+  const areaSqm =
+    typeof areaRequired === "number"
+      ? areaRequired
+      : parsePositiveNumber(areaRequired);
+  if (!areaSqm) return "";
+
+  const firstAreaSqm = Math.min(areaSqm, IKL_FIRST_AREA_SQM);
+  const additionalAreaSqm = Math.max(areaSqm - IKL_FIRST_AREA_SQM, 0);
+  const firstAreaFee = firstAreaSqm * IKL_FIRST_AREA_RATE;
+  const additionalAreaFee = additionalAreaSqm * IKL_ADDITIONAL_AREA_RATE;
+  const feeTotal = firstAreaFee + additionalAreaFee;
+  const totalPayable = feeTotal + IKL_FIXED_DEPOSIT + IKL_PROCESSING_FEE;
+
+  return {
+    areaSqm,
+    firstAreaSqm,
+    additionalAreaSqm,
+    firstAreaFee,
+    additionalAreaFee,
+    feeTotal,
+    deposit: IKL_FIXED_DEPOSIT,
+    processingFee: IKL_PROCESSING_FEE,
+    totalPayable,
+  };
 }
 
 function SittingApplicationPage({
@@ -93,6 +164,8 @@ function SittingApplicationPage({
   const [contactPerson, setContactPerson] = useState("");
   const [telNo, setTelNo] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
+  const [sizeWidthFt, setSizeWidthFt] = useState("");
+  const [sizeHeightFt, setSizeHeightFt] = useState("");
   const [areaRequired, setAreaRequired] = useState("");
   const [totalSchemeValue, setTotalSchemeValue] = useState("");
   const [malaysiaPlan, setMalaysiaPlan] = useState("");
@@ -142,10 +215,23 @@ function SittingApplicationPage({
     setContactPerson(step1.contact_person || "");
     setTelNo(step1.tel_no || "");
     setLocalityAddress(step1.locality_address || step1.map_address || "");
-    setAreaRequired(step1.area_required || "");
+    const savedWidthFt = step1.width_ft || step1.size_width_ft || "";
+    const savedHeightFt = step1.height_ft || step1.size_height_ft || "";
+    const calculatedAreaSqm = calculateAreaSqmFromFt(savedWidthFt, savedHeightFt);
+    const nextAreaRequired = calculatedAreaSqm
+      ? formatCalculatedArea(calculatedAreaSqm)
+      : step1.area_required || "";
+
+    setSizeWidthFt(savedWidthFt);
+    setSizeHeightFt(savedHeightFt);
+    setAreaRequired(nextAreaRequired);
     setTotalSchemeValue(step1.total_scheme_value || "");
     setMalaysiaPlan(step1.malaysia_plan || "");
-    setAmountFundApproved(step1.amount_fund_approved || "");
+    setAmountFundApproved(
+      calculateIklTotalPayable(calculatedAreaSqm || nextAreaRequired) ||
+        step1.amount_fund_approved ||
+        ""
+    );
     setAmountFundAvailable(step1.amount_fund_available || "");
     setProjectJustification(step1.project_justification || "");
     setSiteSelectionReason(step1.site_selection_reason || "");
@@ -217,6 +303,8 @@ function SittingApplicationPage({
           applicant,
           contact_person: contactPerson,
           tel_no: telNo,
+          width_ft: sizeWidthFt,
+          height_ft: sizeHeightFt,
           locality_address: localityAddress,
           area_required: areaRequired,
           area_unit: "",
@@ -273,6 +361,29 @@ function SittingApplicationPage({
       setLocalityAddress(nextMapData.address || "");
     }
   }
+
+  function handleAreaRequiredChange(nextAreaRequired) {
+    setAreaRequired(nextAreaRequired);
+    setAmountFundApproved(calculateIklTotalPayable(nextAreaRequired));
+  }
+
+  function handleSizeDimensionChange(field, value) {
+    const nextWidthFt = field === "width" ? value : sizeWidthFt;
+    const nextHeightFt = field === "height" ? value : sizeHeightFt;
+    const nextAreaSqm = calculateAreaSqmFromFt(nextWidthFt, nextHeightFt);
+
+    if (field === "width") {
+      setSizeWidthFt(value);
+    } else {
+      setSizeHeightFt(value);
+    }
+
+    setAreaRequired(nextAreaSqm ? formatCalculatedArea(nextAreaSqm) : "");
+    setAmountFundApproved(calculateIklTotalPayable(nextAreaSqm));
+  }
+
+  const feeBreakdownAreaSqm =
+    calculateAreaSqmFromFt(sizeWidthFt, sizeHeightFt) || parsePositiveNumber(areaRequired);
 
   async function uploadPendingSiteImage(application, payload) {
     if (!siteImageFile) return application;
@@ -521,21 +632,57 @@ function SittingApplicationPage({
                 }}
               />
 
-              <Field label={tx("areaRequired")} required guideline={tx("areaRequiredGuideline")}>
-                <input
-                  className="spa-input"
-                  value={areaRequired}
-                  onChange={(e) => setAreaRequired(e.target.value)}
-                />
-              </Field>
+              <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,500px)_minmax(360px,1fr)]">
+                <div className="space-y-3">
+                  <Field label={tx("advertisementSizeFt")} required guideline={tx("advertisementSizeFtGuideline")}>
+                    <div className="grid max-w-md grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto] items-center gap-2">
+                      <input
+                        className="spa-input"
+                        value={sizeWidthFt}
+                        onChange={(e) => handleSizeDimensionChange("width", e.target.value)}
+                        inputMode="decimal"
+                        placeholder={tx("widthFt")}
+                        readOnly={isReadOnly}
+                      />
+                      <span className="text-xs font-semibold text-slate-500">ft</span>
+                      <span className="text-xs font-bold text-slate-500">x</span>
+                      <input
+                        className="spa-input"
+                        value={sizeHeightFt}
+                        onChange={(e) => handleSizeDimensionChange("height", e.target.value)}
+                        inputMode="decimal"
+                        placeholder={tx("heightFt")}
+                        readOnly={isReadOnly}
+                      />
+                      <span className="text-xs font-semibold text-slate-500">ft</span>
+                    </div>
+                  </Field>
 
-              <Field label={tx("totalSchemeValue")} required guideline={tx("totalSchemeValueGuideline")}>
-                <input
-                  className="spa-input"
-                  value={totalSchemeValue}
-                  onChange={(e) => setTotalSchemeValue(e.target.value)}
+                  <Field label={tx("areaRequired")} required guideline={tx("areaRequiredGuideline")}>
+                    <input
+                      className="spa-input max-w-md bg-slate-50 text-slate-700"
+                      value={areaRequired}
+                      onChange={(e) => handleAreaRequiredChange(e.target.value)}
+                      readOnly
+                    />
+                  </Field>
+
+                  <Field label={tx("totalSchemeValue")} required guideline={tx("totalSchemeValueGuideline")}>
+                    <input
+                      className="spa-input max-w-md"
+                      value={totalSchemeValue}
+                      onChange={(e) => setTotalSchemeValue(e.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <FeeCalculationBreakdown
+                  tx={tx}
+                  widthFt={sizeWidthFt}
+                  heightFt={sizeHeightFt}
+                  areaSqm={feeBreakdownAreaSqm}
                 />
-              </Field>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
                 <Field label={tx("fundApprovedIn")} required guideline={tx("fundApprovedInGuideline")}>
@@ -549,9 +696,9 @@ function SittingApplicationPage({
 
                 <Field label={tx("malaysiaPlanRm")} required guideline={tx("malaysiaPlanRmGuideline")}>
                   <input
-                    className="spa-input"
+                    className="spa-input bg-slate-50 text-slate-700"
                     value={amountFundApproved}
-                    onChange={(e) => setAmountFundApproved(e.target.value)}
+                    readOnly
                   />
                 </Field>
               </div>
@@ -1420,6 +1567,89 @@ function Field({ label, children, required = false, guideline = "" }) {
       {children}
     </div>
   );
+}
+
+function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm }) {
+  const width = parsePositiveNumber(widthFt);
+  const height = parsePositiveNumber(heightFt);
+  const areaSqft = width && height ? width * height : 0;
+  const breakdown = calculateIklFeeBreakdown(areaSqm);
+
+  return (
+    <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
+      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
+        {tx("calculationBreakdown")}
+      </summary>
+
+      <div className="border-t border-slate-200 bg-white px-3 py-2">
+        {breakdown ? (
+          <div className="grid gap-1 text-[11px] text-slate-700">
+            <CalculationRow
+              label={tx("calculationSize")}
+              value={
+                width && height
+                  ? `${formatCalculationNumber(width)} ft x ${formatCalculationNumber(height)} ft`
+                  : "-"
+              }
+            />
+            <CalculationRow
+              label={tx("calculationAreaFt")}
+              value={areaSqft ? `${formatFlexibleDecimal(areaSqft, 10)} ft²` : "-"}
+            />
+            <CalculationRow
+              label={tx("calculationAreaSqm")}
+              value={`${formatFlexibleDecimal(areaSqft || 0, 10)} x ${SQFT_TO_SQM} = ${formatCalculatedArea(breakdown.areaSqm)} Sq. m`}
+            />
+            <CalculationRow
+              label={tx("calculationFirstArea")}
+              value={`${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x RM${formatCalculatedAmount(IKL_FIRST_AREA_RATE)} = RM${formatCalculatedAmount(breakdown.firstAreaFee)}`}
+            />
+            <CalculationRow
+              label={tx("calculationAdditionalArea")}
+              value={`${formatWholeNumber(breakdown.additionalAreaSqm)} Sq. m x RM${formatCalculatedAmount(IKL_ADDITIONAL_AREA_RATE)} = RM${formatCalculatedAmount(breakdown.additionalAreaFee)}`}
+            />
+            <CalculationRow
+              label={tx("calculationFeeTotal")}
+              value={`RM${formatCalculatedAmount(breakdown.feeTotal)}`}
+            />
+            <CalculationRow
+              label={tx("calculationDeposit")}
+              value={`RM${formatCalculatedAmount(breakdown.deposit)}`}
+            />
+            <CalculationRow
+              label={tx("calculationProcessingFee")}
+              value={`RM${formatCalculatedAmount(breakdown.processingFee)}`}
+            />
+            <CalculationRow
+              label={tx("calculationTotalPayable")}
+              value={`RM${formatCalculatedAmount(breakdown.totalPayable)}`}
+              strong
+            />
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-500">{tx("calculationEmpty")}</p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function CalculationRow({ label, value, strong = false }) {
+  return (
+    <div
+      className={`grid gap-2 sm:grid-cols-[220px_minmax(0,1fr)] ${
+        strong ? "border-t border-slate-200 pt-1 font-bold text-slate-900" : ""
+      }`}
+    >
+      <span>{label}</span>
+      <span className="font-mono tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function formatCalculationNumber(value) {
+  const number = Number(value) || 0;
+  return Number.isInteger(number) ? String(number) : String(number);
 }
 
 function GuidelineHint({ text }) {

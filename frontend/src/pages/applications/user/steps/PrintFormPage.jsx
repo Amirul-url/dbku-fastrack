@@ -499,35 +499,36 @@ function PrintFormPage({
                       label={tx("siteImage")}
                       value={getAttachmentName(step1.site_image) || step1.site_image_name}
                     />
-                    <PrintLine no="9." label={tx("areaRequired")} value={step1.area_required} />
+                    <PrintLine no="9." label={tx("advertisementSizeFt")} value={formatAdvertisementSize(step1)} />
+                    <PrintLine no="10." label={tx("areaRequired")} value={step1.area_required} />
                     <PrintLine
-                      no="10."
+                      no="11."
                       label={tx("totalSchemeValue")}
                       value={formatRM(step1.total_scheme_value)}
                     />
                     <PrintLine
-                      no="11."
+                      no="12."
                       label={`${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`}
                       value={`${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`}
                     />
                     <PrintLine
-                      no="12."
+                      no="13."
                       label={tx("fundAvailableNow")}
                       value={formatRM(step1.amount_fund_available)}
                     />
                     <PrintBlock
-                      no="13."
+                      no="14."
                       label={tx("projectJustification")}
                       value={stripHtml(step1.project_justification)}
                     />
                     <PrintBlock
-                      no="14."
+                      no="15."
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
-                    <PrintLine no="15." label={tx("designation")} value={step1.designation} />
-                    <PrintLine no="16." label={tx("officerName")} value={step1.officer_name} />
-                    <PrintLine no="17." label={tx("date")} value={formatDate(step1.application_date)} />
+                    <PrintLine no="16." label={tx("designation")} value={step1.designation} />
+                    <PrintLine no="17." label={tx("officerName")} value={step1.officer_name} />
+                    <PrintLine no="18." label={tx("date")} value={formatDate(step1.application_date)} />
                   </PrintSection>
                 </PrintPage>
 
@@ -759,19 +760,20 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
         label: tx("siteImage"),
         value: getAttachmentName(step1.site_image) || step1.site_image_name,
       },
-      { no: "9.", label: tx("areaRequired"), value: step1.area_required },
+      { no: "9.", label: tx("advertisementSizeFt"), value: formatAdvertisementSize(step1) },
+      { no: "10.", label: tx("areaRequired"), value: step1.area_required },
       {
-        no: "10.",
+        no: "11.",
         label: tx("totalSchemeValue"),
         value: formatRM(step1.total_scheme_value),
       },
       {
-        no: "11.",
+        no: "12.",
         label: `${tx("fundApprovedIn")} ${tx("malaysiaPlanRm")}`,
         value: `${step1.malaysia_plan || "-"} / ${formatRM(step1.amount_fund_approved)}`,
       },
       {
-        no: "12.",
+        no: "13.",
         label: tx("fundAvailableNow"),
         value: formatRM(step1.amount_fund_available),
       },
@@ -780,13 +782,13 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
   );
 
   y = drawPdfBlock(pdf, {
-    no: "13.",
+    no: "14.",
     label: tx("projectJustification"),
     value: stripHtml(step1.project_justification),
     y,
   });
   y = drawPdfBlock(pdf, {
-    no: "14.",
+    no: "15.",
     label: tx("siteSelectionReason"),
     value: stripHtml(step1.site_selection_reason),
     y,
@@ -794,9 +796,9 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
   drawPdfFieldRows(
     pdf,
     [
-      { no: "15.", label: tx("designation"), value: step1.designation },
-      { no: "16.", label: tx("officerName"), value: step1.officer_name },
-      { no: "17.", label: tx("date"), value: formatDate(step1.application_date) },
+      { no: "16.", label: tx("designation"), value: step1.designation },
+      { no: "17.", label: tx("officerName"), value: step1.officer_name },
+      { no: "18.", label: tx("date"), value: formatDate(step1.application_date) },
     ],
     y
   );
@@ -1429,6 +1431,13 @@ function formatDate(value) {
 function formatCoordinates(latitude, longitude) {
   if (!latitude && !longitude) return "-";
   return `${latitude || "-"} / ${longitude || "-"}`;
+}
+
+function formatAdvertisementSize(step1 = {}) {
+  const width = step1.width_ft || step1.size_width_ft || "";
+  const height = step1.height_ft || step1.size_height_ft || "";
+  if (!width && !height) return "-";
+  return `${width || "-"} ft x ${height || "-"} ft`;
 }
 
 function formatPhone(countryCode, phoneNumber) {

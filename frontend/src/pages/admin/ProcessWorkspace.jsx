@@ -59,8 +59,8 @@ const TECHNICAL_ADDITIONAL_AREA_RATE = 70;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
 const APPLICATION_TYPE_TECHNICAL_DEPARTMENTS = {
-  open_space: ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"],
-  building: ["IMT", "LNP", "GPM"],
+  open_space: ["GPM", "MNE", "IMT", "LNP", "ENG"],
+  building: ["BLG"],
 };
 const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
