@@ -4262,8 +4262,12 @@ function isApprovalTaskForDepartment(app, department) {
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
   if (department === "KB(LES)") return stage === "kb" || stage === "kb_support" || isKbLesMonitoredRecord(app);
-  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return stage === "support";
-  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return stage === "mphlg";
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    return stage === "support" || isApprovalSupportMonitoredRecord(app);
+  }
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+    return stage === "mphlg" || isMphlgMonitoredRecord(app);
+  }
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
 
   return false;
@@ -4276,6 +4280,26 @@ function isKbLesMonitoredRecord(app) {
   );
 
   return verifiedByKb && getApprovalStageKey(app) === "support";
+}
+
+function isApprovalSupportMonitoredRecord(app) {
+  const recommendation = getApplicationSection(app, "management_recommendation");
+  const recommendationStatus = String(recommendation.status || "").trim().toLowerCase();
+
+  return (
+    ["approved", "supported", "completed"].includes(recommendationStatus) &&
+    ["mphlg", "sut"].includes(getApprovalStageKey(app))
+  );
+}
+
+function isMphlgMonitoredRecord(app) {
+  const mphlg = getApplicationSection(app, "mphlg_gateway");
+  const mphlgStatus = String(mphlg.status || "").trim().toLowerCase();
+
+  return (
+    ["approved", "reviewed", "completed"].includes(mphlgStatus) &&
+    getApprovalStageKey(app) === "sut"
+  );
 }
 
 function isApprovalHistoryRecord(app) {
@@ -4330,10 +4354,18 @@ function getActionUnavailableMessage(config, app, department) {
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    if (isApprovalSupportMonitoredRecord(app)) {
+      return "The application is now awaiting the approval department shown in the status.";
+    }
+
     return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) support.";
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+    if (isMphlgMonitoredRecord(app)) {
+      return "The application is now awaiting the approval department shown in the status.";
+    }
+
     return stage === "mphlg" ? "" : "MPHLG approval is available after TP(RES)/PGH support.";
   }
 
@@ -5112,7 +5144,7 @@ function buildApprovalWorkflowPayload(app, data) {
     const rejectRemark = data.comment || getHtmlPlainText(data.memoHtml) || app.latest_remark || "";
 
     return {
-      status: approved ? "mphlg_decision_received" : "technical_review_completed",
+      status: approved ? "mphlg_decision_received" : "incomplete",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: approved ? data.comment || app.latest_remark || "" : rejectRemark,
       form_data: mergeFormData(app, {
@@ -5120,7 +5152,7 @@ function buildApprovalWorkflowPayload(app, data) {
         mphlg_gateway: {
           ...(app.form_data?.mphlg_gateway || {}),
           officer: "MPHLG",
-          status: approved ? "Approved" : "Returned to KU(IKL)",
+          status: approved ? "Approved" : "Returned to Applicant",
           decision,
           remarks: approved ? data.comment : rejectRemark,
           memo_html: approved
@@ -5132,7 +5164,7 @@ function buildApprovalWorkflowPayload(app, data) {
           ? app.form_data?.correction_request || null
           : {
               source: "MPHLG",
-              target: "KU(IKL)",
+              target: "Applicant",
               remarks: rejectRemark,
               memo_html: data.memoHtml || "",
               requested_at: now,

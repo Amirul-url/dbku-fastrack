@@ -117,14 +117,16 @@ function PrintFormPage({
         saved_at: now,
         submitted_at: submit ? now : step9.submitted_at || "",
       };
+      const workflowReset = submit ? getWorkflowResetOnResubmit(applicationRecord, now) : {};
+      const nextStatus = submit ? getSubmitStatusOnResubmit(applicationRecord) : undefined;
 
       await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
           current_step: 5,
-          status: submit ? "submitted" : undefined,
+          status: nextStatus,
           form_data: {
-            ...(submit ? getWorkflowResetOnResubmit() : {}),
+            ...workflowReset,
             step_9: updatedStep9,
             step_11: {
               ...step11,
@@ -1415,7 +1417,21 @@ function stripHtml(value) {
     .trim();
 }
 
-function getWorkflowResetOnResubmit() {
+function getWorkflowResetOnResubmit(applicationRecord, resubmittedAt = "") {
+  if (isMphlgApplicantCorrection(applicationRecord)) {
+    return {
+      correction_request: null,
+      mphlg_gateway: {
+        ...(applicationRecord?.form_data?.mphlg_gateway || {}),
+        status: "Pending MPHLG Approval",
+        decision: "",
+        remarks: "",
+        reviewed_at: "",
+        resubmitted_at: resubmittedAt,
+      },
+    };
+  }
+
   return {
     auto_screening: null,
     correction_request: null,
@@ -1427,6 +1443,19 @@ function getWorkflowResetOnResubmit() {
     technical_site_visit: null,
     technical_ku_review: null,
   };
+}
+
+function getSubmitStatusOnResubmit(applicationRecord) {
+  return isMphlgApplicantCorrection(applicationRecord) ? "mphlg_processing" : "submitted";
+}
+
+function isMphlgApplicantCorrection(applicationRecord) {
+  const correction = applicationRecord?.form_data?.correction_request || {};
+  const source = String(correction.source || "").trim().toUpperCase();
+  const target = String(correction.target || "").trim().toUpperCase();
+  const status = String(applicationRecord?.status || "").trim().toLowerCase();
+
+  return status === "incomplete" && source === "MPHLG" && target === "APPLICANT";
 }
 
 function formatRM(value) {
