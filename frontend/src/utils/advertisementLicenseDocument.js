@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { QRCodeSVG } from "qrcode.react";
 import {
   formatCurrency,
   formatDate,
@@ -118,6 +121,8 @@ export function buildAdvertisementLicenseHtml(app, t) {
   });
   const terms = normalizeLicenseTerms(manualLicense.terms);
   const dbkuLogoUrl = getManualDocumentAssetUrl(fields.dbkuLogoPath || "/logo-dbku.png");
+  const verificationUrl = license.verification_url || getLicenseVerificationUrl(licenseId);
+  const verificationQrSvg = buildVerificationQrSvg(verificationUrl);
   const paymentAmount = parseCurrencyAmount(fields.paymentAmount);
   const paymentDisplay = Number.isFinite(paymentAmount) && paymentAmount > 0
     ? formatCurrency(paymentAmount)
@@ -153,6 +158,12 @@ export function buildAdvertisementLicenseHtml(app, t) {
     .period { display: grid; grid-template-columns: 88px 10px 1fr 55px 1fr; column-gap: 7px; row-gap: 9px; font-size: 16px; align-items: end; }
     .period .stack { line-height: 1.06; }
     .attachment { margin: 24px 0 0; font-size: 16px; }
+    .verification-row { display: grid; grid-template-columns: minmax(0,1fr) 118px; gap: 22px; align-items: end; margin-top: 22px; font-family: Arial, sans-serif; }
+    .verification-text { min-width: 0; font-size: 10px; line-height: 1.35; color: #111827; }
+    .verification-text strong { display: block; margin-bottom: 3px; font-size: 11px; text-transform: uppercase; }
+    .verification-text span { display: block; word-break: break-all; }
+    .verification-qr { display: flex; justify-content: flex-end; }
+    .verification-qr svg { width: 108px; height: 108px; border: 1px solid #111; background: #fff; padding: 5px; }
     .signature-row { display: grid; grid-template-columns: 1fr 320px; gap: 28px; margin-top: 88px; align-items: start; font-size: 16px; }
     .signature-line { border-bottom: 2px dotted #111; min-height: 21px; line-height: 19px; padding: 0 7px 1px; font-weight: 700; }
     .signature-title { margin-top: 2px; }
@@ -210,6 +221,14 @@ export function buildAdvertisementLicenseHtml(app, t) {
     </div>
 
     <p class="attachment">${escapeHtml(fields.attachmentText)} <strong><u>${escapeHtml(fields.appendixLabel)}</u></strong>.</p>
+
+    <div class="verification-row">
+      <div class="verification-text">
+        <strong>${escapeHtml(t?.("workspace.license.qrVerification", "QR Verification") || "QR Verification")}</strong>
+        <span>${escapeHtml(verificationUrl)}</span>
+      </div>
+      <div class="verification-qr">${verificationQrSvg}</div>
+    </div>
 
     <div class="signature-row">
       <div>
@@ -362,6 +381,30 @@ function getManualDocumentAssetUrl(value) {
   }
 
   return path;
+}
+
+function getLicenseVerificationUrl(licenseId) {
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "";
+
+  return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
+}
+
+function buildVerificationQrSvg(value) {
+  if (!value) return "";
+
+  return renderToStaticMarkup(
+    createElement(QRCodeSVG, {
+      value,
+      size: 108,
+      level: "M",
+      includeMargin: true,
+      role: "img",
+      "aria-label": "License verification QR",
+    })
+  );
 }
 
 function openPrintablePreview(title, html) {

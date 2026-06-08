@@ -1,20 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useLanguage } from "../../context/LanguageContext";
 import { fetchApplicationList } from "../../services/api";
 import {
-  formatDate,
-  getApplicantName,
-  getApplicationLocation,
-  getApplicationReference,
-  getApplicationType,
+  getLicenseId,
+  normalizeStatus,
 } from "../../utils/workflow";
-import { openAdvertisementLicenseDocument } from "../../utils/advertisementLicenseDocument";
+import { buildAdvertisementLicenseHtml } from "../../utils/advertisementLicenseDocument";
 
 function LicenseVerificationPage() {
   const { licenseId } = useParams();
+  const { t } = useLanguage();
 
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const openedLicenseRef = useRef(false);
 
   useEffect(() => {
     fetchApplications();
@@ -23,9 +23,7 @@ function LicenseVerificationPage() {
   async function fetchApplications() {
     try {
       setLoading(true);
-      const list = await fetchApplicationList({
-        params: { status: ["license_issued", "license_revoked"] },
-      });
+      const list = await fetchApplicationList();
       setApplications(list);
     } catch (error) {
       console.error("Failed to verify license:", error);
@@ -35,13 +33,46 @@ function LicenseVerificationPage() {
   }
 
   const application = useMemo(() => {
+    const scannedId = normalizeLicenseId(licenseId);
+
     return applications.find(
-      (app) => app.form_data?.license?.license_id === licenseId
+      (app) => {
+        const status = normalizeStatus(app?.status);
+        const isLicenseRecord =
+          status === "license_issued" || status === "license_revoked";
+        const storedLicenseId = app.form_data?.license?.license_id;
+        const generatedLicenseId = getLicenseId(app);
+
+        return (
+          isLicenseRecord &&
+          [storedLicenseId, generatedLicenseId].some(
+            (candidate) => normalizeLicenseId(candidate) === scannedId
+          )
+        );
+      }
     );
   }, [applications, licenseId]);
 
-  const license = application?.form_data?.license || {};
-  const isActive = license.status === "Active" && !isExpired(license.expiry_date);
+  const advertisementLicenseHtml = application
+    ? buildAdvertisementLicenseHtml(application, t)
+    : "";
+
+  useEffect(() => {
+    if (!advertisementLicenseHtml || openedLicenseRef.current) return;
+
+    openedLicenseRef.current = true;
+    document.open();
+    document.write(advertisementLicenseHtml);
+    document.close();
+  }, [advertisementLicenseHtml]);
+
+  if (application) {
+    return (
+      <div className="min-h-screen bg-white px-4 py-8 text-sm text-slate-500">
+        Opening advertisement license...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f7f6] px-4 py-8 text-[#1a1c1c]">
@@ -68,54 +99,14 @@ function LicenseVerificationPage() {
               description="The scanned license ID does not match any license record."
             />
           </Panel>
-        ) : (
-          <>
-            <StatusNotice
-              type={isActive ? "success" : "warning"}
-              title={isActive ? "Valid License" : "License Requires Attention"}
-              description={
-                isActive
-                  ? "This advertisement license is active and registered in ALiS."
-                  : "This license is expired, revoked, or not active."
-              }
-            />
-
-            <Panel title="License Details">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Info label="License ID" value={license.license_id} />
-                <Info label="Application ID" value={getApplicationReference(application)} />
-                <Info label="License Holder" value={getApplicantName(application)} />
-                <Info label="Advertisement Type" value={getApplicationType(application)} />
-                <Info label="Approved Location" value={getApplicationLocation(application)} wide />
-                <Info label="Issue Date" value={formatDate(license.issue_date)} />
-                <Info label="Expiry Date" value={formatDate(license.expiry_date)} />
-                <Info label="License Status" value={license.status || "Not provided"} />
-              </div>
-              <div className="mt-5 flex justify-end border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={() => openAdvertisementLicenseDocument(application)}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#006d32] bg-white px-4 text-sm font-bold text-[#006d32] hover:bg-green-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">
-                    visibility
-                  </span>
-                  View Advertisement License
-                </button>
-              </div>
-            </Panel>
-          </>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
-function isExpired(value) {
-  if (!value) return true;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return true;
-  return date.getTime() < Date.now();
+function normalizeLicenseId(value) {
+  return String(value || "").trim().toUpperCase();
 }
 
 function Panel({ title, children }) {
@@ -128,17 +119,6 @@ function Panel({ title, children }) {
       )}
       <div className="p-5">{children}</div>
     </section>
-  );
-}
-
-function Info({ label, value, wide = false }) {
-  return (
-    <div className={wide ? "md:col-span-2" : ""}>
-      <p className="mb-1 text-xs font-semibold uppercase text-slate-400">
-        {label}
-      </p>
-      <p className="text-sm font-semibold text-slate-800">{value || "-"}</p>
-    </div>
   );
 }
 

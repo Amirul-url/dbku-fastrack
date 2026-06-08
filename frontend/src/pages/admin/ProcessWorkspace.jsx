@@ -1018,6 +1018,84 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function uploadLicenseDocument(file) {
+    if (!selectedRecord?.id || !file) return;
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const uploaded = await uploadApplicationDocument(
+        selectedRecord.id,
+        t("workspace.license.documentTitle", "Advertisement License"),
+        file
+      );
+      const savedLicense = selectedRecord.form_data?.license || {};
+      const nextLicense = {
+        ...savedLicense,
+        creation_mode: "upload",
+        license_file: uploaded,
+        uploaded_by: userDepartment,
+        uploaded_at: new Date().toISOString(),
+      };
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            license: nextLicense,
+          }),
+        }),
+      });
+
+      setSelectedDetail(response?.data || response || selectedRecord);
+      await fetchApplications({ silent: true });
+      setSuccess(t("workspace.payment.documentUploaded", "Document uploaded."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.documentUploadFailed", "Document upload failed."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteLicenseDocument(file) {
+    if (!selectedRecord?.id || !file) return;
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      if (file.document_id || file.id) {
+        await deleteApplicationDocument(selectedRecord.id, file.document_id || file.id);
+      }
+
+      const savedLicense = selectedRecord.form_data?.license || {};
+      const nextLicense = {
+        ...savedLicense,
+        license_file: null,
+      };
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            license: nextLicense,
+          }),
+        }),
+      });
+
+      setSelectedDetail(response?.data || response || selectedRecord);
+      await fetchApplications({ silent: true });
+      setSuccess(t("workspace.payment.documentDeleted", "Document deleted."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.documentDeleteFailed", "Document delete failed."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveManualPaymentDocuments(data) {
     if (!selectedRecord?.id) return;
 
@@ -1448,6 +1526,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setError(t(
         "workspace.payment.documentsRequired",
         "Please upload the approval letter and bill before submitting to KU(IKL)."
+      ));
+      return;
+    }
+
+    if (
+      action.requiresLicenseDocument &&
+      !getPaymentDocumentSource(selectedRecord.form_data?.license?.license_file)
+    ) {
+      setError(t(
+        "workspace.license.documentRequired",
+        "Please upload the advertisement license file before submitting."
       ));
       return;
     }
@@ -2219,6 +2308,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           saving={saving}
                           onPaymentDocumentUpload={uploadPaymentDocument}
                           onPaymentDocumentDelete={deletePaymentDocument}
+                          onLicenseDocumentUpload={uploadLicenseDocument}
+                          onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualPaymentDraftChange={updateManualPaymentDraft}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
                           officialReceiptMode={officialReceiptMode}
@@ -2388,6 +2479,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         saving={saving}
                         onPaymentDocumentUpload={uploadPaymentDocument}
                         onPaymentDocumentDelete={deletePaymentDocument}
+                        onLicenseDocumentUpload={uploadLicenseDocument}
+                        onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualPaymentDraftChange={updateManualPaymentDraft}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
                         officialReceiptMode={officialReceiptMode}
@@ -6147,15 +6240,16 @@ const configs = {
         icon: "qr_code_2",
         success: "E-license issued.",
         successKey: "workspace.message.licenseIssued",
+        requiresLicenseDocument: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_verified",
         buildPayload: (app, data) => {
           const today = new Date();
           const validityYears = Number(data?.licenseExpiryYears) || 1;
-          const manualLicenseFields = app.form_data?.license?.manual_license?.fields || {};
-          const issueDate = parseDateOrFallback(manualLicenseFields.issueDate, today);
+          const savedLicense = app.form_data?.license || {};
+          const issueDate = parseDateOrFallback(savedLicense.issue_date, today);
           const expiry = parseDateOrFallback(
-            manualLicenseFields.expiryDate,
+            savedLicense.expiry_date,
             addCalendarYears(issueDate, validityYears)
           );
           const licenseId = getLicenseId(app);
@@ -6163,7 +6257,8 @@ const configs = {
             status: "license_issued",
             form_data: mergeFormData(app, {
               license: {
-                ...(app.form_data?.license || {}),
+                ...savedLicense,
+                creation_mode: "upload",
                 license_id: licenseId,
                 status: "Active",
                 holder: getApplicantName(app),
@@ -6174,10 +6269,6 @@ const configs = {
                 validity_years: validityYears,
                 verification_url: getLicenseVerificationUrl(licenseId),
                 issued_at: new Date().toISOString(),
-                manual_license: buildManualAdvertisementLicenseForIssuance(app, {
-                  issueDate: issueDate.toISOString(),
-                  expiryDate: expiry.toISOString(),
-                }),
                 renewal_reminders: [
                   { months_before_expiry: 3, status: "Scheduled" },
                   { months_before_expiry: 2, status: "Scheduled" },
@@ -11314,91 +11405,19 @@ function getApprovalValidityText(app, t) {
 function LicenseDetails({
   app,
   t,
-  canChooseLicenseExpiry,
-  licenseExpiryYears,
-  setLicenseExpiryYears,
-  onManualLicenseDraftChange,
+  userDepartment,
+  saving,
+  onLicenseDocumentUpload,
+  onLicenseDocumentDelete,
 }) {
   const license = app.form_data?.license || {};
-  const manualLicense = license.manual_license || {};
   const renewal = getLicenseRenewal(app);
   const reminders = getLicenseRenewalReminders(app);
   const cancellation = renewal.cancellation || {};
-  const licenseEditable =
-    canChooseLicenseExpiry && normalizeStatus(app?.status) === "payment_verified";
-  const [draftFields, setDraftFields] = useState(() =>
-    getAdvertisementLicenseDraftFields(app, manualLicense.fields, {
-      expiryDate: license.expiry_date,
-    })
-  );
-  const [termsText, setTermsText] = useState(() =>
-    (Array.isArray(manualLicense.terms) && manualLicense.terms.length
-      ? manualLicense.terms
-      : DEFAULT_ADVERTISEMENT_LICENSE_TERMS
-    ).join("\n")
-  );
-
-  useEffect(() => {
-    setDraftFields(
-      getAdvertisementLicenseDraftFields(app, manualLicense.fields, {
-        expiryDate: license.expiry_date,
-      })
-    );
-    setTermsText(
-      (Array.isArray(manualLicense.terms) && manualLicense.terms.length
-        ? manualLicense.terms
-        : DEFAULT_ADVERTISEMENT_LICENSE_TERMS
-      ).join("\n")
-    );
-  }, [app.id, license.expiry_date, manualLicense.draft_saved_at, manualLicense.issued_at]);
-
-  function pushLicenseDraft(nextFields, nextTermsText = termsText) {
-    const terms = nextTermsText
-      .split("\n")
-      .map((term) => term.replace(/^\s*\d+[\).]\s*/, "").trim())
-      .filter(Boolean);
-
-    onManualLicenseDraftChange?.({
-      fields: nextFields,
-      terms: terms.length ? terms : DEFAULT_ADVERTISEMENT_LICENSE_TERMS,
-    });
-  }
-
-  function updateLicenseField(name, value) {
-    const nextFields = { ...draftFields, [name]: value };
-    setDraftFields(nextFields);
-    pushLicenseDraft(nextFields);
-  }
-
-  async function uploadLicenseLogo(file) {
-    if (!file) return;
-    const dataUrl = await readFileAsDataUrl(file);
-    updateLicenseField("dbkuLogoPath", dataUrl);
-  }
-
-  function normalizeLicenseAmount() {
-    const nextFields = {
-      ...draftFields,
-      paymentAmount: formatPaymentRowAmount(draftFields.paymentAmount),
-    };
-    setDraftFields(nextFields);
-    pushLicenseDraft(nextFields);
-  }
-
-  function updateLicenseTerms(value) {
-    setTermsText(value);
-    pushLicenseDraft(draftFields, value);
-  }
-
-  function updateLicenseTerm(index, value) {
-    const terms = termsText.split("\n");
-    terms[index] = value;
-    updateLicenseTerms(terms.join("\n"));
-  }
-
-  const licenseTerms = termsText
-    .split("\n")
-    .map((term) => term.replace(/^\s*\d+[\).]\s*/, "").trim());
+  const status = normalizeStatus(app?.status);
+  const licenseFile = license.license_file || null;
+  const canUploadLicenseDocument =
+    userDepartment === "PT(IKL)" && status === "payment_verified";
 
   return (
     <div className="space-y-4 text-sm">
@@ -11406,209 +11425,29 @@ function LicenseDetails({
         <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.license.manualTitle", "Create Manually")}
+              {t("workspace.license.documentTitle", "Advertisement License")}
             </p>
             <p className="mt-1 text-[14px] leading-5 text-slate-600">
-              {t("workspace.license.manualDesc", "Edit the advertisement license that will be issued with the QR verification link.")}
+              {t("workspace.license.uploadDesc", "Upload the advertisement license file that will be issued with the QR verification link.")}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {licenseEditable && (
-              <span className="inline-flex min-h-9 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
-                <Icon name="cloud_done" className="text-[17px]" />
-                {t("workspace.payment.manual.autoSaveDraft", "Auto-saves as draft")}
-              </span>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              icon="visibility"
-              onClick={() => openAdvertisementLicensePreview(app, t)}
-            >
-              {t("workspace.license.viewLicense", "View Advertisement License")}
-            </Button>
-          </div>
+          {licenseFile && (
+            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              {t("workspace.payment.methodReady", "Ready")}
+            </span>
+          )}
         </div>
 
-        <div className="p-4">
-          <div className="mx-auto max-w-[900px] rounded border border-slate-300 bg-white px-10 py-8 text-[15px] leading-snug text-slate-950 shadow-sm" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-            <ManualLicensePlainInput
-              value={draftFields.formCode}
-              onChange={(value) => updateLicenseField("formCode", value)}
-              readOnly={!licenseEditable}
-              className="ml-auto block w-64 text-right font-bold"
-            />
-
-            <div className="mt-4 text-center">
-              <div className="mx-auto flex h-16 w-24 items-center justify-center">
-                <img
-                  src={draftFields.dbkuLogoPath || "/logo-dbku.png"}
-                  alt="DBKU"
-                  className="max-h-full max-w-full object-contain"
-                />
-              </div>
-              {licenseEditable && (
-                <label className="mx-auto mt-2 inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                  <Icon name="upload_file" className="text-[15px]" />
-                  <span>{t("workspace.payment.manual.uploadLogo", "Upload Logo")}</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      uploadLicenseLogo(event.target.files?.[0]);
-                      event.target.value = "";
-                    }}
-                  />
-                </label>
-              )}
-              <ManualLicensePlainInput
-                value={draftFields.headerTitle}
-                onChange={(value) => updateLicenseField("headerTitle", value)}
-                readOnly={!licenseEditable}
-                className="mx-auto mt-4 block w-full text-center text-[18px] font-extrabold uppercase leading-tight"
-              />
-              <ManualLicensePlainInput
-                value={draftFields.headerSubtitle}
-                onChange={(value) => updateLicenseField("headerSubtitle", value)}
-                readOnly={!licenseEditable}
-                className="mx-auto block w-full text-center text-[13px] font-extrabold leading-tight"
-              />
-              <ManualLicensePlainInput
-                value={draftFields.bylawTitle}
-                onChange={(value) => updateLicenseField("bylawTitle", value)}
-                readOnly={!licenseEditable}
-                className="mx-auto block w-full text-center text-[15px] font-extrabold leading-tight"
-              />
-              <ManualLicensePlainArea
-                value={draftFields.formTitle}
-                onChange={(value) => updateLicenseField("formTitle", value)}
-                readOnly={!licenseEditable}
-                rows={3}
-                className="mx-auto mt-5 w-full resize-none text-center text-[16px] font-extrabold leading-tight"
-              />
-            </div>
-
-            <div className="mt-8 grid grid-cols-[86px_10px_minmax(0,1fr)_82px_10px_minmax(0,1fr)] items-end gap-x-2 gap-y-2">
-              <ManualLicensePlainInput value={draftFields.receiptLabel} onChange={(value) => updateLicenseField("receiptLabel", value)} readOnly={!licenseEditable} />
-              <span>:</span>
-              <ManualLicenseLineInput value={draftFields.receiptNo} onChange={(value) => updateLicenseField("receiptNo", value)} readOnly={!licenseEditable} />
-              <ManualLicensePlainInput value={draftFields.referenceLabel} onChange={(value) => updateLicenseField("referenceLabel", value)} readOnly={!licenseEditable} />
-              <span>:</span>
-              <ManualLicenseLineInput value={draftFields.referenceNo} onChange={(value) => updateLicenseField("referenceNo", value)} readOnly={!licenseEditable} />
-            </div>
-
-            <div className="mt-3 grid grid-cols-[86px_10px_minmax(0,1fr)] items-end gap-x-2">
-              <ManualLicensePlainInput value={draftFields.nameLabel} onChange={(value) => updateLicenseField("nameLabel", value)} readOnly={!licenseEditable} />
-              <span>:</span>
-              <ManualLicenseLineInput value={draftFields.applicantName} onChange={(value) => updateLicenseField("applicantName", value)} readOnly={!licenseEditable} />
-            </div>
-
-            <div className="mt-3 grid grid-cols-[86px_10px_minmax(0,1fr)] items-start gap-x-2">
-              <ManualLicensePlainInput value={draftFields.addressLabel} onChange={(value) => updateLicenseField("addressLabel", value)} readOnly={!licenseEditable} className="pt-1" />
-              <span className="pt-1">:</span>
-              <ManualLicenseLineArea value={draftFields.applicantAddress} onChange={(value) => updateLicenseField("applicantAddress", value)} readOnly={!licenseEditable} rows={3} />
-            </div>
-
-            <p className="mt-7 text-justify text-[15px] leading-snug">
-              <ManualLicenseEditableSpan
-                value={draftFields.grantPrefix}
-                onChange={(value) => updateLicenseField("grantPrefix", value)}
-                readOnly={!licenseEditable}
-              />{" "}
-              <ManualLicenseEditableSpan
-                value={draftFields.issuingAuthority}
-                onChange={(value) => updateLicenseField("issuingAuthority", value)}
-                readOnly={!licenseEditable}
-                className="font-extrabold underline"
-              />{" "}
-              <ManualLicenseEditableSpan
-                value={draftFields.grantSuffix}
-                onChange={(value) => updateLicenseField("grantSuffix", value)}
-                readOnly={!licenseEditable}
-              />
-            </p>
-
-            <div className="mt-5 grid grid-cols-[86px_10px_minmax(0,1fr)] items-end gap-x-2 gap-y-2">
-              <ManualLicensePlainInput value={draftFields.boardLabel} onChange={(value) => updateLicenseField("boardLabel", value)} readOnly={!licenseEditable} />
-              <span>:</span>
-              <ManualLicenseLineInput value={draftFields.boardName} onChange={(value) => updateLicenseField("boardName", value)} readOnly={!licenseEditable} className="text-center" />
-              <ManualLicensePlainInput value={draftFields.advertisementTypeLabel} onChange={(value) => updateLicenseField("advertisementTypeLabel", value)} readOnly={!licenseEditable} />
-              <span>:</span>
-              <ManualLicenseLineInput value={draftFields.advertisementType} onChange={(value) => updateLicenseField("advertisementType", value)} readOnly={!licenseEditable} />
-              <ManualLicensePlainInput value={draftFields.placeLabel} onChange={(value) => updateLicenseField("placeLabel", value)} readOnly={!licenseEditable} />
-              <span>:</span>
-              <ManualLicenseLineArea value={draftFields.displayLocation} onChange={(value) => updateLicenseField("displayLocation", value)} readOnly={!licenseEditable} rows={2} />
-            </div>
-
-            <div className="mt-3 grid grid-cols-[86px_10px_minmax(0,1fr)_55px_minmax(0,1fr)] items-end gap-x-2">
-              <ManualLicensePlainArea value={draftFields.periodLabel} onChange={(value) => updateLicenseField("periodLabel", value)} readOnly={!licenseEditable} rows={2} className="leading-tight" />
-              <span>:</span>
-              <ManualLicenseLineInput value={toDateDisplayValue(draftFields.issueDate)} onChange={(value) => updateLicenseField("issueDate", fromDateInputValue(value, draftFields.issueDate))} readOnly={!licenseEditable} className="text-center" />
-              <ManualLicensePlainInput value={draftFields.untilLabel} onChange={(value) => updateLicenseField("untilLabel", value)} readOnly={!licenseEditable} className="text-center" />
-              <ManualLicenseLineInput value={toDateDisplayValue(draftFields.expiryDate)} onChange={(value) => updateLicenseField("expiryDate", fromDateInputValue(value, draftFields.expiryDate))} readOnly={!licenseEditable} className="text-center" />
-            </div>
-
-            <p className="mt-6 text-[15px] leading-snug">
-              <ManualLicenseEditableSpan
-                value={draftFields.attachmentText}
-                onChange={(value) => updateLicenseField("attachmentText", value)}
-                readOnly={!licenseEditable}
-              />{" "}
-              <ManualLicenseEditableSpan
-                value={draftFields.appendixLabel}
-                onChange={(value) => updateLicenseField("appendixLabel", value)}
-                readOnly={!licenseEditable}
-                className="font-extrabold underline"
-              />
-              .
-            </p>
-
-            <div className="mt-20 grid grid-cols-[minmax(0,1fr)_320px] items-start gap-8">
-              <div>
-                <ManualLicenseLineInput value={draftFields.signatoryName} onChange={(value) => updateLicenseField("signatoryName", value)} readOnly={!licenseEditable} />
-                <ManualLicensePlainInput value={draftFields.signatoryTitle} onChange={(value) => updateLicenseField("signatoryTitle", value)} readOnly={!licenseEditable} className="mt-1 w-full" />
-              </div>
-              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-end gap-2">
-                <div className="flex items-end gap-1 whitespace-nowrap">
-                  <ManualLicensePlainInput value={draftFields.dateLabel} onChange={(value) => updateLicenseField("dateLabel", value)} readOnly={!licenseEditable} className="w-14" />
-                  <span>:</span>
-                </div>
-                <ManualLicenseLineInput value={toDateDisplayValue(draftFields.signedDate)} onChange={(value) => updateLicenseField("signedDate", fromDateInputValue(value, draftFields.signedDate))} readOnly={!licenseEditable} className="text-center" />
-              </div>
-            </div>
-          </div>
-
-          <div className="mx-auto mt-4 max-w-[900px] rounded border border-slate-300 bg-white px-10 py-8 text-[15px] leading-snug text-slate-950 shadow-sm" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-            <ManualLicenseLineInput value={draftFields.termsTitle} onChange={(value) => updateLicenseField("termsTitle", value)} readOnly={!licenseEditable} className="mb-6 max-w-36 text-[17px] underline" />
-            <div className="space-y-3">
-              {licenseTerms.map((term, index) => (
-                <div key={index} className="grid grid-cols-[26px_minmax(0,1fr)] gap-4 text-[15px] leading-snug">
-                  <span>{index + 1}.</span>
-                  <ManualLicensePlainArea
-                    value={term}
-                    onChange={(value) => updateLicenseTerm(index, value)}
-                    readOnly={!licenseEditable}
-                    rows={term.length > 120 ? 2 : 1}
-                    className="resize-none text-justify leading-snug"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 flex items-center justify-end gap-4 font-extrabold">
-              <div className="flex items-center gap-1">
-                <ManualLicensePlainInput value={draftFields.paymentLabel} onChange={(value) => updateLicenseField("paymentLabel", value)} readOnly={!licenseEditable} className="w-20 text-right font-extrabold" />
-                <span>:</span>
-              </div>
-              <ManualLicenseLineInput
-                value={draftFields.paymentAmount}
-                onChange={(value) => updateLicenseField("paymentAmount", value)}
-                onBlur={normalizeLicenseAmount}
-                readOnly={!licenseEditable}
-                className="max-w-36 border border-slate-900 text-center"
-              />
-            </div>
-          </div>
+        <div className="p-3">
+          <PaymentDocumentSlot
+            label={t("workspace.license.documentTitle", "Advertisement License")}
+            file={licenseFile}
+            t={t}
+            canUpload={canUploadLicenseDocument}
+            saving={saving}
+            onFileChange={(file) => onLicenseDocumentUpload?.(file)}
+            onDelete={() => onLicenseDocumentDelete?.(licenseFile)}
+          />
         </div>
       </section>
 
