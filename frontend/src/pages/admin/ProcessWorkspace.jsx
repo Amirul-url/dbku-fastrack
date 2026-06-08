@@ -2430,10 +2430,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             (!canSendSavedApprovalMemoToMphlg && !approvalSupportDecision)
                           }
                           variant="primary"
-                          icon="send"
+                          icon="check_circle"
                           className="min-w-40"
                         >
-                          {saving ? t("workspace.saving") : t("workspace.memo.send", "Send")}
+                          {saving ? t("workspace.saving") : t("common.submit", "Submit")}
                         </Button>
                       </>
                     ) : showPaymentReceiptDecision ? (
@@ -4129,7 +4129,7 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
     }
 
     if (userDepartment === "KB(LES)") {
-      return t("workspace.approval.kbAction", "Review the SUT result and verify the application before sending it to TP(RES)/PGH.");
+      return t("workspace.approval.kbAction", "Verify the application before sending it to TP(RES)/PGH.");
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
@@ -4270,7 +4270,7 @@ function isApprovalTaskForDepartment(app, department) {
 }
 
 function isKbLesMonitoredRecord(app) {
-  const kbVerification = app?.form_data?.kb_les_verification || {};
+  const kbVerification = getApplicationSection(app, "kb_les_verification");
   const verifiedByKb = ["verified", "supported", "completed"].includes(
     String(kbVerification.status || "").trim().toLowerCase()
   );

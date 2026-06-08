@@ -161,10 +161,6 @@ function CompletedApprovalsPage() {
 
       <Panel
         title={t("approval.completed.title", "Completed Approvals")}
-        description={t(
-          "approval.completed.description",
-          "Review approval decisions completed by TP(RES)/PGH, with filters for month, year, approved, and rejected records."
-        )}
       >
         <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_160px_160px_180px_auto] lg:items-end">
           <Field label={t("common.search")}>
