@@ -53,14 +53,41 @@ const MEMO_EDITOR_ENABLED = false;
 const KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)";
 const APPLICATION_TYPE_OPTIONS = ["open_space", "building"];
 const SQFT_TO_SQM = 0.092903;
-const TECHNICAL_FIRST_AREA_SQM = 20;
-const TECHNICAL_FIRST_AREA_RATE = 100;
-const TECHNICAL_ADDITIONAL_AREA_RATE = 70;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
+const TECHNICAL_LED_SUBTYPES = new Set([
+  "open_space_led_billboard",
+  "building_led_billboard",
+]);
+const TECHNICAL_FEE_SCHEDULES = {
+  schedule_1: {
+    key: "schedule_1",
+    number: "1",
+    firstAreaSqm: 20,
+    firstAreaRate: 100,
+    additionalAreaRate: 70,
+  },
+  schedule_6: {
+    key: "schedule_6",
+    number: "6",
+    firstAreaSqm: 10,
+    firstAreaRate: 200,
+    additionalAreaRate: 50,
+  },
+};
 const APPLICATION_TYPE_TECHNICAL_DEPARTMENTS = {
   open_space: ["GPM", "MNE", "IMT", "LNP", "ENG"],
   building: ["BLG"],
+};
+const APPLICATION_SUBTYPE_OPTIONS = {
+  open_space: [
+    { value: "free_standing_billboard", en: "Free Standing Billboard", ms: "Papan Iklan Berdiri Bebas" },
+    { value: "open_space_led_billboard", en: "LED Billboard", ms: "Papan Iklan LED" },
+  ],
+  building: [
+    { value: "building_normal_billboard", en: "Normal Billboard", ms: "Papan Iklan Biasa" },
+    { value: "building_led_billboard", en: "LED Billboard", ms: "Papan Iklan LED" },
+  ],
 };
 const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
@@ -177,6 +204,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const manualLicenseDraftDataRef = useRef(null);
   const formViewFallbackTimerRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
+    application_subtype: "",
+    fee_schedule_key: "",
+    fee_schedule_no: "",
     site_photos: [],
     fee_date: "",
     fee_items: [createTechnicalFeeItem()],
@@ -265,8 +295,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const currentPhotos = getCurrentTechnicalSitePhotos(savedPhotos, selectedDetail);
     const feeItems = normalizeTechnicalFeeItems(saved.fee_items);
     const feeTotals = getTechnicalFeeTotals(feeItems);
-    const calculatedFees = calculateTechnicalFee(saved);
+    const applicationSubtype = getApplicationSubtypeFromApplication(selectedDetail);
+    const calculatedFees = calculateTechnicalFee({
+      ...saved,
+      application_subtype: applicationSubtype,
+    });
     setTechnicalSite({
+      application_subtype: applicationSubtype,
+      fee_schedule_key: saved.fee_schedule_key || calculatedFees.scheduleKey || "",
+      fee_schedule_no: saved.fee_schedule_no || calculatedFees.scheduleNumber || "",
       site_photos: currentPhotos,
       fee_date: saved.fee_date || new Date().toISOString().slice(0, 10),
       fee_items: feeItems,
@@ -732,6 +769,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         return;
       }
       const departments = getApplicationTypeTechnicalDepartmentsFromTypes(selectedTypes);
+      const selectedType = selectedTypes[0];
+      const subtype = getDefaultApplicationSubtype(selectedType);
+      const applicationTypeLabel = getApplicationTypeOptionsLabel(selectedTypes, "en", subtype);
       const step1 = selectedRecord.form_data?.step_1 || {};
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
         method: "PATCH",
@@ -741,9 +781,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             step_1: {
               ...step1,
               application_type: selectedTypes.join(","),
-              application_type_label: getApplicationTypeOptionsLabel(selectedTypes, "en"),
+              application_type_label: applicationTypeLabel,
               application_type_options: selectedTypes,
-              project_category: getApplicationTypeOptionsLabel(selectedTypes, "en"),
+              application_subtype: subtype,
+              application_subtype_label: getApplicationSubtypeLabel(selectedType, subtype, "en"),
+              project_category: applicationTypeLabel,
               technical_departments: departments,
             },
             technical_department_selection: {
@@ -1115,10 +1157,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     const saveId = technicalSiteDraftSaveIdRef.current + 1;
     technicalSiteDraftSaveIdRef.current = saveId;
-    const technicalFee = calculateTechnicalFee(nextSite);
+    const applicationSubtype =
+      nextSite.application_subtype || getApplicationSubtypeFromApplication(selectedRecord);
+    const technicalFee = calculateTechnicalFee({
+      ...nextSite,
+      application_subtype: applicationSubtype,
+    });
     const saved = selectedRecord.form_data?.technical_site_visit || {};
     const nextTechnicalSiteVisit = {
       ...saved,
+      application_subtype: applicationSubtype,
+      fee_schedule_key: technicalFee.scheduleKey,
+      fee_schedule_no: technicalFee.scheduleNumber,
       site_photos: nextSite.site_photos || saved.site_photos || [],
       site_photo: nextSite.site_photos?.[0] || saved.site_photo || null,
       fee_date: nextSite.fee_date || saved.fee_date || new Date().toISOString().slice(0, 10),
@@ -4458,18 +4508,30 @@ function roundTechnicalNumber(value, decimals = 2) {
   return Math.round((Number(value) || 0) * factor) / factor;
 }
 
+function getTechnicalFeeSchedule(subtype) {
+  return TECHNICAL_LED_SUBTYPES.has(subtype)
+    ? TECHNICAL_FEE_SCHEDULES.schedule_6
+    : TECHNICAL_FEE_SCHEDULES.schedule_1;
+}
+
 function calculateTechnicalFee(site = {}) {
+  const schedule = getTechnicalFeeSchedule(site.application_subtype);
   const widthFt = parseTechnicalNumber(site.width_ft);
   const heightFt = parseTechnicalNumber(site.height_ft);
   const areaSqft = widthFt > 0 && heightFt > 0 ? widthFt * heightFt : 0;
   const areaSqm = areaSqft * SQFT_TO_SQM;
-  const firstAreaSqm = Math.min(areaSqm, TECHNICAL_FIRST_AREA_SQM);
-  const additionalAreaSqm = Math.max(areaSqm - TECHNICAL_FIRST_AREA_SQM, 0);
-  const firstAreaFee = firstAreaSqm * TECHNICAL_FIRST_AREA_RATE;
-  const additionalAreaFee = additionalAreaSqm * TECHNICAL_ADDITIONAL_AREA_RATE;
+  const firstAreaSqm = Math.min(areaSqm, schedule.firstAreaSqm);
+  const additionalAreaSqm = Math.max(areaSqm - schedule.firstAreaSqm, 0);
+  const firstAreaFee = firstAreaSqm * schedule.firstAreaRate;
+  const additionalAreaFee = additionalAreaSqm * schedule.additionalAreaRate;
   const feeTotal = firstAreaFee + additionalAreaFee;
 
   return {
+    scheduleKey: schedule.key,
+    scheduleNumber: schedule.number,
+    firstAreaLimitSqm: schedule.firstAreaSqm,
+    firstAreaRate: schedule.firstAreaRate,
+    additionalAreaRate: schedule.additionalAreaRate,
     areaSqft: roundTechnicalNumber(areaSqft, 2),
     areaSqm,
     chargeableAreaSqm: areaSqm,
@@ -4526,6 +4588,8 @@ function mergeTechnicalFeeCalculation(site = {}) {
   const fees = calculateTechnicalFee(site);
   return {
     ...site,
+    fee_schedule_key: fees.scheduleKey,
+    fee_schedule_no: fees.scheduleNumber,
     area_sqft: fees.areaSqft ? String(fees.areaSqft) : "",
     area_sqm: fees.areaSqm ? String(fees.areaSqm) : "",
     chargeable_area_sqm: fees.chargeableAreaSqm ? String(fees.chargeableAreaSqm) : "",
@@ -4622,7 +4686,12 @@ function buildIklScreeningPayload(app, data) {
 
 function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
-  const technicalFee = calculateTechnicalFee(data.technicalSite);
+  const applicationSubtype =
+    data.technicalSite.application_subtype || getApplicationSubtypeFromApplication(app);
+  const technicalFee = calculateTechnicalFee({
+    ...data.technicalSite,
+    application_subtype: applicationSubtype,
+  });
   const notSupported = data.decision === "Not Supported";
 
   return {
@@ -4648,6 +4717,9 @@ function buildIklTechnicalDecisionPayload(app, data) {
         site_photo: data.technicalSite.site_photos?.[0] || null,
         fee_date: data.technicalSite.fee_date || new Date().toISOString().slice(0, 10),
         fee_items: [],
+        application_subtype: applicationSubtype,
+        fee_schedule_key: technicalFee.scheduleKey,
+        fee_schedule_no: technicalFee.scheduleNumber,
         width_ft: data.technicalSite.width_ft || "",
         height_ft: data.technicalSite.height_ft || "",
         area_sqft: technicalFee.areaSqft ? String(technicalFee.areaSqft) : "",
@@ -4998,9 +5070,35 @@ function getApplicationTypeOptionLabel(type, language = "en") {
   return labels[type]?.[language === "ms" ? "ms" : "en"] || type;
 }
 
-function getApplicationTypeOptionsLabel(types, language = "en") {
+function getDefaultApplicationSubtype(type) {
+  return APPLICATION_SUBTYPE_OPTIONS[type]?.[0]?.value || "";
+}
+
+function getApplicationSubtypeLabel(type, subtype, language = "en") {
+  const option = (APPLICATION_SUBTYPE_OPTIONS[type] || []).find(
+    (item) => item.value === subtype
+  );
+  return option?.[language === "ms" ? "ms" : "en"] || "";
+}
+
+function getApplicationSubtypeFromApplication(app) {
+  const step1 = app?.form_data?.step_1 || {};
+  const selectedType = getApplicationTypeOptionsFromApplication(app)[0] || "open_space";
+  const subtype = String(step1.application_subtype || "").trim().toLowerCase();
+  const validSubtype = (APPLICATION_SUBTYPE_OPTIONS[selectedType] || []).some(
+    (item) => item.value === subtype
+  );
+
+  return validSubtype ? subtype : getDefaultApplicationSubtype(selectedType);
+}
+
+function getApplicationTypeOptionsLabel(types, language = "en", subtype = "") {
+  const selected = normalizeApplicationTypeOptions(types);
+  const type = selected[0] || "";
+  const subtypeLabel = getApplicationSubtypeLabel(type, subtype, language);
   return normalizeApplicationTypeOptions(types)
     .map((type) => getApplicationTypeOptionLabel(type, language))
+    .map((label, index) => (index === 0 && subtypeLabel ? `${label} - ${subtypeLabel}` : label))
     .join(", ");
 }
 
@@ -6002,6 +6100,12 @@ function IklWorkspaceSections({
     }
 
     setTechnicalApplicationTypeSelection(nextSelection);
+    setTechnicalSite((prev) =>
+      mergeTechnicalFeeCalculation({
+        ...prev,
+        application_subtype: getDefaultApplicationSubtype(nextSelection[0]),
+      })
+    );
     saveTechnicalApplicationTypeSelection(nextSelection);
   }
 
@@ -6317,12 +6421,20 @@ function getReviewTechnicalSite(technicalSite, selectedRecord) {
     technicalSite.fee_items || saved.fee_items
   );
   const feeTotals = getTechnicalFeeTotals(feeItems);
+  const applicationSubtype =
+    technicalSite.application_subtype ||
+    saved.application_subtype ||
+    getApplicationSubtypeFromApplication(selectedRecord);
   const calculatedFees = calculateTechnicalFee({
     ...saved,
     ...technicalSite,
+    application_subtype: applicationSubtype,
   });
 
   return {
+    application_subtype: applicationSubtype,
+    fee_schedule_key: calculatedFees.scheduleKey || saved.fee_schedule_key || "",
+    fee_schedule_no: calculatedFees.scheduleNumber || saved.fee_schedule_no || "",
     site_photos: currentPhotos.length > 0 ? currentPhotos : savedPhotos,
     fee_date: technicalSite.fee_date || saved.fee_date || "",
     fee_items: feeItems,
@@ -6440,10 +6552,11 @@ function TechnicalApplicationTypePanel({
             } ${saving || readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
           >
             <input
-              type="checkbox"
+              type="radio"
+              name="technical-application-type"
               checked={selectedSet.has(type)}
               disabled={saving || readOnly}
-              onChange={(event) => onToggle(type, event.target.checked)}
+              onChange={() => onToggle(type, true)}
               className="h-4 w-4 accent-emerald-700"
             />
             {getApplicationTypeOptionLabel(type, language)}
@@ -7106,6 +7219,16 @@ function TechnicalSiteVisitFields({
 function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false, sizeError = "" }) {
   const technicalFee = calculateTechnicalFee(value);
   const hasAdvertisementSize = technicalFee.areaSqft > 0;
+  const isScheduleSix = technicalFee.scheduleNumber === "6";
+  const scheduleAdvertisementDescKey = isScheduleSix
+    ? "workspace.technical.schedule6AdvertisementDesc"
+    : "workspace.technical.scheduleAdvertisementDesc";
+  const scheduleFirstAreaKey = isScheduleSix
+    ? "workspace.technical.schedule6FirstArea"
+    : "workspace.technical.scheduleFirstArea";
+  const firstAreaLabelKey = isScheduleSix
+    ? "workspace.technical.firstTen"
+    : "workspace.technical.firstTwenty";
 
   return (
     <section className="pt-2">
@@ -7160,10 +7283,12 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
             </thead>
             <tbody className="font-normal">
               <tr className="align-top">
-                <td className="px-3 py-4 text-center text-[13px] font-normal" rowSpan={2}>1.</td>
+                <td className="px-3 py-4 text-center text-[13px] font-normal" rowSpan={2}>
+                  {technicalFee.scheduleNumber}.
+                </td>
                 <td className="px-5 py-4 text-justify font-normal" rowSpan={2}>
                   {t(
-                    "workspace.technical.scheduleAdvertisementDesc",
+                    scheduleAdvertisementDescKey,
                     "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support"
                   )}
                 </td>
@@ -7171,17 +7296,27 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
                   <div className="flex items-start gap-3">
                     <span className="w-7 shrink-0 font-normal text-slate-950">(a)</span>
                     <span>
-                      {t("workspace.technical.scheduleFirstArea", "For the first 20 square metre or part thereof")}
+                      {t(scheduleFirstAreaKey, "For the first 20 square metre or part thereof")}
                     </span>
                   </div>
                 </td>
                 <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">RM100.00</span>{" "}
-                  {t("workspace.technical.scheduleCityFirstRateSuffix", "for every square metre per year")}
+                  <span className="font-normal text-slate-950">
+                    {formatTechnicalCurrency(isScheduleSix ? 12000 : technicalFee.firstAreaRate)}
+                  </span>{" "}
+                  {t(
+                    isScheduleSix ? "workspace.technical.schedulePerYear" : "workspace.technical.scheduleCityFirstRateSuffix",
+                    isScheduleSix ? "per year" : "for every square metre per year"
+                  )}
                 </td>
                 <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">RM70.00</span>{" "}
-                  {t("workspace.technical.scheduleDistrictFirstRateSuffix", "for every square metre per year")}
+                  <span className="font-normal text-slate-950">
+                    {formatTechnicalCurrency(isScheduleSix ? 1500 : 70)}
+                  </span>{" "}
+                  {t(
+                    isScheduleSix ? "workspace.technical.schedulePerYear" : "workspace.technical.scheduleDistrictFirstRateSuffix",
+                    isScheduleSix ? "per year" : "for every square metre per year"
+                  )}
                 </td>
               </tr>
               <tr className="align-top">
@@ -7194,11 +7329,15 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
                   </div>
                 </td>
                 <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">RM70.00</span>{" "}
+                  <span className="font-normal text-slate-950">
+                    {formatTechnicalCurrency(technicalFee.additionalAreaRate)}
+                  </span>{" "}
                   {t("workspace.technical.schedulePerYear", "per year")}
                 </td>
                 <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">RM50.00</span>{" "}
+                  <span className="font-normal text-slate-950">
+                    {formatTechnicalCurrency(isScheduleSix ? 35 : 50)}
+                  </span>{" "}
                   {t("workspace.technical.schedulePerYear", "per year")}
                 </td>
               </tr>
@@ -7241,11 +7380,11 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
           />
           <FeeSheetSection label={t("workspace.technical.fees", "Fees:")} />
           <FeeSheetRow
-            label={t("workspace.technical.firstTwenty", "(i) First 20 m2")}
+            label={t(firstAreaLabelKey, "(i) First 20 m2")}
             value={formatTechnicalArea(technicalFee.firstAreaSqm || 0)}
             unit="m2"
             operator="x"
-            multiplier={formatTechnicalCurrency(TECHNICAL_FIRST_AREA_RATE)}
+            multiplier={formatTechnicalCurrency(technicalFee.firstAreaRate)}
             equals="="
             amount={formatTechnicalCurrency(technicalFee.firstAreaFee)}
           />
@@ -7254,7 +7393,7 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
             value={formatTechnicalArea(technicalFee.additionalAreaSqm || 0)}
             unit="m2"
             operator="x"
-            multiplier={formatTechnicalCurrency(TECHNICAL_ADDITIONAL_AREA_RATE)}
+            multiplier={formatTechnicalCurrency(technicalFee.additionalAreaRate)}
             equals="="
             amount={formatTechnicalCurrency(technicalFee.additionalAreaFee)}
           />

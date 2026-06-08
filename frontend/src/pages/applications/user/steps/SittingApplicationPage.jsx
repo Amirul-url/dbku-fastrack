@@ -33,17 +33,43 @@ const APPLICATION_TYPE_OPTIONS = [
   { value: "building", labelKey: "applicationTypeBuilding", label: "Building" },
 ];
 
+const APPLICATION_SUBTYPE_OPTIONS = {
+  open_space: [
+    { value: "free_standing_billboard", labelKey: "applicationSubtypeFreeStandingBillboard", label: "Free Standing Billboard" },
+    { value: "open_space_led_billboard", labelKey: "applicationSubtypeLedBillboard", label: "LED Billboard" },
+  ],
+  building: [
+    { value: "building_normal_billboard", labelKey: "applicationSubtypeNormalBillboard", label: "Normal Billboard" },
+    { value: "building_led_billboard", labelKey: "applicationSubtypeLedBillboard", label: "LED Billboard" },
+  ],
+};
+
 const APPLICATION_TYPE_DEPARTMENTS = {
   open_space: ["GPM", "MNE", "IMT", "LNP", "ENG"],
   building: ["BLG"],
 };
 
-const IKL_FIRST_AREA_SQM = 20;
-const IKL_FIRST_AREA_RATE = 100;
-const IKL_ADDITIONAL_AREA_RATE = 70;
 const IKL_FIXED_DEPOSIT = 5000;
 const IKL_PROCESSING_FEE = 10;
 const SQFT_TO_SQM = 0.092903;
+const IKL_LED_SUBTYPES = new Set([
+  "open_space_led_billboard",
+  "building_led_billboard",
+]);
+const IKL_FEE_SCHEDULES = {
+  schedule_1: {
+    number: "1",
+    firstAreaSqm: 20,
+    firstAreaRate: 100,
+    additionalAreaRate: 70,
+  },
+  schedule_6: {
+    number: "6",
+    firstAreaSqm: 10,
+    firstAreaRate: 200,
+    additionalAreaRate: 50,
+  },
+};
 
 function normalizeApplicationTypeOptions(value) {
   const values = Array.isArray(value) ? value : value ? [value] : [];
@@ -52,6 +78,20 @@ function normalizeApplicationTypeOptions(value) {
     .filter((item) => APPLICATION_TYPE_OPTIONS.some((option) => option.value === item));
 
   return [...new Set(normalized)];
+}
+
+function getPrimaryApplicationType(value) {
+  return normalizeApplicationTypeOptions(value)[0] || "open_space";
+}
+
+function getDefaultApplicationSubtype(type) {
+  return APPLICATION_SUBTYPE_OPTIONS[type]?.[0]?.value || "";
+}
+
+function normalizeApplicationSubtype(value, type) {
+  const subtype = String(value || "").trim().toLowerCase();
+  const options = APPLICATION_SUBTYPE_OPTIONS[type] || [];
+  return options.some((option) => option.value === subtype) ? subtype : "";
 }
 
 function getApplicationTypeDepartments(types) {
@@ -70,6 +110,18 @@ function getApplicationTypeLabel(language, types) {
       return option ? stepText(language, option.labelKey) : type;
     })
     .join(", ");
+}
+
+function getApplicationSubtypeLabel(language, type, subtype) {
+  const option = (APPLICATION_SUBTYPE_OPTIONS[type] || []).find((item) => item.value === subtype);
+  return option ? stepText(language, option.labelKey) : "";
+}
+
+function getApplicationTypeDisplayLabel(language, types, subtype) {
+  const type = getPrimaryApplicationType(types);
+  const typeLabel = getApplicationTypeLabel(language, [type]);
+  const subtypeLabel = getApplicationSubtypeLabel(language, type, subtype);
+  return [typeLabel, subtypeLabel].filter(Boolean).join(" - ");
 }
 
 function parsePositiveNumber(value) {
@@ -104,26 +156,37 @@ function calculateAreaSqmFromFt(widthFt, heightFt) {
   return width && height ? width * height * SQFT_TO_SQM : 0;
 }
 
-function calculateIklTotalPayable(areaRequired) {
-  const breakdown = calculateIklFeeBreakdown(areaRequired);
+function getIklFeeSchedule(subtype) {
+  return IKL_LED_SUBTYPES.has(subtype)
+    ? IKL_FEE_SCHEDULES.schedule_6
+    : IKL_FEE_SCHEDULES.schedule_1;
+}
+
+function calculateIklTotalPayable(areaRequired, subtype = "") {
+  const breakdown = calculateIklFeeBreakdown(areaRequired, subtype);
   return breakdown ? formatCalculatedAmount(breakdown.totalPayable) : "";
 }
 
-function calculateIklFeeBreakdown(areaRequired) {
+function calculateIklFeeBreakdown(areaRequired, subtype = "") {
   const areaSqm =
     typeof areaRequired === "number"
       ? areaRequired
       : parsePositiveNumber(areaRequired);
   if (!areaSqm) return "";
 
-  const firstAreaSqm = Math.min(areaSqm, IKL_FIRST_AREA_SQM);
-  const additionalAreaSqm = Math.max(areaSqm - IKL_FIRST_AREA_SQM, 0);
-  const firstAreaFee = firstAreaSqm * IKL_FIRST_AREA_RATE;
-  const additionalAreaFee = additionalAreaSqm * IKL_ADDITIONAL_AREA_RATE;
+  const schedule = getIklFeeSchedule(subtype);
+  const firstAreaSqm = Math.min(areaSqm, schedule.firstAreaSqm);
+  const additionalAreaSqm = Math.max(areaSqm - schedule.firstAreaSqm, 0);
+  const firstAreaFee = firstAreaSqm * schedule.firstAreaRate;
+  const additionalAreaFee = additionalAreaSqm * schedule.additionalAreaRate;
   const feeTotal = firstAreaFee + additionalAreaFee;
   const totalPayable = feeTotal + IKL_FIXED_DEPOSIT + IKL_PROCESSING_FEE;
 
   return {
+    scheduleNumber: schedule.number,
+    firstAreaLimitSqm: schedule.firstAreaSqm,
+    firstAreaRate: schedule.firstAreaRate,
+    additionalAreaRate: schedule.additionalAreaRate,
     areaSqm,
     firstAreaSqm,
     additionalAreaSqm,
@@ -179,6 +242,9 @@ function SittingApplicationPage({
     new Date().toISOString().slice(0, 10)
   );
   const [applicationTypeOptions, setApplicationTypeOptions] = useState(["open_space"]);
+  const [applicationSubtype, setApplicationSubtype] = useState(
+    getDefaultApplicationSubtype("open_space")
+  );
   const [applicationRecord, setApplicationRecord] = useState(null);
 
   const [siteImageName, setSiteImageName] = useState("");
@@ -208,6 +274,14 @@ function SittingApplicationPage({
 
   function applyDraftData(data) {
     const step1 = data.form_data?.step_1 || {};
+    const savedTypes =
+      normalizeApplicationTypeOptions(step1.application_type_options).length > 0
+        ? normalizeApplicationTypeOptions(step1.application_type_options)
+        : ["open_space"];
+    const savedType = getPrimaryApplicationType(savedTypes);
+    const savedSubtype =
+      normalizeApplicationSubtype(step1.application_subtype, savedType) ||
+      getDefaultApplicationSubtype(savedType);
 
     setApplicationRecord(data);
     setProjectName(step1.project_name || "");
@@ -228,7 +302,7 @@ function SittingApplicationPage({
     setTotalSchemeValue(step1.total_scheme_value || "");
     setMalaysiaPlan(step1.malaysia_plan || "");
     setAmountFundApproved(
-      calculateIklTotalPayable(calculatedAreaSqm || nextAreaRequired) ||
+      calculateIklTotalPayable(calculatedAreaSqm || nextAreaRequired, savedSubtype) ||
         step1.amount_fund_approved ||
         ""
     );
@@ -238,11 +312,8 @@ function SittingApplicationPage({
     setDesignation(step1.designation || "");
     setOfficerName(step1.officer_name || "");
     setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
-    setApplicationTypeOptions(
-      normalizeApplicationTypeOptions(step1.application_type_options).length > 0
-        ? normalizeApplicationTypeOptions(step1.application_type_options)
-        : ["open_space"]
-    );
+    setApplicationTypeOptions([savedType]);
+    setApplicationSubtype(savedSubtype);
 
     const siteImageDocument =
       data.supporting_documents
@@ -282,9 +353,25 @@ function SittingApplicationPage({
   }
 
   async function buildStepOnePayload(titleValue, currentStep = 1) {
-    const selectedTypes = normalizeApplicationTypeOptions(applicationTypeOptions);
-    const applicationTypeDisplay = getApplicationTypeLabel(language, selectedTypes);
+    const selectedType = getPrimaryApplicationType(applicationTypeOptions);
+    const selectedTypes = [selectedType];
+    const selectedSubtype =
+      normalizeApplicationSubtype(applicationSubtype, selectedType) ||
+      getDefaultApplicationSubtype(selectedType);
+    const applicationTypeDisplay = getApplicationTypeDisplayLabel(
+      language,
+      selectedTypes,
+      selectedSubtype
+    );
+    const applicationSubtypeDisplay = getApplicationSubtypeLabel(
+      language,
+      selectedType,
+      selectedSubtype
+    );
     const technicalDepartments = getApplicationTypeDepartments(selectedTypes);
+    const calculatedPayable =
+      calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, selectedSubtype) ||
+      amountFundApproved;
 
     return {
       application_type: "sitting_application",
@@ -296,6 +383,8 @@ function SittingApplicationPage({
           application_type: selectedTypes.join(","),
           application_type_label: applicationTypeDisplay,
           application_type_options: selectedTypes,
+          application_subtype: selectedSubtype,
+          application_subtype_label: applicationSubtypeDisplay,
           technical_departments: technicalDepartments,
           division: "",
           project_category: applicationTypeDisplay,
@@ -313,7 +402,7 @@ function SittingApplicationPage({
           fund_availability: "",
           malaysia_plan: malaysiaPlan,
           amount_fund_available: amountFundAvailable,
-          amount_fund_approved: amountFundApproved,
+          amount_fund_approved: calculatedPayable,
 
           map_address: mapData.address,
           latitude: mapData.latitude,
@@ -364,7 +453,7 @@ function SittingApplicationPage({
 
   function handleAreaRequiredChange(nextAreaRequired) {
     setAreaRequired(nextAreaRequired);
-    setAmountFundApproved(calculateIklTotalPayable(nextAreaRequired));
+    setAmountFundApproved(calculateIklTotalPayable(nextAreaRequired, applicationSubtype));
   }
 
   function handleSizeDimensionChange(field, value) {
@@ -379,7 +468,14 @@ function SittingApplicationPage({
     }
 
     setAreaRequired(nextAreaSqm ? formatCalculatedArea(nextAreaSqm) : "");
-    setAmountFundApproved(calculateIklTotalPayable(nextAreaSqm));
+    setAmountFundApproved(calculateIklTotalPayable(nextAreaSqm, applicationSubtype));
+  }
+
+  function handleApplicationSubtypeChange(nextSubtype) {
+    setApplicationSubtype(nextSubtype);
+    setAmountFundApproved(
+      calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, nextSubtype)
+    );
   }
 
   const feeBreakdownAreaSqm =
@@ -438,7 +534,8 @@ function SittingApplicationPage({
       !designation.trim() ||
       !officerName.trim() ||
       !applicationDate ||
-      normalizeApplicationTypeOptions(applicationTypeOptions).length === 0
+      normalizeApplicationTypeOptions(applicationTypeOptions).length === 0 ||
+      !normalizeApplicationSubtype(applicationSubtype, getPrimaryApplicationType(applicationTypeOptions))
     ) {
       alert(tx("requiredAlert"));
       return;
@@ -548,6 +645,7 @@ function SittingApplicationPage({
             <ApplicationReference
               language={language}
               applicationTypeOptions={applicationTypeOptions}
+              applicationSubtype={applicationSubtype}
             />
 
             {isReadOnly && (
@@ -559,7 +657,19 @@ function SittingApplicationPage({
                 <ApplicationTypeCheckboxes
                   language={language}
                   value={applicationTypeOptions}
-                  onChange={setApplicationTypeOptions}
+                  subtype={applicationSubtype}
+                  onChange={(nextTypes) => {
+                    const nextType = getPrimaryApplicationType(nextTypes);
+                    const nextSubtype =
+                      normalizeApplicationSubtype(applicationSubtype, nextType) ||
+                      getDefaultApplicationSubtype(nextType);
+                    setApplicationTypeOptions([nextType]);
+                    setApplicationSubtype(nextSubtype);
+                    setAmountFundApproved(
+                      calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, nextSubtype)
+                    );
+                  }}
+                  onSubtypeChange={handleApplicationSubtypeChange}
                   readOnly={isReadOnly}
                 />
               </FormSection>
@@ -681,6 +791,7 @@ function SittingApplicationPage({
                   widthFt={sizeWidthFt}
                   heightFt={sizeHeightFt}
                   areaSqm={feeBreakdownAreaSqm}
+                  subtype={applicationSubtype}
                 />
               </div>
 
@@ -1505,12 +1616,16 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function ApplicationReference({ language, applicationTypeOptions = ["open_space"] }) {
+function ApplicationReference({
+  language,
+  applicationTypeOptions = ["open_space"],
+  applicationSubtype = "",
+}) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const tx = (key) => stepText(language, key);
   const applicationTypeText =
-    getApplicationTypeLabel(language, applicationTypeOptions) ||
+    getApplicationTypeDisplayLabel(language, applicationTypeOptions, applicationSubtype) ||
     applicationTypeLabel(language, "Application for Site (New Site)");
 
   return (
@@ -1569,11 +1684,11 @@ function Field({ label, children, required = false, guideline = "" }) {
   );
 }
 
-function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm }) {
+function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" }) {
   const width = parsePositiveNumber(widthFt);
   const height = parsePositiveNumber(heightFt);
   const areaSqft = width && height ? width * height : 0;
-  const breakdown = calculateIklFeeBreakdown(areaSqm);
+  const breakdown = calculateIklFeeBreakdown(areaSqm, subtype);
 
   return (
     <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
@@ -1584,6 +1699,10 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm }) {
       <div className="border-t border-slate-200 bg-white px-3 py-2">
         {breakdown ? (
           <div className="grid gap-1 text-[11px] text-slate-700">
+            <CalculationRow
+              label={tx("calculationSchedule")}
+              value={tx(`calculationSchedule${breakdown.scheduleNumber}`)}
+            />
             <CalculationRow
               label={tx("calculationSize")}
               value={
@@ -1601,12 +1720,12 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm }) {
               value={`${formatFlexibleDecimal(areaSqft || 0, 10)} x ${SQFT_TO_SQM} = ${formatCalculatedArea(breakdown.areaSqm)} Sq. m`}
             />
             <CalculationRow
-              label={tx("calculationFirstArea")}
-              value={`${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x RM${formatCalculatedAmount(IKL_FIRST_AREA_RATE)} = RM${formatCalculatedAmount(breakdown.firstAreaFee)}`}
+              label={tx(`calculationFirstArea${breakdown.scheduleNumber}`)}
+              value={`${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x RM${formatCalculatedAmount(breakdown.firstAreaRate)} = RM${formatCalculatedAmount(breakdown.firstAreaFee)}`}
             />
             <CalculationRow
               label={tx("calculationAdditionalArea")}
-              value={`${formatWholeNumber(breakdown.additionalAreaSqm)} Sq. m x RM${formatCalculatedAmount(IKL_ADDITIONAL_AREA_RATE)} = RM${formatCalculatedAmount(breakdown.additionalAreaFee)}`}
+              value={`${formatWholeNumber(breakdown.additionalAreaSqm)} Sq. m x RM${formatCalculatedAmount(breakdown.additionalAreaRate)} = RM${formatCalculatedAmount(breakdown.additionalAreaFee)}`}
             />
             <CalculationRow
               label={tx("calculationFeeTotal")}
@@ -1668,34 +1787,83 @@ function GuidelineHint({ text }) {
   );
 }
 
-function ApplicationTypeCheckboxes({ language, value, onChange, readOnly }) {
-  const selected = normalizeApplicationTypeOptions(value);
+function ApplicationTypeCheckboxes({
+  language,
+  value,
+  subtype,
+  onChange,
+  onSubtypeChange,
+  readOnly,
+}) {
+  const selectedType = getPrimaryApplicationType(value);
+  const subtypeOptions = APPLICATION_SUBTYPE_OPTIONS[selectedType] || [];
+  const selectedSubtype =
+    normalizeApplicationSubtype(subtype, selectedType) || getDefaultApplicationSubtype(selectedType);
 
-  function toggle(type, checked) {
+  function selectType(type) {
     if (readOnly) return;
-    onChange(
-      checked
-        ? normalizeApplicationTypeOptions([...selected, type])
-        : selected.filter((item) => item !== type)
-    );
+    onChange([type]);
+  }
+
+  function selectSubtype(nextSubtype) {
+    if (readOnly) return;
+    onSubtypeChange(nextSubtype);
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      {APPLICATION_TYPE_OPTIONS.map((option) => (
-        <label
-          key={option.value}
-          className="flex min-h-10 items-center gap-2 rounded-sm border border-slate-200 px-3 py-2"
-        >
-          <input
-            type="checkbox"
-            checked={selected.includes(option.value)}
-            disabled={readOnly}
-            onChange={(event) => toggle(option.value, event.target.checked)}
-          />
-          <span>{stepText(language, option.labelKey)}</span>
-        </label>
-      ))}
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {APPLICATION_TYPE_OPTIONS.map((option) => (
+          <label
+            key={option.value}
+            className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 ${
+              selectedType === option.value
+                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                : "border-slate-200 bg-white text-slate-700"
+            } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+          >
+            <input
+              type="radio"
+              name="application-type"
+              checked={selectedType === option.value}
+              disabled={readOnly}
+              onChange={() => selectType(option.value)}
+              className="h-4 w-4 accent-emerald-700"
+            />
+            <span>{stepText(language, option.labelKey)}</span>
+          </label>
+        ))}
+      </div>
+
+      {subtypeOptions.length > 0 && (
+        <div className="rounded-sm border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-[11px] font-bold text-slate-700">
+            {stepText(language, "advertisementType")}
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {subtypeOptions.map((option) => (
+              <label
+                key={option.value}
+                className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 ${
+                  selectedSubtype === option.value
+                    ? "border-emerald-600 bg-white text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-700"
+                } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+              >
+                <input
+                  type="radio"
+                  name={`application-subtype-${selectedType}`}
+                  checked={selectedSubtype === option.value}
+                  disabled={readOnly}
+                  onChange={() => selectSubtype(option.value)}
+                  className="h-4 w-4 accent-emerald-700"
+                />
+                <span>{stepText(language, option.labelKey)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

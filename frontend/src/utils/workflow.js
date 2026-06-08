@@ -328,6 +328,10 @@ export function getProjectName(app) {
 
 export function getApplicationType(app, language = "en") {
   const step1 = getStep(app, "step_1");
+  const subtypeLabel = getLocalizedApplicationSubtypeLabel(
+    step1.application_subtype,
+    language
+  );
   const optionLabels = Array.isArray(step1.application_type_options)
     ? step1.application_type_options
         .map((value) => getLocalizedApplicationTypeLabel(value, language))
@@ -335,7 +339,7 @@ export function getApplicationType(app, language = "en") {
     : [];
 
   if (optionLabels.length > 0) {
-    return optionLabels.join(", ");
+    return [optionLabels[0], subtypeLabel].filter(Boolean).join(" - ");
   }
 
   const rawType =
@@ -348,7 +352,7 @@ export function getApplicationType(app, language = "en") {
     "Siting Application";
 
   const localizedLabel = getLocalizedApplicationTypeLabel(rawType, language);
-  if (localizedLabel) return localizedLabel;
+  if (localizedLabel) return [localizedLabel, subtypeLabel].filter(Boolean).join(" - ");
 
   const labelMap = {
     sitting_application: language === "ms" ? "Permohonan Tapak" : "Sitting Application",
@@ -382,6 +386,34 @@ function getLocalizedApplicationTypeLabel(value, language = "en") {
     bangunan: {
       en: "Building",
       ms: "Bangunan",
+    },
+  };
+
+  return labelMap[key]?.[language === "ms" ? "ms" : "en"] || "";
+}
+
+function getLocalizedApplicationSubtypeLabel(value, language = "en") {
+  const key = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  const labelMap = {
+    free_standing_billboard: {
+      en: "Free Standing Billboard",
+      ms: "Papan Iklan Berdiri Bebas",
+    },
+    open_space_led_billboard: {
+      en: "LED Billboard",
+      ms: "Papan Iklan LED",
+    },
+    building_normal_billboard: {
+      en: "Normal Billboard",
+      ms: "Papan Iklan Biasa",
+    },
+    building_led_billboard: {
+      en: "LED Billboard",
+      ms: "Papan Iklan LED",
     },
   };
 
