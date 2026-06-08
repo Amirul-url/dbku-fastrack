@@ -292,7 +292,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       : saved.site_photo
         ? [saved.site_photo]
         : [];
-    const currentPhotos = getCurrentTechnicalSitePhotos(savedPhotos, selectedDetail);
+    const currentPhotos = getCurrentTechnicalSitePhotos(
+      savedPhotos,
+      selectedDetail,
+      saved.cycle_id || selectedDetail?.form_data?.technical_review_cycle
+    );
     const feeItems = normalizeTechnicalFeeItems(saved.fee_items);
     const feeTotals = getTechnicalFeeTotals(feeItems);
     const applicationSubtype = getApplicationSubtypeFromApplication(selectedDetail);
@@ -324,7 +328,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     });
     setTechnicalApplicationTypeSelection(getApplicationTypeOptionsFromApplication(selectedDetail));
     setTechnicalSizeError("");
-  }, [selectedDetail?.id, selectedDetail?.updated_at]);
+  }, [
+    selectedDetail?.id,
+    selectedDetail?.status,
+    selectedDetail?.updated_at,
+    selectedDetail?.form_data?.technical_review_cycle,
+    selectedDetail?.form_data?.technical_referral?.cycle_id,
+    selectedDetail?.form_data?.technical_site_visit?.reset_at,
+  ]);
 
   async function fetchApplications({ silent = false } = {}) {
     try {
@@ -751,7 +762,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
-  async function saveTechnicalApplicationTypeSelection(nextSelection = technicalApplicationTypeSelection) {
+  async function saveTechnicalApplicationTypeSelection(
+    nextSelection = technicalApplicationTypeSelection,
+    nextSubtype = ""
+  ) {
     if (!selectedRecord?.id) {
       setError(t("workspace.selectApplication", "Please select an application first."));
       return;
@@ -770,7 +784,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
       const departments = getApplicationTypeTechnicalDepartmentsFromTypes(selectedTypes);
       const selectedType = selectedTypes[0];
-      const subtype = getDefaultApplicationSubtype(selectedType);
+      const subtype =
+        normalizeApplicationSubtype(nextSubtype, selectedType) ||
+        getDefaultApplicationSubtype(selectedType);
       const applicationTypeLabel = getApplicationTypeOptionsLabel(selectedTypes, "en", subtype);
       const step1 = selectedRecord.form_data?.step_1 || {};
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -2032,6 +2048,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         t={t}
                         language={language}
                         selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+                        selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
                         derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
                         saving={false}
                         onToggle={() => {}}
@@ -2225,9 +2242,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             )
                           )
                         );
+                        const cycleId =
+                          technicalSite.cycle_id ||
+                          selectedRecord.form_data?.technical_review_cycle ||
+                          "";
+                        const cyclePhotos = sitePhotos.map((photo) => ({
+                          ...photo,
+                          cycle_id: cycleId,
+                        }));
                         setTechnicalSite((prev) => ({
                           ...prev,
-                          site_photos: [...(prev.site_photos || []), ...sitePhotos],
+                          site_photos: [...(prev.site_photos || []), ...cyclePhotos],
                         }));
                       }}
                     />
@@ -4611,6 +4636,52 @@ function createKuTechnicalChecks(savedChecks = {}) {
   }), {});
 }
 
+function getNextTechnicalReviewCycle(app) {
+  const formData = app?.form_data || {};
+  const currentCycle = Number(
+    formData.technical_review_cycle ||
+      formData.technical_referral?.cycle_id ||
+      formData.technical_site_visit?.cycle_id ||
+      0
+  );
+
+  return Number.isFinite(currentCycle) ? currentCycle + 1 : 1;
+}
+
+function createFreshTechnicalSiteVisit(app, now, cycleId) {
+  const applicationSubtype = getApplicationSubtypeFromApplication(app);
+  const fees = calculateTechnicalFee({ application_subtype: applicationSubtype });
+
+  return {
+    cycle_id: cycleId,
+    status: "Fresh Review",
+    application_subtype: applicationSubtype,
+    fee_schedule_key: fees.scheduleKey,
+    fee_schedule_no: fees.scheduleNumber,
+    site_photos: [],
+    site_photo: null,
+    fee_date: new Date().toISOString().slice(0, 10),
+    fee_items: [],
+    width_ft: "",
+    height_ft: "",
+    area_sqft: "",
+    area_sqm: "",
+    chargeable_area_sqm: "",
+    first_area_sqm: "",
+    first_area_fee: "",
+    additional_area_sqm: "0",
+    additional_area_fee: "0",
+    fee_total: "",
+    payable_total: "",
+    license_fee_calculation: "",
+    deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
+    processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
+    site_remarks: "",
+    officer_role: "PT/PO/KP Unit Iklan",
+    reset_at: now,
+  };
+}
+
 function buildIklScreeningPayload(app, data) {
   const now = new Date().toISOString();
   const checks = buildScreeningChecks(app);
@@ -4622,6 +4693,7 @@ function buildIklScreeningPayload(app, data) {
   const correctionRequired = reject || technicalAmendment;
   const previousAutoScreening = app.form_data?.auto_screening || {};
   const selectedTechnicalDepartments = getApplicationTypeTechnicalDepartments(app);
+  const technicalCycle = sendTechnical ? getNextTechnicalReviewCycle(app) : app.form_data?.technical_review_cycle;
 
   return {
     status: reject
@@ -4647,6 +4719,7 @@ function buildIklScreeningPayload(app, data) {
       },
       technical_referral: sendTechnical
         ? {
+            cycle_id: technicalCycle,
             status: "Referred",
             source: "KU(IKL)",
             target: KU_TECHNICAL_MEMO_RECIPIENT,
@@ -4657,6 +4730,7 @@ function buildIklScreeningPayload(app, data) {
         : app.form_data?.technical_referral || null,
       technical_department_selection: sendTechnical
         ? {
+            cycle_id: technicalCycle,
             departments: selectedTechnicalDepartments,
             selected_by: "Application Type",
             selected_at: now,
@@ -4669,8 +4743,11 @@ function buildIklScreeningPayload(app, data) {
         ? ""
         : app.form_data?.technical_department_reviews_updated_at || "",
       technical_review: sendTechnical ? null : app.form_data?.technical_review || null,
-      technical_site_visit: sendTechnical ? null : app.form_data?.technical_site_visit || null,
+      technical_site_visit: sendTechnical ? createFreshTechnicalSiteVisit(app, now, technicalCycle) : app.form_data?.technical_site_visit || null,
       technical_ku_review: sendTechnical ? null : app.form_data?.technical_ku_review || null,
+      technical_review_cycle: sendTechnical
+        ? technicalCycle
+        : app.form_data?.technical_review_cycle || null,
       correction_request: correctionRequired
         ? {
             source: data.decision.includes("KU") ? "KU(IKL)" : "PT(IKL)",
@@ -4999,9 +5076,11 @@ function buildDepartmentTechnicalReviewPayload(app, data) {
   const now = new Date().toISOString();
   const department = normalizeDepartmentCode(data.department);
   const currentReviews = getTechnicalDepartmentReviews(app);
+  const cycleId = getActiveTechnicalReviewCycle(app);
   const nextReviews = {
     ...currentReviews,
     [department]: {
+      cycle_id: cycleId,
       department,
       decision: data.decision,
       remarks: data.comment,
@@ -5025,6 +5104,35 @@ function getTechnicalDepartmentReviews(app) {
     app?.technical_department_reviews ||
     app?.form_data?.technical_department_reviews ||
     {}
+  );
+}
+
+function getActiveTechnicalReviewCycle(app) {
+  const formData = app?.form_data || {};
+  return String(
+    formData.technical_review_cycle ||
+      formData.technical_referral?.cycle_id ||
+      formData.technical_department_selection?.cycle_id ||
+      formData.technical_site_visit?.cycle_id ||
+      ""
+  );
+}
+
+function isCurrentTechnicalReviewCycle(app, review) {
+  const activeCycle = getActiveTechnicalReviewCycle(app);
+  if (!activeCycle) return true;
+  return String(review?.cycle_id || "") === activeCycle;
+}
+
+function getCurrentTechnicalDepartmentReviews(app) {
+  const reviews = getTechnicalDepartmentReviews(app);
+  const activeCycle = getActiveTechnicalReviewCycle(app);
+  if (!activeCycle) return reviews;
+
+  return Object.fromEntries(
+    Object.entries(reviews).filter(([, review]) =>
+      isCurrentTechnicalReviewCycle(app, review)
+    )
   );
 }
 
@@ -5072,6 +5180,12 @@ function getApplicationTypeOptionLabel(type, language = "en") {
 
 function getDefaultApplicationSubtype(type) {
   return APPLICATION_SUBTYPE_OPTIONS[type]?.[0]?.value || "";
+}
+
+function normalizeApplicationSubtype(value, type) {
+  const subtype = String(value || "").trim().toLowerCase();
+  const options = APPLICATION_SUBTYPE_OPTIONS[type] || [];
+  return options.some((option) => option.value === subtype) ? subtype : "";
 }
 
 function getApplicationSubtypeLabel(type, subtype, language = "en") {
@@ -5159,7 +5273,8 @@ function getTechnicalRouteLabel(app) {
 
 function hasTechnicalDepartmentReview(app, department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
-  return Boolean(getTechnicalDepartmentReviews(app)?.[normalizedDepartment]);
+  const review = getTechnicalDepartmentReviews(app)?.[normalizedDepartment];
+  return Boolean(review && isCurrentTechnicalReviewCycle(app, review));
 }
 
 function areAllTechnicalDepartmentReviewsComplete(app) {
@@ -5213,7 +5328,8 @@ function parseCurrencyAmount(value) {
   return Number.isFinite(numeric) ? numeric : Number.NaN;
 }
 
-function getCurrentTechnicalSitePhotos(savedPhotos, application) {
+function getCurrentTechnicalSitePhotos(savedPhotos, application, activeCycleId = "") {
+  const activeCycle = activeCycleId ? String(activeCycleId) : "";
   const documents = Array.isArray(application?.supporting_documents)
     ? application.supporting_documents
     : [];
@@ -5222,6 +5338,7 @@ function getCurrentTechnicalSitePhotos(savedPhotos, application) {
   );
   const documentIds = new Set(documents.map((document) => String(document.id)));
   const currentSavedPhotos = savedPhotos.filter((photo) => {
+    if (activeCycle && String(photo?.cycle_id || "") !== activeCycle) return false;
     if (!photo?.document_id) return true;
     return documentIds.has(String(photo.document_id));
   });
@@ -5231,16 +5348,18 @@ function getCurrentTechnicalSitePhotos(savedPhotos, application) {
       .filter(Boolean)
       .map(String)
   );
-  const missingTechnicalPhotos = technicalDocuments
-    .filter((document) => !savedDocumentIds.has(String(document.id)))
-    .map((document) => ({
-      document_id: document.id,
-      title: document.title,
-      name: getFileNameFromUrl(document.file || document.file_url) || document.title,
-      url: document.file_url || document.file || "",
-      file_url: document.file_url || document.file || "",
-      uploaded_at: document.uploaded_at,
-    }));
+  const missingTechnicalPhotos = activeCycle
+    ? []
+    : technicalDocuments
+        .filter((document) => !savedDocumentIds.has(String(document.id)))
+        .map((document) => ({
+          document_id: document.id,
+          title: document.title,
+          name: getFileNameFromUrl(document.file || document.file_url) || document.title,
+          url: document.file_url || document.file || "",
+          file_url: document.file_url || document.file || "",
+          uploaded_at: document.uploaded_at,
+        }));
 
   return [...currentSavedPhotos, ...missingTechnicalPhotos];
 }
@@ -5521,8 +5640,8 @@ const configs = {
     stats: (apps, department) => [
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !hasTechnicalDepartmentReview(app, department)), icon: "pending", tone: "amber" },
       { label: "Completed", labelKey: "workspace.stat.completed", value: countBy(apps, (app) => hasTechnicalDepartmentReview(app, department)), icon: "check_circle" },
-      { label: "Supported", labelKey: "workspace.stat.supported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Supported"), icon: "check_circle" },
-      { label: "Not Supported", labelKey: "workspace.stat.notSupported", value: countBy(apps, (app) => getTechnicalDepartmentReviews(app)?.[department]?.decision === "Not Supported"), icon: "cancel", tone: "red" },
+      { label: "Supported", labelKey: "workspace.stat.supported", value: countBy(apps, (app) => getCurrentTechnicalDepartmentReviews(app)?.[department]?.decision === "Supported"), icon: "check_circle" },
+      { label: "Not Supported", labelKey: "workspace.stat.notSupported", value: countBy(apps, (app) => getCurrentTechnicalDepartmentReviews(app)?.[department]?.decision === "Not Supported"), icon: "cancel", tone: "red" },
     ],
     actions: [
       {
@@ -6100,13 +6219,29 @@ function IklWorkspaceSections({
     }
 
     setTechnicalApplicationTypeSelection(nextSelection);
+    const nextSubtype = getDefaultApplicationSubtype(nextSelection[0]);
     setTechnicalSite((prev) =>
       mergeTechnicalFeeCalculation({
         ...prev,
-        application_subtype: getDefaultApplicationSubtype(nextSelection[0]),
+        application_subtype: nextSubtype,
       })
     );
-    saveTechnicalApplicationTypeSelection(nextSelection);
+    saveTechnicalApplicationTypeSelection(nextSelection, nextSubtype);
+  }
+
+  function handleTechnicalApplicationSubtypeChange(nextSubtype) {
+    const selectedType = normalizeApplicationTypeOptions(technicalApplicationTypeSelection)[0];
+    const normalizedSubtype = normalizeApplicationSubtype(nextSubtype, selectedType);
+
+    if (!normalizedSubtype) return;
+
+    setTechnicalSite((prev) =>
+      mergeTechnicalFeeCalculation({
+        ...prev,
+        application_subtype: normalizedSubtype,
+      })
+    );
+    saveTechnicalApplicationTypeSelection(technicalApplicationTypeSelection, normalizedSubtype);
   }
 
   function scheduleTechnicalSiteVisitDraftSave(nextSite) {
@@ -6134,6 +6269,14 @@ function IklWorkspaceSections({
         )
       )
     );
+    const cycleId =
+      latestTechnicalSiteRef.current.cycle_id ||
+      selectedRecord.form_data?.technical_review_cycle ||
+      "";
+    const cyclePhotos = sitePhotos.map((photo) => ({
+      ...photo,
+      cycle_id: cycleId,
+    }));
 
     if (technicalSiteSaveTimerRef.current) {
       window.clearTimeout(technicalSiteSaveTimerRef.current);
@@ -6141,7 +6284,7 @@ function IklWorkspaceSections({
 
     const nextSite = {
       ...latestTechnicalSiteRef.current,
-      site_photos: [...(latestTechnicalSiteRef.current.site_photos || []), ...sitePhotos],
+      site_photos: [...(latestTechnicalSiteRef.current.site_photos || []), ...cyclePhotos],
     };
 
     setTechnicalSite(nextSite);
@@ -6215,11 +6358,16 @@ function IklWorkspaceSections({
               t={t}
               language={language}
               selectedTypes={technicalApplicationTypeSelection}
+              selectedSubtype={
+                technicalSite.application_subtype ||
+                getApplicationSubtypeFromApplication(selectedRecord)
+              }
               derivedDepartments={getApplicationTypeTechnicalDepartmentsFromTypes(
                 technicalApplicationTypeSelection
               )}
               saving={saving}
               onToggle={handleTechnicalApplicationTypeToggle}
+              onSubtypeChange={handleTechnicalApplicationSubtypeChange}
             />
           )}
 
@@ -6325,6 +6473,7 @@ function IklWorkspaceSections({
             t={t}
             language={language}
             selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+            selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
             derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
             saving={false}
             onToggle={() => {}}
@@ -6512,13 +6661,19 @@ function TechnicalApplicationTypePanel({
   t,
   language,
   selectedTypes,
+  selectedSubtype = "",
   derivedDepartments,
   saving,
   onToggle,
+  onSubtypeChange,
   readOnly = false,
 }) {
   const selectedType = normalizeApplicationTypeOptions(selectedTypes)[0] || "";
   const selectedSet = new Set(selectedType ? [selectedType] : []);
+  const subtypeOptions = APPLICATION_SUBTYPE_OPTIONS[selectedType] || [];
+  const normalizedSubtype =
+    normalizeApplicationSubtype(selectedSubtype, selectedType) ||
+    getDefaultApplicationSubtype(selectedType);
   const departmentLabel =
     derivedDepartments.length > 0
       ? derivedDepartments.join(", ")
@@ -6563,6 +6718,39 @@ function TechnicalApplicationTypePanel({
           </label>
         ))}
       </div>
+
+      {subtypeOptions.length > 0 && (
+        <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-[13px] font-semibold leading-5 text-slate-700">
+            {t(
+              "workspace.technical.advertisementType",
+              language === "ms" ? "Jenis Iklan" : "Type of Advertisement"
+            )}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {subtypeOptions.map((option) => (
+              <label
+                key={option.value}
+                className={`flex min-h-10 w-full items-center gap-2 rounded-md border px-3 py-2 text-[14px] font-semibold leading-5 sm:w-64 ${
+                  normalizedSubtype === option.value
+                    ? "border-emerald-600 bg-white text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                } ${saving || readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
+              >
+                <input
+                  type="radio"
+                  name={`technical-application-subtype-${selectedType || "none"}`}
+                  checked={normalizedSubtype === option.value}
+                  disabled={saving || readOnly}
+                  onChange={() => onSubtypeChange?.(option.value)}
+                  className="h-4 w-4 accent-emerald-700"
+                />
+                {option[language === "ms" ? "ms" : "en"] || option.en}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showApplicationTypeMeta && (
         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -6771,6 +6959,7 @@ function ApprovalTechnicalReviewSummary({
         t={t}
         language={language}
         selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+        selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
         derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
         saving={false}
         onToggle={() => {}}
@@ -6924,7 +7113,7 @@ function formatReportAmount(value) {
 }
 
 function TechnicalDepartmentRemarks({ app, t, leadingRows = [] }) {
-  const reviews = getTechnicalDepartmentReviews(app);
+  const reviews = getCurrentTechnicalDepartmentReviews(app);
   const selectedDepartments = getSelectedTechnicalDepartments(app);
   const hasSelection = hasTechnicalDepartmentSelection(app);
   const departments = hasSelection ? selectedDepartments : TECHNICAL_DEPARTMENTS;

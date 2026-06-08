@@ -6,7 +6,9 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
+  deleteApplicationDocument,
   fetchAuthenticatedBlob,
+  getApplicationDocumentUrl,
   getSiteImageUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
@@ -156,6 +158,68 @@ function calculateAreaSqmFromFt(widthFt, heightFt) {
   return width && height ? width * height * SQFT_TO_SQM : 0;
 }
 
+function getSiteImageDocumentId(image) {
+  return image?.document_id || image?.id || image?.attachment?.document_id || image?.attachment?.id || "";
+}
+
+function getSiteImageName(image, fallback = "") {
+  const filePath = typeof image?.file === "string" ? image.file : "";
+  const fileUrl = typeof image?.file_url === "string" ? image.file_url : "";
+
+  return (
+    image?.name ||
+    image?.attachment?.name ||
+    filePath.split(/[\\/]/)?.pop() ||
+    fileUrl.split(/[\\/]/)?.pop() ||
+    fallback ||
+    ""
+  );
+}
+
+function getSiteImageDownloadUrl(applicationId, image, stepData = {}) {
+  const documentId = getSiteImageDocumentId(image);
+  if (documentId) return getApplicationDocumentUrl(applicationId, documentId);
+
+  return getSiteImageUrl(applicationId, image?.attachment || image, stepData);
+}
+
+function normalizeSiteImageItem(image, applicationId, stepData = {}, fallbackName = "") {
+  if (!image) return null;
+
+  const documentId = getSiteImageDocumentId(image);
+  const name = getSiteImageName(image, fallbackName);
+  const preview =
+    image.preview ||
+    image.url ||
+    image.file_url ||
+    image.file ||
+    getSiteImageDownloadUrl(applicationId, image, stepData);
+
+  if (!name && !preview && !documentId) return null;
+
+  return {
+    key: documentId ? `doc-${documentId}` : `site-${name || preview}`,
+    document_id: documentId,
+    name: name || "site-image",
+    preview,
+    file: image.file || null,
+    attachment: image.attachment || image,
+  };
+}
+
+function uniqueSiteImages(images) {
+  const seen = new Set();
+
+  return images.filter((image) => {
+    if (!image) return false;
+    const key = image.document_id || image.preview || image.name;
+    if (!key) return false;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getIklFeeSchedule(subtype) {
   return IKL_LED_SUBTYPES.has(subtype)
     ? IKL_FEE_SCHEDULES.schedule_6
@@ -247,10 +311,7 @@ function SittingApplicationPage({
   );
   const [applicationRecord, setApplicationRecord] = useState(null);
 
-  const [siteImageName, setSiteImageName] = useState("");
-  const [siteImagePreview, setSiteImagePreview] = useState("");
-  const [siteImageFile, setSiteImageFile] = useState(null);
-  const [siteImageAttachment, setSiteImageAttachment] = useState(null);
+  const [siteImages, setSiteImages] = useState([]);
 
   const [mapData, setMapData] = useState({
     address:
@@ -315,26 +376,37 @@ function SittingApplicationPage({
     setApplicationTypeOptions([savedType]);
     setApplicationSubtype(savedSubtype);
 
-    const siteImageDocument =
-      data.supporting_documents
-        ?.slice()
-        .reverse()
-        .find((document) => document.title === "Site Image") || null;
-    const savedSiteImage = siteImageDocument || step1.site_image || null;
-    const savedSiteImageUrl = getSiteImageUrl(
-      applicationId,
-      savedSiteImage,
-      step1
+    const supportingDocuments = Array.isArray(data.supporting_documents)
+      ? data.supporting_documents
+      : [];
+    const supportingDocumentIds = new Set(
+      supportingDocuments.map((document) => String(document.id))
     );
-    setSiteImageName(
-      savedSiteImage?.name ||
-        savedSiteImage?.file?.split("/")?.pop() ||
-        step1.site_image_name ||
-        ""
+    const savedSiteImages = Array.isArray(step1.site_images)
+      ? step1.site_images
+      : [];
+    const documentSiteImages = supportingDocuments
+      .filter((document) => document.title === "Site Image")
+      .map((document) => ({
+        ...document,
+        document_id: document.id,
+        name: getSiteImageName(document, document.title),
+        url: getApplicationDocumentUrl(applicationId, document.id),
+      }));
+    const legacyDocumentId = getSiteImageDocumentId(step1.site_image);
+    const legacySiteImage =
+      step1.site_image &&
+      (!legacyDocumentId || supportingDocumentIds.has(String(legacyDocumentId)))
+        ? [step1.site_image]
+        : [];
+    const nextSiteImages = uniqueSiteImages(
+      [...savedSiteImages, ...documentSiteImages, ...legacySiteImage]
+        .map((image) =>
+          normalizeSiteImageItem(image, applicationId, step1, step1.site_image_name)
+        )
     );
-    setSiteImagePreview(savedSiteImageUrl);
-    setSiteImageFile(null);
-    setSiteImageAttachment(savedSiteImage);
+
+    setSiteImages(nextSiteImages);
 
     setMapData({
       address: step1.map_address || step1.locality_address || "",
@@ -372,6 +444,10 @@ function SittingApplicationPage({
     const calculatedPayable =
       calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, selectedSubtype) ||
       amountFundApproved;
+    const savedSiteImageAttachments = siteImages
+      .filter((image) => !image.file && image.attachment)
+      .map((image) => image.attachment);
+    const primarySiteImage = savedSiteImageAttachments[0] || null;
 
     return {
       application_type: "sitting_application",
@@ -408,13 +484,12 @@ function SittingApplicationPage({
           latitude: mapData.latitude,
           longitude: mapData.longitude,
 
-          site_image_name: siteImageName,
-          site_image: siteImageAttachment,
-          site_image_document_id: siteImageAttachment?.document_id || "",
-          site_image_url: siteImageAttachment?.url || "",
-          site_image_preview: siteImagePreview?.startsWith("blob:")
-            ? ""
-            : siteImagePreview,
+          site_image_name: primarySiteImage?.name || siteImages[0]?.name || "",
+          site_image: primarySiteImage,
+          site_images: savedSiteImageAttachments,
+          site_image_document_id: getSiteImageDocumentId(primarySiteImage),
+          site_image_url: primarySiteImage?.url || primarySiteImage?.file_url || "",
+          site_image_preview: "",
 
           project_justification: projectJustification,
           site_selection_reason: siteSelectionReason,
@@ -478,17 +553,65 @@ function SittingApplicationPage({
     );
   }
 
+  function handleSiteImagesAdd(files) {
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0) return;
+
+    const nextImages = fileList.map((file) => ({
+      key: `local-${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+      document_id: "",
+      name: file.name,
+      preview: URL.createObjectURL(file),
+      file,
+      attachment: null,
+    }));
+
+    setSiteImages((current) => [...current, ...nextImages]);
+  }
+
+  async function handleSiteImageRemove(imageToRemove) {
+    const documentId = getSiteImageDocumentId(imageToRemove);
+
+    if (documentId && applicationId) {
+      try {
+        await deleteApplicationDocument(applicationId, documentId);
+      } catch (error) {
+        console.error("Failed to delete site image:", error);
+        alert(tx("failedDeleteFile"));
+        return;
+      }
+    }
+
+    if (imageToRemove?.preview?.startsWith("blob:")) {
+      URL.revokeObjectURL(imageToRemove.preview);
+    }
+
+    setSiteImages((current) =>
+      current.filter((image) => image.key !== imageToRemove.key)
+    );
+  }
+
   const feeBreakdownAreaSqm =
     calculateAreaSqmFromFt(sizeWidthFt, sizeHeightFt) || parsePositiveNumber(areaRequired);
 
-  async function uploadPendingSiteImage(application, payload) {
-    if (!siteImageFile) return application;
+  async function uploadPendingSiteImages(application, payload) {
+    const pendingImages = siteImages.filter((image) => image.file);
+    if (pendingImages.length === 0) return application;
 
-    const attachment = await uploadApplicationDocument(
-      application.id,
-      "Site Image",
-      siteImageFile
+    const uploadedAttachments = await Promise.all(
+      pendingImages.map((image) =>
+        uploadApplicationDocument(
+          application.id,
+          "Site Image",
+          image.file
+        )
+      )
     );
+    const existingAttachments = siteImages
+      .filter((image) => !image.file && image.attachment)
+      .map((image) => image.attachment);
+    const siteImageAttachments = [...existingAttachments, ...uploadedAttachments];
+    const primaryAttachment = siteImageAttachments[0] || null;
     const formData = application.form_data || payload.form_data || {};
     const step1 = formData.step_1 || payload.form_data?.step_1 || {};
 
@@ -499,19 +622,22 @@ function SittingApplicationPage({
           ...formData,
           step_1: {
             ...step1,
-            site_image_name: attachment.name,
-            site_image: attachment,
-            site_image_document_id: attachment.document_id,
-            site_image_url: attachment.url,
+            site_image_name: primaryAttachment?.name || "",
+            site_image: primaryAttachment,
+            site_images: siteImageAttachments,
+            site_image_document_id: getSiteImageDocumentId(primaryAttachment),
+            site_image_url: primaryAttachment?.url || primaryAttachment?.file_url || "",
             site_image_preview: "",
           },
         },
       }),
     });
 
-    setSiteImageAttachment(attachment);
-    setSiteImageFile(null);
-    setSiteImagePreview(attachment.url);
+    setSiteImages(
+      siteImageAttachments
+        .map((image) => normalizeSiteImageItem(image, application.id, step1))
+        .filter(Boolean)
+    );
 
     return updatedApplication;
   }
@@ -544,7 +670,7 @@ function SittingApplicationPage({
     try {
       const payload = await buildStepOnePayload(projectName, 2);
       const data = await saveApplication(payload);
-      const savedData = await uploadPendingSiteImage(data, payload);
+      const savedData = await uploadPendingSiteImages(data, payload);
 
       navigate(
         isAdminReview
@@ -571,7 +697,7 @@ function SittingApplicationPage({
       const data = await saveApplication(payload);
 
       try {
-        await uploadPendingSiteImage(data, payload);
+        await uploadPendingSiteImages(data, payload);
       } catch (uploadErr) {
         console.error("Draft site image upload failed:", uploadErr);
         alert(tx("draftSavedWithoutUpload"));
@@ -724,22 +850,11 @@ function SittingApplicationPage({
               />
 
               <SiteImageUpload
-                imageName={siteImageName}
-                preview={siteImagePreview}
+                images={siteImages}
                 readOnly={isReadOnly}
                 language={language}
-                onChange={(data) => {
-                  setSiteImageName(data.name);
-                  setSiteImagePreview(data.preview);
-                  setSiteImageFile(data.file);
-                  setSiteImageAttachment(null);
-                }}
-                onRemove={() => {
-                  setSiteImageName("");
-                  setSiteImagePreview("");
-                  setSiteImageFile(null);
-                  setSiteImageAttachment(null);
-                }}
+                onAdd={handleSiteImagesAdd}
+                onRemove={handleSiteImageRemove}
               />
 
               <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,500px)_minmax(360px,1fr)]">
@@ -1464,137 +1579,138 @@ function setMapInteractivity(map, enabled) {
   map.touchZoomRotate[action]();
 }
 
-function SiteImageUpload({ imageName, preview, onChange, onRemove, readOnly = false, language = "en" }) {
+function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, language = "en" }) {
   const tx = (key) => stepText(language, key);
-  const [remotePreview, setRemotePreview] = useState({
-    source: "",
-    url: "",
-    error: false,
-  });
-  const isInlinePreview =
-    typeof preview === "string" &&
-    (preview.startsWith("blob:") || preview.startsWith("data:"));
-  const displayPreview = isInlinePreview
-    ? preview
-    : remotePreview.source === preview
-      ? remotePreview.url
-      : "";
-  const imageError =
-    Boolean(preview) &&
-    !isInlinePreview &&
-    remotePreview.source === preview &&
-    remotePreview.error;
-
-  useEffect(() => {
-    let isActive = true;
-    let objectUrl = "";
-
-    if (!preview || isInlinePreview) {
-      return undefined;
-    }
-
-    fetchAuthenticatedBlob(preview)
-      .then((blob) => {
-        if (!isActive) return;
-        objectUrl = URL.createObjectURL(blob);
-        setRemotePreview({ source: preview, url: objectUrl, error: false });
-      })
-      .catch((error) => {
-        console.error("Failed to load site image preview:", error);
-        if (isActive) {
-          setRemotePreview({ source: preview, url: "", error: true });
-        }
-      });
-
-    return () => {
-      isActive = false;
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [isInlinePreview, preview]);
 
   function handleFileChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    onAdd?.(e.target.files);
+    e.target.value = "";
+  }
 
-    onChange?.({
-      name: file.name,
-      preview: URL.createObjectURL(file),
-      file,
-    });
+  async function getFileObjectUrl(image) {
+    const preview = image?.preview;
+    if (!preview) return "";
+    const isInlinePreview =
+      typeof preview === "string" &&
+      (preview.startsWith("blob:") || preview.startsWith("data:"));
+    if (isInlinePreview) return preview;
+
+    const blob = await fetchAuthenticatedBlob(preview);
+    return URL.createObjectURL(blob);
+  }
+
+  async function handleView(image) {
+    try {
+      const objectUrl = await getFileObjectUrl(image);
+      if (!objectUrl) return;
+      const isInlinePreview = image?.preview?.startsWith("blob:") || image?.preview?.startsWith("data:");
+
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      if (!isInlinePreview) {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      }
+    } catch (error) {
+      console.error("Failed to view site image:", error);
+      alert(tx("failedViewFile"));
+    }
+  }
+
+  async function handleDownload(image) {
+    try {
+      const objectUrl = await getFileObjectUrl(image);
+      if (!objectUrl) return;
+      const isInlinePreview = image?.preview?.startsWith("blob:") || image?.preview?.startsWith("data:");
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = image?.name || "site-image";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      if (!isInlinePreview) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch (error) {
+      console.error("Failed to download site image:", error);
+      alert(tx("failedDownload"));
+    }
   }
 
   return (
     <FormSection title={tx("siteImage")}>
       <div className="space-y-3">
-        {!preview && !readOnly && (
-          <div className="flex items-center justify-center border-2 border-dashed border-slate-300 rounded-md h-[160px] bg-slate-50">
-            <label className="text-center cursor-pointer">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-3xl text-slate-400">
-                  upload
-                </span>
-                <p className="text-xs font-semibold text-slate-600">
-                  {tx("clickUploadSiteImage")}
-                </p>
-                <p className="text-[11px] text-slate-400">{tx("imageOnly")}</p>
-              </div>
-            </label>
-          </div>
+        {!readOnly && (
+          <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold leading-5 text-white hover:bg-emerald-800">
+            <span className="material-symbols-outlined mr-1 text-base">
+              add_photo_alternate
+            </span>
+            {tx("clickUploadSiteImage")}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </label>
         )}
 
-        {preview && (
-          <div className="border border-slate-200 rounded-md overflow-hidden">
-            <div className="relative">
-              {displayPreview ? (
-                <img
-                  src={displayPreview}
-                  alt="Site Preview"
-                  className="w-full max-h-[420px] object-contain bg-slate-100"
-                />
-              ) : (
-                <div className="flex h-[160px] items-center justify-center bg-slate-100 px-4 text-center text-xs font-semibold text-slate-500">
-                  {imageError ? "Site image could not be loaded." : "Loading site image..."}
+        {images.length === 0 ? (
+          <div className="flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
+            <p className="text-xs font-semibold text-slate-500">
+              {tx("noAttachment")}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {images.map((image, index) => (
+              <div
+                key={image.key || `${image.name}-${index}`}
+                className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="material-symbols-outlined text-xl text-slate-500">
+                    image
+                  </span>
+                  <span className="truncate text-sm font-medium text-slate-700">
+                    {image.name || `site-image-${index + 1}`}
+                  </span>
                 </div>
-              )}
 
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={onRemove}
-                  className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-600"
-                >
-                  {tx("remove")}
-                </button>
-              )}
-            </div>
-
-            <div className="flex justify-between items-center px-3 py-2 text-xs bg-[#f7f7f7] border-t">
-              <span className="text-slate-600 truncate max-w-[70%]">
-                {imageName}
-              </span>
-
-              {!readOnly && (
-                <label className="text-[#006d32] font-semibold cursor-pointer hover:underline">
-                  {tx("replace")}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleView(image)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
+                    title={tx("view")}
+                    aria-label={tx("view")}
+                  >
+                    <span className="material-symbols-outlined text-xl">visibility</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(image)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
+                    title={tx("download")}
+                    aria-label={tx("download")}
+                  >
+                    <span className="material-symbols-outlined text-xl">download</span>
+                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove?.(image)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-white hover:text-red-700"
+                      title={tx("remove")}
+                      aria-label={tx("remove")}
+                    >
+                      <span className="material-symbols-outlined text-xl">delete</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

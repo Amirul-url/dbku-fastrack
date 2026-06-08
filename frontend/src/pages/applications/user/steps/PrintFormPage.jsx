@@ -498,7 +498,7 @@ function PrintFormPage({
                     <PrintLine
                       no="8."
                       label={tx("siteImage")}
-                      value={getAttachmentName(step1.site_image) || step1.site_image_name}
+                      value={getSiteImageNames(step1)}
                     />
                     <PrintLine no="9." label={tx("advertisementSizeFt")} value={formatAdvertisementSize(step1)} />
                     <PrintLine no="10." label={tx("areaRequired")} value={step1.area_required} />
@@ -764,7 +764,7 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
       {
         no: "8.",
         label: tx("siteImage"),
-        value: getAttachmentName(step1.site_image) || step1.site_image_name,
+        value: getSiteImageNames(step1),
       },
       { no: "9.", label: tx("advertisementSizeFt"), value: formatAdvertisementSize(step1) },
       { no: "10.", label: tx("areaRequired"), value: step1.area_required },
@@ -1496,6 +1496,17 @@ function getAttachmentName(attachment) {
     attachment.file_url?.split("/")?.pop() ||
     ""
   );
+}
+
+function getSiteImageNames(step1 = {}) {
+  const siteImages = Array.isArray(step1.site_images) ? step1.site_images : [];
+  const names = siteImages
+    .map((attachment) => getAttachmentName(attachment))
+    .filter(Boolean);
+
+  if (names.length > 0) return names.join(", ");
+
+  return getAttachmentName(step1.site_image) || step1.site_image_name || "";
 }
 
 function formatAttachment(attachment, noAttachmentText) {
