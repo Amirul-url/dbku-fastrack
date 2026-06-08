@@ -174,6 +174,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
+  const [yearFilter, setYearFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
@@ -454,19 +457,77 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
     return statusScopedApplications.filter((app) => {
+      const updatedAt = app.updated_at ? new Date(app.updated_at) : null;
+      const updatedMonth =
+        updatedAt && !Number.isNaN(updatedAt.getTime())
+          ? String(updatedAt.getMonth() + 1)
+          : "";
+      const updatedYear =
+        updatedAt && !Number.isNaN(updatedAt.getTime())
+          ? String(updatedAt.getFullYear())
+          : "";
+      const displayStatus = getWorkspaceStatusLabel(app, config, t, userDepartment);
       const haystack = [
         getApplicationReference(app),
         getApplicantName(app),
         getProjectName(app),
         getApplicationType(app, language),
         getApplicationLocation(app),
+        displayStatus,
       ]
         .join(" ")
         .toLowerCase();
 
-      return !q || haystack.includes(q);
+      if (q && !haystack.includes(q)) return false;
+      if (monthFilter && updatedMonth !== monthFilter) return false;
+      if (yearFilter && updatedYear !== yearFilter) return false;
+      if (statusFilter && displayStatus !== statusFilter) return false;
+
+      return true;
     });
-  }, [keyword, language, statusScopedApplications]);
+  }, [
+    config,
+    keyword,
+    language,
+    monthFilter,
+    statusFilter,
+    statusScopedApplications,
+    t,
+    userDepartment,
+    yearFilter,
+  ]);
+
+  const yearOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        statusScopedApplications
+          .map((app) => {
+            const updatedAt = app.updated_at ? new Date(app.updated_at) : null;
+            return updatedAt && !Number.isNaN(updatedAt.getTime())
+              ? String(updatedAt.getFullYear())
+              : "";
+          })
+          .filter(Boolean)
+      )
+    ).sort((a, b) => Number(b) - Number(a));
+  }, [statusScopedApplications]);
+
+  const statusOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        statusScopedApplications
+          .map((app) => getWorkspaceStatusLabel(app, config, t, userDepartment))
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [config, statusScopedApplications, t, userDepartment]);
+
+  function resetQueueFilters() {
+    setKeyword("");
+    setMonthFilter("");
+    setYearFilter("");
+    setStatusFilter("");
+  }
 
   useEffect(() => {
     if (filtered.length === 0) return;
@@ -1816,7 +1877,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             className={tableFirstWorkspace ? "" : "xl:col-span-2"}
           >
             {statusScopedApplications.length > 0 && (
-              <div className="mb-4">
+              <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_160px_160px_180px_auto] lg:items-end">
                 <Field label={t("common.search")}>
                   <input
                     value={keyword}
@@ -1825,6 +1886,61 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     placeholder={t("workspace.search.placeholder")}
                   />
                 </Field>
+
+                <Field label={t("common.month")}>
+                  <select
+                    value={monthFilter}
+                    onChange={(event) => setMonthFilter(event.target.value)}
+                    className="form-input"
+                  >
+                    <option value="">{t("common.allMonths")}</option>
+                    {getMonthOptions(t).map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label={t("common.year")}>
+                  <select
+                    value={yearFilter}
+                    onChange={(event) => setYearFilter(event.target.value)}
+                    className="form-input"
+                  >
+                    <option value="">{t("common.allYears")}</option>
+                    {yearOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label={t("common.status")}>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="form-input"
+                  >
+                    <option value="">{t("common.allStatuses")}</option>
+                    {statusOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="filter_alt_off"
+                  onClick={resetQueueFilters}
+                  className="w-full lg:w-auto"
+                >
+                  {t("common.reset")}
+                </Button>
               </div>
             )}
 
@@ -4225,7 +4341,11 @@ function getActionUnavailableMessage(config, app, department) {
     return stage === "sut" ? "" : "SUT approval is available after MPHLG approval.";
   }
 
-  return "This queue is view-only for this account. SUT records the result first, KB(LES) verifies it, then TP(RES)/PGH makes the final approval.";
+  if (["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)", ...TECHNICAL_DEPARTMENTS].includes(department)) {
+    return "The application is now awaiting the approval department shown in the status.";
+  }
+
+  return "This queue is view-only for this account. Only the assigned approval department can record the next decision.";
 }
 
 function getPaymentActionUnavailableMessage(app, department) {
@@ -4737,7 +4857,7 @@ function buildIklScreeningPayload(app, data) {
           }
         : app.form_data?.technical_department_selection || null,
       technical_department_reviews: sendTechnical
-        ? {}
+        ? null
         : app.form_data?.technical_department_reviews || {},
       technical_department_reviews_updated_at: sendTechnical
         ? ""
@@ -5111,6 +5231,8 @@ function getActiveTechnicalReviewCycle(app) {
   const formData = app?.form_data || {};
   return String(
     formData.technical_review_cycle ||
+      app?.technical_referral?.cycle_id ||
+      app?.technical_department_selection?.cycle_id ||
       formData.technical_referral?.cycle_id ||
       formData.technical_department_selection?.cycle_id ||
       formData.technical_site_visit?.cycle_id ||
@@ -5120,8 +5242,30 @@ function getActiveTechnicalReviewCycle(app) {
 
 function isCurrentTechnicalReviewCycle(app, review) {
   const activeCycle = getActiveTechnicalReviewCycle(app);
-  if (!activeCycle) return true;
-  return String(review?.cycle_id || "") === activeCycle;
+  const reviewCycle = String(review?.cycle_id || "");
+  const cycleMatches = activeCycle ? reviewCycle === activeCycle : true;
+  if (!cycleMatches) return false;
+
+  const formData = app?.form_data || {};
+  const selectionTime =
+    app?.technical_department_selection?.selected_at ||
+    app?.technical_referral?.departments_selected_at ||
+    app?.technical_referral?.referred_at ||
+    formData.technical_department_selection?.selected_at ||
+    formData.technical_referral?.departments_selected_at ||
+    formData.technical_referral?.referred_at ||
+    formData.technical_site_visit?.reset_at ||
+    "";
+  const reviewedAt = review?.reviewed_at || "";
+
+  if (!selectionTime || !reviewedAt) return true;
+
+  const selectedMs = Date.parse(selectionTime);
+  const reviewedMs = Date.parse(reviewedAt);
+
+  if (!Number.isFinite(selectedMs) || !Number.isFinite(reviewedMs)) return true;
+
+  return reviewedMs >= selectedMs;
 }
 
 function getCurrentTechnicalDepartmentReviews(app) {
@@ -5287,6 +5431,26 @@ function areAllTechnicalDepartmentReviewsComplete(app) {
 
 function countBy(applications, predicate) {
   return applications.filter(predicate).length;
+}
+
+function getMonthOptions(t) {
+  return [
+    ["1", "January"],
+    ["2", "February"],
+    ["3", "March"],
+    ["4", "April"],
+    ["5", "May"],
+    ["6", "June"],
+    ["7", "July"],
+    ["8", "August"],
+    ["9", "September"],
+    ["10", "October"],
+    ["11", "November"],
+    ["12", "December"],
+  ].map(([value, label]) => ({
+    value,
+    label: t(`month.${value}`, label),
+  }));
 }
 
 function hasValue(value) {

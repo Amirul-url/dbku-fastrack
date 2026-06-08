@@ -601,8 +601,51 @@ function isTechnicalDepartmentSelected(app, department) {
   return getSelectedTechnicalDepartments(app).includes(normalizeDepartmentCode(department));
 }
 
+function getActiveTechnicalReviewCycle(app) {
+  const formData = app?.form_data || {};
+  return String(
+    formData.technical_review_cycle ||
+      app?.technical_referral?.cycle_id ||
+      app?.technical_department_selection?.cycle_id ||
+      formData.technical_referral?.cycle_id ||
+      formData.technical_department_selection?.cycle_id ||
+      formData.technical_site_visit?.cycle_id ||
+      ""
+  );
+}
+
+function isCurrentTechnicalReviewCycle(app, review) {
+  const activeCycle = getActiveTechnicalReviewCycle(app);
+  const reviewCycle = String(review?.cycle_id || "");
+  const cycleMatches = activeCycle ? reviewCycle === activeCycle : true;
+  if (!cycleMatches) return false;
+
+  const formData = app?.form_data || {};
+  const selectionTime =
+    app?.technical_department_selection?.selected_at ||
+    app?.technical_referral?.departments_selected_at ||
+    app?.technical_referral?.referred_at ||
+    formData.technical_department_selection?.selected_at ||
+    formData.technical_referral?.departments_selected_at ||
+    formData.technical_referral?.referred_at ||
+    formData.technical_site_visit?.reset_at ||
+    "";
+  const reviewedAt = review?.reviewed_at || "";
+
+  if (!selectionTime || !reviewedAt) return true;
+
+  const selectedMs = Date.parse(selectionTime);
+  const reviewedMs = Date.parse(reviewedAt);
+
+  if (!Number.isFinite(selectedMs) || !Number.isFinite(reviewedMs)) return true;
+
+  return reviewedMs >= selectedMs;
+}
+
 function hasTechnicalDepartmentReview(app, department) {
-  return Boolean(getTechnicalDepartmentReviews(app)?.[department]);
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  const review = getTechnicalDepartmentReviews(app)?.[normalizedDepartment];
+  return Boolean(review && isCurrentTechnicalReviewCycle(app, review));
 }
 
 function getDashboardTaskStatusLabel(application, unit, t) {
