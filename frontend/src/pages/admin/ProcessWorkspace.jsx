@@ -4251,7 +4251,33 @@ function canOpenWorkspaceRow(config, app, department) {
 
 function canViewWorkspaceRow(config, app, department) {
   if (canOpenWorkspaceRow(config, app, department)) return true;
+  if (config?.key === "payment") return isPaymentTaskForDepartment(app, department);
   return config?.key === "approval" && isApprovalTaskForDepartment(app, department);
+}
+
+function isPaymentTaskForDepartment(app, department) {
+  const status = normalizeStatus(app?.status);
+
+  if (department === "PT(IKL)") {
+    return [
+      "approved",
+      "bill_pending_ku",
+      "invoice_generated",
+      "payment_submitted",
+      "payment_verified",
+    ].includes(status);
+  }
+
+  if (department === "KU(IKL)") {
+    return [
+      "bill_pending_ku",
+      "invoice_generated",
+      "payment_submitted",
+      "payment_verified",
+    ].includes(status);
+  }
+
+  return false;
 }
 
 function isApprovalTaskForDepartment(app, department) {
@@ -4409,8 +4435,28 @@ function getPaymentActionUnavailableMessage(app, department) {
     return "";
   }
 
+  if (department === "KU(IKL)" && status === "invoice_generated") {
+    return "The approval letter and bill have been sent to the applicant. Waiting for payment receipt upload.";
+  }
+
+  if (department === "KU(IKL)" && status === "payment_submitted") {
+    return "The payment receipt has been submitted and is awaiting PT(IKL) verification.";
+  }
+
+  if (department === "KU(IKL)" && status === "payment_verified") {
+    return "Payment is verified. The record is available for reference.";
+  }
+
   if (department === "PT(IKL)" && status === "bill_pending_ku") {
     return "The bill is waiting for KU(IKL) confirmation before it is sent to the applicant.";
+  }
+
+  if (department === "PT(IKL)" && status === "invoice_generated") {
+    return "The approval letter and bill have been sent to the applicant. Waiting for payment receipt upload.";
+  }
+
+  if (department === "PT(IKL)" && status === "payment_verified") {
+    return "Payment is verified. The record is available for reference.";
   }
 
   if (department === "KU(IKL)") {
@@ -5643,7 +5689,10 @@ function getWorkspaceStatusScope(config, department) {
     if (department === "PT(IKL)") {
       return [
         "approved",
+        "bill_pending_ku",
+        "invoice_generated",
         "payment_submitted",
+        "payment_verified",
       ];
     }
 
