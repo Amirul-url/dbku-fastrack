@@ -7472,10 +7472,16 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
             </thead>
             <tbody className="font-normal">
               <tr className="align-top">
-                <td className="px-3 py-4 text-center text-[13px] font-normal" rowSpan={2}>
+                <td
+                  className="px-3 py-4 text-center text-[13px] font-normal"
+                  rowSpan={isScheduleSix ? 3 : 2}
+                >
                   {technicalFee.scheduleNumber}.
                 </td>
-                <td className="px-5 py-4 text-justify font-normal" rowSpan={2}>
+                <td
+                  className="px-5 py-4 text-justify font-normal"
+                  rowSpan={isScheduleSix ? 3 : 2}
+                >
                   {t(
                     scheduleAdvertisementDescKey,
                     "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support"
@@ -7491,7 +7497,7 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
                 </td>
                 <td className="px-5 py-4 text-justify font-normal">
                   <span className="font-normal text-slate-950">
-                    {formatTechnicalCurrency(isScheduleSix ? 12000 : technicalFee.firstAreaRate)}
+                    {formatTechnicalCurrency(isScheduleSix ? 2000 : technicalFee.firstAreaRate)}
                   </span>{" "}
                   {t(
                     isScheduleSix ? "workspace.technical.schedulePerYear" : "workspace.technical.scheduleCityFirstRateSuffix",
@@ -7513,7 +7519,14 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
                   <div className="flex items-start gap-3">
                     <span className="w-7 shrink-0 font-normal text-slate-950">(b)</span>
                     <span>
-                      {t("workspace.technical.scheduleAdditionalArea", "For every additional square metre or part thereof")}
+                      {t(
+                        isScheduleSix
+                          ? "workspace.technical.schedule6AdditionalArea"
+                          : "workspace.technical.scheduleAdditionalArea",
+                        isScheduleSix
+                          ? "For every additional square metre or"
+                          : "For every additional square metre or part thereof"
+                      )}
                     </span>
                   </div>
                 </td>
@@ -7530,6 +7543,33 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
                   {t("workspace.technical.schedulePerYear", "per year")}
                 </td>
               </tr>
+              {isScheduleSix && (
+                <tr className="align-top">
+                  <td className="px-5 py-4 text-justify font-normal">
+                    <div className="flex items-start gap-3">
+                      <span className="w-7 shrink-0 font-normal text-slate-950">(c)</span>
+                      <span>
+                        {t(
+                          "workspace.technical.schedule6DeviceSet",
+                          "For every set of device producing non-measurable advertisement"
+                        )}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-justify font-normal">
+                    <span className="font-normal text-slate-950">
+                      {formatTechnicalCurrency(1000)}
+                    </span>{" "}
+                    {t("workspace.technical.schedulePerYear", "per year")}
+                  </td>
+                  <td className="px-5 py-4 text-justify font-normal">
+                    <span className="font-normal text-slate-950">
+                      {formatTechnicalCurrency(750)}
+                    </span>{" "}
+                    {t("workspace.technical.schedulePerYear", "per year")}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
