@@ -4598,13 +4598,24 @@ function buildIklScreeningPayload(app, data) {
             selected_at: now,
           }
         : app.form_data?.technical_department_selection || null,
+      technical_department_reviews: sendTechnical
+        ? {}
+        : app.form_data?.technical_department_reviews || {},
+      technical_department_reviews_updated_at: sendTechnical
+        ? ""
+        : app.form_data?.technical_department_reviews_updated_at || "",
+      technical_review: sendTechnical ? null : app.form_data?.technical_review || null,
+      technical_site_visit: sendTechnical ? null : app.form_data?.technical_site_visit || null,
+      technical_ku_review: sendTechnical ? null : app.form_data?.technical_ku_review || null,
       correction_request: correctionRequired
         ? {
             source: data.decision.includes("KU") ? "KU(IKL)" : "PT(IKL)",
             remarks: data.comment,
             requested_at: now,
           }
-        : app.form_data?.correction_request || null,
+        : sendTechnical
+          ? null
+          : app.form_data?.correction_request || null,
     }),
   };
 }
@@ -7051,31 +7062,30 @@ function TechnicalSiteVisitFields({
       </div>
 
       {sitePhotos.length > 0 && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="space-y-2">
           {sitePhotos.map((photo, index) => (
-            <div key={`${photo.name || "site-photo"}-${index}`} className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              <SitePhotoPreview
-                photo={photo}
-                applicationId={applicationId}
-                alt={`${t("workspace.technical.sitePhoto")} ${index + 1}`}
-              />
-              <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-                <span className="truncate text-[14px] font-medium leading-5 text-slate-600">
+            <div
+              key={`${photo.name || "site-photo"}-${index}`}
+              className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <Icon name="image" className="shrink-0 text-[20px] text-slate-500" />
+                <span className="truncate text-[14px] font-medium leading-5 text-slate-700">
                   {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
                 </span>
-                <SitePhotoActions
-                  photo={photo}
-                  applicationId={applicationId}
-                  disabled={deletingIndex === index}
-                  onRemove={() => removePhoto(photo, index)}
-                  labels={{
-                    view: t("common.view"),
-                    download: t("common.download"),
-                    delete: t("common.delete"),
-                  }}
-                  hideDelete={readOnly}
-                />
               </div>
+              <SitePhotoActions
+                photo={photo}
+                applicationId={applicationId}
+                disabled={deletingIndex === index}
+                onRemove={() => removePhoto(photo, index)}
+                labels={{
+                  view: t("common.view"),
+                  download: t("common.download"),
+                  delete: t("common.delete"),
+                }}
+                hideDelete={readOnly}
+              />
             </div>
           ))}
         </div>
@@ -7460,73 +7470,6 @@ function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hi
           <Icon name={action.icon} className="text-[18px]" />
         </button>
       ))}
-    </div>
-  );
-}
-
-function SitePhotoPreview({ photo, applicationId, alt }) {
-  const source = getSitePhotoSource(photo, applicationId);
-  const isInlinePreview =
-    typeof source === "string" &&
-    (source.startsWith("blob:") || source.startsWith("data:"));
-  const [remotePreview, setRemotePreview] = useState({
-    source: "",
-    url: "",
-    error: false,
-  });
-  const displayPreview = isInlinePreview
-    ? source
-    : remotePreview.source === source
-      ? remotePreview.url
-      : "";
-
-  useEffect(() => {
-    let isActive = true;
-    let objectUrl = "";
-
-    if (!source || isInlinePreview) {
-      return undefined;
-    }
-
-    fetchAuthenticatedBlob(source)
-      .then((blob) => {
-        if (!isActive) return;
-        objectUrl = URL.createObjectURL(blob);
-        setRemotePreview({ source, url: objectUrl, error: false });
-      })
-      .catch((error) => {
-        console.error("Failed to load site visit photo preview:", error);
-        if (isActive) {
-          setRemotePreview({ source, url: "", error: true });
-        }
-      });
-
-    return () => {
-      isActive = false;
-
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [isInlinePreview, source]);
-
-  if (!source) {
-    return <div className="h-32 bg-slate-50" />;
-  }
-
-  if (displayPreview) {
-    return (
-      <img
-        src={displayPreview}
-        alt={alt}
-        className="h-32 w-full object-cover"
-      />
-    );
-  }
-
-  return (
-    <div className="flex h-32 items-center justify-center bg-slate-50 px-3 text-center text-xs text-slate-500">
-      {remotePreview.error ? "Site photo could not be loaded." : "Loading site photo..."}
     </div>
   );
 }

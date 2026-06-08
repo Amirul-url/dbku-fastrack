@@ -158,6 +158,7 @@ function UserDashboard() {
         getApplicationReference(app),
         getProjectName(app),
         getApplicationType(app, language),
+        getApplicationRemark(app),
         translatedStatus(t, app.status),
       ]
         .join(" ")
@@ -1120,16 +1121,37 @@ function ApplicationTable({ applications, loading, t, language = "en", onSelect,
             </button>
           ),
         },
-        { key: "project", label: t("common.project"), render: getProjectName },
-        { key: "type", label: t("common.type"), render: (app) => getApplicationType(app, language) },
+        {
+          key: "project",
+          label: t("common.project"),
+          className: "w-[28%]",
+          render: (app) => (
+            <span className="block max-w-[34rem] whitespace-normal leading-5">
+              {getProjectName(app)}
+            </span>
+          ),
+        },
+        { key: "type", label: t("common.type"), className: "w-[10%]", render: (app) => getApplicationType(app, language) },
         {
           key: "status",
           label: t("common.status"),
+          className: "w-[12%]",
           render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+        },
+        {
+          key: "remarks",
+          label: t("common.remarks", "Remarks"),
+          className: "w-[22%]",
+          render: (app) => (
+            <span className="block max-w-[24rem] whitespace-normal text-[13px] leading-5 text-slate-600">
+              {getApplicationRemark(app) || "-"}
+            </span>
+          ),
         },
         {
           key: "updated",
           label: t("common.updated"),
+          className: "w-[12%]",
           render: (app) => (
             <span className="whitespace-nowrap text-[12px] leading-5">
               {formatCompactDateTime(app.updated_at)}
@@ -1139,6 +1161,7 @@ function ApplicationTable({ applications, loading, t, language = "en", onSelect,
         {
           key: "action",
           label: t("common.action"),
+          className: "w-[8%]",
           render: (app) => (
             !shouldHideApplicantAction(app) && (
               <button
@@ -1160,6 +1183,23 @@ function translatedStatus(t, status) {
   const displayStatus = getApplicantDisplayStatus(status);
 
   return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
+}
+
+function getApplicationRemark(app) {
+  const status = normalizeStatus(app?.status);
+  if (!["incomplete", "rejected"].includes(status)) return "";
+
+  const formData = app?.form_data || {};
+  return cleanRemark(
+    formData.correction_request?.remarks ||
+      app?.latest_remark ||
+      formData.auto_screening?.remarks
+  );
+}
+
+function cleanRemark(value) {
+  const remark = String(value || "").trim();
+  return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
 function getApplicationAppliedDate(app) {

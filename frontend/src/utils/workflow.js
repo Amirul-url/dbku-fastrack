@@ -226,7 +226,7 @@ export function formatWorkflowStatus(status) {
 
   const labelMap = {
     [WORKFLOW_STATUS.DRAFT]: "Draft",
-    [WORKFLOW_STATUS.INCOMPLETE]: "Incomplete",
+    [WORKFLOW_STATUS.INCOMPLETE]: "Rejected",
     [WORKFLOW_STATUS.SUBMITTED]: "Submitted",
     [WORKFLOW_STATUS.UNDER_REVIEW]: "Under Review",
     pt_ku_review: "For PT/KU Review",

@@ -210,12 +210,14 @@ export function StatusPill({ value }) {
     normalized.includes("processing") ||
     normalized.includes("condition") ||
     normalized.includes("draft") ||
+    normalized.includes("incomplete") ||
     normalized.includes("warning") ||
     normalized.includes("belum") ||
     normalized.includes("menunggu") ||
     normalized.includes("semakan") ||
     normalized.includes("bersyarat") ||
     normalized.includes("draf") ||
+    normalized.includes("tidak_lengkap") ||
     normalized.includes("amaran")
   ) {
     className = "border-amber-200 bg-amber-50 text-amber-700";
@@ -257,13 +259,22 @@ export function EmptyState({ title = "No data", description, icon = "inbox" }) {
 }
 
 export function DataTable({ columns, rows, loading, emptyText, loadingText = "Loading..." }) {
+  const headerClassName = (column) =>
+    ["border-b border-slate-200 px-3 py-2.5", column.headerClassName || column.className || ""]
+      .filter(Boolean)
+      .join(" ");
+  const cellClassName = (column) =>
+    ["px-3 py-2.5 align-top text-slate-700", column.cellClassName || column.className || ""]
+      .filter(Boolean)
+      .join(" ");
+
   return (
     <div className="overflow-x-auto rounded-md border border-slate-200">
       <table className="w-full min-w-[720px] text-left text-[14px] leading-5">
         <thead className="bg-slate-50 text-[13px] uppercase tracking-wide text-slate-500">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="border-b border-slate-200 px-3 py-2.5">
+              <th key={column.key} className={headerClassName(column)}>
                 {column.label}
               </th>
             ))}
@@ -286,7 +297,7 @@ export function DataTable({ columns, rows, loading, emptyText, loadingText = "Lo
             rows.map((row) => (
               <tr key={row.id} className="hover:bg-slate-50">
                 {columns.map((column) => (
-                  <td key={column.key} className="px-3 py-2.5 align-top text-slate-700">
+                  <td key={column.key} className={cellClassName(column)}>
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
                 ))}

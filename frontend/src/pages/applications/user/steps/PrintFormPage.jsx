@@ -124,6 +124,7 @@ function PrintFormPage({
           current_step: 5,
           status: submit ? "submitted" : undefined,
           form_data: {
+            ...(submit ? getWorkflowResetOnResubmit() : {}),
             step_9: updatedStep9,
             step_11: {
               ...step11,
@@ -1412,6 +1413,20 @@ function stripHtml(value) {
     .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function getWorkflowResetOnResubmit() {
+  return {
+    auto_screening: null,
+    correction_request: null,
+    technical_referral: null,
+    technical_department_selection: null,
+    technical_department_reviews: {},
+    technical_department_reviews_updated_at: "",
+    technical_review: null,
+    technical_site_visit: null,
+    technical_ku_review: null,
+  };
 }
 
 function formatRM(value) {
