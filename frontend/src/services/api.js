@@ -185,9 +185,12 @@ export function getSiteImageUrl(applicationId, savedSiteImage, stepData = {}) {
     savedSiteImage?.document_id ||
     savedSiteImage?.id ||
     stepData.site_image_document_id;
-  const documentUrl =
-    getApplicationSiteImageUrl(applicationId) ||
-    getApplicationDocumentUrl(applicationId, documentId);
+
+  if (documentId) {
+    return getApplicationDocumentUrl(applicationId, documentId);
+  }
+
+  const documentUrl = getApplicationSiteImageUrl(applicationId);
 
   if (documentUrl) return documentUrl;
 

@@ -189,6 +189,7 @@ function normalizeSiteImageItem(image, applicationId, stepData = {}, fallbackNam
   const documentId = getSiteImageDocumentId(image);
   const name = getSiteImageName(image, fallbackName);
   const preview =
+    (documentId ? getApplicationDocumentUrl(applicationId, documentId) : "") ||
     image.preview ||
     image.url ||
     image.file_url ||
@@ -202,7 +203,7 @@ function normalizeSiteImageItem(image, applicationId, stepData = {}, fallbackNam
     document_id: documentId,
     name: name || "site-image",
     preview,
-    file: image.file || null,
+    file: image.file instanceof File ? image.file : null,
     attachment: image.attachment || image,
   };
 }
@@ -400,7 +401,7 @@ function SittingApplicationPage({
         ? [step1.site_image]
         : [];
     const nextSiteImages = uniqueSiteImages(
-      [...savedSiteImages, ...documentSiteImages, ...legacySiteImage]
+      [...documentSiteImages, ...savedSiteImages, ...legacySiteImage]
         .map((image) =>
           normalizeSiteImageItem(image, applicationId, step1, step1.site_image_name)
         )
@@ -595,7 +596,7 @@ function SittingApplicationPage({
     calculateAreaSqmFromFt(sizeWidthFt, sizeHeightFt) || parsePositiveNumber(areaRequired);
 
   async function uploadPendingSiteImages(application, payload) {
-    const pendingImages = siteImages.filter((image) => image.file);
+    const pendingImages = siteImages.filter((image) => image.file instanceof File);
     if (pendingImages.length === 0) return application;
 
     const uploadedAttachments = await Promise.all(
@@ -778,27 +779,28 @@ function SittingApplicationPage({
               <ReadOnlyNotice language={language} status={applicationRecord?.status} />
             )}
 
-            <fieldset disabled={isReadOnly} className="p-4 space-y-3">
-              <FormSection title={tx("typeOfApplication")}>
-                <ApplicationTypeCheckboxes
-                  language={language}
-                  value={applicationTypeOptions}
-                  subtype={applicationSubtype}
-                  onChange={(nextTypes) => {
-                    const nextType = getPrimaryApplicationType(nextTypes);
-                    const nextSubtype =
-                      normalizeApplicationSubtype(applicationSubtype, nextType) ||
-                      getDefaultApplicationSubtype(nextType);
-                    setApplicationTypeOptions([nextType]);
-                    setApplicationSubtype(nextSubtype);
-                    setAmountFundApproved(
-                      calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, nextSubtype)
-                    );
-                  }}
-                  onSubtypeChange={handleApplicationSubtypeChange}
-                  readOnly={isReadOnly}
-                />
-              </FormSection>
+            <div className="p-4 space-y-3">
+              <fieldset disabled={isReadOnly} className="space-y-3">
+                <FormSection title={tx("typeOfApplication")}>
+                  <ApplicationTypeCheckboxes
+                    language={language}
+                    value={applicationTypeOptions}
+                    subtype={applicationSubtype}
+                    onChange={(nextTypes) => {
+                      const nextType = getPrimaryApplicationType(nextTypes);
+                      const nextSubtype =
+                        normalizeApplicationSubtype(applicationSubtype, nextType) ||
+                        getDefaultApplicationSubtype(nextType);
+                      setApplicationTypeOptions([nextType]);
+                      setApplicationSubtype(nextSubtype);
+                      setAmountFundApproved(
+                        calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, nextSubtype)
+                      );
+                    }}
+                    onSubtypeChange={handleApplicationSubtypeChange}
+                    readOnly={isReadOnly}
+                  />
+                </FormSection>
 
               <Field label={tx("nameOfProject")} required>
                 <input
@@ -849,6 +851,8 @@ function SittingApplicationPage({
                 language={language}
               />
 
+              </fieldset>
+
               <SiteImageUpload
                 images={siteImages}
                 readOnly={isReadOnly}
@@ -857,6 +861,7 @@ function SittingApplicationPage({
                 onRemove={handleSiteImageRemove}
               />
 
+              <fieldset disabled={isReadOnly} className="space-y-3">
               <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,500px)_minmax(360px,1fr)]">
                 <div className="space-y-3">
                   <Field label={tx("advertisementSizeFt")} required guideline={tx("advertisementSizeFtGuideline")}>
@@ -1025,7 +1030,8 @@ function SittingApplicationPage({
                   )}
                 </div>
               )}
-            </fieldset>
+              </fieldset>
+            </div>
           </section>
         </main>
       </div>
@@ -1582,6 +1588,25 @@ function setMapInteractivity(map, enabled) {
 function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, language = "en" }) {
   const tx = (key) => stepText(language, key);
 
+  function isInlinePreview(preview) {
+    return (
+      typeof preview === "string" &&
+      (preview.startsWith("blob:") || preview.startsWith("data:"))
+    );
+  }
+
+  function escapeHtml(value) {
+    return String(value || "").replace(/[&<>"']/g, (char) => {
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[char];
+    });
+  }
+
   function handleFileChange(e) {
     onAdd?.(e.target.files);
     e.target.value = "";
@@ -1590,26 +1615,49 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
   async function getFileObjectUrl(image) {
     const preview = image?.preview;
     if (!preview) return "";
-    const isInlinePreview =
-      typeof preview === "string" &&
-      (preview.startsWith("blob:") || preview.startsWith("data:"));
-    if (isInlinePreview) return preview;
+    if (isInlinePreview(preview)) return preview;
 
     const blob = await fetchAuthenticatedBlob(preview);
     return URL.createObjectURL(blob);
   }
 
   async function handleView(image) {
+    const previewWindow = window.open("about:blank", "_blank");
+    const imageName = image?.name || "site-image";
+
+    if (previewWindow) {
+      previewWindow.document.write(
+        `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:Arial,sans-serif;color:#334155}p{font-size:14px}</style></head><body><p>Loading image...</p></body></html>`
+      );
+      previewWindow.document.close();
+    }
+
     try {
       const objectUrl = await getFileObjectUrl(image);
-      if (!objectUrl) return;
-      const isInlinePreview = image?.preview?.startsWith("blob:") || image?.preview?.startsWith("data:");
+      if (!objectUrl) {
+        previewWindow?.close();
+        return;
+      }
+      const shouldRevoke = !isInlinePreview(image?.preview);
 
-      window.open(objectUrl, "_blank", "noopener,noreferrer");
-      if (!isInlinePreview) {
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      if (previewWindow) {
+        previewWindow.document.open();
+        previewWindow.document.write(
+          `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${objectUrl}" alt="${escapeHtml(imageName)}"></body></html>`
+        );
+        previewWindow.document.close();
+      } else {
+        const opened = window.open(objectUrl, "_blank");
+        if (!opened) {
+          alert(tx("failedViewFile"));
+        }
+      }
+
+      if (shouldRevoke) {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
       }
     } catch (error) {
+      previewWindow?.close();
       console.error("Failed to view site image:", error);
       alert(tx("failedViewFile"));
     }
@@ -1619,7 +1667,7 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
     try {
       const objectUrl = await getFileObjectUrl(image);
       if (!objectUrl) return;
-      const isInlinePreview = image?.preview?.startsWith("blob:") || image?.preview?.startsWith("data:");
+      const shouldRevoke = !isInlinePreview(image?.preview);
 
       const link = document.createElement("a");
       link.href = objectUrl;
@@ -1628,8 +1676,8 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
       link.click();
       document.body.removeChild(link);
 
-      if (!isInlinePreview) {
-        URL.revokeObjectURL(objectUrl);
+      if (shouldRevoke) {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       }
     } catch (error) {
       console.error("Failed to download site image:", error);
