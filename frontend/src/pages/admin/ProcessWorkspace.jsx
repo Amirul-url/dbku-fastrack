@@ -195,7 +195,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [savedApprovalDecisionDraft, setSavedApprovalDecisionDraft] = useState("");
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [showVerificationReport, setShowVerificationReport] = useState(false);
-  const [officialReceiptMode, setOfficialReceiptMode] = useState("manual");
+  const [officialReceiptMode, setOfficialReceiptMode] = useState("upload");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualPaymentDraftSaveIdRef = useRef(0);
@@ -727,8 +727,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id]);
 
   useEffect(() => {
-    const officialReceiptFile = selectedRecord?.form_data?.approval_letter?.official_receipt_file;
-    setOfficialReceiptMode(getPaymentDocumentSource(officialReceiptFile) ? "upload" : "manual");
+    setOfficialReceiptMode("upload");
   }, [selectedRecord?.id]);
 
   useEffect(() => {
@@ -1008,7 +1007,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       setSelectedDetail(response?.data || response || selectedRecord);
       if (kind === "official_receipt") {
-        setOfficialReceiptMode("manual");
+        setOfficialReceiptMode("upload");
       }
       await fetchApplications({ silent: true });
       setSuccess(t("workspace.payment.documentDeleted", "Document deleted."));
@@ -1439,10 +1438,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if (
       action.requiresOfficialReceipt &&
-      officialReceiptMode === "upload" &&
       !getPaymentDocumentSource(selectedRecord.form_data?.approval_letter?.official_receipt_file)
     ) {
-      setError(t("workspace.payment.officialReceiptRequired", "Please upload the official receipt or switch to create manually."));
+      setError(t("workspace.payment.officialReceiptRequired", "Please upload the official receipt before submitting."));
       return;
     }
 
@@ -1659,7 +1657,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
         kuChecks: overrides.kuChecks,
-        officialReceiptMode,
+        officialReceiptMode: "upload",
       });
 
       const requestPath =
@@ -4268,7 +4266,9 @@ function isApprovalTaskForDepartment(app, department) {
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
     return stage === "mphlg" || isMphlgMonitoredRecord(app);
   }
-  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) return stage === "sut";
+  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
+    return stage === "sut" || isSutMonitoredRecord(app);
+  }
 
   return false;
 }
@@ -4299,6 +4299,16 @@ function isMphlgMonitoredRecord(app) {
   return (
     ["approved", "reviewed", "completed"].includes(mphlgStatus) &&
     getApprovalStageKey(app) === "sut"
+  );
+}
+
+function isSutMonitoredRecord(app) {
+  const sutApproval = getApplicationSection(app, "sut_approval");
+  const sutStatus = String(sutApproval.status || "").trim().toLowerCase();
+
+  return (
+    ["approved", "supported", "completed"].includes(sutStatus) &&
+    getApprovalStageKey(app) === "kb_support"
   );
 }
 
@@ -4350,6 +4360,10 @@ function getActionUnavailableMessage(config, app, department) {
   const stage = getApprovalStageKey(app);
 
   if (department === "KB(LES)") {
+    if (stage === "support") {
+      return "The application is now awaiting TP(RES)/PGH final approval.";
+    }
+
     return ["kb", "kb_support"].includes(stage) ? "" : "KB(LES) support is already complete or not required for this record.";
   }
 
@@ -4370,6 +4384,10 @@ function getActionUnavailableMessage(config, app, department) {
   }
 
   if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
+    if (isSutMonitoredRecord(app)) {
+      return "The application is now awaiting the approval department shown in the status.";
+    }
+
     return stage === "sut" ? "" : "SUT approval is available after MPHLG approval.";
   }
 
@@ -4506,7 +4524,7 @@ function getApprovalStageLabel(app) {
   const stage = getApprovalStageKey(app);
 
   if (stage === "kb_support") return "Pending KB(LES) Support";
-  if (stage === "support") return "Pending TP(RES)/PGH Approval";
+  if (stage === "support") return "Pending TP(RES)/PGH Final Approval";
   if (stage === "mphlg") return "Pending MPHLG Approval";
   if (stage === "sut") return "Pending SUT Approval";
   if (stage === "completed") return "Approval Completed";
@@ -8046,7 +8064,7 @@ function PaymentDetails({
   onPaymentDocumentUpload,
   onPaymentDocumentDelete,
   onManualPaymentDraftChange,
-  officialReceiptMode = "manual",
+  officialReceiptMode = "upload",
   setOfficialReceiptMode,
 }) {
   const payment = app.form_data?.payment || {};
@@ -8056,18 +8074,14 @@ function PaymentDetails({
   const letterFile = approvalLetter.letter_file;
   const billFile = approvalLetter.bill_file;
   const officialReceiptFile = approvalLetter.official_receipt_file;
-  const officialReceiptReady = Boolean(getPaymentDocumentSource(officialReceiptFile));
   const status = normalizeStatus(app?.status);
   const letterReady = Boolean(letterFile);
   const billReady = Boolean(billFile);
-  const hasLocalManualDraft = Boolean(getInitialManualPaymentDraft(app));
-  const manualReady = hasManualPaymentDocuments(app) || hasLocalManualDraft;
   const canUploadDocuments =
     userDepartment === "PT(IKL)" && status === "approved";
   const isReceiptVerification =
     userDepartment === "PT(IKL)" && status === "payment_submitted";
   const uploadReady = letterReady && billReady;
-  const hasUploadedPaymentDocuments = letterReady || billReady;
   const showReceiptDetails = Boolean(
     receiptFile?.name ||
     payment.receipt_reference ||
@@ -8075,11 +8089,6 @@ function PaymentDetails({
     payment.verification_result ||
     payment.verification_notes
   );
-  const [documentMode, setDocumentMode] = useState("upload");
-
-  useEffect(() => {
-    setDocumentMode(manualReady && !hasUploadedPaymentDocuments ? "manual" : "upload");
-  }, [app?.id, hasUploadedPaymentDocuments, manualReady]);
 
   async function viewReceipt() {
     if (!receiptSource) return;
@@ -8102,93 +8111,32 @@ function PaymentDetails({
     }
   }
 
-  const manualSummaryHint = isReceiptVerification
-    ? t("workspace.payment.sentDocumentsHint", "These are the documents sent to the applicant.")
-    : t("workspace.payment.manualConfirmHint", "KU(IKL) can review the documents, then confirm using the action button.");
   const receiptEditorSection = isReceiptVerification ? (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
           <div>
             <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
               {t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              {t("workspace.payment.officialReceiptChoiceDesc", "Upload the official receipt file or create it manually here.")}
+              {t("workspace.payment.officialReceiptUploadDesc", "Upload the official receipt file to send it to the applicant.")}
             </p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
-            {[
-              [
-                "upload",
-                t("workspace.payment.modeUpload", "Upload"),
-                t("workspace.payment.officialReceiptUploadDesc", "Send an uploaded official receipt file to the applicant."),
-                officialReceiptReady,
-              ],
-              [
-                "manual",
-                t("workspace.payment.modeManual", "Create manually"),
-                t("workspace.payment.officialReceiptManualDesc", "Use the editable official receipt draft below."),
-                true,
-              ],
-            ].map(([mode, label, description, ready]) => (
-              <label
-                key={mode}
-                className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 transition ${
-                  officialReceiptMode === mode
-                    ? "border-emerald-700 bg-emerald-50"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name={`official-receipt-mode-${app.id}`}
-                  value={mode}
-                  checked={officialReceiptMode === mode}
-                  onChange={() => setOfficialReceiptMode?.(mode)}
-                  className="mt-1 h-4 w-4 accent-emerald-700"
-                />
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-slate-950">
-                    {label}
-                  </span>
-                  <span className="block text-xs leading-5 text-slate-500">
-                    {description}
-                  </span>
-                  {ready && (
-                    <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                      {t("workspace.payment.methodReady", "Ready")}
-                    </span>
-                  )}
-                </span>
-              </label>
-            ))}
           </div>
         </div>
       </div>
 
-      {officialReceiptMode === "upload" ? (
-        <div className="px-3 py-3">
-          <PaymentDocumentSlot
-            label={t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
-            file={officialReceiptFile}
-            t={t}
-            canUpload
-            saving={saving}
-            onFileChange={(file) => onPaymentDocumentUpload?.("official_receipt", file)}
-            onDelete={() => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile)}
-          />
-        </div>
-      ) : (
-        <ManualPaymentDocumentsForm
-          app={app}
+      <div className="px-3 py-3">
+        <PaymentDocumentSlot
+          label={t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
+          file={officialReceiptFile}
           t={t}
-          readOnly={false}
-          receiptOnly
-          initialTab="receipt"
-          onDraftChange={onManualPaymentDraftChange}
+          canUpload
+          saving={saving}
+          onFileChange={(file) => onPaymentDocumentUpload?.("official_receipt", file)}
+          onDelete={() => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile)}
         />
-      )}
+      </div>
     </section>
   ) : null;
 
@@ -8202,96 +8150,34 @@ function PaymentDetails({
           </p>
           </div>
 
-          {canUploadDocuments && (
-            <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
-              {[
-                [
-                  "upload",
-                  t("workspace.payment.modeUpload", "Upload"),
-                  t("workspace.payment.modeUploadDesc", "Submit by uploading the approval letter and bill files."),
-                  uploadReady,
-                ],
-                [
-                  "manual",
-                  t("workspace.payment.modeManual", "Create manually"),
-                  t("workspace.payment.modeManualDesc", "Submit the manual letter, appendix, and bill created here."),
-                  manualReady,
-                ],
-              ].map(([mode, label, description, ready]) => (
-                <label
-                  key={mode}
-                  className={`flex cursor-pointer gap-3 rounded-md border px-3 py-2 transition ${
-                    documentMode === mode
-                      ? "border-emerald-700 bg-emerald-50"
-                      : "border-slate-200 bg-white hover:bg-slate-50"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={`payment-document-mode-${app.id}`}
-                    value={mode}
-                    checked={documentMode === mode}
-                    onChange={() => setDocumentMode(mode)}
-                    className="mt-1 h-4 w-4 accent-emerald-700"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-slate-950">
-                      {label}
-                    </span>
-                    <span className="block text-xs leading-5 text-slate-500">
-                      {description}
-                    </span>
-                    {ready && (
-                      <span className="mt-1 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                        {t("workspace.payment.methodReady", "Ready")}
-                        </span>
-                    )}
-                  </span>
-                </label>
-              ))}
-            </div>
+          {canUploadDocuments && uploadReady && (
+            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              {t("workspace.payment.methodReady", "Ready")}
+            </span>
           )}
         </div>
       </div>
 
-      {documentMode === "manual" ? (
-        canUploadDocuments ? (
-          <ManualPaymentDocumentsForm
-            app={app}
-            t={t}
-            readOnly={false}
-            onDraftChange={onManualPaymentDraftChange}
-          />
-        ) : (
-          <div className="px-3 py-3">
-            <ManualPaymentDocumentsSummary app={app} t={t} hint={manualSummaryHint} />
-          </div>
-        )
-      ) : (
-        <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
-          <PaymentDocumentSlot
-            label={t("workspace.payment.approvalLetter", "Approval Letter")}
-            file={letterFile}
-            t={t}
-            canUpload={canUploadDocuments}
-            saving={saving}
-            onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
-            onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-          />
-          <PaymentDocumentSlot
-            label={t("workspace.payment.billDocument", "Bill")}
-            file={billFile}
-            t={t}
-            canUpload={canUploadDocuments}
-            saving={saving}
-            onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
-            onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-          />
-          {!canUploadDocuments && manualReady && !hasUploadedPaymentDocuments && (
-            <ManualPaymentDocumentsSummary app={app} t={t} hint={manualSummaryHint} />
-          )}
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
+        <PaymentDocumentSlot
+          label={t("workspace.payment.approvalLetter", "Approval Letter")}
+          file={letterFile}
+          t={t}
+          canUpload={canUploadDocuments}
+          saving={saving}
+          onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
+          onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+        />
+        <PaymentDocumentSlot
+          label={t("workspace.payment.billDocument", "Bill")}
+          file={billFile}
+          t={t}
+          canUpload={canUploadDocuments}
+          saving={saving}
+          onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
+          onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+        />
+      </div>
 
     </section>
   );
