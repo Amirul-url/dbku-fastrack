@@ -156,6 +156,8 @@ const screenText = {
     systemAccounts: "System Accounts",
     recentActivity: "Recent Activity",
     latestFiveActivities: "Latest 5 account activities",
+    activityDetails: "Activity",
+    activityRole: "Role",
     activityDateFilter: "Activity date",
     previous: "Previous",
     next: "Next",
@@ -163,6 +165,7 @@ const screenText = {
     yourPermissions: "Your permissions",
     noRecentActivity: "No recent account activity.",
     loggedInActivity: "Logged in",
+    completedLoginActivity: "Logged in - Logged out",
     createdActivity: "Account created",
     totalLoginTime: "Total time",
     lastAccess: "Last access",
@@ -296,6 +299,8 @@ const screenText = {
     systemAccounts: "Akaun Sistem",
     recentActivity: "Aktiviti Terkini",
     latestFiveActivities: "5 aktiviti akaun terkini",
+    activityDetails: "Aktiviti",
+    activityRole: "Peranan",
     activityDateFilter: "Tarikh aktiviti",
     previous: "Sebelum",
     next: "Seterusnya",
@@ -303,6 +308,7 @@ const screenText = {
     yourPermissions: "Kebenaran anda",
     noRecentActivity: "Tiada aktiviti akaun terkini.",
     loggedInActivity: "Log masuk",
+    completedLoginActivity: "Log masuk - Log keluar",
     createdActivity: "Akaun dicipta",
     totalLoginTime: "Jumlah masa",
     lastAccess: "Akses terakhir",
@@ -510,6 +516,13 @@ function SuperAdminHome() {
             </div>
           </div>
 
+          <div className="border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <div className="flex items-center justify-between gap-4 text-xs font-semibold uppercase text-slate-500">
+              <span>{labels.activityDetails}</span>
+              <span>{labels.activityRole}</span>
+            </div>
+          </div>
+
           <div className="divide-y divide-slate-100">
             {loading ? (
               <div className="px-4 py-10 text-center text-slate-500">{labels.loadingAccounts}</div>
@@ -525,19 +538,21 @@ function SuperAdminHome() {
                         {getAccountDisplayName(account)}
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {activity.type === "login" ? labels.loggedInActivity : labels.createdActivity}
+                        {getActivityLabel(activity, labels)}
                       </p>
                       {activity.type === "login" && (
-                        <p className="mt-1 text-xs font-medium text-slate-500 tabular-nums">
-                          {labels.totalLoginTime}: {formatLoginSessionDuration(activity, currentTime)}
-                        </p>
+                        <>
+                          <p className="mt-1 text-xs font-medium text-slate-500 tabular-nums">
+                            {labels.totalLoginTime}: {formatLoginSessionDuration(activity, currentTime)}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500 tabular-nums">
+                            {formatActivityTime(activity, labels, language)}
+                          </p>
+                        </>
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center">
                       <RolePill account={account} labels={labels} />
-                      <span className="w-40 whitespace-nowrap text-right !text-xs leading-5 text-slate-500 tabular-nums">
-                        {formatCompactDateTime(activity.timestamp, labels, language)}
-                      </span>
                     </div>
                   </div>
                 );
@@ -1605,6 +1620,12 @@ function getRoleLabel(account, labels = screenText.en) {
   return labels.adminRole;
 }
 
+function getActivityLabel(activity, labels = screenText.en) {
+  if (activity.type === "login" && activity.logoutAt) return labels.completedLoginActivity;
+  if (activity.type === "login") return labels.loggedInActivity;
+  return labels.createdActivity;
+}
+
 function getAccountActivities(accounts) {
   return accounts
     .flatMap((account) => {
@@ -1618,7 +1639,8 @@ function getAccountActivities(accounts) {
           activities.push({
             id: `${account.id}-login-session-${session.id || session.login_at}`,
             account,
-            timestamp: session.login_at,
+            timestamp: session.logout_at || session.login_at,
+            loginAt: session.login_at,
             logoutAt: session.logout_at || "",
             durationSeconds: session.duration_seconds,
             type: "login",
@@ -1629,6 +1651,7 @@ function getAccountActivities(accounts) {
           id: `${account.id}-login-${account.last_login}`,
           account,
           timestamp: account.last_login,
+          loginAt: account.last_login,
           logoutAt: "",
           durationSeconds: null,
           type: "login",
@@ -1721,6 +1744,42 @@ function formatCompactDateTime(value, labels = screenText.en, language = "en") {
   return `${day} ${month} ${year}, ${hour}:${minute} ${period}`;
 }
 
+function formatActivityTime(activity, labels = screenText.en, language = "en") {
+  if (activity?.type === "login" && activity.logoutAt) {
+    return formatCompactDateTimeRange(activity.loginAt, activity.logoutAt, labels, language);
+  }
+
+  return formatCompactDateTime(activity?.timestamp, labels, language);
+}
+
+function formatCompactDateTimeRange(startValue, endValue, labels = screenText.en, language = "en") {
+  const start = new Date(startValue || 0);
+  const end = new Date(endValue || 0);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return formatCompactDateTime(endValue || startValue, labels, language);
+  }
+
+  if (getLocalDateKey(startValue) !== getLocalDateKey(endValue)) {
+    return `${formatCompactDateTime(startValue, labels, language)} - ${formatCompactDateTime(endValue, labels, language)}`;
+  }
+
+  const months = language === "ms"
+    ? ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogos", "Sep", "Okt", "Nov", "Dis"]
+    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dateText = `${start.getDate()} ${months[start.getMonth()]} ${start.getFullYear()}`;
+  return `${dateText}, ${formatTimeOnly(start)} - ${formatTimeOnly(end)}`;
+}
+
+function formatTimeOnly(date) {
+  const hour24 = date.getHours();
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour = String(hour24 % 12 || 12).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+
+  return `${hour}:${minute} ${period}`;
+}
+
 function formatLoginSessionDuration(activity, currentTimestamp = Date.now()) {
   const storedDuration = Number(activity?.durationSeconds);
 
@@ -1728,7 +1787,7 @@ function formatLoginSessionDuration(activity, currentTimestamp = Date.now()) {
     return formatDurationSeconds(storedDuration);
   }
 
-  const startTimestamp = getTimestamp(activity?.timestamp);
+  const startTimestamp = getTimestamp(activity?.loginAt || activity?.timestamp);
   if (!startTimestamp) return formatDurationSeconds(0);
 
   const logoutTimestamp = getTimestamp(activity?.logoutAt);

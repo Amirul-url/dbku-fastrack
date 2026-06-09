@@ -116,6 +116,36 @@ class ManagedAccountImportTests(TestCase):
         self.assertIsNotNone(session.logout_at)
         self.assertIsNotNone(session.duration_seconds)
 
+    def test_login_again_closes_existing_open_session_and_starts_new_one(self):
+        user = User.objects.create_user(
+            username="repeatlogin",
+            password="Password123",
+            role="applicant",
+        )
+        client = APIClient()
+
+        first_login = client.post(
+            "/api/auth/login/",
+            {"username": "repeatlogin", "password": "Password123"},
+            format="json",
+        )
+        second_login = client.post(
+            "/api/auth/login/",
+            {"username": "repeatlogin", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(first_login.status_code, 200)
+        self.assertEqual(second_login.status_code, 200)
+        first_session = LoginSession.objects.get(pk=first_login.data["login_session_id"])
+        second_session = LoginSession.objects.get(pk=second_login.data["login_session_id"])
+        self.assertEqual(first_session.user, user)
+        self.assertEqual(second_session.user, user)
+        self.assertIsNotNone(first_session.logout_at)
+        self.assertIsNotNone(first_session.duration_seconds)
+        self.assertIsNone(second_session.logout_at)
+        self.assertIsNone(second_session.duration_seconds)
+
     def test_superadmin_account_list_includes_login_sessions(self):
         superadmin = User.objects.get(username="superadmin")
         superadmin.role = "superadmin"

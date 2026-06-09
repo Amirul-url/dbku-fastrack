@@ -171,6 +171,24 @@ def build_login_session_payload(session):
     }
 
 
+def get_login_duration_seconds(login_at, logout_at):
+    if not login_at:
+        return 0
+
+    return max(0, int((logout_at - login_at).total_seconds()))
+
+
+def close_login_session(session, logout_at):
+    session.logout_at = logout_at
+    session.duration_seconds = get_login_duration_seconds(session.login_at, logout_at)
+    session.save(update_fields=["logout_at", "duration_seconds"])
+
+
+def close_open_login_sessions(user, logout_at):
+    for session in LoginSession.objects.filter(user=user, logout_at__isnull=True):
+        close_login_session(session, logout_at)
+
+
 def build_user_payload(user, include_login_sessions=False):
     full_name = normalize_full_name(f"{user.first_name} {user.last_name}")
     mykad_number = user.mykad_number or user.username
@@ -537,6 +555,7 @@ def login_view(request):
         )
 
     now = timezone.now()
+    close_open_login_sessions(user, now)
     login_session = LoginSession.objects.create(user=user, login_at=now)
     user.last_login = now
     user.save(update_fields=["last_login"])
@@ -565,12 +584,7 @@ def logout_view(request):
 
     if session:
         logout_at = timezone.now()
-        session.logout_at = logout_at
-        session.duration_seconds = max(
-            0,
-            int((logout_at - session.login_at).total_seconds()),
-        )
-        session.save(update_fields=["logout_at", "duration_seconds"])
+        close_login_session(session, logout_at)
 
     return Response({"message": "Logged out."}, status=status.HTTP_200_OK)
 
