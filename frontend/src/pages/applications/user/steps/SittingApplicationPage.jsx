@@ -58,6 +58,20 @@ const IKL_LED_SUBTYPES = new Set([
   "open_space_led_billboard",
   "building_led_billboard",
 ]);
+const DISPLAY_TYPE_OPTIONS = [
+  { value: "non_led", labelKey: "displayTypeNonLed" },
+  { value: "led", labelKey: "displayTypeLed" },
+];
+const EMPTY_CUSTOM_ADVERTISEMENT_TYPES = {
+  open_space: {
+    non_led: [],
+    led: [],
+  },
+  building: {
+    non_led: [],
+    led: [],
+  },
+};
 const IKL_FEE_SCHEDULES = {
   schedule_1: {
     number: "1",
@@ -90,6 +104,21 @@ function getDefaultApplicationSubtype(type) {
   return APPLICATION_SUBTYPE_OPTIONS[type]?.[0]?.value || "";
 }
 
+function getApplicationDisplayTypeFromSubtype(subtype) {
+  if (!subtype) return "";
+  return IKL_LED_SUBTYPES.has(subtype) ? "led" : "non_led";
+}
+
+function getSubtypeForDisplayType(type, displayType) {
+  const options = APPLICATION_SUBTYPE_OPTIONS[type] || [];
+  const matcher =
+    displayType === "led"
+      ? (option) => IKL_LED_SUBTYPES.has(option.value)
+      : (option) => !IKL_LED_SUBTYPES.has(option.value);
+
+  return options.find(matcher)?.value || getDefaultApplicationSubtype(type);
+}
+
 function normalizeApplicationSubtype(value, type) {
   const subtype = String(value || "").trim().toLowerCase();
   const options = APPLICATION_SUBTYPE_OPTIONS[type] || [];
@@ -114,16 +143,149 @@ function getApplicationTypeLabel(language, types) {
     .join(", ");
 }
 
-function getApplicationSubtypeLabel(language, type, subtype) {
+function getApplicationSubtypeLabel(language, type, subtype, customLabel = "") {
+  if (customLabel) return customLabel;
+
   const option = (APPLICATION_SUBTYPE_OPTIONS[type] || []).find((item) => item.value === subtype);
   return option ? stepText(language, option.labelKey) : "";
 }
 
-function getApplicationTypeDisplayLabel(language, types, subtype) {
+function getApplicationTypeDisplayLabel(language, types, subtype, customSubtypeLabel = "") {
   const type = getPrimaryApplicationType(types);
   const typeLabel = getApplicationTypeLabel(language, [type]);
-  const subtypeLabel = getApplicationSubtypeLabel(language, type, subtype);
+  const subtypeLabel = getApplicationSubtypeLabel(language, type, subtype, customSubtypeLabel);
   return [typeLabel, subtypeLabel].filter(Boolean).join(" - ");
+}
+
+function normalizeCustomAdvertisementTypes(value) {
+  const normalized = {
+    open_space: {
+      non_led: [],
+      led: [],
+    },
+    building: {
+      non_led: [],
+      led: [],
+    },
+  };
+
+  Object.keys(normalized).forEach((type) => {
+    Object.keys(normalized[type]).forEach((displayType) => {
+      const source = value?.[type]?.[displayType];
+      normalized[type][displayType] = Array.isArray(source)
+        ? [...new Set(source.map((item) => String(item || "").trim()).filter(Boolean))]
+        : [];
+    });
+  });
+
+  return normalized;
+}
+
+function createEmptyAdvertisementRow() {
+  return {
+    displayType: "",
+    subtype: "",
+    customLabel: "",
+    widthFt: "",
+    heightFt: "",
+    areaRequired: "",
+    amountFundApproved: "",
+  };
+}
+
+function normalizeAdvertisementRows(rows, selectedType, fallbackSubtype = "", fallbackCustomLabel = "") {
+  if (Array.isArray(rows) && rows.length > 0) {
+    const normalizedRows = rows.map((row) => {
+      const subtype = normalizeApplicationSubtype(row?.subtype, selectedType);
+      const displayType =
+        row?.displayType === "led" || row?.display_type === "led"
+          ? "led"
+          : row?.displayType === "non_led" || row?.display_type === "non_led"
+            ? "non_led"
+            : getApplicationDisplayTypeFromSubtype(subtype);
+
+      return {
+        displayType,
+        subtype,
+        customLabel: String(row?.customLabel || row?.custom_label || "").trim(),
+        widthFt: row?.widthFt || row?.width_ft || "",
+        heightFt: row?.heightFt || row?.height_ft || "",
+        areaRequired: row?.areaRequired || row?.area_required || "",
+        amountFundApproved: row?.amountFundApproved || row?.amount_fund_approved || "",
+      };
+    });
+
+    return normalizedRows.length > 0 ? normalizedRows : [createEmptyAdvertisementRow()];
+  }
+
+  const subtype = normalizeApplicationSubtype(fallbackSubtype, selectedType);
+  if (subtype) {
+    return [
+      {
+        displayType: getApplicationDisplayTypeFromSubtype(subtype),
+        subtype,
+        customLabel: String(fallbackCustomLabel || "").trim(),
+        widthFt: "",
+        heightFt: "",
+        areaRequired: "",
+        amountFundApproved: "",
+      },
+    ];
+  }
+
+  return [createEmptyAdvertisementRow()];
+}
+
+function getPrimaryAdvertisementRow(rows, selectedType) {
+  return (rows || []).find((row) =>
+    row?.displayType &&
+    normalizeApplicationSubtype(row?.subtype, selectedType)
+  ) || null;
+}
+
+function withCalculatedAdvertisementRow(row, selectedType) {
+  const subtype = normalizeApplicationSubtype(row?.subtype, selectedType);
+  const widthFt = row?.widthFt || "";
+  const heightFt = row?.heightFt || "";
+  const areaSqm = calculateAreaSqmFromFt(widthFt, heightFt);
+  const areaRequired = areaSqm
+    ? formatCalculatedArea(areaSqm)
+    : row?.areaRequired || "";
+  const amountFundApproved = calculateIklTotalPayable(areaSqm || areaRequired, subtype);
+
+  return {
+    ...row,
+    subtype,
+    widthFt,
+    heightFt,
+    areaRequired,
+    amountFundApproved,
+  };
+}
+
+function getAdvertisementRowsTotalPayable(rows) {
+  const total = (rows || []).reduce(
+    (sum, row) => sum + parsePositiveNumber(row?.amountFundApproved),
+    0
+  );
+
+  return total ? formatCalculatedAmount(total) : "";
+}
+
+function getAdvertisementRowDisplayLabel(language, selectedType, row, index) {
+  const typeLabel = getApplicationTypeLabel(language, [selectedType]);
+  const displayTypeLabel = row?.displayType
+    ? stepText(
+        language,
+        row.displayType === "led" ? "displayTypeLed" : "displayTypeNonLed"
+      )
+    : stepText(language, "selectDisplayType");
+  const adTypeLabel =
+    row?.customLabel ||
+    getApplicationSubtypeLabel(language, selectedType, row?.subtype) ||
+    stepText(language, "selectAdvertisementType");
+
+  return `${index + 1}. ${typeLabel}: ${displayTypeLabel} - ${adTypeLabel}`;
 }
 
 function parsePositiveNumber(value) {
@@ -233,6 +395,8 @@ function calculateIklTotalPayable(areaRequired, subtype = "") {
 }
 
 function calculateIklFeeBreakdown(areaRequired, subtype = "") {
+  if (!subtype) return "";
+
   const areaSqm =
     typeof areaRequired === "number"
       ? areaRequired
@@ -292,24 +456,23 @@ function SittingApplicationPage({
   const [contactPerson, setContactPerson] = useState("");
   const [telNo, setTelNo] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
-  const [sizeWidthFt, setSizeWidthFt] = useState("");
-  const [sizeHeightFt, setSizeHeightFt] = useState("");
-  const [areaRequired, setAreaRequired] = useState("");
   const [totalSchemeValue, setTotalSchemeValue] = useState("");
-  const [malaysiaPlan, setMalaysiaPlan] = useState("");
-  const [amountFundApproved, setAmountFundApproved] = useState("");
   const [amountFundAvailable, setAmountFundAvailable] = useState("");
   const [projectJustification, setProjectJustification] = useState("");
   const [siteSelectionReason, setSiteSelectionReason] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [officerName, setOfficerName] = useState("");
-  const [applicationDate, setApplicationDate] = useState(() =>
-    new Date().toISOString().slice(0, 10)
-  );
   const [applicationTypeOptions, setApplicationTypeOptions] = useState(["open_space"]);
-  const [applicationSubtype, setApplicationSubtype] = useState(
-    getDefaultApplicationSubtype("open_space")
+  const [applicationSubtype, setApplicationSubtype] = useState("");
+  const [advertisementRows, setAdvertisementRows] = useState([
+    createEmptyAdvertisementRow(),
+  ]);
+  const [customAdvertisementTypes, setCustomAdvertisementTypes] = useState(
+    EMPTY_CUSTOM_ADVERTISEMENT_TYPES
   );
+  const [customAdvertisementTypeLabel, setCustomAdvertisementTypeLabel] = useState("");
+  const [advertisementTypeModal, setAdvertisementTypeModal] = useState({
+    rowIndex: null,
+    value: "",
+  });
   const [applicationRecord, setApplicationRecord] = useState(null);
 
   const [siteImages, setSiteImages] = useState([]);
@@ -342,8 +505,33 @@ function SittingApplicationPage({
         : ["open_space"];
     const savedType = getPrimaryApplicationType(savedTypes);
     const savedSubtype =
-      normalizeApplicationSubtype(step1.application_subtype, savedType) ||
-      getDefaultApplicationSubtype(savedType);
+      normalizeApplicationSubtype(step1.application_subtype, savedType);
+    const savedAdvertisementRows = normalizeAdvertisementRows(
+      step1.advertisement_rows,
+      savedType,
+      savedSubtype,
+      step1.advertisement_type_custom_label
+    ).map((row, index) => {
+      if (index !== 0) return row;
+
+      return {
+        ...row,
+        widthFt: row.widthFt || step1.width_ft || step1.size_width_ft || "",
+        heightFt: row.heightFt || step1.height_ft || step1.size_height_ft || "",
+        areaRequired: row.areaRequired || step1.area_required || "",
+        amountFundApproved: row.amountFundApproved || step1.amount_fund_approved || "",
+      };
+    });
+    const calculatedAdvertisementRows = savedAdvertisementRows.map((row) =>
+      withCalculatedAdvertisementRow(row, savedType)
+    );
+    const primaryAdvertisementRow = getPrimaryAdvertisementRow(
+      calculatedAdvertisementRows,
+      savedType
+    );
+    const primarySubtype = primaryAdvertisementRow?.subtype || savedSubtype || "";
+    const primaryCustomLabel =
+      primaryAdvertisementRow?.customLabel || step1.advertisement_type_custom_label || "";
 
     setApplicationRecord(data);
     setProjectName(step1.project_name || "");
@@ -351,31 +539,17 @@ function SittingApplicationPage({
     setContactPerson(step1.contact_person || "");
     setTelNo(step1.tel_no || "");
     setLocalityAddress(step1.locality_address || step1.map_address || "");
-    const savedWidthFt = step1.width_ft || step1.size_width_ft || "";
-    const savedHeightFt = step1.height_ft || step1.size_height_ft || "";
-    const calculatedAreaSqm = calculateAreaSqmFromFt(savedWidthFt, savedHeightFt);
-    const nextAreaRequired = calculatedAreaSqm
-      ? formatCalculatedArea(calculatedAreaSqm)
-      : step1.area_required || "";
-
-    setSizeWidthFt(savedWidthFt);
-    setSizeHeightFt(savedHeightFt);
-    setAreaRequired(nextAreaRequired);
     setTotalSchemeValue(step1.total_scheme_value || "");
-    setMalaysiaPlan(step1.malaysia_plan || "");
-    setAmountFundApproved(
-      calculateIklTotalPayable(calculatedAreaSqm || nextAreaRequired, savedSubtype) ||
-        step1.amount_fund_approved ||
-        ""
-    );
     setAmountFundAvailable(step1.amount_fund_available || "");
     setProjectJustification(step1.project_justification || "");
     setSiteSelectionReason(step1.site_selection_reason || "");
-    setDesignation(step1.designation || "");
-    setOfficerName(step1.officer_name || "");
-    setApplicationDate(step1.application_date || new Date().toISOString().slice(0, 10));
     setApplicationTypeOptions([savedType]);
-    setApplicationSubtype(savedSubtype);
+    setApplicationSubtype(primarySubtype);
+    setAdvertisementRows(calculatedAdvertisementRows);
+    setCustomAdvertisementTypes(
+      normalizeCustomAdvertisementTypes(step1.custom_advertisement_types)
+    );
+    setCustomAdvertisementTypeLabel(primaryCustomLabel);
 
     const supportingDocuments = Array.isArray(data.supporting_documents)
       ? data.supporting_documents
@@ -428,23 +602,30 @@ function SittingApplicationPage({
   async function buildStepOnePayload(titleValue, currentStep = 1) {
     const selectedType = getPrimaryApplicationType(applicationTypeOptions);
     const selectedTypes = [selectedType];
+    const calculatedAdvertisementRows = advertisementRows.map((row) =>
+      withCalculatedAdvertisementRow(row, selectedType)
+    );
+    const primaryAdvertisementRow = getPrimaryAdvertisementRow(
+      calculatedAdvertisementRows,
+      selectedType
+    );
     const selectedSubtype =
-      normalizeApplicationSubtype(applicationSubtype, selectedType) ||
-      getDefaultApplicationSubtype(selectedType);
+      normalizeApplicationSubtype(primaryAdvertisementRow?.subtype, selectedType);
+    const selectedCustomLabel = primaryAdvertisementRow?.customLabel || "";
     const applicationTypeDisplay = getApplicationTypeDisplayLabel(
       language,
       selectedTypes,
-      selectedSubtype
+      selectedSubtype,
+      selectedCustomLabel
     );
     const applicationSubtypeDisplay = getApplicationSubtypeLabel(
       language,
       selectedType,
-      selectedSubtype
+      selectedSubtype,
+      selectedCustomLabel
     );
     const technicalDepartments = getApplicationTypeDepartments(selectedTypes);
-    const calculatedPayable =
-      calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, selectedSubtype) ||
-      amountFundApproved;
+    const calculatedPayable = getAdvertisementRowsTotalPayable(calculatedAdvertisementRows);
     const savedSiteImageAttachments = siteImages
       .filter((image) => !image.file && image.attachment)
       .map((image) => image.attachment);
@@ -462,6 +643,10 @@ function SittingApplicationPage({
           application_type_options: selectedTypes,
           application_subtype: selectedSubtype,
           application_subtype_label: applicationSubtypeDisplay,
+          advertisement_display_type: getApplicationDisplayTypeFromSubtype(selectedSubtype),
+          advertisement_type_custom_label: selectedCustomLabel,
+          advertisement_rows: calculatedAdvertisementRows,
+          custom_advertisement_types: customAdvertisementTypes,
           technical_departments: technicalDepartments,
           division: "",
           project_category: applicationTypeDisplay,
@@ -469,15 +654,15 @@ function SittingApplicationPage({
           applicant,
           contact_person: contactPerson,
           tel_no: telNo,
-          width_ft: sizeWidthFt,
-          height_ft: sizeHeightFt,
+          width_ft: primaryAdvertisementRow?.widthFt || "",
+          height_ft: primaryAdvertisementRow?.heightFt || "",
           locality_address: localityAddress,
-          area_required: areaRequired,
+          area_required: primaryAdvertisementRow?.areaRequired || "",
           area_unit: "",
           total_scheme_value: totalSchemeValue,
           source_of_fund: "",
           fund_availability: "",
-          malaysia_plan: malaysiaPlan,
+          malaysia_plan: "",
           amount_fund_available: amountFundAvailable,
           amount_fund_approved: calculatedPayable,
 
@@ -494,9 +679,9 @@ function SittingApplicationPage({
 
           project_justification: projectJustification,
           site_selection_reason: siteSelectionReason,
-          designation,
-          officer_name: officerName,
-          application_date: applicationDate,
+          designation: "",
+          officer_name: "",
+          application_date: "",
         },
       },
     };
@@ -527,31 +712,24 @@ function SittingApplicationPage({
     }
   }
 
-  function handleAreaRequiredChange(nextAreaRequired) {
-    setAreaRequired(nextAreaRequired);
-    setAmountFundApproved(calculateIklTotalPayable(nextAreaRequired, applicationSubtype));
-  }
+  function handleAdvertisementRowsChange(nextRows) {
+    const selectedType = getPrimaryApplicationType(applicationTypeOptions);
+    const calculatedRows = (nextRows.length > 0 ? nextRows : [createEmptyAdvertisementRow()])
+      .map((row) => withCalculatedAdvertisementRow(row, selectedType));
+    const primaryRow = getPrimaryAdvertisementRow(calculatedRows, selectedType);
+    const nextSubtype = primaryRow?.subtype || "";
 
-  function handleSizeDimensionChange(field, value) {
-    const nextWidthFt = field === "width" ? value : sizeWidthFt;
-    const nextHeightFt = field === "height" ? value : sizeHeightFt;
-    const nextAreaSqm = calculateAreaSqmFromFt(nextWidthFt, nextHeightFt);
-
-    if (field === "width") {
-      setSizeWidthFt(value);
-    } else {
-      setSizeHeightFt(value);
-    }
-
-    setAreaRequired(nextAreaSqm ? formatCalculatedArea(nextAreaSqm) : "");
-    setAmountFundApproved(calculateIklTotalPayable(nextAreaSqm, applicationSubtype));
-  }
-
-  function handleApplicationSubtypeChange(nextSubtype) {
+    setAdvertisementRows(calculatedRows);
     setApplicationSubtype(nextSubtype);
-    setAmountFundApproved(
-      calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, nextSubtype)
+    setCustomAdvertisementTypeLabel(primaryRow?.customLabel || "");
+  }
+
+  function handleAdvertisementRowSizeChange(index, field, value) {
+    const nextRows = advertisementRows.map((row, rowIndex) =>
+      rowIndex === index ? { ...row, [field]: value } : row
     );
+
+    handleAdvertisementRowsChange(nextRows);
   }
 
   function handleSiteImagesAdd(files) {
@@ -591,9 +769,6 @@ function SittingApplicationPage({
       current.filter((image) => image.key !== imageToRemove.key)
     );
   }
-
-  const feeBreakdownAreaSqm =
-    calculateAreaSqmFromFt(sizeWidthFt, sizeHeightFt) || parsePositiveNumber(areaRequired);
 
   async function uploadPendingSiteImages(application, payload) {
     const pendingImages = siteImages.filter((image) => image.file instanceof File);
@@ -646,23 +821,36 @@ function SittingApplicationPage({
   async function handleSave() {
     if (isReadOnly) return;
 
+    const selectedType = getPrimaryApplicationType(applicationTypeOptions);
+    const primaryAdvertisementRow = getPrimaryAdvertisementRow(
+      advertisementRows,
+      selectedType
+    );
+    const advertisementRowsComplete =
+      advertisementRows.length > 0 &&
+      advertisementRows.every((row) =>
+        row.displayType &&
+        normalizeApplicationSubtype(row.subtype, selectedType) &&
+        (row.customLabel || getApplicationSubtypeLabel(language, selectedType, row.subtype)) &&
+        String(row.widthFt || "").trim() &&
+        String(row.heightFt || "").trim() &&
+        String(row.areaRequired || "").trim() &&
+        String(row.amountFundApproved || "").trim()
+      );
+
     if (
       !projectName.trim() ||
       !applicant.trim() ||
       !contactPerson.trim() ||
       !telNo.trim() ||
       !localityAddress.trim() ||
-      !areaRequired.trim() ||
       !totalSchemeValue.trim() ||
-      !amountFundApproved.trim() ||
       !amountFundAvailable.trim() ||
       !projectJustification.trim() ||
       !siteSelectionReason.trim() ||
-      !designation.trim() ||
-      !officerName.trim() ||
-      !applicationDate ||
       normalizeApplicationTypeOptions(applicationTypeOptions).length === 0 ||
-      !normalizeApplicationSubtype(applicationSubtype, getPrimaryApplicationType(applicationTypeOptions))
+      !primaryAdvertisementRow ||
+      !advertisementRowsComplete
     ) {
       alert(tx("requiredAlert"));
       return;
@@ -773,6 +961,7 @@ function SittingApplicationPage({
               language={language}
               applicationTypeOptions={applicationTypeOptions}
               applicationSubtype={applicationSubtype}
+              customAdvertisementTypeLabel={customAdvertisementTypeLabel}
             />
 
             {isReadOnly && (
@@ -781,23 +970,23 @@ function SittingApplicationPage({
 
             <div className="p-4 space-y-3">
               <fieldset disabled={isReadOnly} className="space-y-3">
-                <FormSection title={tx("typeOfApplication")}>
+                <FormSection title={tx("typeOfApplication")} required>
                   <ApplicationTypeCheckboxes
                     language={language}
                     value={applicationTypeOptions}
-                    subtype={applicationSubtype}
+                    advertisementRows={advertisementRows}
+                    customAdvertisementTypes={customAdvertisementTypes}
                     onChange={(nextTypes) => {
                       const nextType = getPrimaryApplicationType(nextTypes);
-                      const nextSubtype =
-                        normalizeApplicationSubtype(applicationSubtype, nextType) ||
-                        getDefaultApplicationSubtype(nextType);
                       setApplicationTypeOptions([nextType]);
-                      setApplicationSubtype(nextSubtype);
-                      setAmountFundApproved(
-                        calculateIklTotalPayable(feeBreakdownAreaSqm || areaRequired, nextSubtype)
-                      );
+                      setAdvertisementRows([createEmptyAdvertisementRow()]);
+                      setApplicationSubtype("");
+                      setCustomAdvertisementTypeLabel("");
                     }}
-                    onSubtypeChange={handleApplicationSubtypeChange}
+                    onAdvertisementRowsChange={handleAdvertisementRowsChange}
+                    onCustomAdvertisementTypesChange={setCustomAdvertisementTypes}
+                    advertisementTypeModal={advertisementTypeModal}
+                    onAdvertisementTypeModalChange={setAdvertisementTypeModal}
                     readOnly={isReadOnly}
                   />
                 </FormSection>
@@ -862,85 +1051,103 @@ function SittingApplicationPage({
               />
 
               <fieldset disabled={isReadOnly} className="space-y-3">
-              <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,500px)_minmax(360px,1fr)]">
-                <div className="space-y-3">
-                  <Field label={tx("advertisementSizeFt")} required guideline={tx("advertisementSizeFtGuideline")}>
-                    <div className="grid max-w-md grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto] items-center gap-2">
-                      <input
-                        className="spa-input"
-                        value={sizeWidthFt}
-                        onChange={(e) => handleSizeDimensionChange("width", e.target.value)}
-                        inputMode="decimal"
-                        placeholder={tx("widthFt")}
-                        readOnly={isReadOnly}
-                      />
-                      <span className="text-xs font-semibold text-slate-500">ft</span>
-                      <span className="text-xs font-bold text-slate-500">x</span>
-                      <input
-                        className="spa-input"
-                        value={sizeHeightFt}
-                        onChange={(e) => handleSizeDimensionChange("height", e.target.value)}
-                        inputMode="decimal"
-                        placeholder={tx("heightFt")}
-                        readOnly={isReadOnly}
-                      />
-                      <span className="text-xs font-semibold text-slate-500">ft</span>
-                    </div>
-                  </Field>
+              <div className="space-y-4">
+                {advertisementRows.map((row, index) => {
+                  const selectedType = getPrimaryApplicationType(applicationTypeOptions);
+                  const rowAreaSqm =
+                    calculateAreaSqmFromFt(row.widthFt, row.heightFt) ||
+                    parsePositiveNumber(row.areaRequired);
+                  const rowLabel = getAdvertisementRowDisplayLabel(
+                    language,
+                    selectedType,
+                    row,
+                    index
+                  );
 
-                  <Field label={tx("areaRequired")} required guideline={tx("areaRequiredGuideline")}>
-                    <input
-                      className="spa-input max-w-md bg-slate-50 text-slate-700"
-                      value={areaRequired}
-                      onChange={(e) => handleAreaRequiredChange(e.target.value)}
-                      readOnly
-                    />
-                  </Field>
+                  return (
+                    <section
+                      key={`advertisement-size-${index}`}
+                      className="rounded-sm border border-slate-200 bg-white p-3"
+                    >
+                      <h3 className="mb-3 text-xs font-bold text-slate-800">
+                        {rowLabel}
+                      </h3>
 
-                  <Field label={tx("totalSchemeValue")} required guideline={tx("totalSchemeValueGuideline")}>
-                    <input
-                      className="spa-input max-w-md"
-                      value={totalSchemeValue}
-                      onChange={(e) => setTotalSchemeValue(e.target.value)}
-                    />
-                  </Field>
-                </div>
+                      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,500px)_minmax(360px,1fr)]">
+                        <div className="space-y-3">
+                          <Field label={tx("advertisementSizeFt")} required guideline={tx("advertisementSizeFtGuideline")}>
+                            <div className="grid max-w-md grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto] items-center gap-2">
+                              <input
+                                className="spa-input"
+                                value={row.widthFt}
+                                onChange={(e) =>
+                                  handleAdvertisementRowSizeChange(index, "widthFt", e.target.value)
+                                }
+                                inputMode="decimal"
+                                placeholder={tx("widthFt")}
+                                readOnly={isReadOnly}
+                              />
+                              <span className="text-xs font-semibold text-slate-500">ft</span>
+                              <span className="text-xs font-bold text-slate-500">x</span>
+                              <input
+                                className="spa-input"
+                                value={row.heightFt}
+                                onChange={(e) =>
+                                  handleAdvertisementRowSizeChange(index, "heightFt", e.target.value)
+                                }
+                                inputMode="decimal"
+                                placeholder={tx("heightFt")}
+                                readOnly={isReadOnly}
+                              />
+                              <span className="text-xs font-semibold text-slate-500">ft</span>
+                            </div>
+                          </Field>
 
-                <FeeCalculationBreakdown
-                  tx={tx}
-                  widthFt={sizeWidthFt}
-                  heightFt={sizeHeightFt}
-                  areaSqm={feeBreakdownAreaSqm}
-                  subtype={applicationSubtype}
-                />
-              </div>
+                          <Field label={tx("areaRequired")} required guideline={tx("areaRequiredGuideline")}>
+                            <input
+                              className="spa-input max-w-md bg-slate-50 text-slate-700"
+                              value={row.areaRequired}
+                              readOnly
+                            />
+                          </Field>
 
-              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
-                <Field label={tx("fundApprovedIn")} required guideline={tx("fundApprovedInGuideline")}>
+                          <Field label={tx("malaysiaPlanRm")} required guideline={tx("malaysiaPlanRmGuideline")}>
+                            <input
+                              className="spa-input max-w-md bg-slate-50 text-slate-700"
+                              value={row.amountFundApproved}
+                              readOnly
+                            />
+                          </Field>
+                        </div>
+
+                        <FeeCalculationBreakdown
+                          tx={tx}
+                          widthFt={row.widthFt}
+                          heightFt={row.heightFt}
+                          areaSqm={rowAreaSqm}
+                          subtype={row.subtype}
+                        />
+                      </div>
+                    </section>
+                  );
+                })}
+
+                <Field label={tx("totalSchemeValue")} required guideline={tx("totalSchemeValueGuideline")}>
                   <input
-                    className="spa-input"
-                    value={malaysiaPlan}
-                    onChange={(e) => setMalaysiaPlan(e.target.value)}
-                    placeholder={tx("malaysiaPlan")}
+                    className="spa-input max-w-md"
+                    value={totalSchemeValue}
+                    onChange={(e) => setTotalSchemeValue(e.target.value)}
                   />
                 </Field>
 
-                <Field label={tx("malaysiaPlanRm")} required guideline={tx("malaysiaPlanRmGuideline")}>
+                <Field label={tx("fundAvailableNow")} required guideline={tx("fundAvailableNowGuideline")}>
                   <input
-                    className="spa-input bg-slate-50 text-slate-700"
-                    value={amountFundApproved}
-                    readOnly
+                    className="spa-input max-w-md"
+                    value={amountFundAvailable}
+                    onChange={(e) => setAmountFundAvailable(e.target.value)}
                   />
                 </Field>
               </div>
-
-              <Field label={tx("fundAvailableNow")} required guideline={tx("fundAvailableNowGuideline")}>
-                <input
-                  className="spa-input"
-                  value={amountFundAvailable}
-                  onChange={(e) => setAmountFundAvailable(e.target.value)}
-                />
-              </Field>
 
               <SimpleWysiwygEditor
                 key={`project-justification-${applicationId || "new"}`}
@@ -967,33 +1174,6 @@ function SittingApplicationPage({
               <p className="-mt-2 text-[11px] italic text-slate-500">
                 {tx("additionalSheetHelp")}
               </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label={tx("designation")} required>
-                  <input
-                    className="spa-input"
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                  />
-                </Field>
-
-                <Field label={tx("officerName")} required>
-                  <input
-                    className="spa-input"
-                    value={officerName}
-                    onChange={(e) => setOfficerName(e.target.value)}
-                  />
-                </Field>
-
-                <Field label={tx("date")} required>
-                  <input
-                    type="date"
-                    className="spa-input"
-                    value={applicationDate}
-                    onChange={(e) => setApplicationDate(e.target.value)}
-                  />
-                </Field>
-              </div>
 
               {isAdminView ? (
                 <AdminViewStepControls
@@ -1784,12 +1964,18 @@ function ApplicationReference({
   language,
   applicationTypeOptions = ["open_space"],
   applicationSubtype = "",
+  customAdvertisementTypeLabel = "",
 }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const tx = (key) => stepText(language, key);
   const applicationTypeText =
-    getApplicationTypeDisplayLabel(language, applicationTypeOptions, applicationSubtype) ||
+    getApplicationTypeDisplayLabel(
+      language,
+      applicationTypeOptions,
+      applicationSubtype,
+      customAdvertisementTypeLabel
+    ) ||
     applicationTypeLabel(language, "Application for Site (New Site)");
 
   return (
@@ -1820,11 +2006,14 @@ function ApplicationReference({
   );
 }
 
-function FormSection({ title, children }) {
+function FormSection({ title, children, required = false }) {
   return (
     <section className="border border-slate-200 rounded-sm overflow-hidden">
       <div className="bg-[#f7f7f7] border-b px-3 py-2">
-        <h2 className="text-xs font-bold text-slate-700">{title}</h2>
+        <h2 className="text-xs font-bold text-slate-700">
+          {title}
+          {required && <span className="ml-1 text-red-500">*</span>}
+        </h2>
       </div>
 
       <div className="p-3">{children}</div>
@@ -1954,24 +2143,147 @@ function GuidelineHint({ text }) {
 function ApplicationTypeCheckboxes({
   language,
   value,
-  subtype,
+  advertisementRows,
+  customAdvertisementTypes,
   onChange,
-  onSubtypeChange,
+  onAdvertisementRowsChange,
+  onCustomAdvertisementTypesChange,
+  advertisementTypeModal,
+  onAdvertisementTypeModalChange,
   readOnly,
 }) {
   const selectedType = getPrimaryApplicationType(value);
-  const subtypeOptions = APPLICATION_SUBTYPE_OPTIONS[selectedType] || [];
-  const selectedSubtype =
-    normalizeApplicationSubtype(subtype, selectedType) || getDefaultApplicationSubtype(selectedType);
+  const rows = Array.isArray(advertisementRows) && advertisementRows.length > 0
+    ? advertisementRows
+    : [createEmptyAdvertisementRow()];
+  const rowButtonLabel = stepText(language, "addAdvertisementRow");
+  const addTypeLabel = stepText(language, "addAdvertisementOption");
+  const deleteRowLabel = stepText(language, "deleteAdvertisementRow");
 
   function selectType(type) {
     if (readOnly) return;
     onChange([type]);
   }
 
-  function selectSubtype(nextSubtype) {
+  function getCustomOptions(displayType, customLabel = "") {
+    if (!displayType) return customLabel ? [customLabel] : [];
+
+    return [
+      ...new Set([
+        ...(customAdvertisementTypes?.[selectedType]?.[displayType] || []),
+        customLabel,
+      ].filter(Boolean)),
+    ];
+  }
+
+  function updateRow(index, updates) {
     if (readOnly) return;
-    onSubtypeChange(nextSubtype);
+
+    const nextRows = rows.map((row, rowIndex) =>
+      rowIndex === index ? { ...row, ...updates } : row
+    );
+
+    onAdvertisementRowsChange(nextRows);
+  }
+
+  function selectDisplayType(index, nextDisplayType) {
+    updateRow(index, {
+      displayType: nextDisplayType,
+      subtype: "",
+      customLabel: "",
+    });
+  }
+
+  function selectAdvertisementType(index, nextValue) {
+    if (readOnly) return;
+
+    if (!nextValue) {
+      updateRow(index, {
+        subtype: "",
+        customLabel: "",
+      });
+      return;
+    }
+
+    if (nextValue.startsWith("custom:")) {
+      const nextCustomLabel = nextValue.replace("custom:", "");
+      const displayType = rows[index]?.displayType || "";
+      updateRow(index, {
+        subtype: getSubtypeForDisplayType(selectedType, displayType),
+        customLabel: nextCustomLabel,
+      });
+      return;
+    }
+
+    updateRow(index, {
+      subtype: nextValue,
+      customLabel: "",
+    });
+  }
+
+  function addAdvertisementType(index) {
+    if (readOnly) return;
+
+    const displayType = rows[index]?.displayType || "";
+    if (!displayType) {
+      alert(stepText(language, "selectDisplayTypeFirst"));
+      return;
+    }
+
+    onAdvertisementTypeModalChange({
+      rowIndex: index,
+      value: "",
+    });
+  }
+
+  function closeAdvertisementTypeModal() {
+    onAdvertisementTypeModalChange({
+      rowIndex: null,
+      value: "",
+    });
+  }
+
+  function saveAdvertisementTypeModal() {
+    if (readOnly) return;
+
+    const rowIndex = advertisementTypeModal?.rowIndex;
+    const displayType = rows[rowIndex]?.displayType || "";
+    const normalizedLabel = String(advertisementTypeModal?.value || "").trim();
+    if (rowIndex === null || rowIndex === undefined || !displayType) {
+      closeAdvertisementTypeModal();
+      return;
+    }
+    if (!normalizedLabel) return;
+
+    const nextCustomTypes = normalizeCustomAdvertisementTypes(customAdvertisementTypes);
+    const currentItems = nextCustomTypes[selectedType][displayType];
+
+    if (!currentItems.some((item) => item.toLowerCase() === normalizedLabel.toLowerCase())) {
+      nextCustomTypes[selectedType][displayType] = [...currentItems, normalizedLabel];
+      onCustomAdvertisementTypesChange(nextCustomTypes);
+    }
+
+    updateRow(rowIndex, {
+      subtype: getSubtypeForDisplayType(selectedType, displayType),
+      customLabel: normalizedLabel,
+    });
+    closeAdvertisementTypeModal();
+  }
+
+  function addRow() {
+    if (readOnly) return;
+    onAdvertisementRowsChange([...rows, createEmptyAdvertisementRow()]);
+  }
+
+  function deleteRow(index) {
+    if (readOnly) return;
+
+    if (rows.length <= 1) {
+      onAdvertisementRowsChange([createEmptyAdvertisementRow()]);
+      return;
+    }
+
+    onAdvertisementRowsChange(rows.filter((_, rowIndex) => rowIndex !== index));
   }
 
   return (
@@ -1999,32 +2311,150 @@ function ApplicationTypeCheckboxes({
         ))}
       </div>
 
-      {subtypeOptions.length > 0 && (
-        <div className="rounded-sm border border-slate-200 bg-slate-50 p-3">
-          <p className="mb-2 text-[11px] font-bold text-slate-700">
-            {stepText(language, "advertisementType")}
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {subtypeOptions.map((option) => (
-              <label
-                key={option.value}
-                className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 ${
-                  selectedSubtype === option.value
-                    ? "border-emerald-600 bg-white text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-700"
-                } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
-              >
-                <input
-                  type="radio"
-                  name={`application-subtype-${selectedType}`}
-                  checked={selectedSubtype === option.value}
-                  disabled={readOnly}
-                  onChange={() => selectSubtype(option.value)}
-                  className="h-4 w-4 accent-emerald-700"
-                />
-                <span>{stepText(language, option.labelKey)}</span>
+      <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white">
+        <table className="min-w-[680px] w-full border-collapse text-sm">
+          <thead className="bg-slate-50 text-left text-xs font-bold text-slate-700">
+            <tr>
+              <th className="w-16 border-b border-slate-200 px-3 py-2">
+                {stepText(language, "advertisementNumber")}
+              </th>
+              <th className="w-[30%] border-b border-slate-200 px-3 py-2">
+                {stepText(language, "displayType")}
+              </th>
+              <th className="border-b border-slate-200 px-3 py-2">
+                {stepText(language, "advertisementType")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const customOptions = getCustomOptions(row.displayType, row.customLabel);
+              const selectedAdTypeValue = row.customLabel
+                ? `custom:${row.customLabel}`
+                : row.subtype;
+
+              return (
+                <tr key={`advertisement-row-${index}`} className="align-top">
+                  <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-700">
+                    {index + 1}
+                  </td>
+                  <td className="border-t border-slate-100 px-3 py-3">
+                    <select
+                      className="spa-input"
+                      value={row.displayType}
+                      disabled={readOnly}
+                      onChange={(event) => selectDisplayType(index, event.target.value)}
+                    >
+                      <option value="">
+                        {stepText(language, "selectDisplayType")}
+                      </option>
+                      {DISPLAY_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {stepText(language, option.labelKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="border-t border-slate-100 px-3 py-3">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <select
+                        className="spa-input min-w-0 flex-1"
+                        value={selectedAdTypeValue}
+                        disabled={readOnly}
+                        onChange={(event) => selectAdvertisementType(index, event.target.value)}
+                      >
+                        <option value="">
+                          {stepText(language, "selectAdvertisementType")}
+                        </option>
+                        {customOptions.map((label) => (
+                          <option key={label} value={`custom:${label}`}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-sm bg-[#006d32] px-3 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        disabled={readOnly}
+                        onClick={() => addAdvertisementType(index)}
+                      >
+                        {addTypeLabel}
+                      </button>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-sm border border-red-600 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                        disabled={readOnly}
+                        onClick={() => deleteRow(index)}
+                      >
+                        {deleteRowLabel}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
+          <button
+            type="button"
+            className="rounded-sm border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+            disabled={readOnly}
+            onClick={addRow}
+          >
+            {rowButtonLabel}
+          </button>
+        </div>
+      </div>
+
+      {advertisementTypeModal?.rowIndex !== null && advertisementTypeModal?.rowIndex !== undefined && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4">
+          <div className="w-full max-w-md rounded-sm border border-slate-200 bg-white shadow-xl">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <h3 className="text-sm font-bold text-slate-800">
+                {stepText(language, "addAdvertisementTypeModalTitle")}
+              </h3>
+            </div>
+
+            <div className="space-y-2 px-4 py-4">
+              <label className="text-xs font-bold text-slate-700">
+                {stepText(language, "advertisementType")}
               </label>
-            ))}
+              <input
+                className="spa-input"
+                value={advertisementTypeModal.value}
+                autoFocus
+                onChange={(event) =>
+                  onAdvertisementTypeModalChange({
+                    ...advertisementTypeModal,
+                    value: event.target.value,
+                  })
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") saveAdvertisementTypeModal();
+                  if (event.key === "Escape") closeAdvertisementTypeModal();
+                }}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+              <button
+                type="button"
+                className="rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                onClick={closeAdvertisementTypeModal}
+              >
+                {stepText(language, "cancel")}
+              </button>
+              <button
+                type="button"
+                className="rounded-sm bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={!String(advertisementTypeModal.value || "").trim()}
+                onClick={saveAdvertisementTypeModal}
+              >
+                {stepText(language, "save")}
+              </button>
+            </div>
           </div>
         </div>
       )}

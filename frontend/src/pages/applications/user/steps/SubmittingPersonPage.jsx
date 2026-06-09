@@ -141,6 +141,16 @@ const stateCityOptions = {
   "W.P. Putrajaya": ["Putrajaya"],
 };
 const stateOptions = Object.keys(stateCityOptions);
+const APPLICATION_TYPE_LABEL_KEYS = {
+  open_space: "applicationTypeOpenSpace",
+  building: "applicationTypeBuilding",
+};
+const APPLICATION_SUBTYPE_LABEL_KEYS = {
+  free_standing_billboard: "applicationSubtypeFreeStandingBillboard",
+  open_space_led_billboard: "applicationSubtypeLedBillboard",
+  building_normal_billboard: "applicationSubtypeNormalBillboard",
+  building_led_billboard: "applicationSubtypeLedBillboard",
+};
 
 function normalizeStateCity(state, city) {
   if (stateCityOptions[state]) {
@@ -158,6 +168,52 @@ function normalizeStateCity(state, city) {
   }
 
   return { state: "", city: "" };
+}
+
+function normalizeApplicationType(value) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return values.includes("building") ? "building" : "open_space";
+}
+
+function getStepOneApplicationTypeText(language, step1 = {}) {
+  const selectedType = normalizeApplicationType(
+    step1.application_type_options || step1.application_type
+  );
+  const typeLabel = stepText(
+    language,
+    APPLICATION_TYPE_LABEL_KEYS[selectedType] || "applicationTypeOpenSpace"
+  );
+  const firstAdvertisementRow = Array.isArray(step1.advertisement_rows)
+    ? step1.advertisement_rows.find((row) => row?.subtype || row?.customLabel || row?.custom_label)
+    : null;
+  const customAdvertisementLabel =
+    firstAdvertisementRow?.customLabel ||
+    firstAdvertisementRow?.custom_label ||
+    step1.advertisement_type_custom_label ||
+    "";
+  const subtype =
+    firstAdvertisementRow?.subtype ||
+    step1.application_subtype ||
+    "";
+  const subtypeLabel = customAdvertisementLabel ||
+    (APPLICATION_SUBTYPE_LABEL_KEYS[subtype]
+      ? stepText(language, APPLICATION_SUBTYPE_LABEL_KEYS[subtype])
+      : step1.application_subtype_label || "");
+
+  if (typeLabel && subtypeLabel) {
+    return `${typeLabel} - ${subtypeLabel}`;
+  }
+
+  return (
+    step1.application_type_label ||
+    applicationTypeLabel(language, "Application of Siting Project")
+  );
 }
 
 function SubmittingPersonPage({
@@ -187,16 +243,13 @@ function SubmittingPersonPage({
   const [orgType, setOrgType] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");
   const [orgName, setOrgName] = useState("");
-  const [branchName, setBranchName] = useState("");
   const [postalAddress, setPostalAddress] = useState("");
   const [postcode, setPostcode] = useState("");
   const [address2, setAddress2] = useState("");
   const [stateValue, setStateValue] = useState("");
   const [city, setCity] = useState("");
-  const [address3, setAddress3] = useState("");
   const [orgCountryCode, setOrgCountryCode] = useState("");
   const [telephoneNo, setTelephoneNo] = useState("");
-  const [address4, setAddress4] = useState("");
 
   const [honoraryTitle, setHonoraryTitle] = useState("");
   const TITLE_OPTIONS = [
@@ -248,17 +301,14 @@ function SubmittingPersonPage({
       setOrgType(step3.org_type || "");
       setRegistrationNo(step3.registration_no || "");
       setOrgName(step3.org_name || "");
-      setBranchName(step3.branch_name || "");
       setPostalAddress(step3.postal_address || "");
       setPostcode(step3.postcode || "");
       setAddress2(step3.address_2 || "");
       const normalizedLocation = normalizeStateCity(step3.state || "", step3.city || "");
       setStateValue(normalizedLocation.state);
       setCity(normalizedLocation.city);
-      setAddress3(step3.address_3 || "");
       setOrgCountryCode(step3.org_country_code || "");
       setTelephoneNo(step3.telephone_no || "");
-      setAddress4(step3.address_4 || "");
 
       setHonoraryTitle(step3.honorary_title || "");
       setDesignation(step3.designation || "");
@@ -286,16 +336,16 @@ function SubmittingPersonPage({
       org_type: orgType,
       registration_no: registrationNo,
       org_name: orgName,
-      branch_name: branchName,
+      branch_name: "",
       postal_address: postalAddress,
       postcode,
       address_2: address2,
       state: stateValue,
       city,
-      address_3: address3,
+      address_3: "",
       org_country_code: orgCountryCode,
       telephone_no: telephoneNo,
-      address_4: address4,
+      address_4: "",
 
       honorary_title: honoraryTitle,
       designation,
@@ -318,6 +368,7 @@ function SubmittingPersonPage({
       !orgType.trim() ||
       !orgName.trim() ||
       !postalAddress.trim() ||
+      !address2.trim() ||
       !postcode.trim() ||
       !stateValue.trim() ||
       !city.trim() ||
@@ -448,7 +499,10 @@ function SubmittingPersonPage({
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference language={language} />
+            <ApplicationReference
+              language={language}
+              applicationRecord={applicationRecord}
+            />
 
             {isReadOnly && (
               <ReadOnlyNotice language={language} status={applicationRecord?.status} />
@@ -464,9 +518,7 @@ function SubmittingPersonPage({
                       onChange={(e) => setOrgType(e.target.value)}
                     >
                       <option value="">{tx("pleaseSelect")}</option>
-                      <option value="Local Authority">{tx("localAuthority")}</option>
                       <option value="Company">{tx("company")}</option>
-                      <option value="Government Agency">{tx("governmentAgency")}</option>
                       <option value="Individual">{tx("individual")}</option>
                     </select>
                   </Field>
@@ -479,7 +531,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label={tx("name")} required>
+                  <Field label={tx("name")} required className="md:col-span-2">
                     <input
                       className="spa-input"
                       value={orgName}
@@ -487,15 +539,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label={tx("branchName")}>
-                    <input
-                      className="spa-input"
-                      value={branchName}
-                      onChange={(e) => setBranchName(e.target.value)}
-                    />
-                  </Field>
-
-                  <Field label={tx("postalAddress")} required>
+                  <Field label={tx("postalAddress")} required className="md:col-span-2">
                     <input
                       className="spa-input"
                       value={postalAddress}
@@ -503,15 +547,7 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <Field label={tx("postcode")} required>
-                    <input
-                      className="spa-input"
-                      value={postcode}
-                      onChange={(e) => setPostcode(e.target.value)}
-                    />
-                  </Field>
-
-                  <Field label={tx("address2")}>
+                  <Field label={tx("address2")} required className="md:col-span-2">
                     <input
                       className="spa-input"
                       value={address2}
@@ -519,7 +555,15 @@ function SubmittingPersonPage({
                     />
                   </Field>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
+                    <Field label={tx("postcode")} required>
+                      <input
+                        className="spa-input"
+                        value={postcode}
+                        onChange={(e) => setPostcode(e.target.value)}
+                      />
+                    </Field>
+
                     <Field label={tx("state")} required>
                       <select
                         className="spa-input"
@@ -554,15 +598,7 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
 
-                  <Field label={tx("address3")}>
-                    <input
-                      className="spa-input"
-                      value={address3}
-                      onChange={(e) => setAddress3(e.target.value)}
-                    />
-                  </Field>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2">
                     <Field label={tx("countryCode")} required>
                       <select
                         className="spa-input"
@@ -582,14 +618,6 @@ function SubmittingPersonPage({
                       />
                     </Field>
                   </div>
-
-                  <Field label={tx("address4")}>
-                    <input
-                      className="spa-input"
-                      value={address4}
-                      onChange={(e) => setAddress4(e.target.value)}
-                    />
-                  </Field>
                 </div>
               </FormSection>
 
@@ -773,10 +801,12 @@ function ReadOnlyNotice({ language, status }) {
   );
 }
 
-function ApplicationReference({ language }) {
+function ApplicationReference({ language, applicationRecord }) {
   const storedUser = localStorage.getItem("fastrack_user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const tx = (key) => stepText(language, key);
+  const step1 = applicationRecord?.form_data?.step_1 || {};
+  const applicationTypeText = getStepOneApplicationTypeText(language, step1);
 
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
@@ -796,7 +826,7 @@ function ApplicationReference({ language }) {
 
         <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {applicationTypeLabel(language, "Application of Siting Project")}
+          {applicationTypeText}
         </p>
 
         {user?.role !== "applicant" && (
@@ -822,9 +852,9 @@ function FormSection({ title, children }) {
   );
 }
 
-function Field({ label, children, required = false }) {
+function Field({ label, children, required = false, className = "" }) {
   return (
-    <div>
+    <div className={className}>
       <label className="block text-[11px] font-bold text-slate-700 mb-1">
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}

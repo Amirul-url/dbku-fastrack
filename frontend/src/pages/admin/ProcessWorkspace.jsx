@@ -5859,9 +5859,6 @@ function isStepOneComplete(step1, app) {
     step1.amount_fund_available,
     step1.project_justification,
     step1.site_selection_reason,
-    step1.designation,
-    step1.officer_name,
-    step1.application_date,
   ];
 
   return requiredFields.every(hasValue);

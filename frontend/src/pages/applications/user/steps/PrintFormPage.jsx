@@ -511,32 +511,24 @@ function PrintFormPage({
                     />
                     <PrintLine
                       no="12."
-                      label={tx("fundApprovedIn")}
-                      value={step1.malaysia_plan}
-                    />
-                    <PrintLine
-                      no="13."
                       label={tx("malaysiaPlanRm")}
                       value={formatRM(step1.amount_fund_approved)}
                     />
                     <PrintLine
-                      no="14."
+                      no="13."
                       label={tx("fundAvailableNow")}
                       value={formatRM(step1.amount_fund_available)}
                     />
                     <PrintBlock
-                      no="15."
+                      no="14."
                       label={tx("projectJustification")}
                       value={stripHtml(step1.project_justification)}
                     />
                     <PrintBlock
-                      no="16."
+                      no="15."
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
-                    <PrintLine no="17." label={tx("designation")} value={step1.designation} />
-                    <PrintLine no="18." label={tx("officerName")} value={step1.officer_name} />
-                    <PrintLine no="19." label={tx("date")} value={formatDate(step1.application_date)} />
                   </PrintSection>
                 </PrintPage>
 
@@ -551,16 +543,13 @@ function PrintFormPage({
                     <PrintLine label={tx("organisationType")} value={organisationTypeLabel(language, step3.org_type)} />
                     <PrintLine label={tx("registrationNumber")} value={step3.registration_no} />
                     <PrintLine label={tx("organisationName")} value={step3.org_name} />
-                    <PrintLine label={tx("branchName")} value={step3.branch_name} />
                     <PrintLine label={tx("postalAddress")} value={step3.postal_address} />
                     <PrintLine label={tx("postcode")} value={step3.postcode} />
                     <PrintLine label={tx("address2")} value={step3.address_2} />
                     <PrintLine label={tx("state")} value={step3.state} />
                     <PrintLine label={tx("city")} value={step3.city} />
-                    <PrintLine label={tx("address3")} value={step3.address_3} />
                     <PrintLine label={tx("countryCode")} value={step3.org_country_code} />
                     <PrintLine label={tx("telephoneNo")} value={formatPhone(step3.org_country_code, step3.telephone_no)} />
-                    <PrintLine label={tx("address4")} value={step3.address_4} />
 
                     <PrintSubheading>{tx("submittingPerson")}</PrintSubheading>
                     <PrintLine label={tx("honoraryTitle")} value={step3.honorary_title} />
@@ -777,16 +766,11 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
       },
       {
         no: "12.",
-        label: tx("fundApprovedIn"),
-        value: step1.malaysia_plan,
-      },
-      {
-        no: "13.",
         label: tx("malaysiaPlanRm"),
         value: formatRM(step1.amount_fund_approved),
       },
       {
-        no: "14.",
+        no: "13.",
         label: tx("fundAvailableNow"),
         value: formatRM(step1.amount_fund_available),
       },
@@ -795,26 +779,17 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
   );
 
   y = drawPdfBlock(pdf, {
-    no: "15.",
+    no: "14.",
     label: tx("projectJustification"),
     value: stripHtml(step1.project_justification),
     y,
   });
-  y = drawPdfBlock(pdf, {
-    no: "16.",
+  drawPdfBlock(pdf, {
+    no: "15.",
     label: tx("siteSelectionReason"),
     value: stripHtml(step1.site_selection_reason),
     y,
   });
-  drawPdfFieldRows(
-    pdf,
-    [
-      { no: "17.", label: tx("designation"), value: step1.designation },
-      { no: "18.", label: tx("officerName"), value: step1.officer_name },
-      { no: "19.", label: tx("date"), value: formatDate(step1.application_date) },
-    ],
-    y
-  );
 
   drawPdfFooter(pdf, 1, PRINT_FORM_TOTAL_PAGES);
 }
@@ -833,19 +808,16 @@ function drawPdfPageTwo(pdf, { title, step3, tx, language }) {
       },
       { label: tx("registrationNumber"), value: step3.registration_no },
       { label: tx("organisationName"), value: step3.org_name },
-      { label: tx("branchName"), value: step3.branch_name },
       { label: tx("postalAddress"), value: step3.postal_address },
       { label: tx("postcode"), value: step3.postcode },
       { label: tx("address2"), value: step3.address_2 },
       { label: tx("state"), value: step3.state },
       { label: tx("city"), value: step3.city },
-      { label: tx("address3"), value: step3.address_3 },
       { label: tx("countryCode"), value: step3.org_country_code },
       {
         label: tx("telephoneNo"),
         value: formatPhone(step3.org_country_code, step3.telephone_no),
       },
-      { label: tx("address4"), value: step3.address_4 },
     ],
     y
   );
@@ -1471,15 +1443,6 @@ function formatRM(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-GB");
 }
 
 function formatCoordinates(latitude, longitude) {
