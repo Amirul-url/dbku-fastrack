@@ -4422,6 +4422,8 @@ function isMphlgMonitoredRecord(app) {
 }
 
 function isSutMonitoredRecord(app) {
+  if (getApprovalStageKey(app) !== "kb_support") return false;
+
   const sutApproval = getApplicationSection(app, "sut_approval");
   const sutStatus = String(sutApproval.status || "").trim().toLowerCase();
 
