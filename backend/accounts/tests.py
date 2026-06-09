@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import User
+from .models import LoginSession, User
 from .views import apply_managed_account_data, build_user_payload, get_password_reset_user
 
 
@@ -83,6 +83,61 @@ class ManagedAccountImportTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("access", response.data)
+
+    def test_login_creates_session_and_logout_closes_it(self):
+        user = User.objects.create_user(
+            username="sessionuser",
+            password="Password123",
+            role="applicant",
+        )
+        client = APIClient()
+
+        login_response = client.post(
+            "/api/auth/login/",
+            {"username": "sessionuser", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(login_response.status_code, 200)
+        session_id = login_response.data["login_session_id"]
+        session = LoginSession.objects.get(pk=session_id)
+        self.assertEqual(session.user, user)
+        self.assertIsNone(session.logout_at)
+
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}")
+        logout_response = client.post(
+            "/api/auth/logout/",
+            {"login_session_id": session_id},
+            format="json",
+        )
+
+        self.assertEqual(logout_response.status_code, 200)
+        session.refresh_from_db()
+        self.assertIsNotNone(session.logout_at)
+        self.assertIsNotNone(session.duration_seconds)
+
+    def test_superadmin_account_list_includes_login_sessions(self):
+        superadmin = User.objects.get(username="superadmin")
+        superadmin.role = "superadmin"
+        superadmin.is_staff = True
+        superadmin.is_superuser = True
+        superadmin.save(update_fields=["role", "is_staff", "is_superuser"])
+        account = User.objects.create_user(
+            username="sessionlisted",
+            password="Password123",
+            role="applicant",
+        )
+        session = LoginSession.objects.create(user=account, login_at=account.date_joined)
+        client = APIClient()
+        client.force_authenticate(user=superadmin)
+
+        response = client.get("/api/auth/accounts/?role=applicant")
+
+        self.assertEqual(response.status_code, 200)
+        session_account = next(
+            item for item in response.data["accounts"] if item["username"] == account.username
+        )
+        self.assertEqual(session_account["login_sessions"][0]["id"], session.id)
 
     def test_managed_account_dash_mobile_is_saved_as_empty(self):
         user = User()

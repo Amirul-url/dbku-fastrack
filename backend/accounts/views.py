@@ -29,6 +29,7 @@ from config.throttles import (
     RegistrationRateThrottle,
 )
 from notifications.services import notify_account_created
+from .models import LoginSession
 
 User = get_user_model()
 
@@ -161,7 +162,16 @@ def get_user_address_parts(user):
     }
 
 
-def build_user_payload(user):
+def build_login_session_payload(session):
+    return {
+        "id": session.id,
+        "login_at": session.login_at.isoformat() if session.login_at else "",
+        "logout_at": session.logout_at.isoformat() if session.logout_at else "",
+        "duration_seconds": session.duration_seconds,
+    }
+
+
+def build_user_payload(user, include_login_sessions=False):
     full_name = normalize_full_name(f"{user.first_name} {user.last_name}")
     mykad_number = user.mykad_number or user.username
     date_of_birth = user.date_of_birth
@@ -176,7 +186,7 @@ def build_user_payload(user):
     )
     address_parts = get_user_address_parts(user)
 
-    return {
+    payload = {
         "id": user.id,
         "username": user.username,
         "full_name": full_name,
@@ -197,14 +207,23 @@ def build_user_payload(user):
         "last_login": user.last_login.isoformat() if user.last_login else "",
     }
 
+    if include_login_sessions:
+        payload["login_sessions"] = [
+            build_login_session_payload(session)
+            for session in user.login_sessions.all()[:20]
+        ]
 
-def build_auth_response(user):
+    return payload
+
+
+def build_auth_response(user, login_session=None):
     refresh = RefreshToken.for_user(user)
 
     return {
         "access": str(refresh.access_token),
         "refresh": str(refresh),
         "user": build_user_payload(user),
+        "login_session_id": login_session.id if login_session else None,
     }
 
 
@@ -517,10 +536,43 @@ def login_view(request):
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
-    user.last_login = timezone.now()
+    now = timezone.now()
+    login_session = LoginSession.objects.create(user=user, login_at=now)
+    user.last_login = now
     user.save(update_fields=["last_login"])
 
-    return Response(build_auth_response(user), status=status.HTTP_200_OK)
+    return Response(build_auth_response(user, login_session), status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def logout_view(request):
+    session_id = request.data.get("login_session_id")
+    session = None
+
+    if session_id:
+        session = LoginSession.objects.filter(
+            pk=session_id,
+            user=request.user,
+            logout_at__isnull=True,
+        ).first()
+
+    if not session:
+        session = LoginSession.objects.filter(
+            user=request.user,
+            logout_at__isnull=True,
+        ).order_by("-login_at").first()
+
+    if session:
+        logout_at = timezone.now()
+        session.logout_at = logout_at
+        session.duration_seconds = max(
+            0,
+            int((logout_at - session.login_at).total_seconds()),
+        )
+        session.save(update_fields=["logout_at", "duration_seconds"])
+
+    return Response({"message": "Logged out."}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
@@ -859,7 +911,10 @@ def managed_accounts_view(request):
 
         return Response(
             {
-                "accounts": [build_user_payload(user) for user in queryset],
+                "accounts": [
+                    build_user_payload(user, include_login_sessions=True)
+                    for user in queryset.prefetch_related("login_sessions")
+                ],
                 "summary": {
                     "users": User.objects.filter(role__in=["applicant", "user"]).count(),
                     "admins": User.objects.filter(role__in=["superadmin", "admin", "staff"]).count(),

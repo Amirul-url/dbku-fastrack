@@ -365,6 +365,10 @@ export function saveAuthSession(data, rememberMe = false) {
     );
   }
 
+  if (data?.login_session_id) {
+    localStorage.setItem("fastrack_login_session_id", String(data.login_session_id));
+  }
+
   localStorage.setItem("fastrack_remember_me", rememberMe ? "true" : "false");
   window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
@@ -374,8 +378,25 @@ export function clearAuthSession() {
   localStorage.removeItem("fastrack_refresh_token");
   localStorage.removeItem("fastrack_user");
   localStorage.removeItem("fastrack_remember_me");
+  localStorage.removeItem("fastrack_login_session_id");
   clearSidebarSessionState();
   window.dispatchEvent(new Event("fastrack:auth-changed"));
+}
+
+export async function recordLogoutSession() {
+  const sessionId = localStorage.getItem("fastrack_login_session_id");
+  if (!localStorage.getItem("fastrack_access_token")) return;
+
+  try {
+    await apiRequest("/auth/logout/", {
+      method: "POST",
+      body: JSON.stringify({
+        login_session_id: sessionId || undefined,
+      }),
+    });
+  } catch (error) {
+    console.error("Logout session recording failed:", error);
+  }
 }
 
 export function getAccessTokenExpiryMs() {

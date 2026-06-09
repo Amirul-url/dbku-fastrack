@@ -529,7 +529,7 @@ function SuperAdminHome() {
                       </p>
                       {activity.type === "login" && (
                         <p className="mt-1 text-xs font-medium text-slate-500 tabular-nums">
-                          {labels.totalLoginTime}: {formatElapsedTime(activity.timestamp, currentTime)}
+                          {labels.totalLoginTime}: {formatLoginSessionDuration(activity, currentTime)}
                         </p>
                       )}
                     </div>
@@ -1609,12 +1609,28 @@ function getAccountActivities(accounts) {
   return accounts
     .flatMap((account) => {
       const activities = [];
+      const loginSessions = Array.isArray(account.login_sessions) ? account.login_sessions : [];
 
-      if (account.last_login) {
+      if (loginSessions.length > 0) {
+        loginSessions.forEach((session) => {
+          if (!session.login_at) return;
+
+          activities.push({
+            id: `${account.id}-login-session-${session.id || session.login_at}`,
+            account,
+            timestamp: session.login_at,
+            logoutAt: session.logout_at || "",
+            durationSeconds: session.duration_seconds,
+            type: "login",
+          });
+        });
+      } else if (account.last_login) {
         activities.push({
           id: `${account.id}-login-${account.last_login}`,
           account,
           timestamp: account.last_login,
+          logoutAt: "",
+          durationSeconds: null,
           type: "login",
         });
       }
@@ -1705,14 +1721,28 @@ function formatCompactDateTime(value, labels = screenText.en, language = "en") {
   return `${day} ${month} ${year}, ${hour}:${minute} ${period}`;
 }
 
-function formatElapsedTime(startValue, endTimestamp = Date.now()) {
-  const startTimestamp = getTimestamp(startValue);
-  if (!startTimestamp) return "00h 00m 00s";
+function formatLoginSessionDuration(activity, currentTimestamp = Date.now()) {
+  const storedDuration = Number(activity?.durationSeconds);
 
+  if (Number.isFinite(storedDuration) && storedDuration >= 0) {
+    return formatDurationSeconds(storedDuration);
+  }
+
+  const startTimestamp = getTimestamp(activity?.timestamp);
+  if (!startTimestamp) return formatDurationSeconds(0);
+
+  const logoutTimestamp = getTimestamp(activity?.logoutAt);
+  const endTimestamp = logoutTimestamp || currentTimestamp;
   const elapsedSeconds = Math.max(0, Math.floor((endTimestamp - startTimestamp) / 1000));
-  const hours = Math.floor(elapsedSeconds / 3600);
-  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
-  const seconds = elapsedSeconds % 60;
+
+  return formatDurationSeconds(elapsedSeconds);
+}
+
+function formatDurationSeconds(value) {
+  const totalSeconds = Math.max(0, Math.floor(Number(value) || 0));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
   return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
 }

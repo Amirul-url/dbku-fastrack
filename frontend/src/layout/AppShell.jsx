@@ -4,7 +4,13 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useLanguage } from "../context/LanguageContext";
 import { useNotifications } from "../context/NotificationContext";
 import { Icon } from "../components/ui/SystemUI";
-import { apiRequest, clearAuthSession, fetchApplicationList, getStoredUser } from "../services/api";
+import {
+  apiRequest,
+  clearAuthSession,
+  fetchApplicationList,
+  getStoredUser,
+  recordLogoutSession,
+} from "../services/api";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
@@ -379,7 +385,8 @@ function AppShell({ children, role = "admin" }) {
     return () => window.clearTimeout(syncMenuStateId);
   }, [location.pathname, role]);
 
-  function handleLogout() {
+  async function handleLogout() {
+    await recordLogoutSession();
     clearAuthSession();
     navigate("/login/malaysian", { replace: true });
   }

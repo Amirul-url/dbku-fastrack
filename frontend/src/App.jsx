@@ -63,6 +63,7 @@ import {
   isAdminUser,
   isApplicantUser,
   isSuperAdminUser,
+  recordLogoutSession,
   refreshAccessToken,
 } from "./services/api";
 import { useLanguage } from "./context/LanguageContext";
@@ -258,8 +259,9 @@ function SessionManager() {
     }
   }, []);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     clearResponseTimer();
+    await recordLogoutSession();
     clearAuthSession();
     navigate("/login/malaysian", { replace: true });
   }, [clearResponseTimer, navigate]);
