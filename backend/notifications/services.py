@@ -30,7 +30,7 @@ IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL
 APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
 APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
 MPHLG_REVIEW_DEPARTMENTS = {"MPHLG"}
-SUT_APPROVAL_DEPARTMENTS = {"SUT"}
+SUT_APPROVAL_DEPARTMENTS = {"SUT", "SUT APPROVAL"}
 KB_LES_COMPLETE_STATUSES = {"verified", "supported", "completed"}
 MANAGEMENT_SUPPORT_COMPLETE_STATUSES = {"supported", "approved", "completed"}
 ADMIN_TECHNICAL_TASK_STATUSES = {
@@ -1529,7 +1529,7 @@ def normalize_department(value):
     if department in MPHLG_REVIEW_DEPARTMENTS:
         return "MPHLG"
 
-    if department in SUT_APPROVAL_DEPARTMENTS or department == "SETIAUSAHA TETAP":
+    if department in SUT_APPROVAL_DEPARTMENTS or "SETIAUSAHA TETAP" in department:
         return "SUT"
 
     if department == "INP":

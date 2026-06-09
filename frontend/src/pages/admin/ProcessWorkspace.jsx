@@ -148,7 +148,7 @@ function ProcessWorkspace({ type }) {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const config = configs[type];
-  const userDepartment = normalizeDepartmentCode(getStoredUser()?.department);
+  const userDepartment = getWorkspaceUserDepartment(getStoredUser());
 
   if (!canAccessWorkspace(config, userDepartment)) {
     return <AdminDashboardLayout />;
@@ -162,6 +162,17 @@ function ProcessWorkspace({ type }) {
       language={language}
       userDepartment={userDepartment}
     />
+  );
+}
+
+function getWorkspaceUserDepartment(user) {
+  const department = normalizeDepartmentCode(user?.department);
+  if (department) return department;
+
+  return normalizeDepartmentCode(
+    user?.full_name ||
+      user?.username ||
+      [user?.first_name, user?.last_name].filter(Boolean).join(" ")
   );
 }
 
@@ -5753,7 +5764,13 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
-  if (department === "SETIAUSAHA TETAP") return "SUT";
+  if (
+    department === "SUT" ||
+    department === "SUT APPROVAL" ||
+    department.includes("SETIAUSAHA TETAP")
+  ) {
+    return "SUT";
+  }
   return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
 

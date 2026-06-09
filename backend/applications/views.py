@@ -56,6 +56,27 @@ def get_activity_actor_name(user):
     return full_name or getattr(user, "username", "") or "Applicant"
 
 
+def get_user_workflow_department(user):
+    department = normalize_department(getattr(user, "department", ""))
+    if department:
+        return department
+
+    for value in [
+        getattr(user, "full_name", ""),
+        getattr(user, "username", ""),
+        " ".join(
+            part
+            for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")]
+            if part
+        ),
+    ]:
+        department = normalize_department(value)
+        if department:
+            return department
+
+    return ""
+
+
 def timezone_now_iso():
     from django.utils import timezone
 
@@ -199,7 +220,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         requested_status = str(self.request.data.get("status", application.status) or "").strip().lower()
         current_status = str(application.status or "").strip().lower()
-        department = normalize_department(getattr(user, "department", ""))
+        department = get_user_workflow_department(user)
 
         if requested_status == "management_review" and current_status == "mphlg_decision_received":
             if department != "SUT":
