@@ -1,4 +1,6 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from .models import LoginSession, User
@@ -65,6 +67,29 @@ class ManagedAccountImportTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+    @override_settings(
+        DEBUG=True,
+        WHATSAPP_ENABLED=True,
+    )
+    @patch("notifications.services.send_whatsapp", side_effect=RuntimeError("Connection Closed"))
+    def test_password_reset_whatsapp_failure_does_not_reveal_otp(self, _send_whatsapp):
+        User.objects.create_user(
+            username="debugotp",
+            password="Password123",
+            role="applicant",
+            mobile_number="0175151829",
+        )
+
+        response = APIClient().post(
+            "/api/auth/password-reset/request/",
+            {"identifier": "0175151829", "channel": "whatsapp"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("dev_otp", response.data)
+        self.assertIn("disconnected", response.data["error"].lower())
 
     def test_login_ignores_invalid_existing_bearer_token(self):
         User.objects.create_user(

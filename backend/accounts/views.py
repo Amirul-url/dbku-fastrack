@@ -409,7 +409,12 @@ def deliver_password_reset_otp(user, channel, otp):
             try:
                 send_whatsapp(format_whatsapp_recipient(user.mobile_number), message)
             except Exception as exc:
-                return False, f"WhatsApp OTP could not be sent right now. Please try again. ({exc})"
+                if "connection closed" in str(exc).lower():
+                    return False, (
+                        "WhatsApp OTP could not be sent because the WhatsApp service is disconnected. "
+                        "Please reconnect the WhatsApp provider and try again."
+                    )
+                return False, "WhatsApp OTP could not be sent right now. Please try again."
             return True, "OTP sent to your registered WhatsApp number."
 
         return False, "WhatsApp OTP service is not configured right now. Please try email or contact support."
