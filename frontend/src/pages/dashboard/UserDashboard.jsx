@@ -424,10 +424,10 @@ function UserDashboard() {
   );
 }
 
-function OverviewSection({ applications, latest, loading, t }) {
+function OverviewSection({ applications, loading, t }) {
   const statusSummary = useMemo(
-    () => buildOverviewStatusSummary(applications, latest, t),
-    [applications, latest, t]
+    () => buildOverviewStatusSummary(applications, t),
+    [applications, t]
   );
 
   return (
@@ -441,7 +441,7 @@ function OverviewSection({ applications, latest, loading, t }) {
 
 function OverviewStatusCards({ items, loading }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {items.map((item) => (
         <OverviewStatusCard
           key={item.key}
@@ -1180,7 +1180,7 @@ function getMonthOptions(language = "en") {
   }));
 }
 
-function buildOverviewStatusSummary(applications, latest, t) {
+function buildOverviewStatusSummary(applications, t) {
   const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
   const pending = applications.filter((app) => isPendingApplication(app)).length;
   const rejected = applications.filter((app) => isRejectedApplication(app)).length;
@@ -1193,14 +1193,6 @@ function buildOverviewStatusSummary(applications, latest, t) {
       value: submitted,
       icon: "send",
       tone: "blue",
-    },
-    {
-      key: "status",
-      label: t("common.status"),
-      value: latest ? translatedStatus(t, latest.status) : "-",
-      icon: "monitoring",
-      tone: "slate",
-      compact: true,
     },
     {
       key: "pending",

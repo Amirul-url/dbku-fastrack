@@ -550,7 +550,7 @@ function isUnitHistoryApplication(application, unit, activeDepartment = "") {
 }
 
 function getProcessIconTitle(unit) {
-  return IKL_DEPARTMENTS.has(unit?.department) ? "IKL" : unit?.title || "";
+  return IKL_DEPARTMENTS.has(unit?.department) ? "LES" : unit?.title || "";
 }
 
 function getAdminTaskWorkspacePath(application, unit) {
