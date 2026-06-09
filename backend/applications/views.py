@@ -57,10 +57,18 @@ def get_activity_actor_name(user):
 
 
 def get_user_workflow_department(user):
+    identity_department = get_user_identity_workflow_department(user)
+    if identity_department == "SUT":
+        return identity_department
+
     department = normalize_department(getattr(user, "department", ""))
     if department:
         return department
 
+    return identity_department
+
+
+def get_user_identity_workflow_department(user):
     for value in [
         getattr(user, "full_name", ""),
         getattr(user, "username", ""),

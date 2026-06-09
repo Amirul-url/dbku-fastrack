@@ -166,9 +166,16 @@ function ProcessWorkspace({ type }) {
 }
 
 function getWorkspaceUserDepartment(user) {
+  const identityDepartment = getWorkflowDepartmentFromUserIdentity(user);
+  if (identityDepartment === "SUT") return identityDepartment;
+
   const department = normalizeDepartmentCode(user?.department);
   if (department) return department;
 
+  return identityDepartment;
+}
+
+function getWorkflowDepartmentFromUserIdentity(user) {
   return normalizeDepartmentCode(
     user?.full_name ||
       user?.username ||
