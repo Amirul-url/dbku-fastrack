@@ -191,7 +191,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         if not isinstance(activity_log, list):
             return []
 
-        return activity_log[:12]
+        return activity_log[:80]
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):

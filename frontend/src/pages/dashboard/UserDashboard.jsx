@@ -41,6 +41,7 @@ import {
 } from "../../utils/advertisementLicenseDocument";
 
 const VALID_SECTIONS = ["applications", "status", "license"];
+const RECENT_ACTIVITY_PAGE_SIZE = 5;
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -1161,6 +1162,22 @@ function getApplicationRemark(app) {
 }
 
 function RecentActivities({ activities, loading, t }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visibleActivities = activities.slice(
+    currentPage * RECENT_ACTIVITY_PAGE_SIZE,
+    (currentPage + 1) * RECENT_ACTIVITY_PAGE_SIZE
+  );
+  const showPagination = activities.length > RECENT_ACTIVITY_PAGE_SIZE;
+
+  useEffect(() => {
+    setPage((current) => {
+      const nextTotalPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
+      return Math.min(current, nextTotalPages - 1);
+    });
+  }, [activities.length]);
+
   return (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
@@ -1180,7 +1197,7 @@ function RecentActivities({ activities, loading, t }) {
             {t("applicant.noRecentActivities", "No recent activities yet.")}
           </p>
         ) : (
-          activities.map((activity) => (
+          visibleActivities.map((activity) => (
             <div
               key={`${activity.applicationId}-${activity.createdAt}-${activity.title}`}
               className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_160px]"
@@ -1209,6 +1226,33 @@ function RecentActivities({ activities, loading, t }) {
           ))
         )}
       </div>
+      {!loading && showPagination && (
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage((current) => Math.max(current - 1, 0))}
+              disabled={currentPage === 0}
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              {t("common.previous", "Previous")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              {t("common.next", "Next")}
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </Button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1294,8 +1338,7 @@ function buildRecentActivities(applications) {
       }));
     })
     .filter((activity) => activity.createdAt)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 8);
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 function isPendingApplication(app) {
