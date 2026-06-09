@@ -164,6 +164,7 @@ const screenText = {
     noRecentActivity: "No recent account activity.",
     loggedInActivity: "Logged in",
     createdActivity: "Account created",
+    totalLoginTime: "Total time",
     lastAccess: "Last access",
     registered: "Registered",
     accountAccessOverview: "Account access overview",
@@ -303,6 +304,7 @@ const screenText = {
     noRecentActivity: "Tiada aktiviti akaun terkini.",
     loggedInActivity: "Log masuk",
     createdActivity: "Akaun dicipta",
+    totalLoginTime: "Jumlah masa",
     lastAccess: "Akses terakhir",
     registered: "Didaftarkan",
     accountAccessOverview: "Gambaran akses akaun",
@@ -357,6 +359,7 @@ function SuperAdminHome() {
   const [error, setError] = useState("");
   const [activityDateFilter, setActivityDateFilter] = useState("");
   const [activityPage, setActivityPage] = useState(0);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -376,6 +379,11 @@ function SuperAdminHome() {
     const timerId = window.setTimeout(loadDashboard, 0);
     return () => window.clearTimeout(timerId);
   }, [loadDashboard]);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   const dashboard = useMemo(() => {
     const totalUsers = summary.users ?? accounts.filter((account) => account.role === "applicant").length;
@@ -519,6 +527,11 @@ function SuperAdminHome() {
                       <p className="mt-1 text-sm text-slate-500">
                         {activity.type === "login" ? labels.loggedInActivity : labels.createdActivity}
                       </p>
+                      {activity.type === "login" && (
+                        <p className="mt-1 text-xs font-medium text-slate-500 tabular-nums">
+                          {labels.totalLoginTime}: {formatElapsedTime(activity.timestamp, currentTime)}
+                        </p>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <RolePill account={account} labels={labels} />
@@ -1690,6 +1703,18 @@ function formatCompactDateTime(value, labels = screenText.en, language = "en") {
   const minute = String(date.getMinutes()).padStart(2, "0");
 
   return `${day} ${month} ${year}, ${hour}:${minute} ${period}`;
+}
+
+function formatElapsedTime(startValue, endTimestamp = Date.now()) {
+  const startTimestamp = getTimestamp(startValue);
+  if (!startTimestamp) return "00h 00m 00s";
+
+  const elapsedSeconds = Math.max(0, Math.floor((endTimestamp - startTimestamp) / 1000));
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+  const seconds = elapsedSeconds % 60;
+
+  return `${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 function formatDateOnly(value, labels = screenText.en, language = "en") {
