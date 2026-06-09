@@ -110,6 +110,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     mphlg_gateway = serializers.SerializerMethodField()
     sut_approval = serializers.SerializerMethodField()
     approval = serializers.SerializerMethodField()
+    activity_log = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -134,6 +135,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "mphlg_gateway",
             "sut_approval",
             "approval",
+            "activity_log",
             "created_at",
             "updated_at",
         ]
@@ -183,6 +185,13 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_approval(self, obj):
         return (obj.form_data or {}).get("approval", {})
+
+    def get_activity_log(self, obj):
+        activity_log = (obj.form_data or {}).get("activity_log", [])
+        if not isinstance(activity_log, list):
+            return []
+
+        return activity_log[:12]
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):

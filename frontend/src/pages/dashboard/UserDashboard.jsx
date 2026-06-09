@@ -360,7 +360,6 @@ function UserDashboard() {
       {activeSection === "overview" && (
         <OverviewSection
           applications={applications}
-          latest={latest}
           loading={loading}
           t={t}
         />
@@ -429,12 +428,17 @@ function OverviewSection({ applications, loading, t }) {
     () => buildOverviewStatusSummary(applications, t),
     [applications, t]
   );
+  const recentActivities = useMemo(
+    () => buildRecentActivities(applications),
+    [applications]
+  );
 
   return (
     <section className="space-y-4">
       <div className="rounded-md border border-emerald-200 bg-white p-5">
         <OverviewStatusCards items={statusSummary} loading={loading} />
       </div>
+      <RecentActivities activities={recentActivities} loading={loading} t={t} />
     </section>
   );
 }
@@ -1156,6 +1160,59 @@ function getApplicationRemark(app) {
   );
 }
 
+function RecentActivities({ activities, loading, t }) {
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <h3 className="text-sm font-semibold text-slate-950">
+          {t("applicant.recentActivitiesTitle", "Recent Activities")}
+        </h3>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("applicant.recentActivitiesDesc", "Latest actions recorded from your application activity.")}
+        </p>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {loading ? (
+          <p className="px-4 py-4 text-sm text-slate-500">{t("common.loading", "Loading...")}</p>
+        ) : activities.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-slate-500">
+            {t("applicant.noRecentActivities", "No recent activities yet.")}
+          </p>
+        ) : (
+          activities.map((activity) => (
+            <div
+              key={`${activity.applicationId}-${activity.createdAt}-${activity.title}`}
+              className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_160px]"
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-emerald-700">
+                    history
+                  </span>
+                  <p className="truncate text-sm font-semibold text-slate-950">
+                    {activity.title}
+                  </p>
+                </div>
+                <p className="mt-1 text-sm text-slate-600">
+                  <span className="font-semibold text-slate-700">{activity.reference}</span>
+                  {activity.project ? ` - ${activity.project}` : ""}
+                </p>
+                {activity.description && (
+                  <p className="mt-1 text-xs text-slate-500">{activity.description}</p>
+                )}
+              </div>
+              <p className="text-sm text-slate-500 sm:text-right">
+                {formatCompactDateTime(activity.createdAt)}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 function cleanRemark(value) {
   const remark = String(value || "").trim();
   return ["", "-", "[]"].includes(remark) ? "" : remark;
@@ -1216,6 +1273,29 @@ function buildOverviewStatusSummary(applications, t) {
       tone: "emerald",
     },
   ];
+}
+
+function buildRecentActivities(applications) {
+  return applications
+    .flatMap((app) => {
+      const activityLog = Array.isArray(app.activity_log)
+        ? app.activity_log
+        : Array.isArray(app.form_data?.activity_log)
+        ? app.form_data.activity_log
+        : [];
+
+      return activityLog.map((activity) => ({
+        applicationId: app.id,
+        reference: getApplicationReference(app),
+        project: getProjectName(app),
+        title: activity.title || "Application activity",
+        description: activity.description || "",
+        createdAt: activity.created_at || app.updated_at,
+      }));
+    })
+    .filter((activity) => activity.createdAt)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 8);
 }
 
 function isPendingApplication(app) {

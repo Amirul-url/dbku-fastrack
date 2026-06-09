@@ -23,6 +23,67 @@ from notifications.services import (
 )
 
 STAFF_ROLES = ["admin", "supervisor", "staff"]
+MAX_ACTIVITY_LOG_ITEMS = 80
+
+
+def append_application_activity(application, actor, title, description="", category="user"):
+    form_data = deepcopy(application.form_data or {})
+    activity_log = form_data.get("activity_log")
+
+    if not isinstance(activity_log, list):
+        activity_log = []
+
+    activity_log.insert(
+        0,
+        {
+            "title": title,
+            "description": description,
+            "category": category,
+            "actor": get_activity_actor_name(actor),
+            "created_at": timezone_now_iso(),
+        },
+    )
+    form_data["activity_log"] = activity_log[:MAX_ACTIVITY_LOG_ITEMS]
+    application.form_data = form_data
+    application.save(update_fields=["form_data", "updated_at"])
+
+
+def get_activity_actor_name(user):
+    full_name = " ".join(
+        part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
+    ).strip()
+
+    return full_name or getattr(user, "username", "") or "Applicant"
+
+
+def timezone_now_iso():
+    from django.utils import timezone
+
+    return timezone.now().isoformat()
+
+
+def get_applicant_activity_title(application, request_data):
+    requested_status = str(request_data.get("status", application.status) or "").strip().lower()
+    form_data = request_data.get("form_data") or {}
+    form_keys = set(form_data.keys()) if isinstance(form_data, dict) else set()
+    step_11 = form_data.get("step_11") if isinstance(form_data, dict) else {}
+
+    if requested_status == "payment_submitted" and form_keys.issubset({"payment"}):
+        return "Payment receipt submitted"
+
+    if isinstance(step_11, dict) and step_11.get("submitted"):
+        return "Application resubmitted" if requested_status == "mphlg_processing" else "Application submitted"
+
+    if requested_status in {"submitted", "ku_ikl_review"}:
+        return "Application submitted"
+
+    if requested_status in {"draft", "incomplete", "technical_amendment", "rejected"}:
+        return "Application details saved"
+
+    if form_keys:
+        return "Application details saved"
+
+    return "Application updated"
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -94,7 +155,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if self.request.user.role not in ["applicant", "user"]:
             raise PermissionDenied("Only applicants can create applications.")
 
-        serializer.save(applicant=self.request.user)
+        application = serializer.save(applicant=self.request.user)
+        append_application_activity(
+            application,
+            self.request.user,
+            "Application draft created",
+            "The applicant started a new advertisement license application.",
+        )
 
     def perform_update(self, serializer):
         self.ensure_applicant_can_update(serializer.instance)
@@ -103,6 +170,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_form_data = deepcopy(serializer.instance.form_data or {})
         self.ensure_staff_can_update_workflow(serializer.instance)
         application = serializer.save()
+        if self.request.user.role not in STAFF_ROLES:
+            append_application_activity(
+                application,
+                self.request.user,
+                get_applicant_activity_title(application, self.request.data),
+                "The applicant updated this application record.",
+            )
         notify_application_status_change(
             application,
             old_status,
@@ -279,6 +353,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             title=title,
             file=uploaded_file,
         )
+        if request.user.role not in STAFF_ROLES:
+            append_application_activity(
+                application,
+                request.user,
+                f"{title} uploaded",
+                uploaded_file.name,
+            )
 
         serializer = SupportingDocumentSerializer(
             document,
@@ -333,8 +414,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        removed_filename = document.file.name.rsplit("/", 1)[-1] if document.file else ""
+
         if document.file:
             document.file.delete(save=False)
+
+        if request.user.role not in STAFF_ROLES:
+            append_application_activity(
+                application,
+                request.user,
+                f"{document.title} removed",
+                removed_filename,
+            )
 
         document.delete()
 
@@ -404,6 +495,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.status = "submitted"
         application.current_step = max(application.current_step, 11)
         application.save()
+        append_application_activity(
+            application,
+            request.user,
+            "Application submitted",
+            "The applicant submitted the application for review.",
+        )
         notify_application_status_change(application, old_status, old_remark)
 
         return Response(
