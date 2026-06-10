@@ -144,6 +144,20 @@ function getApplicationTypeLabel(language, types) {
 }
 
 function getApplicationSubtypeLabel(language, type, subtype, customLabel = "") {
+  const normalizedCustomLabel = String(customLabel || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  const knownCustomLabelKeys = {
+    free_standing_billboard: "applicationSubtypeFreeStandingBillboard",
+    led_billboard: "applicationSubtypeLedBillboard",
+    normal_billboard: "applicationSubtypeNormalBillboard",
+  };
+
+  if (knownCustomLabelKeys[normalizedCustomLabel]) {
+    return stepText(language, knownCustomLabelKeys[normalizedCustomLabel]);
+  }
+
   if (customLabel) return customLabel;
 
   const option = (APPLICATION_SUBTYPE_OPTIONS[type] || []).find((item) => item.value === subtype);

@@ -394,7 +394,7 @@ const DOCUMENT_TEXT = {
     description: { en: "-", ms: "-" },
   },
   "Locality Plan": {
-    title: { en: "Locality Plan", ms: "Locality Plan" },
+    title: { en: "Locality Plan", ms: "Pelan Lokaliti" },
     description: { en: "-", ms: "-" },
   },
   "Technical Drawing / Document:": {
