@@ -6,6 +6,7 @@ import {
   apiRequest,
   fetchApplicationList,
   fetchAuthenticatedBlob,
+  getStoredUser,
   uploadApplicationDocument,
 } from "../../services/api";
 import {
@@ -43,6 +44,41 @@ import {
 const VALID_SECTIONS = ["applications", "status", "license"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TABLE_PAGE_SIZE = 5;
+const APPLICANT_STATUS_SEEN_KEY = "fastrack_applicant_status_seen_records";
+const APPLICANT_E_LICENSE_SEEN_KEY = "fastrack_applicant_e_license_seen_records";
+
+function getUserStorageKey(baseKey, user) {
+  const userKey = String(user?.id || user?.pk || user?.username || user?.email || "anonymous")
+    .trim()
+    .toLowerCase();
+  return `${baseKey}:${userKey || "anonymous"}`;
+}
+
+function readLocalJson(key, fallback = {}) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Local storage can be unavailable in some browser privacy modes.
+  }
+}
+
+function getApplicantRecordSeen(user) {
+  return {
+    status: readLocalJson(getUserStorageKey(APPLICANT_STATUS_SEEN_KEY, user)),
+    eLicense: readLocalJson(getUserStorageKey(APPLICANT_E_LICENSE_SEEN_KEY, user)),
+  };
+}
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -75,6 +111,7 @@ function UserDashboard() {
   const [licenseFilterStatus, setLicenseFilterStatus] = useState("all");
   const [licenseFilterMonth, setLicenseFilterMonth] = useState("all");
   const [licenseFilterYear, setLicenseFilterYear] = useState("all");
+  const [recordSeen, setRecordSeen] = useState(() => getApplicantRecordSeen(getStoredUser()));
 
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -255,6 +292,30 @@ function UserDashboard() {
       params.set("returnTab", "status");
     }
     navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?${params.toString()}`);
+  }
+
+  function markApplicationSeen(tab, app) {
+    if (!app?.id) return;
+
+    const user = getStoredUser();
+    const mapKey = tab === "license" ? "eLicense" : "status";
+    const storageKey = getUserStorageKey(
+      tab === "license" ? APPLICANT_E_LICENSE_SEEN_KEY : APPLICANT_STATUS_SEEN_KEY,
+      user
+    );
+    const currentMap = readLocalJson(storageKey);
+    const seenTime = Math.max(Date.now(), getApplicationUpdatedTime(app));
+    const nextMap = {
+      ...currentMap,
+      [app.id]: seenTime,
+    };
+
+    writeLocalJson(storageKey, nextMap);
+    setRecordSeen((current) => ({
+      ...current,
+      [mapKey]: nextMap,
+    }));
+    window.dispatchEvent(new Event("fastrack:applicant-record-seen"));
   }
 
   function openLicenseRecord(app) {
@@ -456,7 +517,11 @@ function UserDashboard() {
           onStatusChange={setStatusFilterStatus}
           onMonthChange={setStatusFilterMonth}
           onYearChange={setStatusFilterYear}
-          onOpen={openApplication}
+          isReferenceNew={(app) => isApplicantRecordNew(app, "status", recordSeen)}
+          onOpen={(app) => {
+            markApplicationSeen("status", app);
+            openApplication(app);
+          }}
         />
       )}
 
@@ -490,7 +555,11 @@ function UserDashboard() {
             onStatusChange={setLicenseFilterStatus}
             onMonthChange={setLicenseFilterMonth}
             onYearChange={setLicenseFilterYear}
-            onOpen={openLicenseRecord}
+            isReferenceNew={(app) => isApplicantRecordNew(app, "license", recordSeen)}
+            onOpen={(app) => {
+              markApplicationSeen("license", app);
+              openLicenseRecord(app);
+            }}
           />
         )
       )}
@@ -720,6 +789,7 @@ function StatusSection({
   onStatusChange,
   onMonthChange,
   onYearChange,
+  isReferenceNew,
   onOpen,
 }) {
   if (loading) {
@@ -756,6 +826,7 @@ function StatusSection({
         onOpen={onOpen}
         referenceClickable={false}
         actionMode="view"
+        isReferenceNew={isReferenceNew}
       />
     </section>
   );
@@ -1084,6 +1155,7 @@ function LicenseListSection({
   onStatusChange,
   onMonthChange,
   onYearChange,
+  isReferenceNew,
   onOpen,
 }) {
   return (
@@ -1119,9 +1191,10 @@ function LicenseListSection({
               <button
                 type="button"
                 onClick={() => onOpen(app)}
-                className="text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
+                className="inline-flex items-center gap-2 text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
               >
-                {getApplicationReference(app)}
+                <span>{getApplicationReference(app)}</span>
+                {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
               </button>
             ),
           },
@@ -1412,6 +1485,7 @@ function ApplicationTable({
   onOpen,
   referenceClickable = true,
   actionMode = "workflow",
+  isReferenceNew,
 }) {
   return (
     <PaginatedDataTable
@@ -1431,13 +1505,15 @@ function ApplicationTable({
               <button
                 type="button"
                 onClick={() => onSelect(app)}
-                className="text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
+                className="inline-flex items-center gap-2 text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
               >
-                {getApplicationReference(app)}
+                <span>{getApplicationReference(app)}</span>
+                {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
               </button>
             ) : (
-              <span className="text-[13px] font-semibold leading-5 text-emerald-700">
-                {getApplicationReference(app)}
+              <span className="inline-flex items-center gap-2 text-[13px] font-semibold leading-5 text-emerald-700">
+                <span>{getApplicationReference(app)}</span>
+                {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
               </span>
             ),
         },
@@ -1524,6 +1600,14 @@ function translatedStatus(t, status) {
   const displayStatus = getApplicantDisplayStatus(status);
 
   return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
+}
+
+function ReferenceNewBadge({ t }) {
+  return (
+    <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase leading-none text-white">
+      {t("common.new", "New")}
+    </span>
+  );
 }
 
 function getApplicationRemark(app) {
@@ -1912,6 +1996,22 @@ function isELicenseApplication(app) {
     "license_issued",
     "license_revoked",
   ].includes(normalizeStatus(app.status));
+}
+
+function isApplicantRecordNew(app, tab, seen = {}) {
+  if (!app?.id) return false;
+
+  const map = tab === "license" ? seen.eLicense : seen.status;
+  const updatedAt = getApplicationUpdatedTime(app);
+
+  return updatedAt > Number(map?.[app.id] || 0);
+}
+
+function getApplicationUpdatedTime(app) {
+  const value = app?.updated_at || app?.updatedAt || app?.modified_at || app?.created_at;
+  const time = Date.parse(value || "");
+
+  return Number.isFinite(time) ? time : 0;
 }
 
 function shouldHideApplicantAction(app) {

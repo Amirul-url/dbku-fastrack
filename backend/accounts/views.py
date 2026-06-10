@@ -285,15 +285,10 @@ def find_user_by_normalized_email(identifier):
     return None
 
 
-def find_user_for_login(identifier):
+def find_user_by_mykad_identifier(identifier):
     raw_identifier = str(identifier or "").strip()
     if not raw_identifier:
         return None
-
-    if EMAIL_PATTERN.match(raw_identifier):
-        user = find_user_by_normalized_email(raw_identifier)
-        if user:
-            return user
 
     normalized_identifier = normalize_mykad_identifier(raw_identifier)
     user = (
@@ -313,6 +308,31 @@ def find_user_for_login(identifier):
             return user
 
     return None
+
+
+def find_user_by_mobile_number(identifier):
+    requested_numbers = phone_number_variants(identifier)
+    if not requested_numbers:
+        return None
+
+    for user in User.objects.exclude(mobile_number=""):
+        if phone_number_variants(user.mobile_number) & requested_numbers:
+            return user
+
+    return None
+
+
+def find_user_for_login(identifier):
+    raw_identifier = str(identifier or "").strip()
+    if not raw_identifier:
+        return None
+
+    if EMAIL_PATTERN.match(raw_identifier):
+        user = find_user_by_normalized_email(raw_identifier)
+        if user:
+            return user
+
+    return find_user_by_mykad_identifier(raw_identifier)
 
 
 def format_whatsapp_recipient(value):
@@ -446,6 +466,8 @@ def register_view(request):
     data = request.data
 
     username = normalize_mykad_identifier(data.get("username", ""))
+    mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
+    mobile_number = clean_mobile_number(data.get("mobile_number", ""))
     email = normalize_email_address(data.get("email", ""))
     password = data.get("password", "")
     password2 = data.get("password2", "")
@@ -498,15 +520,21 @@ def register_view(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    if User.objects.filter(username=username).exists():
+    if find_user_by_mykad_identifier(mykad_number or username):
         return Response(
-            {"error": "Username already exists."},
+            {"error": "This MyKad Number is already registered. Please login or use another MyKad Number."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if User.objects.filter(email=email).exists():
+    if find_user_by_mobile_number(mobile_number):
         return Response(
-            {"error": "Email already exists."},
+            {"error": "This mobile number is already registered. Please login or use another mobile number."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if find_user_by_normalized_email(email):
+        return Response(
+            {"error": "This email address is already registered. Please login or use another email address."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -517,8 +545,8 @@ def register_view(request):
     )
 
     user.role = "applicant"
-    user.mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
-    user.mobile_number = clean_mobile_number(data.get("mobile_number", ""))
+    user.mykad_number = mykad_number or username
+    user.mobile_number = mobile_number
     user.address_line1 = str(data.get("address_line1", "")).strip()
     user.address_line2 = str(data.get("address_line2", "")).strip()
     user.postcode = str(data.get("postcode", "")).strip()
@@ -551,6 +579,12 @@ def login_view(request):
     password = request.data.get("password", "")
 
     login_user = find_user_for_login(username)
+    if login_user is None:
+        return Response(
+            {"error": "This account does not exist. Please register first."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
     auth_username = login_user.username if login_user else username
     user = authenticate(username=auth_username, password=password)
 

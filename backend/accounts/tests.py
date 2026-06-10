@@ -171,6 +171,90 @@ class ManagedAccountImportTests(TestCase):
         self.assertIsNone(second_session.logout_at)
         self.assertIsNone(second_session.duration_seconds)
 
+    @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
+    def test_registration_rejects_existing_mykad_number(self):
+        User.objects.create_user(
+            username="020215-13-0135",
+            password="Password123",
+            role="applicant",
+        )
+
+        response = APIClient().post(
+            "/api/auth/register/",
+            {
+                "username": "020215130135",
+                "mykad_number": "020215130135",
+                "email": "new-mykad@example.com",
+                "mobile_number": "0171112222",
+                "password": "Password123",
+                "password2": "Password123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("MyKad Number is already registered", response.data["error"])
+
+    @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
+    def test_registration_rejects_existing_mobile_number(self):
+        User.objects.create_user(
+            username="020215130136",
+            password="Password123",
+            role="applicant",
+            mobile_number="+60 17-515 1829",
+        )
+
+        response = APIClient().post(
+            "/api/auth/register/",
+            {
+                "username": "020215130137",
+                "mykad_number": "020215130137",
+                "email": "new-mobile@example.com",
+                "mobile_number": "0175151829",
+                "password": "Password123",
+                "password2": "Password123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("mobile number is already registered", response.data["error"])
+
+    @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
+    def test_registration_rejects_existing_email_case_insensitive(self):
+        User.objects.create_user(
+            username="020215130138",
+            password="Password123",
+            role="applicant",
+            email="Existing@Example.COM",
+        )
+
+        response = APIClient().post(
+            "/api/auth/register/",
+            {
+                "username": "020215130139",
+                "mykad_number": "020215130139",
+                "email": "existing@example.com",
+                "mobile_number": "0173334444",
+                "password": "Password123",
+                "password2": "Password123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("email address is already registered", response.data["error"])
+
+    def test_login_rejects_unregistered_mykad_before_password_check(self):
+        response = APIClient().post(
+            "/api/auth/login/",
+            {"username": "020215130140", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["error"], "This account does not exist. Please register first.")
+
     def test_superadmin_account_list_includes_login_sessions(self):
         superadmin = User.objects.get(username="superadmin")
         superadmin.role = "superadmin"

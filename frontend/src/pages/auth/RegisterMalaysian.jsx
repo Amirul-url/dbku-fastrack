@@ -26,6 +26,28 @@ const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
 const ADDRESS_MAX_LENGTH = 150;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MYKAD_PATTERN = /^\d{12}$/;
+const PASSWORD_RULES = [
+  {
+    key: "length",
+    labelKey: "auth.passwordRuleLength",
+    test: (value) => value.length >= 8,
+  },
+  {
+    key: "case",
+    labelKey: "auth.passwordRuleCase",
+    test: (value) => /[a-z]/.test(value) && /[A-Z]/.test(value),
+  },
+  {
+    key: "number",
+    labelKey: "auth.passwordRuleNumber",
+    test: (value) => /\d/.test(value),
+  },
+  {
+    key: "symbol",
+    labelKey: "auth.passwordRuleSymbol",
+    test: (value) => /[^A-Za-z0-9]/.test(value),
+  },
+];
 
 function uppercaseNameInput(value) {
   return String(value || "").toUpperCase();
@@ -175,6 +197,95 @@ function FieldError({ id, message }) {
     <p id={id} className="mt-1.5 text-xs font-semibold text-red-600">
       {message}
     </p>
+  );
+}
+
+function getPasswordStrength(password) {
+  const passedCount = PASSWORD_RULES.filter((rule) => rule.test(password)).length;
+
+  if (!password) {
+    return {
+      percent: 0,
+      labelKey: "auth.passwordStrengthEmpty",
+      barClass: "bg-slate-300",
+      textClass: "text-slate-500",
+    };
+  }
+
+  if (passedCount <= 1) {
+    return {
+      percent: 25,
+      labelKey: "auth.passwordStrengthWeak",
+      barClass: "bg-red-500",
+      textClass: "text-red-700",
+    };
+  }
+
+  if (passedCount === 2) {
+    return {
+      percent: 50,
+      labelKey: "auth.passwordStrengthFair",
+      barClass: "bg-amber-500",
+      textClass: "text-amber-700",
+    };
+  }
+
+  if (passedCount === 3) {
+    return {
+      percent: 75,
+      labelKey: "auth.passwordStrengthStrong",
+      barClass: "bg-emerald-500",
+      textClass: "text-emerald-700",
+    };
+  }
+
+  return {
+    percent: 100,
+    labelKey: "auth.passwordStrengthVeryStrong",
+    barClass: "bg-[#00a65a]",
+    textClass: "text-slate-900",
+  };
+}
+
+function PasswordStrengthMeter({ password, t }) {
+  const strength = getPasswordStrength(password);
+
+  return (
+    <div className="max-w-xl space-y-3 pt-1">
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <span className="font-semibold text-slate-600">
+          {t("auth.passwordStrength")}
+        </span>
+        <span className={`font-semibold ${strength.textClass}`}>
+          {t(strength.labelKey)}
+        </span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${strength.barClass}`}
+          style={{ width: `${strength.percent}%` }}
+        />
+      </div>
+      <div className="space-y-2">
+        {PASSWORD_RULES.map((rule) => {
+          const passed = rule.test(password);
+
+          return (
+            <div key={rule.key} className="flex items-center gap-3 text-sm text-slate-700">
+              <span
+                className={`material-symbols-outlined text-[22px] ${
+                  passed ? "text-[#00a65a]" : "text-slate-300"
+                }`}
+                aria-hidden="true"
+              >
+                {passed ? "check_circle" : "radio_button_unchecked"}
+              </span>
+              <span>{t(rule.labelKey)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -371,14 +482,27 @@ function RegisterMalaysian() {
   const getRegistrationServerError = (message) => {
     const normalized = String(message || "").toLowerCase();
 
-    if (normalized.includes("username already exists")) {
+    if (
+      normalized.includes("username already exists") ||
+      (normalized.includes("mykad") && normalized.includes("registered"))
+    ) {
       return {
         message: t("auth.validation.summary"),
         fieldErrors: { mykadNumber: t("auth.validation.mykadExists") },
       };
     }
 
-    if (normalized.includes("email already exists")) {
+    if (normalized.includes("mobile") && normalized.includes("registered")) {
+      return {
+        message: t("auth.validation.summary"),
+        fieldErrors: { mobileNumber: t("auth.validation.mobileExists") },
+      };
+    }
+
+    if (
+      normalized.includes("email already exists") ||
+      (normalized.includes("email") && normalized.includes("registered"))
+    ) {
       return {
         message: t("auth.validation.summary"),
         fieldErrors: { email: t("auth.validation.emailExists") },
@@ -796,7 +920,7 @@ function RegisterMalaysian() {
               </div>
 
               <div className="grid grid-cols-4 gap-4">
-                <div>
+                <div className="col-span-2">
                   <RequiredLabel>
                     {t("auth.password")}
                   </RequiredLabel>
@@ -822,7 +946,7 @@ function RegisterMalaysian() {
                   <FieldError id="password-error" message={fieldErrors.password} />
                 </div>
 
-                <div>
+                <div className="col-span-2">
                   <RequiredLabel>
                     {t("auth.confirmPassword")}
                   </RequiredLabel>
@@ -846,6 +970,10 @@ function RegisterMalaysian() {
                     </button>
                   </div>
                   <FieldError id="confirmPassword-error" message={fieldErrors.confirmPassword} />
+                </div>
+
+                <div className="col-span-4">
+                  <PasswordStrengthMeter password={form.password} t={t} />
                 </div>
 
                 <div className="col-span-4">

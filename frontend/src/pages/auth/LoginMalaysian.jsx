@@ -46,6 +46,10 @@ function LoginMalaysian() {
   const getLoginErrorMessage = (message) => {
     const normalized = String(message || "").toLowerCase();
 
+    if (normalized.includes("account does not exist") || normalized.includes("register first")) {
+      return t("auth.loginAccountNotFound");
+    }
+
     if (
       normalized.includes("invalid credentials") ||
       normalized.includes("no active account")
