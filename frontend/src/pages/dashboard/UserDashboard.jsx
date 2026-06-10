@@ -67,9 +67,11 @@ function UserDashboard() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterYear, setFilterYear] = useState("all");
+  const [statusSearch, setStatusSearch] = useState("");
   const [statusFilterStatus, setStatusFilterStatus] = useState("all");
   const [statusFilterMonth, setStatusFilterMonth] = useState("all");
   const [statusFilterYear, setStatusFilterYear] = useState("all");
+  const [licenseSearch, setLicenseSearch] = useState("");
   const [licenseFilterStatus, setLicenseFilterStatus] = useState("all");
   const [licenseFilterMonth, setLicenseFilterMonth] = useState("all");
   const [licenseFilterYear, setLicenseFilterYear] = useState("all");
@@ -171,6 +173,7 @@ function UserDashboard() {
 
   const filteredSubmittedApplications = useMemo(() => {
     return filterDashboardApplications(submittedApplications, {
+      search: statusSearch,
       status: statusFilterStatus,
       month: statusFilterMonth,
       year: statusFilterYear,
@@ -179,6 +182,7 @@ function UserDashboard() {
     });
   }, [
     language,
+    statusSearch,
     statusFilterMonth,
     statusFilterStatus,
     statusFilterYear,
@@ -188,6 +192,7 @@ function UserDashboard() {
 
   const filteredELicenseApplications = useMemo(() => {
     return filterDashboardApplications(eLicenseApplications, {
+      search: licenseSearch,
       status: licenseFilterStatus,
       month: licenseFilterMonth,
       year: licenseFilterYear,
@@ -197,6 +202,7 @@ function UserDashboard() {
   }, [
     eLicenseApplications,
     language,
+    licenseSearch,
     licenseFilterMonth,
     licenseFilterStatus,
     licenseFilterYear,
@@ -244,7 +250,11 @@ function UserDashboard() {
   }
 
   function openApplication(app) {
-    navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?id=${app.id}`);
+    const params = new URLSearchParams({ id: String(app.id) });
+    if (activeSection === "status") {
+      params.set("returnTab", "status");
+    }
+    navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?${params.toString()}`);
   }
 
   function openLicenseRecord(app) {
@@ -392,6 +402,7 @@ function UserDashboard() {
         <PageHeader
           title={pageHeader.title}
           description={pageHeader.description}
+          descriptionClassName={pageHeader.descriptionClassName}
         />
       )}
 
@@ -435,11 +446,13 @@ function UserDashboard() {
           loading={loading}
           t={t}
           language={language}
+          search={statusSearch}
           status={statusFilterStatus}
           month={statusFilterMonth}
           year={statusFilterYear}
           years={applicationYearOptions}
           statuses={submittedStatusOptions}
+          onSearch={setStatusSearch}
           onStatusChange={setStatusFilterStatus}
           onMonthChange={setStatusFilterMonth}
           onYearChange={setStatusFilterYear}
@@ -467,11 +480,13 @@ function UserDashboard() {
             loading={loading}
             t={t}
             language={language}
+            search={licenseSearch}
             status={licenseFilterStatus}
             month={licenseFilterMonth}
             year={licenseFilterYear}
             years={applicationYearOptions}
             statuses={eLicenseStatusOptions}
+            onSearch={setLicenseSearch}
             onStatusChange={setLicenseFilterStatus}
             onMonthChange={setLicenseFilterMonth}
             onYearChange={setLicenseFilterYear}
@@ -578,28 +593,7 @@ function ApplicationsSection({
   return (
     <section className="space-y-4">
       <div className="rounded-md border border-slate-200 bg-white p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-slate-950">
-              {t("applicant.tabApplications")}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {t("applicant.myApplicationsDesc")}
-            </p>
-          </div>
-          <Link
-            to="/applications/new"
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#006d32] px-4 py-2 text-sm font-semibold !text-white hover:bg-[#005224]"
-            style={{ color: "#fff" }}
-          >
-            <span className="material-symbols-outlined text-[20px] text-white">add</span>
-            <span className="text-white">{t("common.newApplication")}</span>
-          </Link>
-        </div>
-      </div>
-
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t("common.searchAndFilter")}
@@ -609,20 +603,30 @@ function ApplicationsSection({
             </p>
           </div>
 
-          {hasActiveFilter && (
-            <button
-              type="button"
-              onClick={() => {
-                onSearch("");
-                onStatusChange("all");
-                onMonthChange("all");
-                onYearChange("all");
-              }}
-              className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {hasActiveFilter && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSearch("");
+                  onStatusChange("all");
+                  onMonthChange("all");
+                  onYearChange("all");
+                }}
+                className="min-h-10 px-2 text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+              >
+                {t("common.clearFilters")}
+              </button>
+            )}
+            <Link
+              to="/applications/new"
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-[#006d32] px-4 py-2 text-sm font-semibold !text-white hover:bg-[#005224]"
+              style={{ color: "#fff" }}
             >
-              {t("common.clearFilters")}
-            </button>
-          )}
+              <span className="material-symbols-outlined text-[20px] text-white">add</span>
+              <span className="text-white">{t("common.newApplication")}</span>
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_180px]">
@@ -706,11 +710,13 @@ function StatusSection({
   loading,
   t,
   language,
+  search,
   status,
   month,
   year,
   years,
   statuses,
+  onSearch,
   onStatusChange,
   onMonthChange,
   onYearChange,
@@ -729,11 +735,13 @@ function StatusSection({
       <DashboardTableFilters
         t={t}
         language={language}
+        search={search}
         status={status}
         month={month}
         year={year}
         years={years}
         statuses={statuses}
+        onSearch={onSearch}
         onStatusChange={onStatusChange}
         onMonthChange={onMonthChange}
         onYearChange={onYearChange}
@@ -746,6 +754,8 @@ function StatusSection({
         emptyText={t("applicant.noApplicationSubmitted")}
         onSelect={onOpen}
         onOpen={onOpen}
+        referenceClickable={false}
+        actionMode="view"
       />
     </section>
   );
@@ -1064,11 +1074,13 @@ function LicenseListSection({
   loading,
   t,
   language,
+  search,
   status,
   month,
   year,
   years,
   statuses,
+  onSearch,
   onStatusChange,
   onMonthChange,
   onYearChange,
@@ -1076,23 +1088,16 @@ function LicenseListSection({
 }) {
   return (
     <section className="space-y-4">
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-slate-950">
-          {t("applicant.licenseSectionTitle")}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          {t("applicant.licenseSectionDescription")}
-        </p>
-      </div>
-
       <DashboardTableFilters
         t={t}
         language={language}
+        search={search}
         status={status}
         month={month}
         year={year}
         years={years}
         statuses={statuses}
+        onSearch={onSearch}
         onStatusChange={onStatusChange}
         onMonthChange={onMonthChange}
         onYearChange={onYearChange}
@@ -1108,41 +1113,69 @@ function LicenseListSection({
           {
             key: "reference",
             label: t("common.reference"),
+            className: "w-[9%]",
+            cellClassName: "w-[9%] whitespace-nowrap text-[13px]",
             render: (app) => (
               <button
                 type="button"
                 onClick={() => onOpen(app)}
-                className="font-semibold text-emerald-700 hover:underline"
+                className="text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
               >
                 {getApplicationReference(app)}
               </button>
             ),
           },
-          { key: "project", label: t("common.project"), render: getProjectName },
+          {
+            key: "project",
+            label: t("common.project"),
+            className: "w-[30%]",
+            cellClassName: "w-[30%] text-[13px]",
+            render: (app) => (
+              <span className="block max-w-[34rem] whitespace-normal text-[13px] leading-5">
+                {getProjectName(app)}
+              </span>
+            ),
+          },
           {
             key: "status",
             label: t("common.status"),
+            className: "w-[12%]",
+            cellClassName: "w-[12%] text-[13px]",
             render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
           },
           {
             key: "payment",
             label: t("common.paymentStatus", "Payment Status"),
-            render: (app) => getPaymentStatusText(app, t),
+            className: "w-[11%]",
+            cellClassName: "w-[11%] text-[13px]",
+            render: (app) => (
+              <span className="block whitespace-normal text-[13px] leading-5">
+                {getPaymentStatusText(app, t)}
+              </span>
+            ),
           },
           {
             key: "license",
             label: t("common.eLicense", "E-License"),
-            render: (app) => app.form_data?.license?.status || t("applicant.qrLicensePending"),
+            className: "w-[30%]",
+            cellClassName: "w-[30%] text-[13px]",
+            render: (app) => (
+              <span className="block max-w-[34rem] whitespace-normal text-[13px] leading-5">
+                {app.form_data?.license?.status || t("applicant.qrLicensePending")}
+              </span>
+            ),
           },
           {
             key: "action",
             label: t("common.action"),
+            className: "w-[8%]",
+            cellClassName: "w-[8%] text-[13px]",
             render: (app) => (
               <Button
                 type="button"
                 variant="secondary"
                 icon="open_in_new"
-                className="min-h-8 px-3 py-1 text-xs"
+                className="min-h-8 px-3 py-1 text-[13px]"
                 onClick={() => onOpen(app)}
               >
                 {t("common.open", "Open")}
@@ -1189,16 +1222,18 @@ function EmptyLicenseSection({ t }) {
 function DashboardTableFilters({
   t,
   language,
+  search = "",
   status,
   month,
   year,
   years,
   statuses,
+  onSearch,
   onStatusChange,
   onMonthChange,
   onYearChange,
 }) {
-  const hasActiveFilter = status !== "all" || month !== "all" || year !== "all";
+  const hasActiveFilter = Boolean(search.trim()) || status !== "all" || month !== "all" || year !== "all";
 
   return (
     <div className="rounded-md border border-slate-200 bg-white p-4">
@@ -1208,7 +1243,7 @@ function DashboardTableFilters({
             {t("common.searchAndFilter")}
           </h3>
           <p className="mt-1 text-xs text-slate-500">
-            {t("applicant.statusDateFilterHint", "Filter records by status, application month, and application year.")}
+            {t("applicant.searchFilterHint", "Filter records by keyword, status, application month, and application year.")}
           </p>
         </div>
 
@@ -1216,6 +1251,7 @@ function DashboardTableFilters({
           <button
             type="button"
             onClick={() => {
+              onSearch?.("");
               onStatusChange("all");
               onMonthChange("all");
               onYearChange("all");
@@ -1227,7 +1263,25 @@ function DashboardTableFilters({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_180px]">
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+            {t("common.keyword")}
+          </span>
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400">
+              search
+            </span>
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => onSearch?.(event.target.value)}
+              placeholder={t("applicant.searchPlaceholder")}
+              className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            />
+          </div>
+        </label>
+
         <StatusFilterSelect
           value={status}
           options={statuses}
@@ -1356,6 +1410,8 @@ function ApplicationTable({
   emptyText,
   onSelect,
   onOpen,
+  referenceClickable = true,
+  actionMode = "workflow",
 }) {
   return (
     <PaginatedDataTable
@@ -1368,37 +1424,53 @@ function ApplicationTable({
         {
           key: "reference",
           label: t("common.reference"),
-          render: (app) => (
-            <button
-              type="button"
-              onClick={() => onSelect(app)}
-              className="font-semibold text-emerald-700 hover:underline"
-            >
-              {getApplicationReference(app)}
-            </button>
-          ),
+          className: "w-[9%]",
+          cellClassName: "w-[9%] whitespace-nowrap text-[13px]",
+          render: (app) =>
+            referenceClickable ? (
+              <button
+                type="button"
+                onClick={() => onSelect(app)}
+                className="text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
+              >
+                {getApplicationReference(app)}
+              </button>
+            ) : (
+              <span className="text-[13px] font-semibold leading-5 text-emerald-700">
+                {getApplicationReference(app)}
+              </span>
+            ),
         },
         {
           key: "project",
           label: t("common.project"),
           className: "w-[28%]",
+          cellClassName: "w-[28%] text-[13px]",
           render: (app) => (
-            <span className="block max-w-[34rem] whitespace-normal leading-5">
+            <span className="block max-w-[34rem] whitespace-normal text-[13px] leading-5">
               {getProjectName(app)}
             </span>
           ),
         },
-        { key: "type", label: t("common.type"), className: "w-[10%]", render: (app) => getApplicationType(app, language) },
+        {
+          key: "type",
+          label: t("common.type"),
+          className: "w-[13%]",
+          cellClassName: "w-[13%] text-[13px] leading-5",
+          render: (app) => getApplicationType(app, language),
+        },
         {
           key: "status",
           label: t("common.status"),
           className: "w-[12%]",
+          cellClassName: "w-[12%] text-[13px]",
           render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
         },
         {
           key: "remarks",
           label: t("common.remarks", "Remarks"),
-          className: "w-[22%]",
+          className: "w-[18%]",
+          cellClassName: "w-[18%] text-[13px]",
           render: (app) => (
             <span className="block max-w-[24rem] whitespace-normal text-[13px] leading-5 text-slate-600">
               {getApplicationRemark(app) || "-"}
@@ -1408,9 +1480,10 @@ function ApplicationTable({
         {
           key: "updated",
           label: t("common.updated"),
-          className: "w-[12%]",
+          className: "w-[13%]",
+          cellClassName: "w-[13%] text-[13px]",
           render: (app) => (
-            <span className="whitespace-nowrap text-[12px] leading-5">
+            <span className="whitespace-nowrap text-[13px] leading-5">
               {formatCompactDateTime(app.updated_at)}
             </span>
           ),
@@ -1418,16 +1491,27 @@ function ApplicationTable({
         {
           key: "action",
           label: t("common.action"),
-          className: "w-[8%]",
+          className: "w-[7%]",
+          cellClassName: "w-[7%] text-[13px]",
           render: (app) => (
-            !shouldHideApplicantAction(app) && (
+            actionMode === "view" ? (
               <button
                 type="button"
                 onClick={() => onOpen(app)}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-[13px] font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+              >
+                {t("common.view", "View")}
+              </button>
+            ) : (
+              !shouldHideApplicantAction(app) && (
+              <button
+                type="button"
+                onClick={() => onOpen(app)}
+                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-[13px] font-semibold leading-5 text-slate-700 hover:bg-slate-50"
               >
                 {t(getApplicantActionKey(app))}
               </button>
+              )
             )
           ),
         },
@@ -2732,6 +2816,7 @@ function getDashboardHeader(activeSection, t) {
     return {
       title: t("applicant.applicationsSectionTitle"),
       description: t("applicant.applicationsSectionDescription"),
+      descriptionClassName: "max-w-none lg:whitespace-nowrap",
     };
   }
 

@@ -19,6 +19,7 @@ from config.throttles import UploadRateThrottle
 from notifications.services import (
     apply_license_renewal_action,
     normalize_department,
+    notify_applicant_application_submitted,
     notify_application_status_change,
 )
 
@@ -253,6 +254,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_form_data = deepcopy(serializer.instance.form_data or {})
         self.ensure_staff_can_update_workflow(serializer.instance)
         application = serializer.save()
+        if (
+            self.request.user.role not in STAFF_ROLES
+            and str(old_status or "").strip().lower() != "submitted"
+            and str(application.status or "").strip().lower() == "submitted"
+        ):
+            notify_applicant_application_submitted(application)
         if self.request.user.role not in STAFF_ROLES:
             activity_title, activity_description = get_applicant_activity_message(
                 application,
@@ -588,6 +595,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             "Application submitted",
             "The applicant submitted the application for review.",
         )
+        notify_applicant_application_submitted(application)
         notify_application_status_change(application, old_status, old_remark)
 
         return Response(

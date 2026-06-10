@@ -640,6 +640,7 @@ function SittingApplicationPage({
     );
     const technicalDepartments = getApplicationTypeDepartments(selectedTypes);
     const calculatedPayable = getAdvertisementRowsTotalPayable(calculatedAdvertisementRows);
+    const selectedProjectAddress = mapData.address || localityAddress;
     const savedSiteImageAttachments = siteImages
       .filter((image) => !image.file && image.attachment)
       .map((image) => image.attachment);
@@ -670,7 +671,7 @@ function SittingApplicationPage({
           tel_no: telNo,
           width_ft: primaryAdvertisementRow?.widthFt || "",
           height_ft: primaryAdvertisementRow?.heightFt || "",
-          locality_address: localityAddress,
+          locality_address: selectedProjectAddress,
           area_required: primaryAdvertisementRow?.areaRequired || "",
           area_unit: "",
           total_scheme_value: totalSchemeValue,
@@ -680,7 +681,7 @@ function SittingApplicationPage({
           amount_fund_available: amountFundAvailable,
           amount_fund_approved: calculatedPayable,
 
-          map_address: mapData.address,
+          map_address: selectedProjectAddress,
           latitude: mapData.latitude,
           longitude: mapData.longitude,
 
@@ -709,14 +710,6 @@ function SittingApplicationPage({
         body: JSON.stringify(payload),
       }
     );
-  }
-
-  function handleLocalityAddressChange(nextAddress) {
-    setLocalityAddress(nextAddress);
-    setMapData((prev) => ({
-      ...prev,
-      address: nextAddress,
-    }));
   }
 
   function handleMapDataChange(nextMapData) {
@@ -857,7 +850,7 @@ function SittingApplicationPage({
       !applicant.trim() ||
       !contactPerson.trim() ||
       !telNo.trim() ||
-      !localityAddress.trim() ||
+      !String(mapData.address || localityAddress).trim() ||
       !totalSchemeValue.trim() ||
       !amountFundAvailable.trim() ||
       !projectJustification.trim() ||
@@ -1038,14 +1031,6 @@ function SittingApplicationPage({
                   />
                 </Field>
               </div>
-
-              <Field label={tx("localityAddress")} required>
-                <input
-                  className="spa-input"
-                  value={localityAddress}
-                  onChange={(e) => handleLocalityAddressChange(e.target.value)}
-                />
-              </Field>
 
               <LocationMap
                 value={mapData}

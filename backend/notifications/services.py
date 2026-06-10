@@ -150,6 +150,8 @@ STATUS_UI = {
 }
 
 APPLICANT_NOTIFICATION_STATUSES = {
+    "registration_success",
+    "applicant_submitted",
     "submitted",
     "incomplete",
     "rejected",
@@ -198,7 +200,7 @@ def notify_application_status_change(
     old_remark=None,
     old_form_data=None,
 ):
-    if not NOTIFICATION_SIDE_EFFECTS_ENABLED:
+    if not notification_side_effects_enabled():
         return
 
     new_status = str(application.status or "").strip().lower()
@@ -234,7 +236,7 @@ def notify_application_status_change(
 
 
 def notify_account_created(account, created_by=None):
-    if not NOTIFICATION_SIDE_EFFECTS_ENABLED:
+    if not notification_side_effects_enabled():
         return
 
     if not getattr(account, "pk", None):
@@ -254,6 +256,110 @@ def notify_account_created(account, created_by=None):
             subject=subject,
             message=message,
             metadata=metadata,
+        )
+
+
+def notify_applicant_registration_success(account):
+    if not getattr(account, "pk", None):
+        return
+
+    role = normalize_account_role(getattr(account, "role", ""))
+    if role != "applicant":
+        return
+
+    subject, message, metadata = build_applicant_registration_success_message(account)
+    event_key = f"account:{account.pk}:registration_success"
+
+    create_and_send_delivery(
+        application=None,
+        event_key=event_key,
+        user=account,
+        recipient_role="applicant",
+        channel="web",
+        recipient=get_web_recipient(account),
+        subject=subject,
+        message=message,
+        metadata=metadata,
+        force=True,
+    )
+
+    email = normalize_email(getattr(account, "email", ""))
+    if email:
+        create_and_send_delivery(
+            application=None,
+            event_key=event_key,
+            user=account,
+            recipient_role="applicant",
+            channel="email",
+            recipient=email,
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
+        )
+
+    phone = normalize_phone(getattr(account, "mobile_number", ""))
+    if phone:
+        create_and_send_delivery(
+            application=None,
+            event_key=event_key,
+            user=account,
+            recipient_role="applicant",
+            channel="whatsapp",
+            recipient=phone,
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
+        )
+
+
+def notify_applicant_application_submitted(application):
+    if not getattr(application, "pk", None) or not getattr(application, "applicant_id", None):
+        return
+
+    subject, message, metadata = build_applicant_application_submitted_message(application)
+    event_key = f"application:{application.pk}:applicant_submitted"
+
+    create_and_send_delivery(
+        application=application,
+        event_key=event_key,
+        user=application.applicant,
+        recipient_role="applicant",
+        channel="web",
+        recipient=get_web_recipient(application.applicant),
+        subject=subject,
+        message=message,
+        metadata=metadata,
+        force=True,
+    )
+
+    for email in get_applicant_emails(application):
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=application.applicant,
+            recipient_role="applicant",
+            channel="email",
+            recipient=email,
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
+        )
+
+    for phone in get_applicant_whatsapp_numbers(application):
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=application.applicant,
+            recipient_role="applicant",
+            channel="whatsapp",
+            recipient=phone,
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
         )
 
 
@@ -493,6 +599,78 @@ def build_account_created_message(account, created_by=None):
         "account_name": account_name,
         "account_username": username,
         "action_url": get_account_management_url(role),
+    }
+
+    return subject, "\n".join(lines), metadata
+
+
+def build_applicant_registration_success_message(account):
+    account_name = normalize_account_name(account)
+    username = str(getattr(account, "username", "") or "").strip()
+    title = "Account registration successful"
+    body = "Your ALiS account has been registered successfully. You can now log in and submit advertisement license applications."
+    subject = f"{APP_BRAND_NAME} - {title}"
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        title,
+        f"Name: {account_name}",
+    ]
+
+    if username:
+        lines.append(f"Login ID: {username}")
+
+    lines.extend(["", body])
+
+    metadata = {
+        "category": "account",
+        "type": "success",
+        "title": title,
+        "title_en": title,
+        "message": body,
+        "message_en": body,
+        "recipient_role": "applicant",
+        "event_status": "registration_success",
+        "account_id": account.pk,
+        "account_role": "applicant",
+        "account_name": account_name,
+        "account_username": username,
+        "action_url": "/login",
+    }
+
+    return subject, "\n".join(lines), metadata
+
+
+def build_applicant_application_submitted_message(application):
+    reference = getattr(application, "reference_no", "") or "-"
+    title = str(getattr(application, "title", "") or "").strip() or "Application"
+    subject = f"{APP_BRAND_NAME} - Application submitted ({reference})"
+    body = (
+        f"Your application {reference} has been submitted successfully. "
+        "ALiS will review your application and notify you when there is an update."
+    )
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        "Application submitted successfully",
+        f"Reference: {reference}",
+        f"Project: {title}",
+        "",
+        body,
+    ]
+    metadata = {
+        "category": "submission",
+        "type": "success",
+        "title": "Application submitted successfully",
+        "title_en": "Application submitted successfully",
+        "message": body,
+        "message_en": body,
+        "recipient_role": "applicant",
+        "event_status": "applicant_submitted",
+        "application_id": application.pk,
+        "reference_no": reference,
+        "project_title": title,
+        "action_url": f"/applications/{application.pk}",
     }
 
     return subject, "\n".join(lines), metadata
@@ -1264,6 +1442,7 @@ def get_applicant_whatsapp_numbers(application):
             get_nested(form_data, "step_3", "mobile_no"),
         ),
         get_nested(form_data, "step_1", "tel_no"),
+        getattr(application.applicant, "mobile_number", ""),
     ]
 
     return [value for value in dedupe_values(normalize_phone(value) for value in candidates) if value]
@@ -1687,6 +1866,14 @@ def get_admin_whatsapp_numbers():
     ]
 
 
+def notification_side_effects_enabled():
+    return getattr(
+        settings,
+        "NOTIFICATION_SIDE_EFFECTS_ENABLED",
+        NOTIFICATION_SIDE_EFFECTS_ENABLED,
+    )
+
+
 def create_and_send_delivery(
     application,
     event_key,
@@ -1697,8 +1884,9 @@ def create_and_send_delivery(
     subject,
     message,
     metadata=None,
+    force=False,
 ):
-    if not NOTIFICATION_SIDE_EFFECTS_ENABLED:
+    if not force and not notification_side_effects_enabled():
         return
 
     try:

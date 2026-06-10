@@ -10,6 +10,8 @@ from applications.models import Application
 
 from .models import NotificationDelivery
 from .services import (
+    notify_applicant_application_submitted,
+    notify_applicant_registration_success,
     notify_account_created,
     notify_application_status_change,
     process_license_renewal_reminders,
@@ -47,6 +49,7 @@ class NotificationSenderDefaultsTests(TestCase):
 
 
 @override_settings(
+    NOTIFICATION_SIDE_EFFECTS_ENABLED=True,
     NOTIFICATION_EMAIL_ENABLED=False,
     WHATSAPP_ENABLED=False,
     NOTIFICATION_ADMIN_EMAILS=["admin-notify@sample.com"],
@@ -90,6 +93,15 @@ class NotificationRoutingTests(TestCase):
         notify_application_status_change(self.application, old_status)
 
     def test_submitted_notifies_applicant_and_admin(self):
+        User.objects.create_user(
+            username="ku-submitted",
+            email="ku-submitted@sample.com",
+            password="Password123",
+            mobile_number="0161112222",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
         self.notify_status("submitted")
 
         applicant_channels = set(
@@ -107,18 +119,42 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
         self.assertEqual(admin_channels, {"web", "email", "whatsapp"})
 
-    def test_notification_endpoint_includes_registered_pt_ikl_contact(self):
+    def test_submitted_uses_registered_applicant_mobile_when_form_phone_is_empty(self):
+        self.application.form_data = {}
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("submitted")
+
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                channel="whatsapp",
+                recipient="60175151829",
+                metadata__event_status="submitted",
+            ).exists()
+        )
+
+    def test_notification_endpoint_includes_registered_ku_ikl_contact(self):
+        ku_admin = User.objects.create_user(
+            username="ku-admin",
+            email="ku-admin@sample.com",
+            password="Password123",
+            mobile_number="0161112222",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
         self.notify_status("submitted")
 
         client = APIClient()
-        client.force_authenticate(user=self.admin)
+        client.force_authenticate(user=ku_admin)
         response = client.get("/api/notifications/")
 
         self.assertEqual(response.status_code, 200)
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["recipient_email"], "admin@sample.com")
-        self.assertEqual(data[0]["recipient_mobile_number"], "0168889999")
+        self.assertEqual(data[0]["recipient_email"], "ku-admin@sample.com")
+        self.assertEqual(data[0]["recipient_mobile_number"], "0161112222")
 
     def test_payment_request_notifies_applicant_only(self):
         self.notify_status("invoice_generated", old_status="approved")
@@ -1001,6 +1037,7 @@ class NotificationRoutingTests(TestCase):
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
 
 
+@override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=True)
 class SuperAdminAccountNotificationTests(TestCase):
     def setUp(self):
         User.objects.filter(role="superadmin").delete()
@@ -1065,7 +1102,80 @@ class SuperAdminAccountNotificationTests(TestCase):
         self.assertEqual(data[0]["metadata"]["action_url"], "/superadmin/admins")
 
 
+class ApplicantRegistrationNotificationTests(TestCase):
+    @override_settings(NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
+    def test_registration_success_creates_applicant_email_and_whatsapp_deliveries(self):
+        account = User.objects.create_user(
+            username="950101135555",
+            email="applicant@example.com",
+            password="Password123",
+            mobile_number="0175151829",
+            role="applicant",
+            first_name="NEW",
+            last_name="APPLICANT",
+        )
+
+        notify_applicant_registration_success(account)
+
+        deliveries = NotificationDelivery.objects.filter(
+            metadata__event_status="registration_success",
+            recipient_role="applicant",
+        )
+        self.assertEqual(deliveries.count(), 3)
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertEqual(NotificationDelivery.objects.get(channel="web").status, "sent")
+        self.assertEqual(set(deliveries.exclude(channel="web").values_list("status", flat=True)), {"skipped"})
+
+        client = APIClient()
+        client.force_authenticate(user=account)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["metadata"]["event_status"], "registration_success")
+
+
+class FreshApplicantSubmitNotificationTests(TestCase):
+    @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False, NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
+    def test_fresh_submit_notification_works_without_legacy_workflow_switch(self):
+        applicant = User.objects.create_user(
+            username="fresh-applicant",
+            email="fresh@example.com",
+            password="Password123",
+            mobile_number="0175151829",
+            role="applicant",
+        )
+        application = Application.objects.create(
+            applicant=applicant,
+            title="Fresh application",
+            status="submitted",
+            form_data={},
+        )
+
+        notify_applicant_application_submitted(application)
+
+        deliveries = NotificationDelivery.objects.filter(
+            metadata__event_status="applicant_submitted",
+            recipient_role="applicant",
+        )
+        self.assertEqual(deliveries.count(), 3)
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertEqual(NotificationDelivery.objects.get(channel="web").status, "sent")
+        self.assertEqual(set(deliveries.exclude(channel="web").values_list("status", flat=True)), {"skipped"})
+
+        client = APIClient()
+        client.force_authenticate(user=applicant)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["metadata"]["event_status"], "applicant_submitted")
+
+
 @override_settings(
+    NOTIFICATION_SIDE_EFFECTS_ENABLED=True,
     NOTIFICATION_EMAIL_ENABLED=False,
     WHATSAPP_ENABLED=False,
 )

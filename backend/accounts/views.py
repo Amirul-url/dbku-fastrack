@@ -28,7 +28,7 @@ from config.throttles import (
     PasswordResetVerifyRateThrottle,
     RegistrationRateThrottle,
 )
-from notifications.services import notify_account_created
+from notifications.services import notify_account_created, notify_applicant_registration_success
 from .models import LoginSession
 
 User = get_user_model()
@@ -537,6 +537,7 @@ def register_view(request):
 
     user.save()
     notify_account_created(user)
+    notify_applicant_registration_success(user)
 
     return Response(build_auth_response(user), status=status.HTTP_201_CREATED)
 

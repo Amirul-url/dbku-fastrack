@@ -12,6 +12,7 @@ import {
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
+  applicationTypeLabel,
   documentDescription,
   documentTitle,
   organisationTypeLabel,
@@ -484,43 +485,36 @@ function PrintFormPage({
                     <PrintLine no="5." label={tx("localityAddress")} value={step1.locality_address} />
                     <PrintLine
                       no="6."
-                      label={tx("projectAddressSearch")}
-                      value={step1.map_address || step1.locality_address}
-                    />
-                    <PrintLine
-                      no="7."
                       label={`${tx("latitude")} / ${tx("longitude")}`}
                       value={formatCoordinates(step1.latitude, step1.longitude)}
                     />
                     <PrintLine
-                      no="8."
+                      no="7."
                       label={tx("siteImage")}
                       value={getSiteImageNames(step1)}
                     />
-                    <PrintLine no="9." label={tx("advertisementSizeFt")} value={formatAdvertisementSize(step1)} />
-                    <PrintLine no="10." label={tx("areaRequired")} value={step1.area_required} />
+                    <PrintAdvertisementRows
+                      step1={step1}
+                      language={language}
+                      tx={tx}
+                    />
                     <PrintLine
-                      no="11."
+                      no="8."
                       label={tx("totalSchemeValue")}
                       value={formatRM(step1.total_scheme_value)}
                     />
                     <PrintLine
-                      no="12."
-                      label={tx("malaysiaPlanRm")}
-                      value={formatRM(step1.amount_fund_approved)}
-                    />
-                    <PrintLine
-                      no="13."
+                      no="9."
                       label={tx("fundAvailableNow")}
                       value={formatRM(step1.amount_fund_available)}
                     />
                     <PrintBlock
-                      no="14."
+                      no="10."
                       label={tx("projectJustification")}
                       value={stripHtml(step1.project_justification)}
                     />
                     <PrintBlock
-                      no="15."
+                      no="11."
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
@@ -539,8 +533,8 @@ function PrintFormPage({
                     <PrintLine label={tx("registrationNumber")} value={step3.registration_no} />
                     <PrintLine label={tx("organisationName")} value={step3.org_name} />
                     <PrintLine label={tx("postalAddress")} value={step3.postal_address} />
-                    <PrintLine label={tx("postcode")} value={step3.postcode} />
                     <PrintLine label={tx("address2")} value={step3.address_2} />
+                    <PrintLine label={tx("postcode")} value={step3.postcode} />
                     <PrintLine label={tx("state")} value={step3.state} />
                     <PrintLine label={tx("city")} value={step3.city} />
                     <PrintLine label={tx("countryCode")} value={step3.org_country_code} />
@@ -734,48 +728,49 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
       { no: "5.", label: tx("localityAddress"), value: step1.locality_address },
       {
         no: "6.",
-        label: tx("projectAddressSearch"),
-        value: step1.map_address || step1.locality_address,
-      },
-      {
-        no: "7.",
         label: `${tx("latitude")} / ${tx("longitude")}`,
         value: formatCoordinates(step1.latitude, step1.longitude),
       },
       {
-        no: "8.",
+        no: "7.",
         label: tx("siteImage"),
         value: getSiteImageNames(step1),
-      },
-      { no: "9.", label: tx("advertisementSizeFt"), value: formatAdvertisementSize(step1) },
-      { no: "10.", label: tx("areaRequired"), value: step1.area_required },
-      {
-        no: "11.",
-        label: tx("totalSchemeValue"),
-        value: formatRM(step1.total_scheme_value),
-      },
-      {
-        no: "12.",
-        label: tx("malaysiaPlanRm"),
-        value: formatRM(step1.amount_fund_approved),
-      },
-      {
-        no: "13.",
-        label: tx("fundAvailableNow"),
-        value: formatRM(step1.amount_fund_available),
       },
     ],
     y
   );
 
+  y = drawPdfAdvertisementRows(pdf, {
+    rows: getPrintAdvertisementRows(step1, language),
+    tx,
+    y,
+  });
+
+  y = drawPdfFieldRows(
+    pdf,
+    [
+      {
+        no: "8.",
+        label: tx("totalSchemeValue"),
+        value: formatRM(step1.total_scheme_value),
+      },
+      {
+        no: "9.",
+        label: tx("fundAvailableNow"),
+        value: formatRM(step1.amount_fund_available),
+      },
+    ],
+    y + 1
+  );
+
   y = drawPdfBlock(pdf, {
-    no: "14.",
+    no: "10.",
     label: tx("projectJustification"),
     value: stripHtml(step1.project_justification),
     y,
   });
   drawPdfBlock(pdf, {
-    no: "15.",
+    no: "11.",
     label: tx("siteSelectionReason"),
     value: stripHtml(step1.site_selection_reason),
     y,
@@ -799,8 +794,8 @@ function drawPdfPageTwo(pdf, { title, step3, tx, language }) {
       { label: tx("registrationNumber"), value: step3.registration_no },
       { label: tx("organisationName"), value: step3.org_name },
       { label: tx("postalAddress"), value: step3.postal_address },
-      { label: tx("postcode"), value: step3.postcode },
       { label: tx("address2"), value: step3.address_2 },
+      { label: tx("postcode"), value: step3.postcode },
       { label: tx("state"), value: step3.state },
       { label: tx("city"), value: step3.city },
       { label: tx("countryCode"), value: step3.org_country_code },
@@ -973,6 +968,42 @@ function drawPdfBlock(pdf, { no, label, value, y }) {
   return y + boxHeight + 4;
 }
 
+function drawPdfAdvertisementRows(pdf, { rows, tx, y }) {
+  const columns = [
+    { key: "index", title: "#", width: 8, align: "center" },
+    { key: "displayType", title: tx("displayType"), width: 28 },
+    { key: "advertisementType", title: tx("advertisementType"), width: 46 },
+    { key: "size", title: tx("advertisementSizeFt"), width: 38 },
+    { key: "area", title: tx("areaRequired"), width: 32 },
+    { key: "payable", title: tx("malaysiaPlanRm"), width: 30 },
+  ];
+
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(tx("advertisementType"), PDF_PAGE.marginX, y + 3);
+  y += 6;
+  y = drawPdfTableHeader(pdf, columns, y);
+
+  rows.forEach((row, index) => {
+    y = drawPdfTableRow(
+      pdf,
+      columns,
+      {
+        index: String(index + 1),
+        displayType: row.displayTypeLabel,
+        advertisementType: row.advertisementTypeLabel,
+        size: row.sizeLabel,
+        area: row.areaRequired || "-",
+        payable: formatRM(row.amountFundApproved),
+      },
+      y
+    );
+  });
+
+  resetPdfTextStyle(pdf);
+  return y + 2;
+}
+
 function drawPdfDocumentSummary(pdf, {
   title,
   rows,
@@ -1024,14 +1055,17 @@ function drawPdfDocumentSummary(pdf, {
       return;
     }
 
+    const letteredTitle = getLetteredDocumentTitle(language, row);
     const description = other
       ? row.description
       : row.title === TITLE_DOCUMENT_NAME
         ? row.description || stepText(language, "noLandInfo")
         : documentDescription(language, row.title, row.description);
     const values = {
-      index: String(index + 1),
-      title: documentTitle(language, row.title),
+      index: !other && letteredTitle.letter ? "" : String(index + 1),
+      title: !other && letteredTitle.letter
+        ? `${letteredTitle.letter}. ${letteredTitle.title}`
+        : documentTitle(language, row.title),
       description: description || "-",
       format: row.format || "-",
       attachment: formatAttachment(row.attachment, noAttachmentText),
@@ -1086,7 +1120,9 @@ function drawPdfTableRow(pdf, columns, values, y) {
   pdf.setFont("helvetica", "normal");
 
   const cellLines = columns.map((column) =>
-    splitPdfText(pdf, values[column.key], column.width - 3)
+    column.key === "index" && values[column.key] === ""
+      ? [""]
+      : splitPdfText(pdf, values[column.key], column.width - 3)
   );
   const rowHeight =
     Math.max(...cellLines.map((lines) => lines.length)) * 4.7 + 4;
@@ -1268,6 +1304,158 @@ function PrintBlock({ no, label, value }) {
   );
 }
 
+function PrintAdvertisementRows({ step1, language, tx }) {
+  const rows = getPrintAdvertisementRows(step1, language);
+
+  return (
+    <div
+      className="print-avoid-break"
+      style={{ fontSize: "11pt", margin: "2mm 0", width: "100%" }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: "1mm" }}>
+        {tx("advertisementType")}
+      </div>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          tableLayout: "fixed",
+        }}
+      >
+        <thead>
+          <tr>
+            <PrintTableHead style={{ width: "9mm" }}>#</PrintTableHead>
+            <PrintTableHead style={{ width: "28mm" }}>
+              {tx("displayType")}
+            </PrintTableHead>
+            <PrintTableHead>{tx("advertisementType")}</PrintTableHead>
+            <PrintTableHead style={{ width: "36mm" }}>
+              {tx("advertisementSizeFt")}
+            </PrintTableHead>
+            <PrintTableHead style={{ width: "32mm" }}>
+              {tx("areaRequired")}
+            </PrintTableHead>
+            <PrintTableHead style={{ width: "30mm" }}>
+              {tx("malaysiaPlanRm")}
+            </PrintTableHead>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`advertisement-${index}`} className="print-avoid-break">
+              <PrintTableCell center>{index + 1}</PrintTableCell>
+              <PrintTableCell>{row.displayTypeLabel}</PrintTableCell>
+              <PrintTableCell>{row.advertisementTypeLabel}</PrintTableCell>
+              <PrintTableCell>{row.sizeLabel}</PrintTableCell>
+              <PrintTableCell>{row.areaRequired || "-"}</PrintTableCell>
+              <PrintTableCell>{formatRM(row.amountFundApproved)}</PrintTableCell>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function getPrintAdvertisementRows(step1 = {}, language = "en") {
+  const selectedType = getPrimaryStepApplicationType(step1);
+  const rows = Array.isArray(step1.advertisement_rows) && step1.advertisement_rows.length
+    ? step1.advertisement_rows
+    : [
+        {
+          displayType: step1.advertisement_display_type,
+          display_type: step1.advertisement_display_type,
+          subtype: step1.application_subtype,
+          customLabel: step1.advertisement_type_custom_label,
+          custom_label: step1.advertisement_type_custom_label,
+          widthFt: step1.width_ft || step1.size_width_ft,
+          width_ft: step1.width_ft || step1.size_width_ft,
+          heightFt: step1.height_ft || step1.size_height_ft,
+          height_ft: step1.height_ft || step1.size_height_ft,
+          areaRequired: step1.area_required,
+          area_required: step1.area_required,
+          amountFundApproved: step1.amount_fund_approved,
+          amount_fund_approved: step1.amount_fund_approved,
+        },
+      ];
+
+  return rows.map((row) => {
+    const displayType = getAdvertisementDisplayType(row);
+    const subtype = String(row?.subtype || row?.application_subtype || "").trim();
+    const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
+    const adTypeSource = customLabel || subtype;
+    const translatedAdType = adTypeSource
+      ? applicationTypeLabel(language, adTypeSource)
+      : "";
+    const widthFt = row?.widthFt || row?.width_ft || "";
+    const heightFt = row?.heightFt || row?.height_ft || "";
+
+    return {
+      displayTypeLabel: getAdvertisementDisplayTypeLabel(language, displayType),
+      advertisementTypeLabel:
+        translatedAdType ||
+        getApplicationType(
+          {
+            form_data: {
+              step_1: {
+                ...step1,
+                application_type_options: [selectedType],
+                advertisement_rows: [row],
+                application_subtype: subtype,
+                advertisement_type_custom_label: customLabel,
+              },
+            },
+          },
+          language
+        ).split(" - ").slice(1).join(" - ") ||
+        "-",
+      sizeLabel: formatAdvertisementSize({ width_ft: widthFt, height_ft: heightFt }),
+      areaRequired: row?.areaRequired || row?.area_required || "",
+      amountFundApproved:
+        row?.amountFundApproved || row?.amount_fund_approved || step1.amount_fund_approved || "",
+    };
+  });
+}
+
+function getPrimaryStepApplicationType(step1 = {}) {
+  const options = Array.isArray(step1.application_type_options)
+    ? step1.application_type_options
+    : String(step1.application_type || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  return options.includes("building") ? "building" : "open_space";
+}
+
+function getAdvertisementDisplayType(row = {}) {
+  const displayType = row.displayType || row.display_type || "";
+  if (displayType === "led" || displayType === "non_led") return displayType;
+
+  const subtype = String(row.subtype || row.application_subtype || "").toLowerCase();
+  return subtype.includes("led") ? "led" : subtype ? "non_led" : "";
+}
+
+function getAdvertisementDisplayTypeLabel(language, displayType) {
+  if (displayType === "led") return stepText(language, "displayTypeLed");
+  if (displayType === "non_led") return stepText(language, "displayTypeNonLed");
+  return "-";
+}
+
+function getLetteredDocumentTitle(language, row) {
+  const title = documentTitle(language, row?.title || "");
+  const match = title.match(/^([a-d])\.\s*(.+)$/i);
+
+  if (!match) {
+    return { letter: "", title };
+  }
+
+  return {
+    letter: match[1].toLowerCase(),
+    title: match[2],
+  };
+}
+
 function mergeRequiredDocuments(requiredDocuments, legacyTitleDocuments) {
   const documents = Array.isArray(requiredDocuments) ? requiredDocuments : [];
   const titleDocuments = Array.isArray(legacyTitleDocuments)
@@ -1353,6 +1541,7 @@ function DocumentSummary({
                 );
               }
 
+              const letteredTitle = getLetteredDocumentTitle(language, row);
               const description = other
                 ? row.description
                 : row.title === TITLE_DOCUMENT_NAME
@@ -1361,9 +1550,26 @@ function DocumentSummary({
 
               return (
                 <tr key={`${title}-${index}`} className="print-avoid-break">
-                  <PrintTableCell center>{index + 1}</PrintTableCell>
+                  <PrintTableCell center>
+                    {!other && letteredTitle.letter ? "" : index + 1}
+                  </PrintTableCell>
                   <PrintTableCell>
-                    {other ? description || "-" : documentTitle(language, row.title)}
+                    {other ? (
+                      description || "-"
+                    ) : letteredTitle.letter ? (
+                      <span
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "6mm minmax(0, 1fr)",
+                          columnGap: "1.5mm",
+                        }}
+                      >
+                        <span>{letteredTitle.letter}.</span>
+                        <span>{letteredTitle.title}</span>
+                      </span>
+                    ) : (
+                      documentTitle(language, row.title)
+                    )}
                   </PrintTableCell>
                   {!other && <PrintTableCell>{description || "-"}</PrintTableCell>}
                   <PrintTableCell>{row.format || "-"}</PrintTableCell>
@@ -1411,7 +1617,7 @@ function PrintTableCell({ children, center = false, colSpan }) {
         whiteSpace: "pre-wrap",
       }}
     >
-      {children || "-"}
+      {children === "" ? "" : children || "-"}
     </td>
   );
 }

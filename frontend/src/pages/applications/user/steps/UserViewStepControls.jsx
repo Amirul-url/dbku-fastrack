@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { stepText } from "./ApplicationStepText";
 
 const STEP_ROUTES = {
@@ -11,8 +11,12 @@ const STEP_ROUTES = {
 
 const TOTAL_STEPS = 5;
 
-function buildStepPath(applicationId, step) {
-  return `/applications/${applicationId}/${STEP_ROUTES[step]}?id=${applicationId}`;
+function buildStepPath(applicationId, step, returnTab = "") {
+  const params = new URLSearchParams({ id: String(applicationId) });
+  if (returnTab) {
+    params.set("returnTab", returnTab);
+  }
+  return `/applications/${applicationId}/${STEP_ROUTES[step]}?${params.toString()}`;
 }
 
 function DisabledButton({ children }) {
@@ -24,21 +28,30 @@ function DisabledButton({ children }) {
 }
 
 function UserViewStepControls({ applicationId, currentStep, language, className = "" }) {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const returnTab = queryParams.get("returnTab") || "";
+  const backToListPath = returnTab === "status"
+    ? "/user/dashboard?tab=status"
+    : "/user/dashboard";
+  const backToListLabel = returnTab === "status"
+    ? "backToApplicationStatus"
+    : "backToDashboard";
   const previousStep = currentStep - 1;
   const nextStep = currentStep + 1;
 
   return (
     <div className={`flex flex-wrap justify-end gap-2 ${className}`}>
       <Link
-        to="/user/dashboard"
+        to={backToListPath}
         className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
       >
-        {stepText(language, "backToDashboard")}
+        {stepText(language, backToListLabel)}
       </Link>
 
       {previousStep >= 1 ? (
         <Link
-          to={buildStepPath(applicationId, previousStep)}
+          to={buildStepPath(applicationId, previousStep, returnTab)}
           className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
         >
           {stepText(language, "back")}
@@ -49,7 +62,7 @@ function UserViewStepControls({ applicationId, currentStep, language, className 
 
       {nextStep <= TOTAL_STEPS ? (
         <Link
-          to={buildStepPath(applicationId, nextStep)}
+          to={buildStepPath(applicationId, nextStep, returnTab)}
           className="rounded bg-[#006d32] px-3 py-1.5 text-xs font-semibold !text-white hover:bg-[#005224]"
           style={{ color: "#fff" }}
         >

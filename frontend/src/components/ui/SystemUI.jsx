@@ -31,6 +31,7 @@ export function PageHeader({
   title,
   description,
   actions,
+  descriptionClassName = "max-w-3xl",
 }) {
   return (
     <div className="mb-5 flex items-end justify-between gap-3 border-b border-slate-200 pb-4">
@@ -44,7 +45,7 @@ export function PageHeader({
           {title}
         </h1>
         {description && (
-          <p className="mt-1.5 max-w-3xl text-sm leading-5 text-slate-600">
+          <p className={`mt-1.5 text-sm leading-5 text-slate-600 ${descriptionClassName}`}>
             {description}
           </p>
         )}
@@ -239,7 +240,7 @@ export function StatusPill({ value }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[13px] font-semibold leading-5 ${className}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[13px] font-semibold leading-5 ${className}`}
     >
       {value || "Draft"}
     </span>
