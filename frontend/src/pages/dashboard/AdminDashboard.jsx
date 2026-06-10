@@ -181,7 +181,7 @@ const units = [
 function AdminDashboard() {
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(getStoredUser);
-  const view = new URLSearchParams(location.search).get("view") || "personal";
+  const view = new URLSearchParams(location.search).get("view") || "dashboard";
 
   useEffect(() => {
     let active = true;
@@ -205,15 +205,139 @@ function AdminDashboard() {
     return <ApprovalPage />;
   }
 
-  if (isMphlgUser(currentUser)) {
-    return <MphlgDashboard user={currentUser} />;
-  }
-
-  if (view === "approval" || isApprovalWorkflowUser(currentUser)) {
+  if (view === "approval") {
     return <ApprovalPage />;
   }
 
+  if (view === "personal" && !isMphlgUser(currentUser)) {
+    return <PersonalTaskDashboard />;
+  }
+
+  if (isMphlgUser(currentUser) && view === "personal") {
+    return <MphlgDashboard user={currentUser} />;
+  }
+
+  if (view === "dashboard") {
+    return <AdminHomeDashboard user={currentUser} />;
+  }
+
   return <PersonalTaskDashboard />;
+}
+
+function AdminHomeDashboard({ user }) {
+  const { t } = useLanguage();
+  const userDepartment = normalizeDepartmentCode(user?.department);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      setError("");
+      const list = await fetchApplicationList();
+      const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
+        apiRequest(`/applications/${id}/`)
+      );
+      setApplications(enrichedList);
+    } catch (err) {
+      setError(err.message || "Failed to load recent activity.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
+  useEffect(() => {
+    window.addEventListener("fastrack:applications-changed", fetchApplications);
+    const interval = window.setInterval(
+      () => fetchApplications({ silent: true }),
+      15000
+    );
+
+    return () => {
+      window.removeEventListener("fastrack:applications-changed", fetchApplications);
+      window.clearInterval(interval);
+    };
+  }, [fetchApplications]);
+
+  const activities = useMemo(() => {
+    return applications
+      .filter((application) => isRelevantRecentActivity(application, userDepartment))
+      .sort((a, b) => {
+        const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+        const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 5)
+      .map((application) => ({
+        id: application.id,
+        reference: getApplicationReference(application),
+        project: getProjectName(application),
+        title: getAdminActivityTitle(application, t),
+        description: getAdminActivityDescription(application, userDepartment, t),
+        createdAt: application.updated_at || application.created_at,
+        status: normalizeStatus(application.status),
+      }));
+  }, [applications, t, userDepartment]);
+
+  return (
+    <AdminDashboardLayout>
+      <Alert message={error} />
+
+      <section className="rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h2 className="text-sm font-semibold text-slate-950">
+            {t("admin.dashboard.recentActivitiesTitle", "Recent Activities")}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
+          </p>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {loading ? (
+            <p className="px-4 py-4 text-sm text-slate-500">{t("common.loading", "Loading...")}</p>
+          ) : activities.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-slate-500">
+              {t("admin.dashboard.noRecentActivities", "No recent activities yet.")}
+            </p>
+          ) : (
+            activities.map((activity) => (
+              <div
+                key={`${activity.id}-${activity.createdAt}`}
+                className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_160px]"
+              >
+                <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-emerald-700">
+                      history
+                    </span>
+                    <p className="truncate text-sm font-semibold text-slate-950">
+                      {activity.title}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-700">{activity.reference}</span>
+                    {activity.project ? ` - ${activity.project}` : ""}
+                  </p>
+                  {activity.description && (
+                    <p className="mt-1 text-xs text-slate-500">{activity.description}</p>
+                  )}
+                </div>
+                <p className="text-sm text-slate-500 sm:text-right">
+                  {formatCompactDateTime(activity.createdAt)}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </AdminDashboardLayout>
+  );
 }
 
 function MphlgDashboard({ user }) {
@@ -231,6 +355,121 @@ function MphlgDashboard({ user }) {
       <section className="min-h-[420px] rounded-md border border-slate-200 bg-white" />
     </AdminDashboardLayout>
   );
+}
+
+function isRelevantRecentActivity(application, userDepartment) {
+  if (!userDepartment) return true;
+
+  if (userDepartment === "MPHLG") {
+    return ["mphlg_processing", "mphlg_decision_received"].includes(
+      normalizeStatus(application.status)
+    );
+  }
+
+  if (userDepartment === "SUT") {
+    return normalizeStatus(application.status) === "mphlg_decision_received";
+  }
+
+  const assignedUnit = getAssignedUnit(userDepartment);
+  if (assignedUnit) {
+    return isUnitHistoryApplication(application, assignedUnit, userDepartment);
+  }
+
+  if (["KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"].includes(userDepartment)) {
+    return ["management_review", "approved", "approved_with_conditions", "rejected"].includes(
+      normalizeStatus(application.status)
+    );
+  }
+
+  return true;
+}
+
+function getAdminActivityTitle(application, t) {
+  const status = normalizeStatus(application.status);
+
+  if (status === "submitted") {
+    return t("admin.dashboard.activitySubmitted", "Application submitted");
+  }
+
+  if (status === "ku_ikl_review") {
+    return t("admin.dashboard.activityKuReview", "KU(IKL) review required");
+  }
+
+  if (["technical_review", "technical_site_visit"].includes(status)) {
+    return t("admin.dashboard.activityTechnicalReview", "Technical review required");
+  }
+
+  if (status === "technical_review_completed") {
+    return t("admin.dashboard.activityTechnicalCompleted", "Technical review completed");
+  }
+
+  if (status === "management_review") {
+    return t("admin.dashboard.activityManagementReview", "Management review required");
+  }
+
+  if (status === "mphlg_processing") {
+    return t("admin.dashboard.activityMphlgProcessing", "MPHLG review required");
+  }
+
+  if (status === "mphlg_decision_received") {
+    return t("admin.dashboard.activityMphlgDecision", "MPHLG decision received");
+  }
+
+  if (status === "bill_pending_ku") {
+    return t("admin.dashboard.activityBillPending", "Bill confirmation required");
+  }
+
+  if (status === "payment_submitted") {
+    return t("admin.dashboard.activityPaymentSubmitted", "Payment proof submitted");
+  }
+
+  if (status === "payment_verified") {
+    return t("admin.dashboard.activityPaymentVerified", "Payment verified");
+  }
+
+  if (status === "license_issued") {
+    return t("admin.dashboard.activityLicenseIssued", "E-license generated");
+  }
+
+  return t(`status.${status}`, formatWorkflowStatus(status));
+}
+
+function getAdminActivityDescription(application, userDepartment, t) {
+  const reference = getApplicationReference(application);
+  const status = normalizeStatus(application.status);
+
+  if (status === "submitted" && userDepartment === "KU(IKL)") {
+    return t(
+      "admin.dashboard.activitySubmittedDesc",
+      `${reference} is ready for KU(IKL) review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (["technical_review", "technical_site_visit"].includes(status)) {
+    return t(
+      "admin.dashboard.activityTechnicalDesc",
+      `${reference} is waiting for technical review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (status === "management_review") {
+    return t(
+      "admin.dashboard.activityManagementDesc",
+      `${reference} is waiting for management review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (status === "mphlg_processing") {
+    return t(
+      "admin.dashboard.activityMphlgDesc",
+      `${reference} is waiting for MPHLG review.`
+    ).replace("{reference}", reference);
+  }
+
+  return t(
+    "admin.dashboard.activityUpdatedDesc",
+    `${reference} was updated.`
+  ).replace("{reference}", reference);
 }
 
 function PersonalTaskDashboard() {

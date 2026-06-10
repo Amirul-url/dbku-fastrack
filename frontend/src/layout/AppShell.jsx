@@ -120,8 +120,8 @@ function buildAdminNav(taskCounts = {}, user = null) {
       {
         labelKey: "nav.dashboard",
         fallback: "Dashboard",
-        path: "/dashboard/admin?view=personal",
-        view: "personal",
+        path: "/dashboard/admin",
+        view: "dashboard",
         icon: "dashboard",
       },
       {

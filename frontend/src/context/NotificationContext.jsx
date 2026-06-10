@@ -161,20 +161,15 @@ function formatEmailRecipient(email) {
 
 function getAdminNotificationRecipient(user, delivery = {}) {
   const department = getUserDepartment(user);
+  if (department) {
+    return department;
+  }
+
   const userRecipientKey = user?.id ? `user:${user.id}` : "";
   const deliveryBelongsToCurrentUser = Boolean(userRecipientKey && delivery.recipient === userRecipientKey);
   const email = deliveryBelongsToCurrentUser
     ? String(delivery.recipient_email || "").trim() || getUserEmail(user)
     : getUserEmail(user);
-
-  if (
-    department === "KU(IKL)" ||
-    department === "KB(LES)" ||
-    department === "IKL (TECHNICAL)" ||
-    technicalDepartments.has(department)
-  ) {
-    return formatEmailRecipient(email);
-  }
 
   const mobile = deliveryBelongsToCurrentUser
     ? String(delivery.recipient_mobile_number || "").trim() || getUserMobile(user)
@@ -257,8 +252,8 @@ function getMemoSubject(subject, title, reference, options = {}) {
 
   if (role === "admin" && status === "submitted" && department === "KU(IKL)") {
     return cleanReference
-      ? `${cleanReference} requires KU(IKL) review`
-      : "New application requires KU(IKL) review";
+      ? `ALiS - Application ${cleanReference} requires KU(IKL) review`
+      : "ALiS - New application requires KU(IKL) review";
   }
 
   if (role === "admin" && status === "ku_ikl_review" && department === "KU(IKL)") {
@@ -654,10 +649,10 @@ function buildAdminNotifications(app, user) {
         "admin",
         "screening",
         "warning",
-        "Application ready for KU(IKL) review",
-        "Permohonan sedia untuk semakan KU(IKL)",
-        `${reference} (${type}) was submitted for ${project} at ${location} and is ready for KU(IKL) review.`,
-        `${reference} (${type}) telah dihantar untuk ${project} di ${location} dan sedia untuk semakan KU(IKL).`,
+        `ALiS - Application ${reference} requires KU(IKL) review`,
+        `ALiS - Permohonan ${reference} memerlukan semakan KU(IKL)`,
+        `Application ${reference} has been submitted and is ready for KU(IKL) review.`,
+        `Permohonan ${reference} telah dihantar dan sedia untuk semakan KU(IKL).`,
         user
       )
     );

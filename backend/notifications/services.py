@@ -43,9 +43,9 @@ ADMIN_TECHNICAL_TASK_STATUSES = {
 
 STATUS_MESSAGES = {
     "submitted": (
-        "New Application Submitted",
+        "Application {reference} requires KU(IKL) review",
         "Your application {reference} has been submitted successfully.",
-        "New application {reference} has been submitted and is waiting for review.",
+        "Application {reference} has been submitted and is ready for KU(IKL) review.",
     ),
     "incomplete": (
         "Application rejected",

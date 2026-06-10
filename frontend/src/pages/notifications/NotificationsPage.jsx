@@ -6,7 +6,6 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useNotifications } from "../../context/NotificationContext";
 import {
   Alert,
-  LinkButton,
   StatusPill,
 } from "../../components/ui/SystemUI";
 import { isAdminUser, isSuperAdminUser, getStoredUser } from "../../services/api";
@@ -540,6 +539,39 @@ function cleanMemoSender(value) {
     .trim();
 }
 
+function getNotificationRecipientLabel(item) {
+  const currentValue = String(item?.to || "").trim();
+  if (currentValue && currentValue !== "-") return currentValue;
+
+  const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
+  const label = String(item?.statusLabel || item?.status || "").trim();
+
+  if (status === "submitted" || status === "ku_ikl_review" || /KU\(IKL\)/i.test(label)) {
+    return "KU(IKL)";
+  }
+
+  if (status === "mphlg_processing" || /MPHLG/i.test(label)) {
+    return "MPHLG";
+  }
+
+  if (status === "mphlg_decision_received" || /SUT/i.test(label)) {
+    return "SUT";
+  }
+
+  return "-";
+}
+
+function getNotificationSubjectLine(item, fallbackSubject) {
+  const reference = String(item?.reference || "").trim();
+  const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
+
+  if (reference && (status === "submitted" || status === "ku_ikl_review")) {
+    return `Application ${reference} requires review.`;
+  }
+
+  return fallbackSubject;
+}
+
 function NotificationsPage() {
   const {
     notifications,
@@ -558,7 +590,6 @@ function NotificationsPage() {
     : isAdminUser(storedUser)
       ? AdminDashboardLayout
       : UserDashboardLayout;
-  const useFormalMemoTemplate = isAdminUser(storedUser) && !isSuperAdminUser(storedUser);
 
   const activeFilters = useMemo(() => {
     const categories = new Set(notifications.map((item) => item.category));
@@ -701,8 +732,6 @@ function NotificationsPage() {
                 item={selectedNotification}
                 language={language}
                 t={t}
-                showActionButton={!useFormalMemoTemplate && (isAdminUser(storedUser) || isSuperAdminUser(storedUser))}
-                useFormalTemplate={useFormalMemoTemplate}
                 onBack={() => setSelectedNotificationId("")}
               />
             ) : (
@@ -772,8 +801,6 @@ function NotificationMemo({
   language,
   t,
   onBack,
-  showActionButton = true,
-  useFormalTemplate = false,
 }) {
   if (!item) {
     return (
@@ -794,14 +821,11 @@ function NotificationMemo({
   }
 
   const localizedTitle = getLocalized(item, "title", language);
-  const subject = useFormalTemplate ? localizedTitle || item.subject : item.subject || localizedTitle;
+  const subject = item.subject || localizedTitle;
+  const recipientLabel = getNotificationRecipientLabel(item);
+  const subjectLine = getNotificationSubjectLine(item, subject);
   const body = getLocalized(item, "body", language) || getLocalized(item, "message", language);
   const bodyParts = getMemoBodyParts(body);
-  const memoHtml = sanitizeMemoHtml(item.memoHtml);
-  const formalCopy = useFormalTemplate
-    ? getFormalMemoCopy(item, subject, bodyParts, language)
-    : null;
-  const displaySubject = formalCopy?.subject || subject;
 
   return (
     <article className="min-w-0 bg-white">
@@ -823,70 +847,36 @@ function NotificationMemo({
                 {t("notifications.memo", "Memo")}
               </p>
               <h3 className="mt-1 break-words text-lg font-bold leading-7 text-slate-950">
-                {displaySubject}
+                {subject}
               </h3>
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {showActionButton && item.actionUrl && (
-              <LinkButton
-                to={item.actionUrl}
-                icon="open_in_new"
-                variant="secondary"
-                className="min-h-8 px-3 py-1 text-xs"
-              >
-                {t("notifications.openTask", "Open Task")}
-              </LinkButton>
-            )}
             <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
           </div>
         </div>
       </div>
 
       <div className="space-y-5 px-5 py-5">
-        {useFormalTemplate ? (
-          <FormalNotificationMemo
-            item={item}
-            copy={formalCopy}
-            bodyParts={bodyParts}
-            memoHtml={memoHtml}
-            language={language}
-            t={t}
-          />
-        ) : (
-          <>
-            <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm md:grid-cols-[88px_1fr]">
-              <dt className="font-semibold text-slate-500">{t("notifications.memo.from", "From")}:</dt>
-              <dd className="min-w-0 break-words text-slate-900">{item.from || "ALiS Notification Center"}</dd>
-              <dt className="font-semibold text-slate-500">{t("notifications.memo.to", "To")}:</dt>
-              <dd className="min-w-0 break-words text-slate-900">{item.to || "-"}</dd>
-              <dt className="font-semibold text-slate-500">{t("notifications.memo.subject", "Subject")}:</dt>
-              <dd className="min-w-0 break-words text-slate-900">{subject}</dd>
-            </dl>
+        <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm md:grid-cols-[88px_1fr]">
+          <dt className="font-semibold text-slate-500">{t("notifications.memo.from", "From")}:</dt>
+          <dd className="min-w-0 break-words text-slate-900">{item.from || "ALiS Notification Center"}</dd>
+          <dt className="font-semibold text-slate-500">{t("notifications.memo.to", "To")}:</dt>
+          <dd className="min-w-0 break-words text-slate-900">{recipientLabel}</dd>
+          <dt className="font-semibold text-slate-500">{t("notifications.memo.subject", "Subject")}:</dt>
+          <dd className="min-w-0 break-words text-slate-900">{subjectLine}</dd>
+        </dl>
 
-            <NotificationBody
-              item={item}
-              bodyParts={bodyParts}
-              memoHtml={memoHtml}
-              t={t}
-            />
-          </>
-        )}
-
+        <NotificationBody item={item} bodyParts={bodyParts} t={t} />
       </div>
     </article>
   );
 }
 
-function NotificationBody({ item, bodyParts, memoHtml, t }) {
+function NotificationBody({ item, bodyParts, t }) {
   return (
     <div className="min-h-[180px] rounded-md border border-slate-200 bg-white px-4 py-4">
-      {memoHtml ? (
-        <div
-          className="memo-template text-sm leading-6 text-slate-900 [&_figure]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:align-top [&_th]:align-top"
-          dangerouslySetInnerHTML={{ __html: memoHtml }}
-        />
-      ) : bodyParts.lines.length > 0 || bodyParts.remark ? (
+      {bodyParts.lines.length > 0 || bodyParts.remark ? (
         <div className="space-y-3 text-sm leading-6 text-slate-700">
           {bodyParts.lines.map((line, index) => (
             <p key={`${item.id}:line:${index}`}>{line}</p>
