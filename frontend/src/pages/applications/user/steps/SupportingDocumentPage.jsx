@@ -11,10 +11,10 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
   getApplicantDisplayStatus,
+  getApplicationType,
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
-  applicationTypeLabel,
   documentDescription,
   documentTitle,
   readOnlyMessage,
@@ -23,35 +23,51 @@ import {
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
 
-const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
 const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
+const SUPPORTING_DOCUMENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 const requiredDocumentTemplates = [
   {
-    title: "Site Plan",
-    description:
-      "To be drawn on Cadastral Plan showing the subject land and the surrounding land (preferred scale 1:1000) involving:-\nSite; or\nbuilding plan.\nIf none of above, drawing on Google Map is accepted.",
-    format: "DXF/ PDF/ IMAGE",
-    required: true,
-    attachment: null,
-  },
-  {
-    title: "Cadastral Plan",
-    description:
-      "Cadastral plan (preferred scale 1:1000) showing the subject land and the surrounding land.\nDigital copy is available from eLASIS website.",
-    format: "PDF/ IMAGE",
-    required: true,
-    attachment: null,
-  },
-  {
-    title: "Site Photographs",
+    title: "Extract of Title",
     description: "-",
-    format: "PDF/ IMAGE",
+    format: "PDF",
     required: true,
     attachment: null,
   },
   {
-    title: "Tenancy Agreement",
+    title: "Locality Plan",
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    title: "Technical Drawing / Document:",
+    section: true,
+  },
+  {
+    title: "a. Layout Plan with dimension.",
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    title: "b. Front and side elevation drawing with dimension and specification.",
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    title: "c. Structural Design and Calculation certificated by PE/QP.",
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    title: "d. Illustration / Perspective view.",
     description: "-",
     format: "PDF",
     required: true,
@@ -59,17 +75,8 @@ const requiredDocumentTemplates = [
   },
 ];
 
-function getDefaultDocuments(step1 = {}, titleAttachment = null) {
-  return [
-    ...requiredDocumentTemplates,
-    {
-      title: TITLE_DOCUMENT_NAME,
-      description: getLandInformationFromStep1(step1),
-      format: "PDF",
-      required: false,
-      attachment: titleAttachment,
-    },
-  ];
+function getDefaultDocuments() {
+  return requiredDocumentTemplates;
 }
 
 function normalizeDocuments(savedDocuments, defaults) {
@@ -78,6 +85,10 @@ function normalizeDocuments(savedDocuments, defaults) {
   }
 
   return defaults.map((defaultItem, index) => {
+    if (defaultItem.section) {
+      return defaultItem;
+    }
+
     const savedByTitle = savedDocuments.find(
       (item) => item?.title === defaultItem.title
     );
@@ -85,7 +96,6 @@ function normalizeDocuments(savedDocuments, defaults) {
 
     return {
       ...defaultItem,
-      description: savedItem.description || defaultItem.description,
       attachment: savedItem.attachment || defaultItem.attachment || null,
     };
   });
@@ -95,17 +105,35 @@ function getSavedAttachmentByTitle(savedDocuments, title) {
   return savedDocuments.find((item) => item?.title === title)?.attachment || null;
 }
 
-function getLandInformationFromStep1(step1) {
-  return (
-    step1.land_information ||
-    step1.land_info ||
-    step1.affected_land ||
-    step1.affectedLand ||
-    step1.locality_address ||
-    step1.site_address ||
-    step1.address ||
-    ""
-  );
+function getLetteredDocumentTitle(language, row) {
+  const title = documentTitle(language, row.title);
+  const match = title.match(/^([a-d])\.\s*(.+)$/i);
+
+  if (!match) {
+    return { letter: "", title };
+  }
+
+  return {
+    letter: match[1].toLowerCase(),
+    title: match[2],
+  };
+}
+
+function isValidSupportingDocumentFile(file, tx) {
+  const isPdf =
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+  if (!isPdf) {
+    alert(tx("pdfOnlyAlert"));
+    return false;
+  }
+
+  if (file.size > SUPPORTING_DOCUMENT_MAX_FILE_SIZE) {
+    alert(tx("fileSize5MbAlert"));
+    return false;
+  }
+
+  return true;
 }
 
 function SupportingDocumentPage({
@@ -151,15 +179,9 @@ function SupportingDocumentPage({
       const savedDocuments = Array.isArray(step10.documents)
         ? [...step10.documents]
         : [];
-      const savedTitleDocuments = Array.isArray(step10.title_documents)
-        ? step10.title_documents
-        : [];
       const savedOtherDocuments = Array.isArray(step10.other_documents)
         ? step10.other_documents
         : [];
-      const titleAttachment =
-        savedTitleDocuments[0]?.attachment ||
-        getSavedAttachmentByTitle(savedDocuments, TITLE_DOCUMENT_NAME);
       const otherAttachment =
         savedOtherDocuments[0]?.attachment ||
         getSavedAttachmentByTitle(savedDocuments, OTHER_DOCUMENT_NAME);
@@ -167,12 +189,12 @@ function SupportingDocumentPage({
         ? [
             {
               description: OTHER_DOCUMENT_NAME,
-              format: "PDF/ IMAGE",
+              format: "PDF",
               attachment: otherAttachment,
             },
           ]
         : [];
-      const defaultDocuments = getDefaultDocuments(step1Data, titleAttachment);
+      const defaultDocuments = getDefaultDocuments();
 
       setApplicationRecord(data);
       setStep1(step1Data);
@@ -249,6 +271,7 @@ function SupportingDocumentPage({
   async function handleDocumentFileChange(index, file) {
     if (isReadOnly) return;
     if (!file) return;
+    if (!isValidSupportingDocumentFile(file, tx)) return;
 
     try {
       const attachment = await uploadApplicationDocument(
@@ -271,6 +294,7 @@ function SupportingDocumentPage({
   async function handleOtherFileChange(index, file) {
     if (isReadOnly) return;
     if (!file) return;
+    if (!isValidSupportingDocumentFile(file, tx)) return;
 
     try {
       const attachment = await uploadApplicationDocument(
@@ -317,7 +341,7 @@ function SupportingDocumentPage({
       ...prev,
       {
         description: "",
-        format: "PDF/ IMAGE",
+        format: "PDF",
         attachment: null,
       },
     ]);
@@ -530,7 +554,7 @@ function ApplicationReference({ step1, language }) {
 
         <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {applicationTypeLabel(language, step1.application_type_label || "Application of Siting Project")}
+          {getApplicationType({ form_data: { step_1: step1 } }, language)}
         </p>
       </div>
     </div>
@@ -572,42 +596,70 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
           </thead>
 
           <tbody>
-            {rows.map((row, index) => (
-              <tr
-                key={`${row.title}-${index}`}
-                className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
-              >
-                <TableCell center>
-                  <span className="text-base font-bold text-[#18b36b]">
-                    {index + 1}
-                  </span>
-                </TableCell>
+            {rows.map((row, index) => {
+              if (row.section) {
+                return (
+                  <tr
+                    key={`${row.title}-${index}`}
+                    className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
+                  >
+                    <TableCell center>
+                      <span className="text-base font-bold text-[#18b36b]">
+                        {index + 1}
+                      </span>
+                    </TableCell>
+                    <TableCell colSpan={5}>
+                      <span className="font-bold text-slate-800">
+                        {documentTitle(language, row.title)}
+                      </span>
+                    </TableCell>
+                  </tr>
+                );
+              }
 
-                <TableCell>
-                  <span className="font-semibold text-slate-800">
-                    {documentTitle(language, row.title)}
-                  </span>
-                </TableCell>
+              const letteredTitle = getLetteredDocumentTitle(language, row);
 
-                <TableCell>
-                  <p className="whitespace-pre-line leading-relaxed text-slate-700">
-                    {row.title === TITLE_DOCUMENT_NAME
-                      ? row.description || tx("noLandInfo")
-                      : documentDescription(language, row.title, row.description)}
-                  </p>
-                </TableCell>
+              return (
+                <tr
+                  key={`${row.title}-${index}`}
+                  className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
+                >
+                  <TableCell center>
+                    <span className="text-base font-bold text-[#18b36b]">
+                      {letteredTitle.letter ? "" : index + 1}
+                    </span>
+                  </TableCell>
 
-                <TableCell>
-                  <span className="font-semibold text-slate-700">
-                    {row.format}
-                  </span>
-                </TableCell>
+                  <TableCell>
+                    {letteredTitle.letter ? (
+                      <span className="grid grid-cols-[16px_minmax(0,1fr)] gap-1 font-semibold text-slate-800">
+                        <span>{letteredTitle.letter}.</span>
+                        <span>{letteredTitle.title}</span>
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-slate-800">
+                        {letteredTitle.title}
+                      </span>
+                    )}
+                  </TableCell>
 
-                <TableCell>
-                  <AttachmentView attachment={row.attachment} language={language} />
-                </TableCell>
+                  <TableCell>
+                    <p className="whitespace-pre-line leading-relaxed text-slate-700">
+                      {documentDescription(language, row.title, row.description)}
+                    </p>
+                  </TableCell>
 
-                <TableCell center>
+                  <TableCell>
+                    <span className="font-semibold text-slate-700">
+                      {row.format}
+                    </span>
+                  </TableCell>
+
+                  <TableCell>
+                    <AttachmentView attachment={row.attachment} language={language} />
+                  </TableCell>
+
+                  <TableCell center>
                     <FileAction
                       index={index}
                       attachment={row.attachment}
@@ -617,9 +669,10 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                       onFileChange={onFileChange}
                       onRemoveFile={onRemoveFile}
                     />
-                </TableCell>
-              </tr>
-            ))}
+                  </TableCell>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -705,7 +758,7 @@ function OtherSupportingTable({
                         onUpdate(index, "format", event.target.value)
                       }
                       readOnly={readOnly}
-                      placeholder="PDF/IMAGE"
+                      placeholder="PDF"
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#18b36b] focus:ring-1 focus:ring-[#18b36b]"
                     />
                   </TableCell>
@@ -752,7 +805,14 @@ function AttachmentView({ attachment, language = "en" }) {
   const tx = (key) => stepText(language, key);
 
   if (!attachment) {
-    return <span className="text-slate-500">{tx("noAttachment")}</span>;
+    return (
+      <div className="space-y-1">
+        <p className="text-slate-500">{tx("noAttachment")}</p>
+        <p className="text-[10px] font-semibold text-slate-500">
+          {tx("attachmentMaxSize")}
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -760,6 +820,9 @@ function AttachmentView({ attachment, language = "en" }) {
       <p className="break-all font-semibold text-[#00843d]">{attachment.name}</p>
       <p className="text-[10px] text-slate-500">
         {(Number(attachment.size || 0) / 1024).toFixed(1)} KB
+      </p>
+      <p className="text-[10px] font-semibold text-slate-500">
+        {tx("attachmentMaxSize")}
       </p>
     </div>
   );
@@ -854,7 +917,7 @@ function FileAction({
           <input
             type="file"
             className="hidden"
-            accept=".pdf,.png,.jpg,.jpeg,.webp,.dxf"
+            accept=".pdf,application/pdf"
             onChange={(event) => {
               const file = event.target.files?.[0];
               onFileChange(index, file);

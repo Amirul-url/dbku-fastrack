@@ -7,10 +7,10 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
   getApplicantDisplayStatus,
+  getApplicationType,
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
-  applicationTypeLabel,
   readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
@@ -419,7 +419,7 @@ function ApplicationReference({ step1, language }) {
 
         <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {applicationTypeLabel(language, step1.application_type_label || "Application for Site (New Site)")}
+          {getApplicationType({ form_data: { step_1: step1 } }, language)}
         </p>
       </div>
     </div>

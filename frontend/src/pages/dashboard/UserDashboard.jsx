@@ -42,6 +42,7 @@ import {
 
 const VALID_SECTIONS = ["applications", "status", "license"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
+const TABLE_PAGE_SIZE = 5;
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -63,8 +64,15 @@ function UserDashboard() {
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterYear, setFilterYear] = useState("all");
+  const [statusFilterStatus, setStatusFilterStatus] = useState("all");
+  const [statusFilterMonth, setStatusFilterMonth] = useState("all");
+  const [statusFilterYear, setStatusFilterYear] = useState("all");
+  const [licenseFilterStatus, setLicenseFilterStatus] = useState("all");
+  const [licenseFilterMonth, setLicenseFilterMonth] = useState("all");
+  const [licenseFilterYear, setLicenseFilterYear] = useState("all");
 
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -151,30 +159,49 @@ function UserDashboard() {
   );
 
   const filteredApplications = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return applications.filter((app) => {
-      const appliedDate = getApplicationAppliedDate(app);
-      const matchesKeyword = !keyword || [
-        getApplicationReference(app),
-        getProjectName(app),
-        getApplicationType(app, language),
-        getApplicationRemark(app),
-        translatedStatus(t, app.status),
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(keyword);
-      const matchesMonth =
-        filterMonth === "all" ||
-        (appliedDate && String(appliedDate.getMonth() + 1) === filterMonth);
-      const matchesYear =
-        filterYear === "all" ||
-        (appliedDate && String(appliedDate.getFullYear()) === filterYear);
-
-      return matchesKeyword && matchesMonth && matchesYear;
+    return filterDashboardApplications(applications, {
+      search,
+      status: filterStatus,
+      month: filterMonth,
+      year: filterYear,
+      language,
+      t,
     });
-  }, [applications, filterMonth, filterYear, language, search, t]);
+  }, [applications, filterMonth, filterStatus, filterYear, language, search, t]);
+
+  const filteredSubmittedApplications = useMemo(() => {
+    return filterDashboardApplications(submittedApplications, {
+      status: statusFilterStatus,
+      month: statusFilterMonth,
+      year: statusFilterYear,
+      language,
+      t,
+    });
+  }, [
+    language,
+    statusFilterMonth,
+    statusFilterStatus,
+    statusFilterYear,
+    submittedApplications,
+    t,
+  ]);
+
+  const filteredELicenseApplications = useMemo(() => {
+    return filterDashboardApplications(eLicenseApplications, {
+      status: licenseFilterStatus,
+      month: licenseFilterMonth,
+      year: licenseFilterYear,
+      language,
+      t,
+    });
+  }, [
+    eLicenseApplications,
+    language,
+    licenseFilterMonth,
+    licenseFilterStatus,
+    licenseFilterYear,
+    t,
+  ]);
 
   const applicationYearOptions = useMemo(() => {
     return Array.from(
@@ -185,6 +212,18 @@ function UserDashboard() {
       )
     ).sort((a, b) => b - a);
   }, [applications]);
+  const applicationStatusOptions = useMemo(
+    () => getStatusFilterOptions(applications, t),
+    [applications, t]
+  );
+  const submittedStatusOptions = useMemo(
+    () => getStatusFilterOptions(submittedApplications, t),
+    [submittedApplications, t]
+  );
+  const eLicenseStatusOptions = useMemo(
+    () => getStatusFilterOptions(eLicenseApplications, t),
+    [eLicenseApplications, t]
+  );
 
   const latest = applications[0];
   const selectedListApplication = applications.find(
@@ -371,12 +410,15 @@ function UserDashboard() {
           applications={filteredApplications}
           loading={loading}
           search={search}
+          status={filterStatus}
           month={filterMonth}
           year={filterYear}
           years={applicationYearOptions}
+          statuses={applicationStatusOptions}
           language={language}
           t={t}
           onSearch={setSearch}
+          onStatusChange={setFilterStatus}
           onMonthChange={setFilterMonth}
           onYearChange={setFilterYear}
           onSelect={(app) => {
@@ -389,10 +431,18 @@ function UserDashboard() {
 
       {activeSection === "status" && (
         <StatusSection
-          applications={submittedApplications}
+          applications={filteredSubmittedApplications}
           loading={loading}
           t={t}
           language={language}
+          status={statusFilterStatus}
+          month={statusFilterMonth}
+          year={statusFilterYear}
+          years={applicationYearOptions}
+          statuses={submittedStatusOptions}
+          onStatusChange={setStatusFilterStatus}
+          onMonthChange={setStatusFilterMonth}
+          onYearChange={setStatusFilterYear}
           onOpen={openApplication}
         />
       )}
@@ -413,9 +463,18 @@ function UserDashboard() {
           />
         ) : (
           <LicenseListSection
-            applications={eLicenseApplications}
+            applications={filteredELicenseApplications}
             loading={loading}
             t={t}
+            language={language}
+            status={licenseFilterStatus}
+            month={licenseFilterMonth}
+            year={licenseFilterYear}
+            years={applicationYearOptions}
+            statuses={eLicenseStatusOptions}
+            onStatusChange={setLicenseFilterStatus}
+            onMonthChange={setLicenseFilterMonth}
+            onYearChange={setLicenseFilterYear}
             onOpen={openLicenseRecord}
           />
         )
@@ -430,8 +489,8 @@ function OverviewSection({ applications, loading, t }) {
     [applications, t]
   );
   const recentActivities = useMemo(
-    () => buildRecentActivities(applications),
-    [applications]
+    () => buildRecentActivities(applications, t),
+    [applications, t]
   );
 
   return (
@@ -499,18 +558,22 @@ function ApplicationsSection({
   applications,
   loading,
   search,
+  status,
   month,
   year,
   years,
+  statuses,
   language,
   t,
   onSearch,
+  onStatusChange,
   onMonthChange,
   onYearChange,
   onSelect,
   onOpen,
 }) {
-  const hasActiveFilter = Boolean(search.trim()) || month !== "all" || year !== "all";
+  const hasActiveFilter =
+    Boolean(search.trim()) || status !== "all" || month !== "all" || year !== "all";
 
   return (
     <section className="space-y-4">
@@ -551,6 +614,7 @@ function ApplicationsSection({
               type="button"
               onClick={() => {
                 onSearch("");
+                onStatusChange("all");
                 onMonthChange("all");
                 onYearChange("all");
               }}
@@ -561,7 +625,7 @@ function ApplicationsSection({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_180px]">
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-slate-600">
               {t("common.keyword")}
@@ -579,6 +643,13 @@ function ApplicationsSection({
               />
             </div>
           </label>
+
+          <StatusFilterSelect
+            value={status}
+            options={statuses}
+            t={t}
+            onChange={onStatusChange}
+          />
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-slate-600">
@@ -630,7 +701,21 @@ function ApplicationsSection({
   );
 }
 
-function StatusSection({ applications, loading, t, language, onOpen }) {
+function StatusSection({
+  applications,
+  loading,
+  t,
+  language,
+  status,
+  month,
+  year,
+  years,
+  statuses,
+  onStatusChange,
+  onMonthChange,
+  onYearChange,
+  onOpen,
+}) {
   if (loading) {
     return (
       <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
@@ -639,17 +724,26 @@ function StatusSection({ applications, loading, t, language, onOpen }) {
     );
   }
 
-  if (applications.length === 0) {
-    return <EmptyDashboardSection message={t("applicant.noApplicationSubmitted")} />;
-  }
-
   return (
-    <section>
+    <section className="space-y-4">
+      <DashboardTableFilters
+        t={t}
+        language={language}
+        status={status}
+        month={month}
+        year={year}
+        years={years}
+        statuses={statuses}
+        onStatusChange={onStatusChange}
+        onMonthChange={onMonthChange}
+        onYearChange={onYearChange}
+      />
       <ApplicationTable
         applications={applications}
         loading={loading}
         t={t}
         language={language}
+        emptyText={t("applicant.noApplicationSubmitted")}
         onSelect={onOpen}
         onOpen={onOpen}
       />
@@ -965,7 +1059,21 @@ function ApplicantPaymentDocuments({ app, t }) {
   );
 }
 
-function LicenseListSection({ applications, loading, t, onOpen }) {
+function LicenseListSection({
+  applications,
+  loading,
+  t,
+  language,
+  status,
+  month,
+  year,
+  years,
+  statuses,
+  onStatusChange,
+  onMonthChange,
+  onYearChange,
+  onOpen,
+}) {
   return (
     <section className="space-y-4">
       <div className="rounded-md border border-slate-200 bg-white p-4">
@@ -977,7 +1085,21 @@ function LicenseListSection({ applications, loading, t, onOpen }) {
         </p>
       </div>
 
-      <DataTable
+      <DashboardTableFilters
+        t={t}
+        language={language}
+        status={status}
+        month={month}
+        year={year}
+        years={years}
+        statuses={statuses}
+        onStatusChange={onStatusChange}
+        onMonthChange={onMonthChange}
+        onYearChange={onYearChange}
+      />
+
+      <PaginatedDataTable
+        t={t}
         loading={loading}
         loadingText={t("common.loading")}
         emptyText={t("applicant.noApplicationSubmitted")}
@@ -1064,12 +1186,183 @@ function EmptyLicenseSection({ t }) {
   );
 }
 
-function ApplicationTable({ applications, loading, t, language = "en", onSelect, onOpen }) {
+function DashboardTableFilters({
+  t,
+  language,
+  status,
+  month,
+  year,
+  years,
+  statuses,
+  onStatusChange,
+  onMonthChange,
+  onYearChange,
+}) {
+  const hasActiveFilter = status !== "all" || month !== "all" || year !== "all";
+
   return (
-    <DataTable
+    <div className="rounded-md border border-slate-200 bg-white p-4">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {t("common.searchAndFilter")}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            {t("applicant.statusDateFilterHint", "Filter records by status, application month, and application year.")}
+          </p>
+        </div>
+
+        {hasActiveFilter && (
+          <button
+            type="button"
+            onClick={() => {
+              onStatusChange("all");
+              onMonthChange("all");
+              onYearChange("all");
+            }}
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+          >
+            {t("common.clearFilters")}
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <StatusFilterSelect
+          value={status}
+          options={statuses}
+          t={t}
+          onChange={onStatusChange}
+        />
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+            {t("common.month")}
+          </span>
+          <select
+            value={month}
+            onChange={(event) => onMonthChange(event.target.value)}
+            className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          >
+            <option value="all">{t("common.allMonths")}</option>
+            {getMonthOptions(language).map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+            {t("common.year")}
+          </span>
+          <select
+            value={year}
+            onChange={(event) => onYearChange(event.target.value)}
+            className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          >
+            <option value="all">{t("common.allYears")}</option>
+            {years.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function StatusFilterSelect({ value, options, t, onChange }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+        {t("common.status")}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+      >
+        <option value="all">{t("common.allStatuses", "All Statuses")}</option>
+        {options.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PaginatedDataTable({ rows, t, ...props }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visibleRows = rows.slice(
+    currentPage * TABLE_PAGE_SIZE,
+    (currentPage + 1) * TABLE_PAGE_SIZE
+  );
+  const showPagination = rows.length > TABLE_PAGE_SIZE;
+
+  useEffect(() => {
+    setPage((current) => {
+      const nextTotalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+      return Math.min(current, nextTotalPages - 1);
+    });
+  }, [rows.length]);
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white">
+      <DataTable {...props} rows={visibleRows} />
+      {!props.loading && showPagination && (
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage((current) => Math.max(current - 1, 0))}
+              disabled={currentPage === 0}
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              {t("common.previous", "Previous")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage((current) => Math.min(current + 1, totalPages - 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              {t("common.next", "Next")}
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApplicationTable({
+  applications,
+  loading,
+  t,
+  language = "en",
+  emptyText,
+  onSelect,
+  onOpen,
+}) {
+  return (
+    <PaginatedDataTable
+      t={t}
       loading={loading}
       loadingText={t("common.loading")}
-      emptyText={t("applicant.noApplicationsYet")}
+      emptyText={emptyText || t("applicant.noApplicationsYet")}
       rows={applications}
       columns={[
         {
@@ -1185,7 +1478,7 @@ function RecentActivities({ activities, loading, t }) {
           {t("applicant.recentActivitiesTitle", "Recent Activities")}
         </h3>
         <p className="mt-1 text-sm text-slate-500">
-          {t("applicant.recentActivitiesDesc", "Latest actions recorded from your application activity.")}
+          {t("applicant.recentActivitiesDesc", "Latest actions you performed on your applications.")}
         </p>
       </div>
 
@@ -1281,6 +1574,53 @@ function getMonthOptions(language = "en") {
   }));
 }
 
+function filterDashboardApplications(applications, filters) {
+  const {
+    search = "",
+    status = "all",
+    month = "all",
+    year = "all",
+    language = "en",
+    t,
+  } = filters;
+  const keyword = search.trim().toLowerCase();
+
+  return applications.filter((app) => {
+    const appliedDate = getApplicationAppliedDate(app);
+    const normalizedStatus = normalizeStatus(app.status);
+    const matchesKeyword = !keyword || [
+      getApplicationReference(app),
+      getProjectName(app),
+      getApplicationType(app, language),
+      getApplicationRemark(app),
+      translatedStatus(t, app.status),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(keyword);
+    const matchesStatus = status === "all" || normalizedStatus === status;
+    const matchesMonth =
+      month === "all" ||
+      (appliedDate && String(appliedDate.getMonth() + 1) === month);
+    const matchesYear =
+      year === "all" ||
+      (appliedDate && String(appliedDate.getFullYear()) === year);
+
+    return matchesKeyword && matchesStatus && matchesMonth && matchesYear;
+  });
+}
+
+function getStatusFilterOptions(applications, t) {
+  return Array.from(
+    new Set(applications.map((app) => normalizeStatus(app.status)).filter(Boolean))
+  )
+    .map((status) => ({
+      value: status,
+      label: translatedStatus(t, status),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function buildOverviewStatusSummary(applications, t) {
   const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
   const pending = applications.filter((app) => isPendingApplication(app)).length;
@@ -1319,8 +1659,8 @@ function buildOverviewStatusSummary(applications, t) {
   ];
 }
 
-function buildRecentActivities(applications) {
-  return applications
+function buildRecentActivities(applications, t) {
+  const activities = applications
     .flatMap((app) => {
       const activityLog = Array.isArray(app.activity_log)
         ? app.activity_log
@@ -1328,17 +1668,139 @@ function buildRecentActivities(applications) {
         ? app.form_data.activity_log
         : [];
 
-      return activityLog.map((activity) => ({
-        applicationId: app.id,
-        reference: getApplicationReference(app),
-        project: getProjectName(app),
-        title: activity.title || "Application activity",
-        description: activity.description || "",
-        createdAt: activity.created_at || app.updated_at,
-      }));
+      return activityLog.map((activity) => {
+        const friendlyCopy = getApplicantActivityCopy(activity, t);
+
+        return {
+          applicationId: app.id,
+          reference: getApplicationReference(app),
+          project: getProjectName(app),
+          title: friendlyCopy.title,
+          description: friendlyCopy.description,
+          rawTitle: activity.title || "",
+          rawDescription: activity.description || "",
+          createdAt: activity.created_at || app.updated_at,
+        };
+      });
     })
     .filter((activity) => activity.createdAt)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return removeDuplicateSaveActivities(activities);
+}
+
+function getApplicantActivityCopy(activity, t) {
+  const rawTitle = String(activity?.title || "").trim();
+  const rawDescription = String(activity?.description || "").trim();
+  const normalizedTitle = rawTitle.toLowerCase();
+  const isGenericApplicantDescription =
+    rawDescription.toLowerCase() === "the applicant updated this application record.";
+
+  if (normalizedTitle === "application draft created") {
+    return {
+      title: t("applicant.activityStartedTitle", "You started a new application"),
+      description: t("applicant.activityStartedDesc", "Your draft application was created."),
+    };
+  }
+
+  if (normalizedTitle === "application submitted") {
+    return {
+      title: t("applicant.activitySubmittedTitle", "You submitted your application"),
+      description: t("applicant.activitySubmittedDesc", "Your application was sent to ALiS for review."),
+    };
+  }
+
+  if (normalizedTitle === "application resubmitted") {
+    return {
+      title: t("applicant.activityResubmittedTitle", "You resubmitted your application"),
+      description: t("applicant.activityResubmittedDesc", "Your updated application was sent back for review."),
+    };
+  }
+
+  if (normalizedTitle === "payment receipt submitted") {
+    return {
+      title: t("applicant.activityPaymentTitle", "You submitted your payment receipt"),
+      description: t("applicant.activityPaymentDesc", "ALiS will verify the receipt before issuing the e-license."),
+    };
+  }
+
+  if (normalizedTitle === "application details saved") {
+    return {
+      title: t("applicant.activitySavedTitle", "You saved application details"),
+      description: "",
+    };
+  }
+
+  if (normalizedTitle.endsWith(" details saved")) {
+    const stepName = rawTitle.replace(/\s+details saved$/i, "");
+    return {
+      title: formatActivityText(
+        t("applicant.activitySavedStepTitle", "You saved {step} details"),
+        { step: stepName || t("applicant.activityGenericTitle", "application") }
+      ),
+      description: "",
+    };
+  }
+
+  if (normalizedTitle.endsWith(" uploaded")) {
+    const itemName = rawTitle.replace(/\s+uploaded$/i, "");
+    return {
+      title: formatActivityText(
+        t("applicant.activityUploadedTitle", "You uploaded {item}"),
+        { item: itemName || t("common.file", "file") }
+      ),
+      description: rawDescription
+        ? formatActivityText(t("applicant.activityUploadedDesc", "File: {file}"), {
+            file: rawDescription,
+          })
+        : "",
+    };
+  }
+
+  if (normalizedTitle.endsWith(" removed")) {
+    const itemName = rawTitle.replace(/\s+removed$/i, "");
+    return {
+      title: formatActivityText(
+        t("applicant.activityRemovedTitle", "You removed {item}"),
+        { item: itemName || t("common.file", "file") }
+      ),
+      description: rawDescription
+        ? formatActivityText(t("applicant.activityRemovedDesc", "Removed file: {file}"), {
+            file: rawDescription,
+          })
+        : "",
+    };
+  }
+
+  return {
+    title: rawTitle || t("applicant.activityGenericTitle", "Application activity"),
+    description: isGenericApplicantDescription ? "" : rawDescription,
+  };
+}
+
+function removeDuplicateSaveActivities(activities) {
+  const seenSaveApplications = new Set();
+
+  return activities.filter((activity) => {
+    if (!isSaveActivity(activity)) return true;
+
+    const key = String(activity.applicationId || activity.reference || "");
+    if (seenSaveApplications.has(key)) return false;
+
+    seenSaveApplications.add(key);
+    return true;
+  });
+}
+
+function isSaveActivity(activity) {
+  return String(activity?.rawTitle || "").toLowerCase().endsWith("details saved");
+}
+
+function formatActivityText(template, replacements) {
+  return Object.entries(replacements).reduce(
+    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+    template
+  );
 }
 
 function isPendingApplication(app) {

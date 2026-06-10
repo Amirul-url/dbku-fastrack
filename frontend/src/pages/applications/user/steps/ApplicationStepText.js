@@ -161,6 +161,9 @@ const TEXT = {
     action: "Action",
     guidelines: "Guidelines",
     noAttachment: "No attachment found.",
+    attachmentMaxSize: "Maximum file size: 5MB",
+    pdfOnlyAlert: "Please upload a PDF file only.",
+    fileSize5MbAlert: "File size must not exceed 5MB.",
     extractTitles: "Extract of Document of Titles of the Land",
     landInformation: "Land Information",
     noLandInfo: "No land information found from Step 1.",
@@ -350,6 +353,9 @@ const TEXT = {
     action: "Tindakan",
     guidelines: "Garis Panduan",
     noAttachment: "Tiada lampiran dijumpai.",
+    attachmentMaxSize: "Saiz fail maksimum: 5MB",
+    pdfOnlyAlert: "Sila muat naik fail PDF sahaja.",
+    fileSize5MbAlert: "Saiz fail tidak boleh melebihi 5MB.",
     extractTitles: "Cabutan Dokumen Hakmilik Tanah",
     landInformation: "Maklumat Tanah",
     noLandInfo: "Tiada maklumat tanah dijumpai daripada Langkah 1.",
@@ -380,6 +386,52 @@ const TEXT = {
 };
 
 const DOCUMENT_TEXT = {
+  "Extract of Title": {
+    title: {
+      en: "Extract of Title",
+      ms: "Salinan dokumen status hak milik tanah",
+    },
+    description: { en: "-", ms: "-" },
+  },
+  "Locality Plan": {
+    title: { en: "Locality Plan", ms: "Locality Plan" },
+    description: { en: "-", ms: "-" },
+  },
+  "Technical Drawing / Document:": {
+    title: {
+      en: "Technical Drawing / Document:",
+      ms: "Lukisan / Dokumen Teknikal:",
+    },
+    description: { en: "-", ms: "-" },
+  },
+  "a. Layout Plan with dimension.": {
+    title: {
+      en: "a. Layout Plan with dimension.",
+      ms: "a. Pelan Lantai beserta ukuran.",
+    },
+    description: { en: "-", ms: "-" },
+  },
+  "b. Front and side elevation drawing with dimension and specification.": {
+    title: {
+      en: "b. Front and side elevation drawing with dimension and specification.",
+      ms: "b. Lukisan Keratan Rentas beserta ukuran dan spesifikasi.",
+    },
+    description: { en: "-", ms: "-" },
+  },
+  "c. Structural Design and Calculation certificated by PE/QP.": {
+    title: {
+      en: "c. Structural Design and Calculation certificated by PE/QP.",
+      ms: "c. Pengiraan rekabentuk struktur pengiklanan yang dicadangkan diperakui oleh PE/QP.",
+    },
+    description: { en: "-", ms: "-" },
+  },
+  "d. Illustration / Perspective view.": {
+    title: {
+      en: "d. Illustration / Perspective view.",
+      ms: "d. Gambar ilustrasi / perspektif.",
+    },
+    description: { en: "-", ms: "-" },
+  },
   "Site Plan": {
     title: { en: "Site Plan", ms: "Pelan Tapak" },
     description: {
@@ -462,6 +514,47 @@ export function applicationStatusLabel(language, status) {
 
 export function applicationTypeLabel(language, type) {
   const text = String(type || "");
+  const normalize = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+  const typeKeys = {
+    open_space: "applicationTypeOpenSpace",
+    kawasan_lapang: "applicationTypeOpenSpace",
+    building: "applicationTypeBuilding",
+    bangunan: "applicationTypeBuilding",
+  };
+  const subtypeKeys = {
+    free_standing_billboard: "applicationSubtypeFreeStandingBillboard",
+    led_billboard: "applicationSubtypeLedBillboard",
+    open_space_led_billboard: "applicationSubtypeLedBillboard",
+    building_led_billboard: "applicationSubtypeLedBillboard",
+    normal_billboard: "applicationSubtypeNormalBillboard",
+    building_normal_billboard: "applicationSubtypeNormalBillboard",
+  };
+  const parts = text
+    .split(/\s+-\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length > 1) {
+    const typeKey = typeKeys[normalize(parts[0])];
+    const subtypeKey = subtypeKeys[normalize(parts.slice(1).join(" - "))];
+
+    return [
+      typeKey ? stepText(language, typeKey) : parts[0],
+      subtypeKey ? stepText(language, subtypeKey) : parts.slice(1).join(" - "),
+    ]
+      .filter(Boolean)
+      .join(" - ");
+  }
+
+  const directTypeKey = typeKeys[normalize(text)];
+  if (directTypeKey) return stepText(language, directTypeKey);
+
+  const directSubtypeKey = subtypeKeys[normalize(text)];
+  if (directSubtypeKey) return stepText(language, directSubtypeKey);
 
   if (text.includes("New Site")) {
     return stepText(language, "applicationForSite");

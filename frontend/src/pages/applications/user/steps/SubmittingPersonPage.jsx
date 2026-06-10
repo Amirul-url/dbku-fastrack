@@ -7,10 +7,10 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
   getApplicantDisplayStatus,
+  getApplicationType,
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
-  applicationTypeLabel,
   readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
@@ -141,16 +141,6 @@ const stateCityOptions = {
   "W.P. Putrajaya": ["Putrajaya"],
 };
 const stateOptions = Object.keys(stateCityOptions);
-const APPLICATION_TYPE_LABEL_KEYS = {
-  open_space: "applicationTypeOpenSpace",
-  building: "applicationTypeBuilding",
-};
-const APPLICATION_SUBTYPE_LABEL_KEYS = {
-  free_standing_billboard: "applicationSubtypeFreeStandingBillboard",
-  open_space_led_billboard: "applicationSubtypeLedBillboard",
-  building_normal_billboard: "applicationSubtypeNormalBillboard",
-  building_led_billboard: "applicationSubtypeLedBillboard",
-};
 
 function normalizeStateCity(state, city) {
   if (stateCityOptions[state]) {
@@ -170,50 +160,8 @@ function normalizeStateCity(state, city) {
   return { state: "", city: "" };
 }
 
-function normalizeApplicationType(value) {
-  const values = Array.isArray(value)
-    ? value
-    : String(value || "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
-  return values.includes("building") ? "building" : "open_space";
-}
-
 function getStepOneApplicationTypeText(language, step1 = {}) {
-  const selectedType = normalizeApplicationType(
-    step1.application_type_options || step1.application_type
-  );
-  const typeLabel = stepText(
-    language,
-    APPLICATION_TYPE_LABEL_KEYS[selectedType] || "applicationTypeOpenSpace"
-  );
-  const firstAdvertisementRow = Array.isArray(step1.advertisement_rows)
-    ? step1.advertisement_rows.find((row) => row?.subtype || row?.customLabel || row?.custom_label)
-    : null;
-  const customAdvertisementLabel =
-    firstAdvertisementRow?.customLabel ||
-    firstAdvertisementRow?.custom_label ||
-    step1.advertisement_type_custom_label ||
-    "";
-  const subtype =
-    firstAdvertisementRow?.subtype ||
-    step1.application_subtype ||
-    "";
-  const subtypeLabel = customAdvertisementLabel ||
-    (APPLICATION_SUBTYPE_LABEL_KEYS[subtype]
-      ? stepText(language, APPLICATION_SUBTYPE_LABEL_KEYS[subtype])
-      : step1.application_subtype_label || "");
-
-  if (typeLabel && subtypeLabel) {
-    return `${typeLabel} - ${subtypeLabel}`;
-  }
-
-  return (
-    step1.application_type_label ||
-    applicationTypeLabel(language, "Application of Siting Project")
-  );
+  return getApplicationType({ form_data: { step_1: step1 } }, language);
 }
 
 function SubmittingPersonPage({

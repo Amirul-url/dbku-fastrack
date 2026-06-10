@@ -8,10 +8,10 @@ import {
   canEditApplicationForm,
   formatWorkflowStatus,
   getApplicantDisplayStatus,
+  getApplicationType,
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
-  applicationTypeLabel,
   documentDescription,
   documentTitle,
   organisationTypeLabel,
@@ -472,12 +472,7 @@ function PrintFormPage({
                     <PrintLine
                       no="1."
                       label={tx("typeOfApplication")}
-                      value={applicationTypeLabel(
-                        language,
-                        step1.application_type_label ||
-                          step1.application_type ||
-                          "Application for Site (New Site)"
-                      )}
+                      value={getApplicationType({ form_data: { step_1: step1 } }, language)}
                     />
                     <PrintLine no="2." label={tx("nameOfProject")} value={step1.project_name} />
                     <PrintLine no="3." label={tx("applicant")} value={step1.applicant} />
@@ -655,7 +650,7 @@ function ApplicationReference({ step1, language }) {
 
         <p>{tx("applicationType")}</p>
         <p className="font-semibold text-[#006d32]">
-          {applicationTypeLabel(language, step1.application_type_label || "Application for Site (New Site)")}
+          {getApplicationType({ form_data: { step_1: step1 } }, language)}
         </p>
       </div>
     </div>
@@ -727,12 +722,7 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
       {
         no: "1.",
         label: tx("typeOfApplication"),
-        value: applicationTypeLabel(
-          language,
-          step1.application_type_label ||
-            step1.application_type ||
-            "Application for Site (New Site)"
-        ),
+        value: getApplicationType({ form_data: { step_1: step1 } }, language),
       },
       { no: "2.", label: tx("nameOfProject"), value: step1.project_name },
       { no: "3.", label: tx("applicant"), value: step1.applicant },
@@ -1021,6 +1011,19 @@ function drawPdfDocumentSummary(pdf, {
   y = drawPdfTableHeader(pdf, columns, y);
 
   rows.forEach((row, index) => {
+    if (!other && row?.section) {
+      y = drawPdfMergedDocumentRow(
+        pdf,
+        columns,
+        {
+          index: String(index + 1),
+          title: documentTitle(language, row.title),
+        },
+        y
+      );
+      return;
+    }
+
     const description = other
       ? row.description
       : row.title === TITLE_DOCUMENT_NAME
@@ -1038,6 +1041,26 @@ function drawPdfDocumentSummary(pdf, {
 
   resetPdfTextStyle(pdf);
   return y;
+}
+
+function drawPdfMergedDocumentRow(pdf, columns, values, y) {
+  pdf.setFontSize(10);
+  pdf.setFont("helvetica", "bold");
+
+  const rowHeight = 9;
+  const indexColumn = columns[0];
+  const mergedWidth = columns.slice(1).reduce((sum, column) => sum + column.width, 0);
+  let x = PDF_PAGE.marginX;
+
+  pdf.setDrawColor(185, 185, 185);
+  pdf.rect(x, y, indexColumn.width, rowHeight);
+  pdf.text(values.index, x + indexColumn.width / 2, y + 6, { align: "center" });
+
+  x += indexColumn.width;
+  pdf.rect(x, y, mergedWidth, rowHeight);
+  pdf.text(values.title, x + 1.5, y + 6);
+
+  return y + rowHeight;
 }
 
 function drawPdfTableHeader(pdf, columns, y) {
@@ -1319,6 +1342,17 @@ function DocumentSummary({
 
           <tbody>
             {rows.map((row, index) => {
+              if (!other && row?.section) {
+                return (
+                  <tr key={`${title}-${index}`} className="print-avoid-break">
+                    <PrintTableCell center>{index + 1}</PrintTableCell>
+                    <PrintTableCell colSpan={4}>
+                      <strong>{documentTitle(language, row.title)}</strong>
+                    </PrintTableCell>
+                  </tr>
+                );
+              }
+
               const description = other
                 ? row.description
                 : row.title === TITLE_DOCUMENT_NAME
@@ -1364,9 +1398,10 @@ function PrintTableHead({ children, style = {} }) {
   );
 }
 
-function PrintTableCell({ children, center = false }) {
+function PrintTableCell({ children, center = false, colSpan }) {
   return (
     <td
+      colSpan={colSpan}
       style={{
         border: "1px solid #b5b5b5",
         padding: "1.4mm",

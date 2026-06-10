@@ -91,28 +91,82 @@ def timezone_now_iso():
     return timezone.now().isoformat()
 
 
-def get_applicant_activity_title(application, request_data):
+def get_applicant_activity_message(application, request_data):
     requested_status = str(request_data.get("status", application.status) or "").strip().lower()
     form_data = request_data.get("form_data") or {}
     form_keys = set(form_data.keys()) if isinstance(form_data, dict) else set()
     step_11 = form_data.get("step_11") if isinstance(form_data, dict) else {}
 
     if requested_status == "payment_submitted" and form_keys.issubset({"payment"}):
-        return "Payment receipt submitted"
+        return (
+            "Payment receipt submitted",
+            "You submitted your payment receipt. ALiS will verify it before issuing the e-license.",
+        )
 
     if isinstance(step_11, dict) and step_11.get("submitted"):
-        return "Application resubmitted" if requested_status == "mphlg_processing" else "Application submitted"
+        if requested_status == "mphlg_processing":
+            return (
+                "Application resubmitted",
+                "You sent your updated application back for review.",
+            )
+
+        return (
+            "Application submitted",
+            "You sent your application to ALiS for review.",
+        )
 
     if requested_status in {"submitted", "ku_ikl_review"}:
-        return "Application submitted"
+        return (
+            "Application submitted",
+            "You sent your application to ALiS for review.",
+        )
 
     if requested_status in {"draft", "incomplete", "technical_amendment", "rejected"}:
-        return "Application details saved"
+        saved_step = get_applicant_saved_step_label(form_keys)
+        if saved_step:
+            return (
+                f"{saved_step} details saved",
+                f"You saved changes in {saved_step}.",
+            )
+
+        return (
+            "Application details saved",
+            "You saved changes to your application.",
+        )
 
     if form_keys:
-        return "Application details saved"
+        saved_step = get_applicant_saved_step_label(form_keys)
+        if saved_step:
+            return (
+                f"{saved_step} details saved",
+                f"You saved changes in {saved_step}.",
+            )
 
-    return "Application updated"
+        return (
+            "Application details saved",
+            "You saved changes to your application.",
+        )
+
+    return (
+        "Application updated",
+        "Your application record was updated.",
+    )
+
+
+def get_applicant_saved_step_label(form_keys):
+    step_labels = {
+        "step_1": "Sitting Application",
+        "step_3": "Submitting Person",
+        "step_10": "Supporting Documents",
+        "step_11": "Declaration",
+    }
+
+    for key in sorted(form_keys):
+        label = step_labels.get(key)
+        if label:
+            return label
+
+    return ""
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -200,11 +254,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         self.ensure_staff_can_update_workflow(serializer.instance)
         application = serializer.save()
         if self.request.user.role not in STAFF_ROLES:
+            activity_title, activity_description = get_applicant_activity_message(
+                application,
+                self.request.data,
+            )
             append_application_activity(
                 application,
                 self.request.user,
-                get_applicant_activity_title(application, self.request.data),
-                "The applicant updated this application record.",
+                activity_title,
+                activity_description,
             )
         notify_application_status_change(
             application,

@@ -328,10 +328,22 @@ export function getProjectName(app) {
 
 export function getApplicationType(app, language = "en") {
   const step1 = getStep(app, "step_1");
-  const subtypeLabel = getLocalizedApplicationSubtypeLabel(
-    step1.application_subtype,
-    language
-  );
+  const firstAdvertisementRow = Array.isArray(step1.advertisement_rows)
+    ? step1.advertisement_rows.find(
+        (row) => row?.subtype || row?.customLabel || row?.custom_label
+      )
+    : null;
+  const rawSubtype =
+    firstAdvertisementRow?.subtype ||
+    step1.application_subtype ||
+    firstAdvertisementRow?.customLabel ||
+    firstAdvertisementRow?.custom_label ||
+    step1.advertisement_type_custom_label ||
+    step1.application_subtype_label ||
+    "";
+  const subtypeLabel =
+    getLocalizedApplicationSubtypeLabel(rawSubtype, language) ||
+    String(rawSubtype || "").trim();
   const optionLabels = Array.isArray(step1.application_type_options)
     ? step1.application_type_options
         .map((value) => getLocalizedApplicationTypeLabel(value, language))
@@ -351,6 +363,9 @@ export function getApplicationType(app, language = "en") {
     app?.application_type ||
     "Siting Application";
 
+  const localizedCombinedLabel = getLocalizedApplicationTypeText(rawType, language);
+  if (localizedCombinedLabel) return localizedCombinedLabel;
+
   const localizedLabel = getLocalizedApplicationTypeLabel(rawType, language);
   if (localizedLabel) return [localizedLabel, subtypeLabel].filter(Boolean).join(" - ");
 
@@ -362,6 +377,25 @@ export function getApplicationType(app, language = "en") {
   };
 
   return labelMap[rawType] || rawType;
+}
+
+function getLocalizedApplicationTypeText(value, language = "en") {
+  const parts = String(value || "")
+    .split(/\s+-\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length < 2) return "";
+
+  const localizedType = getLocalizedApplicationTypeLabel(parts[0], language);
+  const localizedSubtype = getLocalizedApplicationSubtypeLabel(
+    parts.slice(1).join(" - "),
+    language
+  );
+
+  return [localizedType || parts[0], localizedSubtype || parts.slice(1).join(" - ")]
+    .filter(Boolean)
+    .join(" - ");
 }
 
 function getLocalizedApplicationTypeLabel(value, language = "en") {
@@ -407,7 +441,15 @@ function getLocalizedApplicationSubtypeLabel(value, language = "en") {
       en: "LED Billboard",
       ms: "Papan Iklan LED",
     },
+    led_billboard: {
+      en: "LED Billboard",
+      ms: "Papan Iklan LED",
+    },
     building_normal_billboard: {
+      en: "Normal Billboard",
+      ms: "Papan Iklan Biasa",
+    },
+    normal_billboard: {
       en: "Normal Billboard",
       ms: "Papan Iklan Biasa",
     },
