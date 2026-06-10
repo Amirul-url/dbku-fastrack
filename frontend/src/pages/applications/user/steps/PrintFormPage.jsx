@@ -187,7 +187,7 @@ function PrintFormPage({
 
     const saved = await saveStep9({ submit: true });
     if (saved) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard");
+      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=status");
     }
   }
 

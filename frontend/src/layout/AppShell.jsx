@@ -223,7 +223,8 @@ function getApplicationStepPath(applicationId, route) {
 }
 
 function buildApplicantNav(taskCounts = {}) {
-  const invoiceGeneratedBadge = Number(taskCounts.invoiceGenerated || 0);
+  const statusBadge = Number(taskCounts.status || 0);
+  const eLicenseBadge = Number(taskCounts.eLicense || 0);
 
   return [
     {
@@ -231,7 +232,7 @@ function buildApplicantNav(taskCounts = {}) {
       fallback: "Dashboard",
       path: "/user/dashboard",
       icon: "dashboard",
-      badge: invoiceGeneratedBadge,
+      badge: statusBadge + eLicenseBadge,
       children: [
         {
           labelKey: "applicant.tabApplications",
@@ -239,13 +240,19 @@ function buildApplicantNav(taskCounts = {}) {
           path: "/user/dashboard?tab=applications",
           tab: "applications",
         },
-        { labelKey: "applicant.tabStatus", fallback: "Status", path: "/user/dashboard?tab=status", tab: "status" },
+        {
+          labelKey: "applicant.tabStatus",
+          fallback: "Status",
+          path: "/user/dashboard?tab=status",
+          tab: "status",
+          badge: statusBadge,
+        },
         {
           labelKey: "applicant.tabLicense",
           fallback: "E-Licenses",
           path: "/user/dashboard?tab=license",
           tab: "license",
-          badge: invoiceGeneratedBadge,
+          badge: eLicenseBadge,
         },
       ],
     },
@@ -269,7 +276,7 @@ function AppShell({ children, role = "admin" }) {
   const [applicationStepsOpen, setApplicationStepsOpen] = useState(true);
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const [adminTaskCounts, setAdminTaskCounts] = useState({ personal: 0, approval: 0 });
-  const [applicantTaskCounts, setApplicantTaskCounts] = useState({ invoiceGenerated: 0 });
+  const [applicantTaskCounts, setApplicantTaskCounts] = useState({ status: 0, eLicense: 0 });
   const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
   const stepApplicationId = currentApplicationId;
@@ -302,7 +309,7 @@ function AppShell({ children, role = "admin" }) {
       const applications = await fetchApplicationList();
       setApplicantTaskCounts(getApplicantTaskCounts(applications));
     } catch {
-      if (!silent) setApplicantTaskCounts({ invoiceGenerated: 0 });
+      if (!silent) setApplicantTaskCounts({ status: 0, eLicense: 0 });
     }
   }, [role]);
 
@@ -825,14 +832,30 @@ function getAdminTaskCounts(applications, user) {
 function getApplicantTaskCounts(applications) {
   return applications.reduce(
     (counts, application) => {
-      if (normalizeWorkflowStatus(application?.status) === "invoice_generated") {
-        counts.invoiceGenerated += 1;
+      const status = normalizeWorkflowStatus(application?.status);
+
+      if (status && status !== "draft") {
+        counts.status += 1;
+      }
+
+      if (isApplicantELicenseItem(status)) {
+        counts.eLicense += 1;
       }
 
       return counts;
     },
-    { invoiceGenerated: 0 }
+    { status: 0, eLicense: 0 }
   );
+}
+
+function isApplicantELicenseItem(status) {
+  return [
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+    "license_revoked",
+  ].includes(status);
 }
 
 function isPtIklUser(user) {
