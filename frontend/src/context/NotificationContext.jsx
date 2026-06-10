@@ -19,10 +19,12 @@ import {
 } from "../utils/workflow";
 
 const NotificationContext = createContext();
-const NOTIFICATIONS_ENABLED = false;
+const NOTIFICATIONS_ENABLED = true;
 const READ_STORAGE_KEY = "fastrack_notification_read_ids";
 const POLL_INTERVAL_MS = 5000;
 const applicantNotificationStatuses = new Set([
+  "registration_success",
+  "applicant_submitted",
   "submitted",
   "incomplete",
   "rejected",

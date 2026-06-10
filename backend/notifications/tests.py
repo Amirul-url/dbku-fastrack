@@ -134,6 +134,70 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
 
+    def test_submitted_normalizes_registered_applicant_mobile_without_leading_zero(self):
+        self.applicant.mobile_number = "175151829"
+        self.applicant.save(update_fields=["mobile_number"])
+        self.application.form_data = {}
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("submitted")
+
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                channel="whatsapp",
+                recipient="60175151829",
+                metadata__event_status="submitted",
+            ).exists()
+        )
+
+    def test_submitted_uses_registered_applicant_profile_contact(self):
+        self.application.form_data = {
+            "step_1": {"tel_no": "0199999999"},
+            "step_2": {
+                "email": "form-contact@sample.com",
+                "mobile_country_code": "60",
+                "mobile_no": "199999999",
+            },
+            "step_3": {
+                "email": "submitting-person@sample.com",
+                "mobile_country_code": "60",
+                "mobile_no": "188888888",
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("submitted")
+
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                channel="email",
+                recipient="applicant@sample.com",
+                metadata__event_status="submitted",
+            ).exists()
+        )
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                channel="whatsapp",
+                recipient="60175151829",
+                metadata__event_status="submitted",
+            ).exists()
+        )
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                recipient__in=[
+                    "form-contact@sample.com",
+                    "submitting-person@sample.com",
+                    "60199999999",
+                    "60188888888",
+                ],
+                metadata__event_status="submitted",
+            ).exists()
+        )
+
     def test_notification_endpoint_includes_registered_ku_ikl_contact(self):
         ku_admin = User.objects.create_user(
             username="ku-admin",

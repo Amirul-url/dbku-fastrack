@@ -652,10 +652,6 @@ def build_applicant_application_submitted_message(application):
     lines = [
         APP_BRAND_NAME,
         "",
-        "Application submitted successfully",
-        f"Reference: {reference}",
-        f"Project: {title}",
-        "",
         body,
     ]
     metadata = {
@@ -1417,35 +1413,13 @@ def build_recipients(application, messages):
 
 
 def get_applicant_emails(application):
-    values = [
-        get_nested(application.form_data, "step_2", "email"),
-        get_nested(application.form_data, "step_3", "email"),
-        getattr(application.applicant, "email", ""),
-    ]
-
-    return [
-        value
-        for value in dedupe_values(normalize_email(value) for value in values)
-        if value
-    ]
+    email = normalize_email(getattr(application.applicant, "email", ""))
+    return [email] if email else []
 
 
 def get_applicant_whatsapp_numbers(application):
-    form_data = application.form_data or {}
-    candidates = [
-        join_phone(
-            get_nested(form_data, "step_2", "mobile_country_code"),
-            get_nested(form_data, "step_2", "mobile_no"),
-        ),
-        join_phone(
-            get_nested(form_data, "step_3", "mobile_country_code"),
-            get_nested(form_data, "step_3", "mobile_no"),
-        ),
-        get_nested(form_data, "step_1", "tel_no"),
-        getattr(application.applicant, "mobile_number", ""),
-    ]
-
-    return [value for value in dedupe_values(normalize_phone(value) for value in candidates) if value]
+    phone = normalize_phone(getattr(application.applicant, "mobile_number", ""))
+    return [phone] if phone else []
 
 
 def get_admin_task_web_recipients(application):
@@ -2220,8 +2194,14 @@ def normalize_phone(value):
     if not digits or len(digits) < 8:
         return ""
 
+    if digits.startswith("60"):
+        return digits
+
     if digits.startswith("0"):
         return f"60{digits[1:]}"
+
+    if digits.startswith("1") and len(digits) in {9, 10}:
+        return f"60{digits}"
 
     return digits
 
