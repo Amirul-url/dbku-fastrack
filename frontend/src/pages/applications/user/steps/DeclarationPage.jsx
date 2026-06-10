@@ -5,13 +5,10 @@ import { apiRequest } from "../../../../services/api";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   canEditApplicationForm,
-  formatWorkflowStatus,
-  getApplicantDisplayStatus,
   getApplicationType,
 } from "../../../../utils/workflow";
 import {
   applicationStatusLabel,
-  readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
@@ -271,10 +268,6 @@ function DeclarationPage({
           <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
             <ApplicationReference step1={step1} language={language} />
 
-            {isReadOnly && (
-              <ReadOnlyNotice language={language} status={applicationRecord?.status} />
-            )}
-
             <div className="space-y-5 p-4 text-[12px]">
               {error && (
                 <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-600">
@@ -395,23 +388,11 @@ function joinAddress(parts) {
 }
 
 function ApplicationReference({ step1, language }) {
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
   const tx = (key) => stepText(language, key);
 
   return (
     <div className="border-b border-slate-200 bg-[#f5f5f5] px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        {user?.role !== "applicant" && (
-          <>
-            <p>{tx("digitalReference")}</p>
-            <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
-
-            <p>{tx("agencyReference")}</p>
-            <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
-          </>
-        )}
-
         <p>{tx("status")}</p>
         <p className="font-semibold text-[#006d32]">
           {applicationStatusLabel(language, step1.status)}
@@ -422,16 +403,6 @@ function ApplicationReference({ step1, language }) {
           {getApplicationType({ form_data: { step_1: step1 } }, language)}
         </p>
       </div>
-    </div>
-  );
-}
-
-function ReadOnlyNotice({ language, status }) {
-  const displayStatus = getApplicantDisplayStatus(status);
-
-  return (
-    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(displayStatus)))}
     </div>
   );
 }

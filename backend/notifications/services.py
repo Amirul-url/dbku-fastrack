@@ -152,6 +152,7 @@ STATUS_UI = {
 APPLICANT_NOTIFICATION_STATUSES = {
     "registration_success",
     "applicant_submitted",
+    "applicant_resubmitted",
     "submitted",
     "incomplete",
     "rejected",
@@ -320,7 +321,28 @@ def notify_applicant_application_submitted(application):
 
     subject, message, metadata = build_applicant_application_submitted_message(application)
     event_key = f"application:{application.pk}:applicant_submitted"
+    send_forced_applicant_application_notification(application, event_key, subject, message, metadata)
 
+
+def notify_applicant_application_resubmitted(application):
+    if not getattr(application, "pk", None) or not getattr(application, "applicant_id", None):
+        return
+
+    subject, message, metadata = build_applicant_application_resubmitted_message(application)
+    event_key = build_applicant_event_key(application, "applicant_resubmitted")
+    send_forced_applicant_application_notification(application, event_key, subject, message, metadata)
+
+
+def notify_applicant_application_rejected(application, remark_changed=False):
+    if not getattr(application, "pk", None) or not getattr(application, "applicant_id", None):
+        return
+
+    subject, message, metadata = build_applicant_application_rejected_message(application)
+    event_key = build_event_key(application, "rejected", remark_changed=remark_changed)
+    send_forced_applicant_application_notification(application, event_key, subject, message, metadata)
+
+
+def send_forced_applicant_application_notification(application, event_key, subject, message, metadata):
     create_and_send_delivery(
         application=application,
         event_key=event_key,
@@ -361,6 +383,12 @@ def notify_applicant_application_submitted(application):
             metadata=metadata,
             force=True,
         )
+
+
+def build_applicant_event_key(application, event_status):
+    updated_at = getattr(application, "updated_at", None)
+    occurrence = updated_at.isoformat() if updated_at else timezone.now().isoformat()
+    return f"application:{application.pk}:{event_status}:event:{occurrence}"
 
 
 def process_license_renewal_reminders(now=None):
@@ -663,6 +691,68 @@ def build_applicant_application_submitted_message(application):
         "message_en": body,
         "recipient_role": "applicant",
         "event_status": "applicant_submitted",
+        "application_id": application.pk,
+        "reference_no": reference,
+        "project_title": title,
+        "action_url": f"/applications/{application.pk}",
+    }
+
+    return subject, "\n".join(lines), metadata
+
+
+def build_applicant_application_resubmitted_message(application):
+    reference = getattr(application, "reference_no", "") or "-"
+    title = str(getattr(application, "title", "") or "").strip() or "Application"
+    subject = f"{APP_BRAND_NAME} - Application resubmitted ({reference})"
+    body = (
+        f"Your application {reference} has been resubmitted successfully. "
+        "ALiS will review your updated application and notify you when there is an update."
+    )
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        body,
+    ]
+    metadata = {
+        "category": "submission",
+        "type": "success",
+        "title": "Application resubmitted successfully",
+        "title_en": "Application resubmitted successfully",
+        "message": body,
+        "message_en": body,
+        "recipient_role": "applicant",
+        "event_status": "applicant_resubmitted",
+        "application_id": application.pk,
+        "reference_no": reference,
+        "project_title": title,
+        "action_url": f"/applications/{application.pk}",
+    }
+
+    return subject, "\n".join(lines), metadata
+
+
+def build_applicant_application_rejected_message(application):
+    reference = getattr(application, "reference_no", "") or "-"
+    title = str(getattr(application, "title", "") or "").strip() or "Application"
+    subject = f"{APP_BRAND_NAME} - Application rejected ({reference})"
+    body = f"Your application {reference} has been rejected. Please review the remark and update your application."
+    remark = get_latest_remark(application)
+    if remark:
+        body = f"{body}\n\nRemark: {remark}"
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        body,
+    ]
+    metadata = {
+        "category": "decision",
+        "type": "error",
+        "title": "Application rejected",
+        "title_en": "Application rejected",
+        "message": body,
+        "message_en": body,
+        "recipient_role": "applicant",
+        "event_status": "rejected",
         "application_id": application.pk,
         "reference_no": reference,
         "project_title": title,

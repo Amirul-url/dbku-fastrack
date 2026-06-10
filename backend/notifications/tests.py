@@ -458,6 +458,34 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertIn("Rejected by KU(IKL)", web_delivery.message)
 
+    def test_ku_ikl_final_rejection_notifies_applicant_all_channels(self):
+        self.application.latest_remark = "Rejected by KU(IKL). Please update the site details."
+        self.application.form_data = {
+            **self.application.form_data,
+            "correction_request": {
+                "source": "KU(IKL)",
+                "target": "Applicant",
+                "remarks": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("rejected", old_status="ku_ikl_review")
+
+        applicant_channels = set(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                metadata__event_status="rejected",
+            ).values_list("channel", flat=True)
+        )
+        self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
+        web_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="applicant",
+            metadata__event_status="rejected",
+        )
+        self.assertIn("Rejected by KU(IKL)", web_delivery.message)
+
     def test_ikl_technical_support_memo_is_sent_to_ku_ikl_notification(self):
         ku_user = User.objects.create_user(
             username="ku-technical-memo",

@@ -108,6 +108,20 @@ html.material-symbols-ready .material-symbols-outlined {
   box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.12);
 }
 
+.form-input.form-input-sm {
+  padding: 0.42rem 0.55rem;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+select.form-input.form-input-sm {
+  height: 34px;
+}
+
+textarea.form-input.form-input-sm {
+  min-height: 86px;
+}
+
 /* SPA form style */
 .spa-input {
   width: 100%;

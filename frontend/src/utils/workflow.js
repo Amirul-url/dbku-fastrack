@@ -334,11 +334,11 @@ export function getApplicationType(app, language = "en") {
       )
     : null;
   const rawSubtype =
-    firstAdvertisementRow?.subtype ||
-    step1.application_subtype ||
     firstAdvertisementRow?.customLabel ||
     firstAdvertisementRow?.custom_label ||
     step1.advertisement_type_custom_label ||
+    firstAdvertisementRow?.subtype ||
+    step1.application_subtype ||
     step1.application_subtype_label ||
     "";
   const subtypeLabel =

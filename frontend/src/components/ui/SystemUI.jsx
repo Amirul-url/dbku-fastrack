@@ -3,10 +3,7 @@ import {
   AD_LICENSE_FLOW,
   formatDateTime,
   formatWorkflowStatus,
-  getApplicantName,
-  getApplicationLocation,
   getApplicationReference,
-  getApplicationType,
   normalizeStatus,
 } from "../../utils/workflow";
 
@@ -108,17 +105,26 @@ export function LinkButton({ to, children, icon, variant = "primary", className 
   );
 }
 
-export function Panel({ title, description, action, children, className = "" }) {
+export function Panel({ title, description, action, children, className = "", compact = false }) {
+  const headerClass = compact ? "px-3 py-2.5" : "px-4 py-3";
+  const titleClass = compact
+    ? "text-[14px] font-semibold leading-5 text-slate-950"
+    : "text-[16px] font-semibold leading-6 text-slate-950";
+  const descriptionClass = compact
+    ? "mt-1 text-[13px] leading-5 text-slate-500"
+    : "mt-1 text-[14px] leading-5 text-slate-500";
+  const bodyClass = compact ? "p-3" : "p-4";
+
   return (
     <section className={`rounded-md border border-slate-200 bg-white ${className}`}>
       {(title || description || action) && (
-        <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+        <div className={`flex items-center justify-between gap-2 border-b border-slate-200 ${headerClass}`}>
           <div>
             {title && (
-              <h2 className="text-[16px] font-semibold leading-6 text-slate-950">{title}</h2>
+              <h2 className={titleClass}>{title}</h2>
             )}
             {description && (
-              <p className="mt-1 text-[14px] leading-5 text-slate-500">
+              <p className={descriptionClass}>
                 {description}
               </p>
             )}
@@ -126,7 +132,7 @@ export function Panel({ title, description, action, children, className = "" }) 
           {action}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div className={bodyClass}>{children}</div>
     </section>
   );
 }
@@ -156,10 +162,10 @@ export function StatCard({ label, value, note, icon, tone = "emerald" }) {
   );
 }
 
-export function Field({ label, children, className = "" }) {
+export function Field({ label, children, className = "", labelClassName = "" }) {
   return (
     <label className={`block ${className}`}>
-      <span className="mb-1.5 block text-[14px] font-semibold leading-5 text-slate-700">
+      <span className={`mb-1.5 block text-[14px] font-semibold leading-5 text-slate-700 ${labelClassName}`}>
         {label}
       </span>
       {children}
@@ -182,9 +188,13 @@ export function Alert({ type = "error", message }) {
   );
 }
 
-export function StatusPill({ value }) {
+export function StatusPill({ value, size = "md" }) {
   const normalized = normalizeStatus(value);
   let className = "border-slate-200 bg-slate-100 text-slate-700";
+  const sizeClass =
+    size === "sm"
+      ? "px-2 py-0 text-[12px] leading-4"
+      : "px-2.5 py-0.5 text-[13px] leading-5";
 
   if (
     normalized.includes("submitted") ||
@@ -240,7 +250,7 @@ export function StatusPill({ value }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[13px] font-semibold leading-5 ${className}`}
+      className={`inline-flex items-center rounded-full border font-semibold ${sizeClass} ${className}`}
     >
       {value || "Draft"}
     </span>
@@ -347,47 +357,27 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 }
 
-export function ApplicationSummary({ app, labels = {}, actions, statusLabel, applicationType }) {
+export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
   if (!app) return null;
   const status = statusLabel || formatWorkflowStatus(app.status);
 
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3.5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-            {labels.selectedApplication || "Selected Application"}
-          </p>
-          <p className="mt-1 text-[14px] font-semibold leading-5 text-slate-950">
-            {getApplicationReference(app)}
-          </p>
-          <p className="text-[14px] leading-5 text-slate-600">
-            {app.title || labels.defaultTitle || "Advertisement License Application"}
-          </p>
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-2.5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 text-[13px] leading-5 sm:grid-cols-2 lg:grid-cols-4">
+          <Info label={labels.reference || "Reference"} value={getApplicationReference(app)} />
+          <div>
+            <p className="text-[11px] font-semibold uppercase leading-4 tracking-wide text-slate-500">
+              {labels.status || "Status"}
+            </p>
+            <div className="mt-1">
+              <StatusPill value={status} size="sm" />
+            </div>
+          </div>
+          <Info label={labels.created || "Created"} value={formatDateTime(app.created_at)} />
+          <Info label={labels.updated || "Updated"} value={formatDateTime(app.updated_at)} />
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 text-[14px] leading-5 md:grid-cols-3">
-        <Info label={labels.applicant || "Applicant"} value={getApplicantName(app)} />
-        <Info label={labels.type || "Type"} value={applicationType || getApplicationType(app)} />
-        <div>
-          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-            {labels.status || "Status"}
-          </p>
-          <div className="mt-1">
-            <StatusPill value={status} />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 text-[14px] leading-5 md:grid-cols-3">
-        <Info
-          label={labels.location || "Location"}
-          value={getApplicationLocation(app)}
-        />
-        <Info label={labels.created || "Created"} value={formatDateTime(app.created_at)} />
-        <Info label={labels.updated || "Updated"} value={formatDateTime(app.updated_at)} />
       </div>
     </div>
   );
@@ -396,10 +386,10 @@ export function ApplicationSummary({ app, labels = {}, actions, statusLabel, app
 export function Info({ label, value }) {
   return (
     <div>
-      <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+      <p className="text-[11px] font-semibold uppercase leading-4 tracking-wide text-slate-500">
         {label}
       </p>
-      <p className="mt-1 text-[14px] font-medium leading-5 text-slate-800">{value || "-"}</p>
+      <p className="mt-1 text-[13px] font-medium leading-5 text-slate-800">{value || "-"}</p>
     </div>
   );
 }

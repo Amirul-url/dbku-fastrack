@@ -15,13 +15,9 @@ import {
 import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 import {
   canEditApplicationForm,
-  formatWorkflowStatus,
-  getApplicantDisplayStatus,
 } from "../../../../utils/workflow";
 import {
-  applicationStatusLabel,
   applicationTypeLabel,
-  readOnlyMessage,
   stepText,
 } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
@@ -970,10 +966,6 @@ function SittingApplicationPage({
               applicationSubtype={applicationSubtype}
               customAdvertisementTypeLabel={customAdvertisementTypeLabel}
             />
-
-            {isReadOnly && (
-              <ReadOnlyNotice language={language} status={applicationRecord?.status} />
-            )}
 
             <div className="p-4 space-y-3">
               <fieldset disabled={isReadOnly} className="space-y-3">
@@ -1949,24 +1941,12 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
   );
 }
 
-function ReadOnlyNotice({ language, status }) {
-  const displayStatus = getApplicantDisplayStatus(status);
-
-  return (
-    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-      {readOnlyMessage(language, applicationStatusLabel(language, formatWorkflowStatus(displayStatus)))}
-    </div>
-  );
-}
-
 function ApplicationReference({
   language,
   applicationTypeOptions = ["open_space"],
   applicationSubtype = "",
   customAdvertisementTypeLabel = "",
 }) {
-  const storedUser = localStorage.getItem("fastrack_user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
   const tx = (key) => stepText(language, key);
   const applicationTypeText =
     getApplicationTypeDisplayLabel(
@@ -1980,19 +1960,6 @@ function ApplicationReference({
   return (
     <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
       <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        {user?.role !== "applicant" && (
-          <>
-            <p>{tx("digitalReference")}</p>
-            <p className="font-semibold text-[#006d32]">E.SPA.2025-1443</p>
-
-            <p>{tx("agencyReference")}</p>
-            <p className="font-semibold text-[#006d32]">SP/1D/159/2024</p>
-
-            <p>{tx("division")}</p>
-            <p className="font-semibold text-[#006d32]">KUCHING</p>
-          </>
-        )}
-
         <p>{tx("status")}</p>
         <p className="font-semibold text-[#006d32]">{tx("prepareCase")}</p>
 

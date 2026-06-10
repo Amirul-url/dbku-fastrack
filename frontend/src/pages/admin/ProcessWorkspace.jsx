@@ -2166,6 +2166,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
         {showActionPanel && (
           <Panel
+            compact
             title={t("workspace.actionPanel")}
             description={
               isReadOnlyActionPanel
@@ -2185,6 +2186,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               <ApplicationSummary
                 app={selectedRecord}
                 labels={{
+                  reference: t("common.reference", "Reference"),
                   selectedApplication: t("workspace.selectedApplication"),
                   defaultTitle: t("workspace.defaultApplicationTitle"),
                   applicant: t("common.applicant"),
@@ -5026,7 +5028,9 @@ function buildIklScreeningPayload(app, data) {
 
   return {
     status: reject
-      ? "incomplete"
+      ? data.decision === "KU(IKL) Reject to Applicant"
+        ? "rejected"
+        : "incomplete"
       : technicalAmendment
         ? "technical_amendment"
         : sendTechnical
@@ -6674,22 +6678,25 @@ function IklWorkspaceSections({
   return (
     <div className="space-y-4">
       {showScreeningDecision && (
-        <section className="rounded-md border border-slate-200 bg-white p-3">
-          <div className="mb-3">
-            <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+        <section className="rounded-md border border-slate-200 bg-white p-2.5 text-[13px] leading-5">
+          <div className="mb-2.5">
+            <h3 className="text-[14px] font-semibold leading-5 text-slate-950">
               {t(screeningCopy.titleKey, screeningCopy.title)}
             </h3>
-            <p className="mt-1 text-[14px] leading-5 text-slate-500">
+            <p className="mt-1 text-[13px] leading-5 text-slate-500">
               {t(screeningCopy.descriptionKey, screeningCopy.description)}
             </p>
           </div>
 
           <div className="space-y-3">
-            <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
+            <Field
+              label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}
+              labelClassName="!text-[13px]"
+            >
               <select
                 value={decision}
                 onChange={(event) => setDecision(event.target.value)}
-                className={`form-input ${["PT(IKL)", "KU(IKL)"].includes(userDepartment) ? "max-w-64" : ""}`}
+                className={`form-input form-input-sm ${["PT(IKL)", "KU(IKL)"].includes(userDepartment) ? "max-w-60" : ""}`}
               >
                 <option value="">
                   {t("workspace.decision.selectDecision", "Select decision")}
@@ -6702,12 +6709,15 @@ function IklWorkspaceSections({
               </select>
             </Field>
 
-            <Field label={t(config.commentLabelKey, config.commentLabel || "Notes")}>
+            <Field
+              label={t(config.commentLabelKey, config.commentLabel || "Notes")}
+              labelClassName="!text-[13px]"
+            >
               <textarea
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
-                rows="4"
-                className="form-input"
+                rows="3"
+                className="form-input form-input-sm"
                 placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
               />
             </Field>
@@ -6717,7 +6727,7 @@ function IklWorkspaceSections({
                 icon="fact_check"
                 disabled={saving}
                 onClick={() => submitAction(config.screeningAction)}
-                className="w-full sm:w-auto"
+                className="min-h-8 px-2.5 py-1 text-[13px] sm:w-auto"
               >
                 {saving
                   ? t("workspace.saving")

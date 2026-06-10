@@ -19,12 +19,16 @@ from config.throttles import UploadRateThrottle
 from notifications.services import (
     apply_license_renewal_action,
     normalize_department,
+    notify_applicant_application_rejected,
+    notify_applicant_application_resubmitted,
     notify_applicant_application_submitted,
     notify_application_status_change,
 )
 
 STAFF_ROLES = ["admin", "supervisor", "staff"]
 MAX_ACTIVITY_LOG_ITEMS = 80
+APPLICANT_CORRECTION_STATUSES = {"incomplete", "rejected", "technical_amendment"}
+APPLICANT_RESUBMIT_STATUSES = {"submitted", "ku_ikl_review", "mphlg_processing"}
 
 
 def append_application_activity(application, actor, title, description="", category="user"):
@@ -254,12 +258,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_form_data = deepcopy(serializer.instance.form_data or {})
         self.ensure_staff_can_update_workflow(serializer.instance)
         application = serializer.save()
-        if (
-            self.request.user.role not in STAFF_ROLES
-            and str(old_status or "").strip().lower() != "submitted"
-            and str(application.status or "").strip().lower() == "submitted"
-        ):
-            notify_applicant_application_submitted(application)
+        old_status_key = str(old_status or "").strip().lower()
+        new_status_key = str(application.status or "").strip().lower()
+        remark_changed = str(application.latest_remark or "").strip() != str(old_remark or "").strip()
+        if self.request.user.role not in STAFF_ROLES:
+            if old_status_key in APPLICANT_CORRECTION_STATUSES and new_status_key in APPLICANT_RESUBMIT_STATUSES:
+                notify_applicant_application_resubmitted(application)
+            elif old_status_key != "submitted" and new_status_key == "submitted":
+                notify_applicant_application_submitted(application)
         if self.request.user.role not in STAFF_ROLES:
             activity_title, activity_description = get_applicant_activity_message(
                 application,
@@ -277,6 +283,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             old_remark,
             old_form_data=old_form_data,
         )
+        if (
+            self.request.user.role in STAFF_ROLES
+            and new_status_key == "rejected"
+            and (old_status_key != new_status_key or remark_changed)
+        ):
+            notify_applicant_application_rejected(application, remark_changed=remark_changed)
 
     def perform_destroy(self, instance):
         documents = list(instance.supporting_documents.all())
@@ -322,6 +334,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if requested_status == "incomplete" and current_status == "mphlg_processing":
             if department != "MPHLG":
                 raise PermissionDenied("Only MPHLG can return the application to the applicant at this stage.")
+            return
+
+        if requested_status == "rejected" and current_status == "ku_ikl_review":
+            if department != "KU(IKL)":
+                raise PermissionDenied("Only KU(IKL) can reject the application at this stage.")
             return
 
         if requested_status == "approved" and current_status == "management_review":
@@ -686,6 +703,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application.status = "rejected"
         application.save()
         notify_application_status_change(application, old_status, old_remark)
+        notify_applicant_application_rejected(
+            application,
+            remark_changed=str(application.latest_remark or "").strip() != str(old_remark or "").strip(),
+        )
 
         return Response(
             {
