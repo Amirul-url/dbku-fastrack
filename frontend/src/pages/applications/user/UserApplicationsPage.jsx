@@ -134,13 +134,9 @@ function UserApplicationsPage() {
               key: "reference",
               label: t("common.reference"),
               render: (app) => (
-                <button
-                  type="button"
-                  onClick={() => openApplication(app)}
-                  className="font-semibold text-emerald-700 hover:underline"
-                >
+                <span className="font-semibold text-emerald-700">
                   {getApplicationReference(app)}
-                </button>
+                </span>
               ),
             },
             {
@@ -165,7 +161,7 @@ function UserApplicationsPage() {
               label: t("common.remarks", "Remarks"),
               className: "w-[22%]",
               render: (app) => (
-                <span className="block max-w-[24rem] whitespace-normal text-[13px] leading-5 text-slate-600">
+                <span className="block max-w-[24rem] whitespace-normal text-sm leading-5 text-slate-600">
                   {getApplicationRemark(app) || "-"}
                 </span>
               ),
@@ -175,7 +171,7 @@ function UserApplicationsPage() {
               label: t("common.updated"),
               className: "w-[12%]",
               render: (app) => (
-                <span className="whitespace-nowrap text-[12px] leading-5">
+                <span className="whitespace-nowrap text-sm leading-5">
                   {formatCompactDateTime(app.updated_at)}
                 </span>
               ),
@@ -188,7 +184,7 @@ function UserApplicationsPage() {
                 <button
                   type="button"
                   onClick={() => openApplication(app)}
-                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   {t(getApplicantActionKey(app))}
                 </button>

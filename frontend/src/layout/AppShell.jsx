@@ -481,7 +481,7 @@ function AppShell({ children, role = "admin" }) {
   }
 
   return (
-    <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950 [&_.text-sm]:text-base [&_.text-xs]:text-sm">
+    <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
       <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
         <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
           <img src={logo} alt="ALiS Logo" className="h-9 w-auto object-contain" />
@@ -545,9 +545,7 @@ function AppShell({ children, role = "admin" }) {
                         if (role === "applicant") {
                           setApplicantDashboardOpen(true);
                         } else if (adminDashboardItem) {
-                          setAdminDashboardOpen(true);
                           setAdminELicensesOpen(false);
-                          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
                           writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false);
                         } else if (adminELicensesItem) {
                           setAdminELicensesOpen(true);
@@ -1217,6 +1215,10 @@ function getAdminSidebarView(location) {
 
   const returnTo = params.get("returnTo") || "";
   const returnToView = getViewFromPath(returnTo);
+
+  if (location.pathname === "/dashboard/admin") {
+    return "dashboard";
+  }
 
   return returnToView || "personal";
 }

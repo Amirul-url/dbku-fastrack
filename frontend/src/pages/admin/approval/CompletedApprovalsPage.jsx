@@ -228,7 +228,7 @@ function CompletedApprovalsPage() {
           </Button>
         </div>
 
-        <div className="mb-3 flex flex-wrap items-center gap-3 text-[14px] font-medium leading-5 text-slate-600">
+        <div className="mb-3 flex flex-wrap items-center gap-3 text-[13px] font-medium leading-5 text-slate-600">
           <span>
             {t("approval.completed.recordsFound", "{count} record(s) found.").replace(
               "{count}",

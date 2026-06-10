@@ -271,7 +271,7 @@ export function DataTable({ columns, rows, loading, emptyText, loadingText = "Lo
 
   return (
     <div className="overflow-x-auto rounded-md border border-slate-200">
-      <table className="w-full min-w-[720px] text-left text-[14px] leading-5">
+      <table className="w-full min-w-[720px] text-left text-sm leading-5">
         <thead className="bg-slate-50 text-[13px] uppercase tracking-wide text-slate-500">
           <tr>
             {columns.map((column) => (
@@ -284,13 +284,13 @@ export function DataTable({ columns, rows, loading, emptyText, loadingText = "Lo
         <tbody className="divide-y divide-slate-100 bg-white">
           {loading ? (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-8 text-center text-slate-500">
+              <td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-slate-500">
                 {loadingText}
               </td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-3 py-8 text-center text-slate-500">
+              <td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-slate-500">
                 {emptyText || "No records found."}
               </td>
             </tr>

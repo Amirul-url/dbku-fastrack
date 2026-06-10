@@ -72,6 +72,12 @@ const IKL_HISTORY_STATUSES = [
   "license_issued",
   "license_revoked",
 ];
+const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
+  "submitted",
+  "ku_ikl_review",
+  "technical_review_completed",
+  "bill_pending_ku",
+]);
 
 const units = [
   {
@@ -359,15 +365,20 @@ function MphlgDashboard({ user }) {
 
 function isRelevantRecentActivity(application, userDepartment) {
   if (!userDepartment) return true;
+  const status = normalizeStatus(application.status);
+
+  if (userDepartment === "KU(IKL)") {
+    return KU_IKL_RECENT_ACTIVITY_STATUSES.has(status);
+  }
 
   if (userDepartment === "MPHLG") {
     return ["mphlg_processing", "mphlg_decision_received"].includes(
-      normalizeStatus(application.status)
+      status
     );
   }
 
   if (userDepartment === "SUT") {
-    return normalizeStatus(application.status) === "mphlg_decision_received";
+    return status === "mphlg_decision_received";
   }
 
   const assignedUnit = getAssignedUnit(userDepartment);
@@ -377,7 +388,7 @@ function isRelevantRecentActivity(application, userDepartment) {
 
   if (["KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"].includes(userDepartment)) {
     return ["management_review", "approved", "approved_with_conditions", "rejected"].includes(
-      normalizeStatus(application.status)
+      status
     );
   }
 

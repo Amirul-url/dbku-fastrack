@@ -188,6 +188,10 @@ function UserDashboard() {
     setMessage({ type: "", text: "" });
   }, [activeSection, querySelectedId]);
 
+  const draftApplications = useMemo(
+    () => applications.filter((app) => normalizeStatus(app.status) === "draft"),
+    [applications]
+  );
   const submittedApplications = useMemo(
     () => applications.filter((app) => normalizeStatus(app.status) !== "draft"),
     [applications]
@@ -198,7 +202,7 @@ function UserDashboard() {
   );
 
   const filteredApplications = useMemo(() => {
-    return filterDashboardApplications(applications, {
+    return filterDashboardApplications(draftApplications, {
       search,
       status: filterStatus,
       month: filterMonth,
@@ -206,7 +210,7 @@ function UserDashboard() {
       language,
       t,
     });
-  }, [applications, filterMonth, filterStatus, filterYear, language, search, t]);
+  }, [draftApplications, filterMonth, filterStatus, filterYear, language, search, t]);
 
   const filteredSubmittedApplications = useMemo(() => {
     return filterDashboardApplications(submittedApplications, {
@@ -246,18 +250,21 @@ function UserDashboard() {
     t,
   ]);
 
-  const applicationYearOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        applications
-          .map((app) => getApplicationAppliedDate(app)?.getFullYear())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => b - a);
-  }, [applications]);
+  const applicationYearOptions = useMemo(
+    () => getApplicationYearOptions(draftApplications),
+    [draftApplications]
+  );
+  const submittedYearOptions = useMemo(
+    () => getApplicationYearOptions(submittedApplications),
+    [submittedApplications]
+  );
+  const eLicenseYearOptions = useMemo(
+    () => getApplicationYearOptions(eLicenseApplications),
+    [eLicenseApplications]
+  );
   const applicationStatusOptions = useMemo(
-    () => getStatusFilterOptions(applications, t),
-    [applications, t]
+    () => getStatusFilterOptions(draftApplications, t),
+    [draftApplications, t]
   );
   const submittedStatusOptions = useMemo(
     () => getStatusFilterOptions(submittedApplications, t),
@@ -493,10 +500,6 @@ function UserDashboard() {
           onStatusChange={setFilterStatus}
           onMonthChange={setFilterMonth}
           onYearChange={setFilterYear}
-          onSelect={(app) => {
-            setSelectedId(String(app.id));
-            showSection("status");
-          }}
           onOpen={openApplication}
         />
       )}
@@ -511,7 +514,7 @@ function UserDashboard() {
           status={statusFilterStatus}
           month={statusFilterMonth}
           year={statusFilterYear}
-          years={applicationYearOptions}
+          years={submittedYearOptions}
           statuses={submittedStatusOptions}
           onSearch={setStatusSearch}
           onStatusChange={setStatusFilterStatus}
@@ -549,7 +552,7 @@ function UserDashboard() {
             status={licenseFilterStatus}
             month={licenseFilterMonth}
             year={licenseFilterYear}
-            years={applicationYearOptions}
+            years={eLicenseYearOptions}
             statuses={eLicenseStatusOptions}
             onSearch={setLicenseSearch}
             onStatusChange={setLicenseFilterStatus}
@@ -617,7 +620,7 @@ function OverviewStatusCard({ label, value, icon, tone, compact = false }) {
     <div className="min-h-[104px] rounded-md border border-slate-200 bg-slate-50 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-slate-500">{label}</p>
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
           <p
             className={`mt-2 font-semibold text-slate-950 ${
               compact ? "break-words text-base leading-5" : "text-2xl"
@@ -653,7 +656,6 @@ function ApplicationsSection({
   onStatusChange,
   onMonthChange,
   onYearChange,
-  onSelect,
   onOpen,
 }) {
   const hasActiveFilter =
@@ -664,10 +666,10 @@ function ApplicationsSection({
       <div className="rounded-md border border-slate-200 bg-white p-4">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
               {t("common.searchAndFilter")}
             </h3>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               {t("applicant.searchFilterHint")}
             </p>
           </div>
@@ -682,7 +684,7 @@ function ApplicationsSection({
                   onMonthChange("all");
                   onYearChange("all");
                 }}
-                className="min-h-10 px-2 text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+                className="min-h-10 px-2 text-sm font-semibold text-emerald-700 hover:text-emerald-900"
               >
                 {t("common.clearFilters")}
               </button>
@@ -700,7 +702,7 @@ function ApplicationsSection({
 
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_180px]">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-600">
               {t("common.keyword")}
             </span>
             <div className="relative">
@@ -725,7 +727,7 @@ function ApplicationsSection({
           />
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-600">
               {t("common.month")}
             </span>
             <select
@@ -743,7 +745,7 @@ function ApplicationsSection({
           </label>
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+            <span className="mb-1.5 block text-sm font-semibold text-slate-600">
               {t("common.year")}
             </span>
             <select
@@ -767,7 +769,7 @@ function ApplicationsSection({
         loading={loading}
         t={t}
         language={language}
-        onSelect={onSelect}
+        emptyText={t("applicant.noDraftApplications", "No draft applications found.")}
         onOpen={onOpen}
       />
     </section>
@@ -822,9 +824,7 @@ function StatusSection({
         t={t}
         language={language}
         emptyText={t("applicant.noApplicationSubmitted")}
-        onSelect={onOpen}
         onOpen={onOpen}
-        referenceClickable={false}
         actionMode="view"
         isReferenceNew={isReferenceNew}
       />
@@ -889,7 +889,7 @@ function LicenseSection({
                 </p>
               </div>
               {!isPaymentLocked && (
-                <p className="text-xs text-slate-500">
+                <p className="text-sm text-slate-500">
                   {t("applicant.receiptUploadHint")}
                 </p>
               )}
@@ -920,7 +920,7 @@ function LicenseSection({
                         {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
                       </p>
                       {!isPaymentLocked && (
-                        <p className="mt-0.5 text-xs text-slate-500">
+                        <p className="mt-0.5 text-sm text-slate-500">
                           PDF, JPG, or PNG
                         </p>
                       )}
@@ -932,7 +932,7 @@ function LicenseSection({
                       <button
                         type="button"
                         onClick={onReceiptView}
-                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       >
                         <span className="material-symbols-outlined text-[16px]">
                           visibility
@@ -941,7 +941,7 @@ function LicenseSection({
                       </button>
                     )}
                     {!isPaymentLocked && (
-                      <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800">
+                      <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800">
                         <span className="material-symbols-outlined text-[16px] text-white">
                           upload_file
                         </span>
@@ -965,7 +965,7 @@ function LicenseSection({
                       <button
                         type="button"
                         onClick={onReceiptRemove}
-                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50"
+                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
                       >
                         <span className="material-symbols-outlined text-[16px]">
                           delete
@@ -980,7 +980,7 @@ function LicenseSection({
             {canSubmitPaymentProof && (
               <div className="flex justify-end border-t border-slate-200 bg-white px-3 py-3">
                 {isReceiptSubmitted ? (
-                  <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-800 sm:w-auto">
+                  <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
                     <span className="material-symbols-outlined text-[16px]">
                       check_circle
                     </span>
@@ -991,7 +991,7 @@ function LicenseSection({
                     type="button"
                     onClick={onSubmitPayment}
                     disabled={saving || !paymentReceipt}
-                    className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     <span className="material-symbols-outlined text-[16px] text-white">
                       upload_file
@@ -1084,7 +1084,7 @@ function ApplicantPaymentDocuments({ app, t }) {
             className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase text-slate-500">
+              <p className="text-sm font-semibold uppercase text-slate-500">
                 {item.label}
               </p>
               {item.file?.name && (
@@ -1106,7 +1106,7 @@ function ApplicantPaymentDocuments({ app, t }) {
                       ? openApplicantPaymentDocument(item.file, t)
                       : openApplicantManualPaymentDocument(app, item.type, t)
                   }
-                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <span className="material-symbols-outlined text-[16px]">
                     visibility
@@ -1124,7 +1124,7 @@ function ApplicantPaymentDocuments({ app, t }) {
                       ? downloadApplicantPaymentDocument(item.file, item.label, t)
                       : downloadApplicantManualPaymentDocument(app, item.type, t)
                   }
-                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   <span className="material-symbols-outlined text-[16px]">
                     download
@@ -1186,25 +1186,21 @@ function LicenseListSection({
             key: "reference",
             label: t("common.reference"),
             className: "w-[9%]",
-            cellClassName: "w-[9%] whitespace-nowrap text-[13px]",
+            cellClassName: "w-[9%] whitespace-nowrap text-sm",
             render: (app) => (
-              <button
-                type="button"
-                onClick={() => onOpen(app)}
-                className="inline-flex items-center gap-2 text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
-              >
+              <span className="inline-flex items-center gap-2 text-sm font-semibold leading-5 text-emerald-700">
                 <span>{getApplicationReference(app)}</span>
                 {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
-              </button>
+              </span>
             ),
           },
           {
             key: "project",
             label: t("common.project"),
-            className: "w-[30%]",
-            cellClassName: "w-[30%] text-[13px]",
+            className: "w-[28%]",
+            cellClassName: "w-[28%] text-sm",
             render: (app) => (
-              <span className="block max-w-[34rem] whitespace-normal text-[13px] leading-5">
+              <span className="block max-w-[34rem] whitespace-normal text-sm leading-5">
                 {getProjectName(app)}
               </span>
             ),
@@ -1213,28 +1209,39 @@ function LicenseListSection({
             key: "status",
             label: t("common.status"),
             className: "w-[12%]",
-            cellClassName: "w-[12%] text-[13px]",
+            cellClassName: "w-[12%] text-sm",
             render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
           },
           {
             key: "payment",
             label: t("common.paymentStatus", "Payment Status"),
-            className: "w-[11%]",
-            cellClassName: "w-[11%] text-[13px]",
+            className: "w-[12%]",
+            cellClassName: "w-[12%] text-sm",
             render: (app) => (
-              <span className="block whitespace-normal text-[13px] leading-5">
+              <span className="block whitespace-normal text-sm leading-5">
                 {getPaymentStatusText(app, t)}
               </span>
             ),
           },
           {
-            key: "license",
-            label: t("common.eLicense", "E-License"),
-            className: "w-[30%]",
-            cellClassName: "w-[30%] text-[13px]",
+            key: "remarks",
+            label: t("common.remarks", "Remarks"),
+            className: "w-[18%]",
+            cellClassName: "w-[18%] text-sm",
             render: (app) => (
-              <span className="block max-w-[34rem] whitespace-normal text-[13px] leading-5">
-                {app.form_data?.license?.status || t("applicant.qrLicensePending")}
+              <span className="block max-w-[24rem] whitespace-normal text-sm leading-5 text-slate-600">
+                {getApplicationRemark(app) || "-"}
+              </span>
+            ),
+          },
+          {
+            key: "updated",
+            label: t("common.updated"),
+            className: "w-[13%]",
+            cellClassName: "w-[13%] text-sm",
+            render: (app) => (
+              <span className="whitespace-nowrap text-sm leading-5">
+                {formatCompactDateTime(app.updated_at)}
               </span>
             ),
           },
@@ -1242,13 +1249,13 @@ function LicenseListSection({
             key: "action",
             label: t("common.action"),
             className: "w-[8%]",
-            cellClassName: "w-[8%] text-[13px]",
+            cellClassName: "w-[8%] text-sm",
             render: (app) => (
               <Button
                 type="button"
                 variant="secondary"
                 icon="open_in_new"
-                className="min-h-8 px-3 py-1 text-[13px]"
+                className="min-h-8 px-3 py-1 text-sm"
                 onClick={() => onOpen(app)}
               >
                 {t("common.open", "Open")}
@@ -1312,10 +1319,10 @@ function DashboardTableFilters({
     <div className="rounded-md border border-slate-200 bg-white p-4">
       <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             {t("common.searchAndFilter")}
           </h3>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-sm text-slate-500">
             {t("applicant.searchFilterHint", "Filter records by keyword, status, application month, and application year.")}
           </p>
         </div>
@@ -1329,7 +1336,7 @@ function DashboardTableFilters({
               onMonthChange("all");
               onYearChange("all");
             }}
-            className="text-xs font-semibold text-emerald-700 hover:text-emerald-900"
+            className="text-sm font-semibold text-emerald-700 hover:text-emerald-900"
           >
             {t("common.clearFilters")}
           </button>
@@ -1338,7 +1345,7 @@ function DashboardTableFilters({
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px_180px]">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+          <span className="mb-1.5 block text-sm font-semibold text-slate-600">
             {t("common.keyword")}
           </span>
           <div className="relative">
@@ -1363,7 +1370,7 @@ function DashboardTableFilters({
         />
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+          <span className="mb-1.5 block text-sm font-semibold text-slate-600">
             {t("common.month")}
           </span>
           <select
@@ -1381,7 +1388,7 @@ function DashboardTableFilters({
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+          <span className="mb-1.5 block text-sm font-semibold text-slate-600">
             {t("common.year")}
           </span>
           <select
@@ -1405,7 +1412,7 @@ function DashboardTableFilters({
 function StatusFilterSelect({ value, options, t, onChange }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-600">
+      <span className="mb-1.5 block text-sm font-semibold text-slate-600">
         {t("common.status")}
       </span>
       <select
@@ -1481,9 +1488,7 @@ function ApplicationTable({
   t,
   language = "en",
   emptyText,
-  onSelect,
   onOpen,
-  referenceClickable = true,
   actionMode = "workflow",
   isReferenceNew,
 }) {
@@ -1499,31 +1504,21 @@ function ApplicationTable({
           key: "reference",
           label: t("common.reference"),
           className: "w-[9%]",
-          cellClassName: "w-[9%] whitespace-nowrap text-[13px]",
-          render: (app) =>
-            referenceClickable ? (
-              <button
-                type="button"
-                onClick={() => onSelect(app)}
-                className="inline-flex items-center gap-2 text-[13px] font-semibold leading-5 text-emerald-700 hover:underline"
-              >
-                <span>{getApplicationReference(app)}</span>
-                {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-2 text-[13px] font-semibold leading-5 text-emerald-700">
-                <span>{getApplicationReference(app)}</span>
-                {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
-              </span>
-            ),
+          cellClassName: "w-[9%] whitespace-nowrap text-sm",
+          render: (app) => (
+            <span className="inline-flex items-center gap-2 text-sm font-semibold leading-5 text-emerald-700">
+              <span>{getApplicationReference(app)}</span>
+              {isReferenceNew?.(app) && <ReferenceNewBadge t={t} />}
+            </span>
+          ),
         },
         {
           key: "project",
           label: t("common.project"),
           className: "w-[28%]",
-          cellClassName: "w-[28%] text-[13px]",
+          cellClassName: "w-[28%] text-sm",
           render: (app) => (
-            <span className="block max-w-[34rem] whitespace-normal text-[13px] leading-5">
+            <span className="block max-w-[34rem] whitespace-normal text-sm leading-5">
               {getProjectName(app)}
             </span>
           ),
@@ -1532,23 +1527,23 @@ function ApplicationTable({
           key: "type",
           label: t("common.type"),
           className: "w-[13%]",
-          cellClassName: "w-[13%] text-[13px] leading-5",
+          cellClassName: "w-[13%] text-sm leading-5",
           render: (app) => getApplicationType(app, language),
         },
         {
           key: "status",
           label: t("common.status"),
           className: "w-[12%]",
-          cellClassName: "w-[12%] text-[13px]",
+          cellClassName: "w-[12%] text-sm",
           render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
         },
         {
           key: "remarks",
           label: t("common.remarks", "Remarks"),
           className: "w-[18%]",
-          cellClassName: "w-[18%] text-[13px]",
+          cellClassName: "w-[18%] text-sm",
           render: (app) => (
-            <span className="block max-w-[24rem] whitespace-normal text-[13px] leading-5 text-slate-600">
+            <span className="block max-w-[24rem] whitespace-normal text-sm leading-5 text-slate-600">
               {getApplicationRemark(app) || "-"}
             </span>
           ),
@@ -1557,9 +1552,9 @@ function ApplicationTable({
           key: "updated",
           label: t("common.updated"),
           className: "w-[13%]",
-          cellClassName: "w-[13%] text-[13px]",
+          cellClassName: "w-[13%] text-sm",
           render: (app) => (
-            <span className="whitespace-nowrap text-[13px] leading-5">
+            <span className="whitespace-nowrap text-sm leading-5">
               {formatCompactDateTime(app.updated_at)}
             </span>
           ),
@@ -1568,13 +1563,13 @@ function ApplicationTable({
           key: "action",
           label: t("common.action"),
           className: "w-[7%]",
-          cellClassName: "w-[7%] text-[13px]",
+          cellClassName: "w-[7%] text-sm",
           render: (app) => (
             actionMode === "view" ? (
               <button
                 type="button"
                 onClick={() => onOpen(app)}
-                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-[13px] font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50"
               >
                 {t("common.view", "View")}
               </button>
@@ -1583,7 +1578,7 @@ function ApplicationTable({
               <button
                 type="button"
                 onClick={() => onOpen(app)}
-                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-[13px] font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50"
               >
                 {t(getApplicantActionKey(app))}
               </button>
@@ -1677,7 +1672,7 @@ function RecentActivities({ activities, loading, t }) {
                   {activity.project ? ` - ${activity.project}` : ""}
                 </p>
                 {activity.description && (
-                  <p className="mt-1 text-xs text-slate-500">{activity.description}</p>
+                  <p className="mt-1 text-sm text-slate-500">{activity.description}</p>
                 )}
               </div>
               <p className="text-sm text-slate-500 sm:text-right">
@@ -1729,6 +1724,16 @@ function getApplicationAppliedDate(app) {
 
   const date = new Date(rawDate);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getApplicationYearOptions(applications) {
+  return Array.from(
+    new Set(
+      applications
+        .map((app) => getApplicationAppliedDate(app)?.getFullYear())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => b - a);
 }
 
 function getMonthOptions(language = "en") {
