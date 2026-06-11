@@ -333,6 +333,23 @@ def notify_applicant_application_resubmitted(application):
     send_forced_applicant_application_notification(application, event_key, subject, message, metadata)
 
 
+def notify_staff_application_resubmitted(application):
+    if not getattr(application, "pk", None):
+        return
+
+    recipients = get_admin_task_web_recipients(application)
+    subject, message, metadata = build_staff_application_resubmitted_message(application)
+    event_key = build_applicant_event_key(application, "staff_applicant_resubmitted")
+    send_forced_staff_application_notification(
+        application,
+        event_key,
+        subject,
+        message,
+        metadata,
+        recipients,
+    )
+
+
 def notify_applicant_application_rejected(application, remark_changed=False):
     if not getattr(application, "pk", None) or not getattr(application, "applicant_id", None):
         return
@@ -376,6 +393,50 @@ def send_forced_applicant_application_notification(application, event_key, subje
             event_key=event_key,
             user=application.applicant,
             recipient_role="applicant",
+            channel="whatsapp",
+            recipient=phone,
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
+        )
+
+
+def send_forced_staff_application_notification(application, event_key, subject, message, metadata, users):
+    for user in users:
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=user,
+            recipient_role="admin",
+            channel="web",
+            recipient=get_web_recipient(user),
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
+        )
+
+    for user, email in get_admin_task_email_recipients(application, users):
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=user,
+            recipient_role="admin",
+            channel="email",
+            recipient=email,
+            subject=subject,
+            message=message,
+            metadata=metadata,
+            force=True,
+        )
+
+    for user, phone in get_admin_task_whatsapp_numbers(application, users):
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=user,
+            recipient_role="admin",
             channel="whatsapp",
             recipient=phone,
             subject=subject,
@@ -731,6 +792,27 @@ def build_applicant_application_resubmitted_message(application):
     return subject, "\n".join(lines), metadata
 
 
+def build_staff_application_resubmitted_message(application):
+    reference = getattr(application, "reference_no", "") or "-"
+    title = "Application resubmitted"
+    body = f"Application {reference} has been resubmitted by the applicant and is ready for KU(IKL) review."
+    subject = f"{APP_BRAND_NAME} - {title} ({reference})"
+    metadata = build_web_metadata(
+        application=application,
+        title=title,
+        body=body,
+        recipient_role="admin",
+    )
+    message = format_notification_message(
+        title=title,
+        body=body,
+        application=application,
+        recipient_role="admin",
+    )
+
+    return subject, message, metadata
+
+
 def build_applicant_application_rejected_message(application):
     reference = getattr(application, "reference_no", "") or "-"
     title = str(getattr(application, "title", "") or "").strip() or "Application"
@@ -890,7 +972,7 @@ def send_license_workflow_notification(
     include_external=False,
 ):
     subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
-    message = format_license_workflow_message(title, body, application)
+    message = format_license_workflow_message(title, body, application, recipient_role)
     metadata = {
         "category": "license",
         "type": "warning" if "cancellation" not in event_status else "error",
@@ -978,7 +1060,10 @@ def send_license_workflow_notification(
             )
 
 
-def format_license_workflow_message(title, body, application):
+def format_license_workflow_message(title, body, application, recipient_role="admin"):
+    if recipient_role != "applicant":
+        return format_simple_internal_notification_message(body)
+
     return "\n".join([
         APP_BRAND_NAME,
         "",
@@ -1344,6 +1429,9 @@ def get_ku_amendment_source(application):
 
 
 def format_notification_message(title, body, application, recipient_role):
+    if recipient_role != "applicant":
+        return format_simple_internal_notification_message(body, application)
+
     lines = [
         APP_BRAND_NAME,
         "",
@@ -1362,6 +1450,16 @@ def format_notification_message(title, body, application, recipient_role):
         lines.extend(["", f"Remark: {remark}"])
 
     return "\n".join(lines)
+
+
+def format_simple_internal_notification_message(body, application=None):
+    message = str(body or "").strip()
+    remark = get_message_remark(application) if application is not None else ""
+
+    if remark and not re.search(r"\bRemark\s*:", message, flags=re.IGNORECASE):
+        message = f"{message}\n\nRemark: {remark}" if message else f"Remark: {remark}"
+
+    return message
 
 
 def get_notification_status_label(application):
@@ -1566,7 +1664,6 @@ def get_admin_task_web_recipients(application):
 
 
 def get_admin_task_email_recipients(application, users):
-    status_key = str(getattr(application, "status", "") or "").strip().lower()
     recipients = []
 
     for user in users:
@@ -1574,17 +1671,10 @@ def get_admin_task_email_recipients(application, users):
         if email:
             recipients.append((user, email))
 
-    if should_use_admin_contact_fallback(status_key) and not recipients:
-        for email in settings.NOTIFICATION_ADMIN_EMAILS:
-            email = normalize_email(email)
-            if email:
-                recipients.append((None, email))
-
     return recipients
 
 
 def get_admin_task_whatsapp_numbers(application, users):
-    status_key = str(getattr(application, "status", "") or "").strip().lower()
     recipients = []
 
     for user in users:
@@ -1592,28 +1682,7 @@ def get_admin_task_whatsapp_numbers(application, users):
         if phone:
             recipients.append((user, phone))
 
-    if should_use_admin_contact_fallback(status_key) and not recipients:
-        recipients.extend((None, phone) for phone in get_admin_whatsapp_numbers())
-
     return recipients
-
-
-def should_use_admin_contact_fallback(status_key):
-    return status_key in {
-        "submitted",
-        "approved",
-        "bill_pending_ku",
-        "payment_submitted",
-        "payment_verified",
-        "ku_ikl_review",
-        "technical_review",
-        "technical_site_visit",
-        "technical_amendment",
-        "technical_review_completed",
-        "management_review",
-        "mphlg_processing",
-        "mphlg_decision_received",
-    }
 
 
 def get_management_review_admin_text(application):
@@ -1920,14 +1989,6 @@ def normalize_account_name(user):
     name = f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}"
     normalized = " ".join(str(name or "").strip().upper().split())
     return normalized or str(getattr(user, "username", "") or "").strip().upper()
-
-
-def get_admin_whatsapp_numbers():
-    return [
-        value
-        for value in dedupe_values(normalize_phone(value) for value in settings.NOTIFICATION_ADMIN_WHATSAPP_NUMBERS)
-        if value
-    ]
 
 
 def notification_side_effects_enabled():

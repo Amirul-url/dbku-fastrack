@@ -119,6 +119,13 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
         self.assertEqual(admin_channels, {"web", "email", "whatsapp"})
 
+    def test_submitted_does_not_use_official_superadmin_contact_as_recipient_fallback(self):
+        self.notify_status("submitted")
+
+        self.assertFalse(NotificationDelivery.objects.filter(recipient_role="admin").exists())
+        self.assertFalse(NotificationDelivery.objects.filter(recipient="admin-notify@sample.com").exists())
+        self.assertFalse(NotificationDelivery.objects.filter(recipient="60111111111").exists())
+
     def test_submitted_uses_registered_applicant_mobile_when_form_phone_is_empty(self):
         self.application.form_data = {}
         self.application.save(update_fields=["form_data"])
@@ -695,7 +702,7 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "KB(LES)")
 
-    def test_management_review_notifies_kb_les_with_fallback_contacts(self):
+    def test_management_review_does_not_use_fallback_when_staff_account_has_no_contacts(self):
         kb_user = User.objects.create_user(
             username="kb-les",
             email="",
@@ -719,25 +726,15 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(
             set(deliveries.values_list("channel", flat=True)),
-            {"web", "email", "whatsapp"},
+            {"web"},
         )
         self.assertTrue(deliveries.filter(channel="web", user=kb_user).exists())
         web_delivery = deliveries.get(channel="web", user=kb_user)
         self.assertIn("KU(IKL) final checking", web_delivery.metadata["message_en"])
         self.assertIn("KB(LES) verification", web_delivery.metadata["message_en"])
         self.assertNotIn("SUT approval recorded", web_delivery.metadata["message_en"])
-        self.assertTrue(
-            deliveries.filter(
-                channel="email",
-                recipient="admin-notify@sample.com",
-            ).exists()
-        )
-        self.assertTrue(
-            deliveries.filter(
-                channel="whatsapp",
-                recipient="60111111111",
-            ).exists()
-        )
+        self.assertFalse(deliveries.filter(channel="email").exists())
+        self.assertFalse(deliveries.filter(channel="whatsapp").exists())
 
     def test_sut_approval_result_notifies_kb_les_for_support(self):
         kb_user = User.objects.create_user(

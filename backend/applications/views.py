@@ -23,6 +23,7 @@ from notifications.services import (
     notify_applicant_application_resubmitted,
     notify_applicant_application_submitted,
     notify_application_status_change,
+    notify_staff_application_resubmitted,
 )
 
 STAFF_ROLES = ["admin", "supervisor", "staff"]
@@ -326,6 +327,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if self.request.user.role not in STAFF_ROLES:
             if old_status_key in APPLICANT_CORRECTION_STATUSES and new_status_key in APPLICANT_RESUBMIT_STATUSES:
                 notify_applicant_application_resubmitted(application)
+                notify_staff_application_resubmitted(application)
             elif old_status_key != "submitted" and new_status_key == "submitted":
                 notify_applicant_application_submitted(application)
         if self.request.user.role not in STAFF_ROLES:

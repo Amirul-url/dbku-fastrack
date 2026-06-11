@@ -130,6 +130,7 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
             username="ku-ikl-notify",
             email="ku-ikl@example.com",
             password="testpass123",
+            mobile_number="0161112222",
             role="admin",
             department="KU(IKL)",
             is_active=True,
@@ -167,6 +168,23 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         )
         self.assertEqual(deliveries.count(), 3)
         self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+
+        staff_deliveries = NotificationDelivery.objects.filter(
+            application=application,
+            recipient_role="admin",
+            metadata__event_status="submitted",
+        )
+        self.assertEqual(staff_deliveries.count(), 3)
+        self.assertEqual(set(staff_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertEqual(staff_deliveries.get(channel="web").user, self.ku_ikl)
+        staff_message = staff_deliveries.get(channel="email").message
+        self.assertEqual(
+            staff_message,
+            f"Application {application.reference_no} has been resubmitted by the applicant and is ready for KU(IKL) review.",
+        )
+        self.assertNotIn("Reference:", staff_message)
+        self.assertNotIn("Status:", staff_message)
+        self.assertNotIn("Project:", staff_message)
 
     def test_ku_ikl_reject_creates_applicant_web_email_and_whatsapp_deliveries(self):
         application = Application.objects.create(
