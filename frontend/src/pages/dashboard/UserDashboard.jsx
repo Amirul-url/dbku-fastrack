@@ -32,6 +32,7 @@ import {
   getApplicationReference,
   getApplicationLocation,
   getApplicationType,
+  getPrimaryApplicationType,
   getInvoiceNo,
   getProjectName,
   needsApplicantCorrection,
@@ -1488,7 +1489,7 @@ function ApplicationTable({
           label: t("common.type"),
           className: "w-[13%]",
           cellClassName: "w-[13%] text-sm leading-5",
-          render: (app) => getApplicationType(app, language),
+          render: (app) => getPrimaryApplicationType(app, language),
         },
         {
           key: "status",

@@ -5291,7 +5291,7 @@ function buildIklTechnicalDecisionPayload(app, data) {
   const notSupported = data.decision === "Not Supported";
 
   return {
-    status: notSupported ? "incomplete" : "technical_review_completed",
+    status: notSupported ? "rejected" : "technical_review_completed",
     current_step: Math.max(Number(app.current_step || 1), 5),
     latest_remark: data.comment || app.latest_remark || "",
     form_data: mergeFormData(app, {

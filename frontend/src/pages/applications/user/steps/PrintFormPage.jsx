@@ -6,6 +6,8 @@ import { useLanguage } from "../../../../context/LanguageContext";
 import { apiRequest } from "../../../../services/api";
 import {
   canEditApplicationForm,
+  getApplicantSaveDraftReturnLabelKey,
+  getApplicantSaveDraftReturnPath,
   getApplicationType,
 } from "../../../../utils/workflow";
 import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
@@ -197,7 +199,11 @@ function PrintFormPage({
 
     const saved = await saveStep9();
     if (saved) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+      navigate(
+        isAdminReview
+          ? "/admin/applications"
+          : getApplicantSaveDraftReturnPath(applicationRecord)
+      );
     }
   }
 
@@ -367,7 +373,9 @@ function PrintFormPage({
                   disabled={saving}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                  {saving
+                    ? tx("saving")
+                    : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
 
                 <Link
@@ -589,7 +597,9 @@ function PrintFormPage({
                     disabled={saving}
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                   >
-                    {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                    {saving
+                      ? tx("saving")
+                      : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
 
                   <Link

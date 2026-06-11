@@ -5,6 +5,8 @@ import { useLanguage } from "../../../../context/LanguageContext";
 import { apiRequest } from "../../../../services/api";
 import {
   canEditApplicationForm,
+  getApplicantSaveDraftReturnLabelKey,
+  getApplicantSaveDraftReturnPath,
 } from "../../../../utils/workflow";
 import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import { stepText } from "./ApplicationStepText";
@@ -368,7 +370,11 @@ function SubmittingPersonPage({
   async function handleSaveDraftAndBack() {
     const saved = await saveStep3({ goNext: false });
     if (saved) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+      navigate(
+        isAdminReview
+          ? "/admin/applications"
+          : getApplicantSaveDraftReturnPath(applicationRecord)
+      );
     }
   }
 
@@ -413,7 +419,7 @@ function SubmittingPersonPage({
                   onClick={handleSaveDraftAndBack}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("saveDraftBackApplications")}
+                  {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
 
                 <Link
@@ -697,7 +703,7 @@ function SubmittingPersonPage({
                     onClick={handleSaveDraftAndBack}
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("saveDraftBackApplications")}
+                    {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
 
                   <Link

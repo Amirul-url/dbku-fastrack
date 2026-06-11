@@ -213,6 +213,18 @@ export function getApplicantApplicationRoute(app) {
   return "edit";
 }
 
+export function getApplicantSaveDraftReturnPath(app) {
+  return normalizeStatus(app?.status) === "draft"
+    ? "/user/dashboard?tab=applications"
+    : "/user/dashboard?tab=status";
+}
+
+export function getApplicantSaveDraftReturnLabelKey(app) {
+  return normalizeStatus(app?.status) === "draft"
+    ? "saveDraftBackApplications"
+    : "saveDraftBackStatus";
+}
+
 export function getApplicantActionKey(app) {
   if (needsApplicantCorrection(app)) return "common.edit";
   if (canEditApplicationForm(app)) return "common.continue";

@@ -15,6 +15,8 @@ import {
 import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 import {
   canEditApplicationForm,
+  getApplicantSaveDraftReturnLabelKey,
+  getApplicantSaveDraftReturnPath,
 } from "../../../../utils/workflow";
 import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import { stepText } from "./ApplicationStepText";
@@ -973,7 +975,11 @@ function SittingApplicationPage({
 
   async function handleSaveDraftAndBack() {
     if (isReadOnly) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+      navigate(
+        isAdminReview
+          ? "/admin/applications"
+          : getApplicantSaveDraftReturnPath(applicationRecord)
+      );
       return;
     }
 
@@ -991,7 +997,11 @@ function SittingApplicationPage({
         alert(tx("draftSavedWithoutUpload"));
       }
 
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+      navigate(
+        isAdminReview
+          ? "/admin/applications"
+          : getApplicantSaveDraftReturnPath(data)
+      );
     } catch (err) {
       console.error("Draft save failed:", err);
       alert(err.message || tx("failedSaveDraft"));
@@ -1047,7 +1057,7 @@ function SittingApplicationPage({
                   onClick={handleSaveDraftAndBack}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx("saveDraftBackApplications")}
+                  {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
 
                 {!isReadOnly && (
@@ -1290,7 +1300,7 @@ function SittingApplicationPage({
                     onClick={handleSaveDraftAndBack}
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx("saveDraftBackApplications")}
+                    {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
 
                   {!isReadOnly && (

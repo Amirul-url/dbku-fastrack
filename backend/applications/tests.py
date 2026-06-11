@@ -81,6 +81,18 @@ class ApplicationReferenceTests(TestCase):
                 "step_1": {
                     "applicant": "ALI AHMAD",
                 },
+                "auto_screening": {
+                    "result": "PT(IKL) Send to KU(IKL)",
+                    "checked_at": "2026-06-12T01:00:00Z",
+                },
+                "technical_review": {
+                    "decision": "Supported",
+                    "reviewed_at": "2026-06-12T02:00:00Z",
+                },
+                "technical_ku_review": {
+                    "decision": "KU(IKL) Confirm - Send to KB(LES)",
+                    "reviewed_at": "2026-06-12T03:00:00Z",
+                },
             },
         )
 
@@ -92,6 +104,12 @@ class ApplicationReferenceTests(TestCase):
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(data[0]["applicant_username"], "020215130135")
         self.assertEqual(data[0]["applicant_full_name"], "ALI AHMAD")
+        self.assertEqual(data[0]["auto_screening"]["result"], "PT(IKL) Send to KU(IKL)")
+        self.assertEqual(data[0]["technical_review"]["decision"], "Supported")
+        self.assertEqual(
+            data[0]["technical_ku_review"]["decision"],
+            "KU(IKL) Confirm - Send to KB(LES)",
+        )
 
     def test_applicant_submit_marks_application_submitted(self):
         User = get_user_model()

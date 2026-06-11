@@ -5,6 +5,8 @@ import { apiRequest } from "../../../../services/api";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   canEditApplicationForm,
+  getApplicantSaveDraftReturnLabelKey,
+  getApplicantSaveDraftReturnPath,
 } from "../../../../utils/workflow";
 import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import { stepText } from "./ApplicationStepText";
@@ -147,7 +149,11 @@ function DeclarationPage({
   async function handleSaveDraftAndBack() {
     const saved = await saveDeclaration({ goNext: false });
     if (saved) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+      navigate(
+        isAdminReview
+          ? "/admin/applications"
+          : getApplicantSaveDraftReturnPath(applicationRecord)
+      );
     }
   }
 
@@ -238,7 +244,9 @@ function DeclarationPage({
                   disabled={saving}
                   className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                  {saving
+                    ? tx("saving")
+                    : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
 
                 <Link
@@ -323,7 +331,9 @@ function DeclarationPage({
                     disabled={saving}
                     className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                   >
-                    {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                    {saving
+                      ? tx("saving")
+                      : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
 
                   <Link

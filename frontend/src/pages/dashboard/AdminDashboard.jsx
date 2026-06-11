@@ -130,7 +130,7 @@ const units = [
     icon: "edit_square",
     color: "bg-emerald-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
-    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -141,7 +141,7 @@ const units = [
     icon: "payments",
     color: "bg-blue-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
-    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -152,7 +152,7 @@ const units = [
     icon: "account_balance",
     color: "bg-sky-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
-    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -164,7 +164,7 @@ const units = [
     color: "bg-yellow-400",
     iconClassName: "text-slate-900",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
-    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -175,7 +175,7 @@ const units = [
     icon: "fact_check",
     color: "bg-green-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
-    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
   {
@@ -186,7 +186,7 @@ const units = [
     icon: "engineering",
     color: "bg-teal-600",
     statuses: TECHNICAL_DEPARTMENT_TASK_STATUSES,
-    historyStatuses: Array.from(TECHNICAL_DEPARTMENT_STATUS_SET),
+    historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
 ];
@@ -1048,7 +1048,7 @@ function ClaimableTaskView({
             {
               key: "reference",
               label: t("common.reference"),
-              className: "w-[9rem] whitespace-nowrap",
+              className: "w-[10%] whitespace-nowrap",
               render: (application) => (
                 <Link
                   to={getApplicationViewPath(application)}
@@ -1059,22 +1059,24 @@ function ClaimableTaskView({
               ),
             },
             {
+              key: "project",
+              label: t("common.project"),
+              className: "w-[39%] min-w-[18rem]",
+              render: getProjectName,
+            },
+            {
               key: "type",
               label: t("common.type"),
-              className:
-                selected.department === "IKL (TECHNICAL)"
-                  ? "w-[11rem] whitespace-nowrap"
-                  : "w-[7rem] whitespace-nowrap",
+              className: "w-[13%] whitespace-nowrap",
               render: (application) =>
                 selected.department === "IKL (TECHNICAL)"
                   ? getPrimaryApplicationType(application, language)
                   : getApplicationType(application, language),
             },
-            { key: "project", label: t("common.project"), className: "min-w-[18rem]", render: getProjectName },
             {
               key: "status",
               label: t("common.status"),
-              className: "w-[14rem] whitespace-nowrap",
+              className: "w-[16%] whitespace-nowrap",
               render: (application) => (
                 <StatusPill value={getDashboardTaskStatusLabel(application, selected, t)} />
               ),
@@ -1082,7 +1084,7 @@ function ClaimableTaskView({
             {
               key: "updated",
               label: t("common.updated"),
-              className: "w-[11rem] whitespace-nowrap",
+              className: "w-[14%] whitespace-nowrap",
               render: (application) => (
                 <span className="whitespace-nowrap text-[12px] leading-5">
                   {formatCompactDateTime(application.updated_at)}
@@ -1094,7 +1096,7 @@ function ClaimableTaskView({
                   {
                     key: "action",
                     label: t("common.action"),
-                    className: "w-[8rem] whitespace-nowrap",
+                    className: "w-[8%] whitespace-nowrap",
                     render: (application) =>
                       isUnitActionableApplication(application, selected) ? (
                         <LinkButton
@@ -1240,24 +1242,33 @@ function shouldKeepCompletedRecordInQueue(application, unit) {
     ]);
   }
 
+  if (department === "IKL (TECHNICAL)") {
+    if (
+      hasDepartmentActivity(application, department, [
+        "technical review completed",
+      ])
+    ) {
+      return true;
+    }
+  }
+
   if (
-    EXTERNAL_TECHNICAL_DEPARTMENTS.has(department) &&
-    TECHNICAL_DEPARTMENT_STATUS_SET.has(status)
+    EXTERNAL_TECHNICAL_DEPARTMENTS.has(department)
   ) {
     return hasTechnicalDepartmentReview(application, department);
   }
 
-  if (status !== "rejected") return false;
+  if (status === "rejected") {
+    const correctionSource = normalizeDepartmentCode(
+      application.form_data?.correction_request?.source ||
+        application.form_data?.correction_request?.reviewer ||
+        ""
+    );
 
-  const correctionSource = normalizeDepartmentCode(
-    application.form_data?.correction_request?.source ||
-      application.form_data?.correction_request?.reviewer ||
-      ""
-  );
+    if (correctionSource === department) return true;
+  }
 
-  if (correctionSource === department) return true;
-
-  return hasDepartmentActivity(application, department, ["rejected"]);
+  return hasDepartmentActivity(application, department);
 }
 
 function hasDepartmentActivity(application, department, titleKeywords = []) {
@@ -1400,6 +1411,10 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
   if (unit?.department === "KU(IKL)" && status === "technical_review_completed") {
     return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
+  }
+
+  if (unit?.department === "IKL (TECHNICAL)" && status === "technical_review_completed") {
+    return t("admin.dashboard.statusReviewSubmitted", "Review Submitted");
   }
 
   if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {

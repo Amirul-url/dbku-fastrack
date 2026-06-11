@@ -102,6 +102,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     )
     applicant_full_name = serializers.SerializerMethodField()
     application_type_label = serializers.SerializerMethodField()
+    auto_screening = serializers.SerializerMethodField()
+    technical_review = serializers.SerializerMethodField()
+    technical_ku_review = serializers.SerializerMethodField()
     technical_department_reviews = serializers.SerializerMethodField()
     technical_department_selection = serializers.SerializerMethodField()
     technical_referral = serializers.SerializerMethodField()
@@ -127,6 +130,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "status",
             "latest_remark",
             "current_step",
+            "auto_screening",
+            "technical_review",
+            "technical_ku_review",
             "technical_department_reviews",
             "technical_department_selection",
             "technical_referral",
@@ -161,6 +167,15 @@ class ApplicationListSerializer(serializers.ModelSerializer):
                     return value
 
         return obj.get_application_type_display()
+
+    def get_auto_screening(self, obj):
+        return (obj.form_data or {}).get("auto_screening", {})
+
+    def get_technical_review(self, obj):
+        return (obj.form_data or {}).get("technical_review", {})
+
+    def get_technical_ku_review(self, obj):
+        return (obj.form_data or {}).get("technical_ku_review", {})
 
     def get_technical_department_reviews(self, obj):
         return (obj.form_data or {}).get("technical_department_reviews", {})

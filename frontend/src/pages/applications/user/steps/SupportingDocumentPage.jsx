@@ -9,6 +9,8 @@ import {
 } from "../../../../services/api";
 import {
   canEditApplicationForm,
+  getApplicantSaveDraftReturnLabelKey,
+  getApplicantSaveDraftReturnPath,
 } from "../../../../utils/workflow";
 import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import {
@@ -372,7 +374,11 @@ function SupportingDocumentPage({
   async function handleSaveDraftAndBack() {
     const saved = await saveStep10({ goNext: false });
     if (saved) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=applications");
+      navigate(
+        isAdminReview
+          ? "/admin/applications"
+          : getApplicantSaveDraftReturnPath(applicationRecord)
+      );
     }
   }
 
@@ -418,7 +424,9 @@ function SupportingDocumentPage({
                   disabled={saving}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                  {saving
+                    ? tx("saving")
+                    : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
 
                 <Link
@@ -495,7 +503,9 @@ function SupportingDocumentPage({
                     disabled={saving}
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                   >
-                    {saving ? tx("saving") : tx("saveDraftBackApplications")}
+                    {saving
+                      ? tx("saving")
+                      : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
 
                   <Link

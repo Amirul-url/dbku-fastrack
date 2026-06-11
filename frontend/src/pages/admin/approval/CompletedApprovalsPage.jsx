@@ -70,11 +70,7 @@ function CompletedApprovalsPage() {
       try {
         if (!silent) setLoading(true);
         setError("");
-        const list = await fetchApplicationList({
-          params: {
-            status: Array.from(APPROVED_WORKFLOW_STATUSES),
-          },
-        });
+        const list = await fetchApplicationList();
         const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
           apiRequest(`/applications/${id}/`)
         );
