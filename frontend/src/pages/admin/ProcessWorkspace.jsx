@@ -72,6 +72,7 @@ const TECHNICAL_FEE_SCHEDULES = {
     number: "6",
     firstAreaSqm: 10,
     firstAreaRate: 200,
+    firstAreaFixedFee: 2000,
     additionalAreaRate: 50,
   },
 };
@@ -93,7 +94,7 @@ const IKL_TASK_DEPARTMENTS = ["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"];
 const IKL_DEPARTMENT_STATUS_SCOPE = {
   "PT(IKL)": ["incomplete"],
   "KU(IKL)": ["submitted", "ku_ikl_review", "technical_review_completed"],
-  "IKL (TECHNICAL)": ["technical_review", "technical_site_visit", "technical_amendment"],
+  "IKL (TECHNICAL)": ["technical_site_visit", "technical_amendment"],
 };
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
@@ -2265,30 +2266,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 />
               ) : (
                 <>
-                  {isDepartmentTechnicalWorkspace && (
-                    <>
-                      <TechnicalApplicationTypePanel
-                        t={t}
-                        language={language}
-                        selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
-                        selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
-                        derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
-                        saving={false}
-                        onToggle={() => {}}
-                        readOnly
-                      />
-
-                      <TechnicalSiteVisitFields
-                        t={t}
-                        applicationId={selectedRecord.id}
-                        value={technicalSite}
-                        onChange={() => {}}
-                        onFileChange={() => {}}
-                        readOnly
-                      />
-                    </>
-                  )}
-
                   {config.showDecision &&
                     canSubmitWorkspaceAction &&
                     !isApprovalSupportWorkspace &&
@@ -4876,9 +4853,14 @@ function calculateTechnicalFee(site = {}) {
   const heightFt = parseTechnicalNumber(site.height_ft);
   const areaSqft = widthFt > 0 && heightFt > 0 ? widthFt * heightFt : 0;
   const areaSqm = areaSqft * SQFT_TO_SQM;
-  const firstAreaSqm = Math.min(areaSqm, schedule.firstAreaSqm);
+  const usesFixedFirstAreaFee = Number(schedule.firstAreaFixedFee || 0) > 0;
+  const firstAreaSqm = usesFixedFirstAreaFee
+    ? schedule.firstAreaSqm
+    : Math.min(areaSqm, schedule.firstAreaSqm);
   const additionalAreaSqm = Math.max(areaSqm - schedule.firstAreaSqm, 0);
-  const firstAreaFee = firstAreaSqm * schedule.firstAreaRate;
+  const firstAreaFee = usesFixedFirstAreaFee
+    ? schedule.firstAreaFixedFee
+    : firstAreaSqm * schedule.firstAreaRate;
   const additionalAreaFee = additionalAreaSqm * schedule.additionalAreaRate;
   const feeTotal = firstAreaFee + additionalAreaFee;
 
@@ -4887,6 +4869,8 @@ function calculateTechnicalFee(site = {}) {
     scheduleNumber: schedule.number,
     firstAreaLimitSqm: schedule.firstAreaSqm,
     firstAreaRate: schedule.firstAreaRate,
+    firstAreaFixedFee: schedule.firstAreaFixedFee || 0,
+    usesFixedFirstAreaFee,
     additionalAreaRate: schedule.additionalAreaRate,
     areaSqft: roundTechnicalNumber(areaSqft, 2),
     areaSqm,
@@ -5421,13 +5405,36 @@ function buildDepartmentTechnicalReviewPayload(app, data) {
       reviewed_by: department,
     },
   };
+  const selectedDepartments = getSelectedTechnicalDepartments(app);
+  const reviewDepartments =
+    selectedDepartments.length > 0
+      ? selectedDepartments
+      : getApplicationTypeTechnicalDepartments(app);
+  const allDepartmentReviewsComplete =
+    reviewDepartments.length > 0 &&
+    reviewDepartments.every((item) => {
+      const normalizedDepartment = normalizeDepartmentCode(item);
+      const review = nextReviews[normalizedDepartment];
+
+      if (!review) return false;
+      if (normalizedDepartment === department) return true;
+
+      return isCurrentTechnicalReviewCycle(app, review);
+    });
 
   return {
-    status: "technical_review",
+    status: allDepartmentReviewsComplete ? "technical_site_visit" : "technical_review",
     current_step: Math.max(Number(app.current_step || 1), 5),
     form_data: mergeFormData(app, {
       technical_department_reviews: nextReviews,
       technical_department_reviews_updated_at: now,
+      technical_referral: allDepartmentReviewsComplete
+        ? {
+            ...(app.form_data?.technical_referral || {}),
+            status: "Department Reviews Completed",
+            completed_at: now,
+          }
+        : app.form_data?.technical_referral || null,
     }),
   };
 }
@@ -5624,7 +5631,7 @@ function isTechnicalDepartmentSelected(app, department) {
 
 function getTechnicalRouteLabel(app) {
   const selected = getSelectedTechnicalDepartments(app);
-  const route = ["IKL (TECHNICAL)", ...selected];
+  const route = [...selected, "IKL (TECHNICAL)"];
   return route.join(" / ");
 }
 
@@ -6007,7 +6014,7 @@ const configs = {
     queueTitleKey: "workspace.technical.queue",
     actionDescription: "Enter department decision and site finding remarks.",
     actionDescriptionKey: "workspace.technical.action",
-    showDecision: true,
+    showDecision: false,
     showComment: true,
     showTechnicalSiteVisit: false,
     defaultDecision: "Supported",
@@ -7999,8 +8006,12 @@ function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false
             label={t(firstAreaLabelKey, "(i) First 20 m2")}
             value={formatTechnicalArea(technicalFee.firstAreaSqm || 0)}
             unit="m2"
-            operator="x"
-            multiplier={formatTechnicalCurrency(technicalFee.firstAreaRate)}
+            operator={technicalFee.usesFixedFirstAreaFee ? "" : "x"}
+            multiplier={
+              technicalFee.usesFixedFirstAreaFee
+                ? ""
+                : formatTechnicalCurrency(technicalFee.firstAreaRate)
+            }
             equals="="
             amount={formatTechnicalCurrency(technicalFee.firstAreaFee)}
           />

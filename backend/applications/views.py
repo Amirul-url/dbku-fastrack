@@ -46,6 +46,9 @@ def append_application_activity(application, actor, title, description="", categ
             "description": description,
             "category": category,
             "actor": get_activity_actor_name(actor),
+            "actor_id": getattr(actor, "id", None),
+            "actor_role": getattr(actor, "role", ""),
+            "actor_department": get_user_workflow_department(actor),
             "created_at": timezone_now_iso(),
         },
     )
@@ -362,6 +365,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             old_status,
             old_remark,
             old_form_data=old_form_data,
+            force=(
+                self.request.user.role in STAFF_ROLES
+                or (old_status_key == "draft" and new_status_key == "submitted")
+            ),
         )
         if (
             self.request.user.role in STAFF_ROLES
@@ -693,7 +700,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             "The applicant submitted the application for review.",
         )
         notify_applicant_application_submitted(application)
-        notify_application_status_change(application, old_status, old_remark)
+        notify_application_status_change(application, old_status, old_remark, force=True)
 
         return Response(
             {
@@ -723,7 +730,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_remark = application.latest_remark
         application.status = "approved"
         application.save()
-        notify_application_status_change(application, old_status, old_remark)
+        notify_application_status_change(application, old_status, old_remark, force=True)
 
         return Response(
             {
@@ -795,7 +802,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             activity_description,
             category="workflow",
         )
-        notify_application_status_change(application, old_status, old_remark)
+        notify_application_status_change(application, old_status, old_remark, force=True)
         notify_applicant_application_rejected(
             application,
             remark_changed=str(application.latest_remark or "").strip() != str(old_remark or "").strip(),

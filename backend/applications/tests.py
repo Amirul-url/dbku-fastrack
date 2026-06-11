@@ -186,6 +186,44 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertNotIn("Status:", staff_message)
         self.assertNotIn("Project:", staff_message)
 
+    def test_applicant_submit_creates_safe_applicant_and_internal_staff_notifications(self):
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="Fresh application",
+            status="draft",
+            form_data={},
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.applicant)
+        response = client.post(f"/api/applications/{application.id}/submit/")
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "submitted")
+
+        applicant_deliveries = NotificationDelivery.objects.filter(
+            application=application,
+            recipient_role="applicant",
+        )
+        self.assertEqual(applicant_deliveries.count(), 3)
+        self.assertEqual(
+            set(applicant_deliveries.values_list("metadata__event_status", flat=True)),
+            {"applicant_submitted"},
+        )
+        for delivery in applicant_deliveries:
+            combined = f"{delivery.subject}\n{delivery.message}\n{delivery.metadata}"
+            self.assertNotIn("KU(IKL)", combined)
+            self.assertIn("submitted successfully", combined)
+
+        staff_deliveries = NotificationDelivery.objects.filter(
+            application=application,
+            recipient_role="admin",
+            metadata__event_status="submitted",
+        )
+        self.assertEqual(staff_deliveries.count(), 3)
+        self.assertTrue(any("KU(IKL)" in delivery.message for delivery in staff_deliveries))
+
     def test_ku_ikl_reject_creates_applicant_web_email_and_whatsapp_deliveries(self):
         application = Application.objects.create(
             applicant=self.applicant,
@@ -217,6 +255,9 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         activity_log = application.form_data.get("activity_log", [])
         self.assertEqual(activity_log[0]["title"], "Application rejected by KU(IKL)")
         self.assertEqual(activity_log[0]["category"], "workflow")
+        self.assertEqual(activity_log[0]["actor_id"], self.ku_ikl.id)
+        self.assertEqual(activity_log[0]["actor_role"], "admin")
+        self.assertEqual(activity_log[0]["actor_department"], "KU(IKL)")
         self.assertIn("reviewed and rejected by KU(IKL)", activity_log[0]["description"])
         deliveries = NotificationDelivery.objects.filter(
             application=application,

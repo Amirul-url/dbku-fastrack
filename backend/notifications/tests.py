@@ -92,7 +92,7 @@ class NotificationRoutingTests(TestCase):
         self.application.save(update_fields=["status"])
         notify_application_status_change(self.application, old_status)
 
-    def test_submitted_notifies_applicant_and_admin(self):
+    def test_submitted_notifies_admin_only(self):
         User.objects.create_user(
             username="ku-submitted",
             email="ku-submitted@sample.com",
@@ -104,19 +104,18 @@ class NotificationRoutingTests(TestCase):
         )
         self.notify_status("submitted")
 
-        applicant_channels = set(
-            NotificationDelivery.objects.filter(
-                recipient_role="applicant",
-                metadata__event_status="submitted",
-            ).values_list("channel", flat=True)
-        )
         admin_channels = set(
             NotificationDelivery.objects.filter(
                 recipient_role="admin",
                 metadata__event_status="submitted",
             ).values_list("channel", flat=True)
         )
-        self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                metadata__event_status="submitted",
+            ).exists()
+        )
         self.assertEqual(admin_channels, {"web", "email", "whatsapp"})
 
     def test_submitted_does_not_use_official_superadmin_contact_as_recipient_fallback(self):
@@ -126,39 +125,39 @@ class NotificationRoutingTests(TestCase):
         self.assertFalse(NotificationDelivery.objects.filter(recipient="admin-notify@sample.com").exists())
         self.assertFalse(NotificationDelivery.objects.filter(recipient="60111111111").exists())
 
-    def test_submitted_uses_registered_applicant_mobile_when_form_phone_is_empty(self):
+    def test_forced_applicant_submit_uses_registered_applicant_mobile_when_form_phone_is_empty(self):
         self.application.form_data = {}
         self.application.save(update_fields=["form_data"])
 
-        self.notify_status("submitted")
+        notify_applicant_application_submitted(self.application)
 
         self.assertTrue(
             NotificationDelivery.objects.filter(
                 recipient_role="applicant",
                 channel="whatsapp",
                 recipient="60175151829",
-                metadata__event_status="submitted",
+                metadata__event_status="applicant_submitted",
             ).exists()
         )
 
-    def test_submitted_normalizes_registered_applicant_mobile_without_leading_zero(self):
+    def test_forced_applicant_submit_normalizes_registered_applicant_mobile_without_leading_zero(self):
         self.applicant.mobile_number = "175151829"
         self.applicant.save(update_fields=["mobile_number"])
         self.application.form_data = {}
         self.application.save(update_fields=["form_data"])
 
-        self.notify_status("submitted")
+        notify_applicant_application_submitted(self.application)
 
         self.assertTrue(
             NotificationDelivery.objects.filter(
                 recipient_role="applicant",
                 channel="whatsapp",
                 recipient="60175151829",
-                metadata__event_status="submitted",
+                metadata__event_status="applicant_submitted",
             ).exists()
         )
 
-    def test_submitted_uses_registered_applicant_profile_contact(self):
+    def test_forced_applicant_submit_uses_registered_applicant_profile_contact(self):
         self.application.form_data = {
             "step_1": {"tel_no": "0199999999"},
             "step_2": {
@@ -174,14 +173,14 @@ class NotificationRoutingTests(TestCase):
         }
         self.application.save(update_fields=["form_data"])
 
-        self.notify_status("submitted")
+        notify_applicant_application_submitted(self.application)
 
         self.assertTrue(
             NotificationDelivery.objects.filter(
                 recipient_role="applicant",
                 channel="email",
                 recipient="applicant@sample.com",
-                metadata__event_status="submitted",
+                metadata__event_status="applicant_submitted",
             ).exists()
         )
         self.assertTrue(
@@ -189,7 +188,7 @@ class NotificationRoutingTests(TestCase):
                 recipient_role="applicant",
                 channel="whatsapp",
                 recipient="60175151829",
-                metadata__event_status="submitted",
+                metadata__event_status="applicant_submitted",
             ).exists()
         )
         self.assertFalse(
@@ -201,7 +200,7 @@ class NotificationRoutingTests(TestCase):
                     "60199999999",
                     "60188888888",
                 ],
-                metadata__event_status="submitted",
+                metadata__event_status="applicant_submitted",
             ).exists()
         )
 
@@ -298,8 +297,16 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_template"], "pt_ikl_to_ku_ikl")
         self.assertEqual(delivery.metadata["from"], "PT(IKL)")
 
-    def test_ku_ikl_approval_memo_is_sent_to_ikl_technical_notification(self):
-        technical_user = User.objects.create_user(
+    def test_ku_ikl_approval_memo_is_sent_to_selected_technical_unit_first(self):
+        blg_user = User.objects.create_user(
+            username="blg-technical-memo",
+            email="blg-technical@example.com",
+            password="Password123",
+            role="admin",
+            department="BLG",
+            is_active=True,
+        )
+        ikl_user = User.objects.create_user(
             username="ikl-technical-memo",
             email="technical@example.com",
             password="Password123",
@@ -307,14 +314,19 @@ class NotificationRoutingTests(TestCase):
             department="IKL (TECHNICAL)",
             is_active=True,
         )
-        memo_html = "<p>KU(IKL) memo for IKL(TECHNICAL)</p>"
+        memo_html = "<p>KU(IKL) memo for BLG</p>"
         self.application.form_data = {
             **self.application.form_data,
             "technical_referral": {
                 "status": "Referred",
                 "source": "KU(IKL)",
-                "target": "IKL(TECHNICAL)",
+                "target": "BLG",
+                "participating_departments": ["BLG"],
                 "memo_html": memo_html,
+            },
+            "technical_department_selection": {
+                "departments": ["BLG"],
+                "selected_by": "Application Type",
             },
         }
         self.application.save(update_fields=["form_data"])
@@ -325,12 +337,289 @@ class NotificationRoutingTests(TestCase):
             channel="web",
             recipient_role="admin",
             metadata__event_status="technical_review",
-            user=technical_user,
+            user=blg_user,
         )
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_to_technical")
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
-        self.assertEqual(delivery.metadata["to"], "IKL(TECHNICAL)")
+        self.assertEqual(delivery.metadata["to"], "BLG")
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                recipient_role="admin",
+                metadata__event_status="technical_review",
+                user=ikl_user,
+            ).exists()
+        )
+
+    def test_technical_review_notification_uses_open_space_department_list(self):
+        gpm_user = User.objects.create_user(
+            username="gpm-open-space",
+            email="gpm-open-space@example.com",
+            password="Password123",
+            role="admin",
+            department="GPM",
+            is_active=True,
+        )
+        selected_departments = ["GPM", "MNE", "IMT", "LNP", "ENG"]
+        self.application.status = "technical_review"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_referral": {
+                "status": "Referred",
+                "source": "KU(IKL)",
+                "target": "Technical Units",
+                "participating_departments": selected_departments,
+            },
+            "technical_department_selection": {
+                "departments": selected_departments,
+                "selected_by": "Application Type",
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        self.notify_status("technical_review", old_status="ku_ikl_review")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="technical_review",
+            user=gpm_user,
+        )
+        expected_body = f"Application {self.application.reference_no} is ready for GPM, MNE, IMT, LNP, ENG review."
+        self.assertEqual(delivery.metadata["from"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["to"], "GPM, MNE, IMT, LNP, ENG")
+        self.assertEqual(delivery.metadata["title_en"], f"Application {self.application.reference_no} requires review.")
+        self.assertEqual(delivery.metadata["message_en"], expected_body)
+        self.assertEqual(delivery.message, expected_body)
+
+    def test_technical_review_notification_uses_building_department_list(self):
+        blg_user = User.objects.create_user(
+            username="blg-building",
+            email="blg-building@example.com",
+            password="Password123",
+            role="admin",
+            department="BLG",
+            is_active=True,
+        )
+        self.application.status = "technical_review"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_referral": {
+                "status": "Referred",
+                "source": "KU(IKL)",
+                "target": "BLG",
+                "participating_departments": ["BLG"],
+            },
+            "technical_department_selection": {
+                "departments": ["BLG"],
+                "selected_by": "Application Type",
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        self.notify_status("technical_review", old_status="ku_ikl_review")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="technical_review",
+            user=blg_user,
+        )
+        expected_body = f"Application {self.application.reference_no} is ready for BLG review."
+        self.assertEqual(delivery.metadata["from"], "KU(IKL)")
+        self.assertEqual(delivery.metadata["to"], "BLG")
+        self.assertEqual(delivery.metadata["title_en"], f"Application {self.application.reference_no} requires review.")
+        self.assertEqual(delivery.metadata["message_en"], expected_body)
+        self.assertEqual(delivery.message, expected_body)
+
+    @override_settings(
+        NOTIFICATION_SIDE_EFFECTS_ENABLED=False,
+        NOTIFICATION_EMAIL_ENABLED=True,
+        BREVO_API_KEY="test-key",
+        WHATSAPP_ENABLED=True,
+        WHATSAPP_PROVIDER="evolution",
+        EVOLUTION_API_URL="https://whatsapp.example.com",
+        EVOLUTION_API_KEY="test-key",
+        EVOLUTION_INSTANCE_NAME="alis",
+    )
+    @patch("notifications.services.send_whatsapp")
+    @patch("notifications.services.send_email")
+    def test_forced_staff_status_sends_web_email_and_whatsapp(
+        self,
+        send_email,
+        send_whatsapp,
+    ):
+        blg_user = User.objects.create_user(
+            username="blg-forced-delivery",
+            email="blg-forced@example.com",
+            password="Password123",
+            mobile_number="0123456789",
+            role="admin",
+            department="BLG",
+            is_active=True,
+        )
+        self.application.status = "technical_review"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_department_selection": {
+                "departments": ["BLG"],
+                "selected_by": "Application Type",
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        notify_application_status_change(
+            self.application,
+            old_status="ku_ikl_review",
+            force=True,
+        )
+
+        deliveries = NotificationDelivery.objects.filter(
+            user=blg_user,
+            metadata__event_status="technical_review",
+        )
+        self.assertEqual(
+            set(deliveries.values_list("channel", flat=True)),
+            {"web", "email", "whatsapp"},
+        )
+        send_email.assert_called_once()
+        send_whatsapp.assert_called_once()
+
+    @override_settings(
+        NOTIFICATION_SIDE_EFFECTS_ENABLED=False,
+        NOTIFICATION_EMAIL_ENABLED=True,
+        BREVO_API_KEY="test-key",
+        WHATSAPP_ENABLED=True,
+        WHATSAPP_PROVIDER="evolution",
+        EVOLUTION_API_URL="https://whatsapp.example.com",
+        EVOLUTION_API_KEY="test-key",
+        EVOLUTION_INSTANCE_NAME="alis",
+    )
+    @patch("notifications.services.send_whatsapp")
+    @patch("notifications.services.send_email")
+    def test_all_dbku_mphlg_routes_create_external_deliveries(
+        self,
+        _send_email,
+        _send_whatsapp,
+    ):
+        users = {"PT(IKL)": self.admin}
+        departments = [
+            "KU(IKL)",
+            "BLG",
+            "GPM",
+            "MNE",
+            "IMT",
+            "LNP",
+            "ENG",
+            "IKL (TECHNICAL)",
+            "KB(LES)",
+            "TP(RES)",
+            "MPHLG",
+            "SUT",
+        ]
+        for index, department in enumerate(departments, start=1):
+            users[department] = User.objects.create_user(
+                username=f"route-user-{index}",
+                email=f"route-{index}@example.com",
+                password="Password123",
+                mobile_number=f"012345{index:04d}",
+                role="supervisor" if department in {"KB(LES)", "TP(RES)"} else "admin",
+                department=department,
+                is_active=True,
+            )
+
+        route_cases = [
+            ("submitted", "draft", {}, ["KU(IKL)"]),
+            ("ku_ikl_review", "submitted", {}, ["KU(IKL)"]),
+            (
+                "technical_review",
+                "ku_ikl_review",
+                {
+                    "technical_department_selection": {
+                        "departments": ["BLG"],
+                        "selected_by": "Application Type",
+                    },
+                },
+                ["BLG"],
+            ),
+            (
+                "technical_review",
+                "ku_ikl_review",
+                {
+                    "technical_department_selection": {
+                        "departments": ["GPM", "MNE", "IMT", "LNP", "ENG"],
+                        "selected_by": "Application Type",
+                    },
+                },
+                ["GPM", "MNE", "IMT", "LNP", "ENG"],
+            ),
+            (
+                "technical_site_visit",
+                "technical_review",
+                {
+                    "technical_department_selection": {
+                        "departments": ["BLG"],
+                        "selected_by": "Application Type",
+                    },
+                    "technical_department_reviews": {
+                        "BLG": {"decision": "Supported"},
+                    },
+                },
+                ["IKL (TECHNICAL)"],
+            ),
+            ("technical_amendment", "technical_review_completed", {}, ["IKL (TECHNICAL)"]),
+            ("technical_review_completed", "technical_site_visit", {}, ["KU(IKL)"]),
+            (
+                "management_review",
+                "technical_review_completed",
+                {"kb_les_verification": {"status": "Pending KB(LES) Verification"}},
+                ["KB(LES)"],
+            ),
+            (
+                "management_review",
+                "management_review",
+                {
+                    "kb_les_verification": {"status": "Supported"},
+                    "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
+                },
+                ["TP(RES)"],
+            ),
+            ("mphlg_processing", "management_review", {}, ["MPHLG"]),
+            ("mphlg_decision_received", "mphlg_processing", {}, ["SUT"]),
+            ("approved", "management_review", {}, ["PT(IKL)"]),
+            ("bill_pending_ku", "approved", {}, ["KU(IKL)"]),
+            ("payment_submitted", "invoice_generated", {}, ["PT(IKL)"]),
+            ("payment_verified", "payment_submitted", {}, ["PT(IKL)"]),
+        ]
+
+        for status_key, old_status, form_updates, expected_departments in route_cases:
+            with self.subTest(status=status_key, recipients=expected_departments):
+                NotificationDelivery.objects.all().delete()
+                old_form_data = dict(self.application.form_data or {})
+                self.application.status = status_key
+                self.application.form_data = {
+                    **old_form_data,
+                    **form_updates,
+                }
+                self.application.save()
+
+                notify_application_status_change(
+                    self.application,
+                    old_status=old_status,
+                    old_form_data=old_form_data,
+                    force=True,
+                )
+
+                for department in expected_departments:
+                    channels = set(
+                        NotificationDelivery.objects.filter(
+                            user=users[department],
+                            recipient_role="admin",
+                            metadata__event_status=status_key,
+                        ).values_list("channel", flat=True)
+                    )
+                    self.assertEqual(channels, {"web", "email", "whatsapp"})
 
     def test_selected_technical_departments_receive_tasks_after_ikl_selection(self):
         ikl_user = User.objects.create_user(
@@ -389,9 +678,67 @@ class NotificationRoutingTests(TestCase):
                 metadata__event_status="technical_review",
             ).values_list("user", flat=True)
         )
-        self.assertIn(ikl_user.id, notified_users)
         self.assertIn(blg_user.id, notified_users)
+        self.assertNotIn(ikl_user.id, notified_users)
         self.assertNotIn(gpm_user.id, notified_users)
+
+    def test_ikl_technical_receives_task_after_selected_units_complete(self):
+        ikl_user = User.objects.create_user(
+            username="ikl-after-units",
+            email="ikl-after-units@example.com",
+            password="Password123",
+            mobile_number="0123456789",
+            role="admin",
+            department="IKL (TECHNICAL)",
+            is_active=True,
+        )
+        blg_user = User.objects.create_user(
+            username="blg-complete",
+            email="blg-complete@example.com",
+            password="Password123",
+            role="admin",
+            department="BLG",
+            is_active=True,
+        )
+        memo_html = "<p>Selected unit review completed</p>"
+        self.application.status = "technical_site_visit"
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_referral": {
+                "status": "Department Reviews Completed",
+                "source": "KU(IKL)",
+                "target": "IKL(TECHNICAL)",
+                "participating_departments": ["BLG"],
+                "memo_html": memo_html,
+            },
+            "technical_department_selection": {
+                "departments": ["BLG"],
+                "selected_by": "Application Type",
+            },
+            "technical_department_reviews": {
+                "BLG": {
+                    "department": "BLG",
+                    "decision": "Supported",
+                    "reviewed_at": timezone.now().isoformat(),
+                }
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        self.notify_status("technical_site_visit", old_status="technical_review")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="admin",
+            metadata__event_status="technical_site_visit",
+        )
+        notified_users = set(deliveries.values_list("user", flat=True))
+        ikl_channels = set(
+            deliveries.filter(user=ikl_user).values_list("channel", flat=True)
+        )
+
+        self.assertIn(ikl_user.id, notified_users)
+        self.assertNotIn(blg_user.id, notified_users)
+        self.assertEqual(ikl_channels, {"web", "email", "whatsapp"})
 
     def test_ku_ikl_final_check_values_are_visible_to_kb_les(self):
         ku_user = User.objects.create_user(

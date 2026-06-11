@@ -52,8 +52,7 @@ function AdminStep1Page() {
   const [siteImageAttachment, setSiteImageAttachment] = useState(null);
 
   const [mapData, setMapData] = useState({
-    address:
-      "Muzium Kucing, Jalan Semariang, Petra Jaya, Kuching, Sarawak, Malaysia",
+    address: "",
     latitude: 1.586684,
     longitude: 110.334028,
   });
@@ -436,10 +435,7 @@ function LocationMap({ value, onChange, language = "en" }) {
 
   const [lng, setLng] = useState(value?.longitude || defaultLng);
   const [lat, setLat] = useState(value?.latitude || defaultLat);
-  const [address, setAddress] = useState(
-    value?.address ||
-      "Muzium Kucing, Jalan Semariang, Petra Jaya, Kuching, Sarawak, Malaysia"
-  );
+  const [address, setAddress] = useState(value?.address || "");
   const [suggestions, setSuggestions] = useState([]);
   const [mode, setMode] = useState("2d");
   const [scene, setScene] = useState("street");
@@ -455,7 +451,7 @@ function LocationMap({ value, onChange, language = "en" }) {
   useEffect(() => {
     const nextLng = Number(value?.longitude || defaultLng);
     const nextLat = Number(value?.latitude || defaultLat);
-    const nextAddress = value?.address || address;
+    const nextAddress = value?.address ?? address;
 
     setLng(nextLng);
     setLat(nextLat);

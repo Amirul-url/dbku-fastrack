@@ -110,7 +110,7 @@ const units = [
     descriptionKey: "admin.unit.iklTechnical.desc",
     icon: "engineering",
     color: "bg-cyan-600",
-    statuses: ["technical_review", "technical_site_visit", "technical_amendment"],
+    statuses: ["technical_site_visit", "technical_amendment"],
     historyStatuses: IKL_HISTORY_STATUSES.filter((status) =>
       !["submitted", "incomplete", "ku_ikl_review"].includes(status)
     ),
@@ -379,7 +379,7 @@ function buildStatusRecentActivity(application, userDepartment, t) {
     applicationId: application.id,
     reference: getApplicationReference(application),
     project: getProjectName(application),
-    title: getAdminActivityTitle(application, t),
+    title: getAdminActivityTitle(application, userDepartment, t),
     description: getAdminActivityDescription(application, userDepartment, t),
     createdAt: application.updated_at || application.created_at,
     status: normalizeStatus(application.status),
@@ -417,6 +417,7 @@ function getApplicationActivityLog(application) {
 function isImportantAdminActivity(activity, userDepartment) {
   const title = String(activity?.title || "").trim().toLowerCase();
   const category = String(activity?.category || "").trim().toLowerCase();
+  const actorDepartment = getActivityDepartment(activity);
 
   if (!title || title.endsWith(" details saved")) return false;
   if (title.includes("uploaded") || title.includes("removed")) return false;
@@ -434,6 +435,10 @@ function isImportantAdminActivity(activity, userDepartment) {
 
   if (!important) return false;
 
+  if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(userDepartment)) {
+    return actorDepartment === userDepartment;
+  }
+
   if (userDepartment === "KU(IKL)") {
     return (
       title.includes("submitted") ||
@@ -446,6 +451,31 @@ function isImportantAdminActivity(activity, userDepartment) {
   }
 
   return true;
+}
+
+function getActivityDepartment(activity) {
+  const explicitDepartment = normalizeDepartmentCode(activity?.actor_department);
+  if (explicitDepartment) return explicitDepartment;
+
+  const text = [
+    activity?.title,
+    activity?.description,
+    activity?.actor,
+  ]
+    .map((value) => String(value || "").toUpperCase())
+    .join(" ");
+  const knownDepartments = [
+    "IKL (TECHNICAL)",
+    "KU(IKL)",
+    "PT(IKL)",
+    "KB(LES)",
+    "TP(RES)",
+    "MPHLG",
+    "SUT",
+    ...EXTERNAL_TECHNICAL_DEPARTMENTS,
+  ];
+
+  return knownDepartments.find((department) => text.includes(department)) || "";
 }
 
 function getAdminActivityLogTitle(activity, t) {
@@ -660,7 +690,7 @@ function isRelevantRecentActivity(application, userDepartment) {
   return true;
 }
 
-function getAdminActivityTitle(application, t) {
+function getAdminActivityTitle(application, userDepartment, t) {
   const status = normalizeStatus(application.status);
 
   if (status === "submitted") {
@@ -672,6 +702,13 @@ function getAdminActivityTitle(application, t) {
   }
 
   if (["technical_review", "technical_site_visit"].includes(status)) {
+    if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(userDepartment)) {
+      return t(
+        "admin.dashboard.activityUnitTechnicalReview",
+        `${userDepartment} technical review required`
+      ).replace("{department}", userDepartment);
+    }
+
     return t("admin.dashboard.activityTechnicalReview", "Technical review required");
   }
 
@@ -726,6 +763,15 @@ function getAdminActivityDescription(application, userDepartment, t) {
   }
 
   if (["technical_review", "technical_site_visit"].includes(status)) {
+    if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(userDepartment)) {
+      return t(
+        "admin.dashboard.activityUnitTechnicalDesc",
+        `Application ${reference} is ready for ${userDepartment} review.`
+      )
+        .replace("{reference}", reference)
+        .replace("{department}", userDepartment);
+    }
+
     return t(
       "admin.dashboard.activityTechnicalDesc",
       `${reference} is waiting for technical review.`
@@ -1238,7 +1284,7 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
   if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
     const selectedDepartments = getSelectedTechnicalDepartments(application);
-    const route = ["IKL (TECHNICAL)", ...selectedDepartments].join(" / ");
+    const route = [...selectedDepartments, "IKL (TECHNICAL)"].join(" / ");
     return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${route}`;
   }
 

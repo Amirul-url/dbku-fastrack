@@ -514,6 +514,42 @@ function getLocalizedApplicationSubtypeLabel(value, language = "en") {
       en: "LED Billboard",
       ms: "Papan Iklan LED",
     },
+    gantry: {
+      en: "Gantry",
+      ms: "Gantry",
+    },
+    unipole: {
+      en: "Unipole",
+      ms: "Unipole",
+    },
+    minipole: {
+      en: "Minipole",
+      ms: "Tiang Kecil",
+    },
+    directional_sign: {
+      en: "Directional Sign",
+      ms: "Tanda Arah",
+    },
+    directory_sign: {
+      en: "Directory Sign",
+      ms: "Tanda Direktori",
+    },
+    projecting_sign: {
+      en: "Projecting Sign",
+      ms: "Tanda Unjuran",
+    },
+    roof_top_sign: {
+      en: "Roof Top Sign",
+      ms: "Tanda Atas Bumbung",
+    },
+    "wall_sign/building_wrap": {
+      en: "Wall Sign/Building Wrap",
+      ms: "Tanda Dinding/Balut Bangunan",
+    },
+    "pillar/column_wrap": {
+      en: "Pillar/Column Wrap",
+      ms: "Balut Tiang/Lajur",
+    },
   };
 
   return labelMap[key]?.[language === "ms" ? "ms" : "en"] || "";

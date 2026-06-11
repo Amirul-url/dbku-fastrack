@@ -53,9 +53,6 @@ function getMainApplicationTypeLabel(language, step1 = {}) {
 }
 
 function getDisplayTypeSummary(language, step1 = {}) {
-  const savedLabel = String(step1.advertisement_display_type_label || "").trim();
-  if (savedLabel) return savedLabel;
-
   const rows = getAdvertisementRows(step1);
   const labels = rows
     .map((row) => {
@@ -69,15 +66,14 @@ function getDisplayTypeSummary(language, step1 = {}) {
     })
     .filter(Boolean);
 
-  return [...new Set(labels)].join(", ");
+  const translatedLabels = [...new Set(labels)].join(", ");
+  return (
+    translatedLabels ||
+    String(step1.advertisement_display_type_label || "").trim()
+  );
 }
 
 function getAdvertisementTypeSummary(language, step1 = {}) {
-  const savedLabel = String(
-    step1.advertisement_type_label || step1.application_subtype_label || ""
-  ).trim();
-  if (savedLabel) return savedLabel;
-
   const rows = getAdvertisementRows(step1);
   const labels = rows
     .map((row) => {
@@ -93,7 +89,13 @@ function getAdvertisementTypeSummary(language, step1 = {}) {
     })
     .filter(Boolean);
 
-  return [...new Set(labels)].join(", ");
+  const translatedLabels = [...new Set(labels)].join(", ");
+  return (
+    translatedLabels ||
+    String(
+      step1.advertisement_type_label || step1.application_subtype_label || ""
+    ).trim()
+  );
 }
 
 function getAdvertisementRows(step1 = {}) {

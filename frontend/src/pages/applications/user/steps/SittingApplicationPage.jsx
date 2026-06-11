@@ -57,6 +57,27 @@ const DISPLAY_TYPE_OPTIONS = [
   { value: "non_led", labelKey: "displayTypeNonLed" },
   { value: "led", labelKey: "displayTypeLed" },
 ];
+const DEFAULT_ADVERTISEMENT_TYPES = [
+  { value: "Gantry", labelKey: "advertisementTypeGantry" },
+  { value: "Unipole", labelKey: "advertisementTypeUnipole" },
+  { value: "Minipole", labelKey: "advertisementTypeMinipole" },
+  {
+    value: "Free Standing Billboard",
+    labelKey: "applicationSubtypeFreeStandingBillboard",
+  },
+  { value: "Directional Sign", labelKey: "advertisementTypeDirectionalSign" },
+  { value: "Directory Sign", labelKey: "advertisementTypeDirectorySign" },
+  { value: "Projecting Sign", labelKey: "advertisementTypeProjectingSign" },
+  { value: "Roof Top Sign", labelKey: "advertisementTypeRoofTopSign" },
+  {
+    value: "Wall Sign/Building Wrap",
+    labelKey: "advertisementTypeWallSignBuildingWrap",
+  },
+  {
+    value: "Pillar/Column Wrap",
+    labelKey: "advertisementTypePillarColumnWrap",
+  },
+];
 const EMPTY_CUSTOM_ADVERTISEMENT_TYPES = {
   open_space: {
     non_led: [],
@@ -78,6 +99,7 @@ const IKL_FEE_SCHEDULES = {
     number: "6",
     firstAreaSqm: 10,
     firstAreaRate: 200,
+    firstAreaFixedFee: 2000,
     additionalAreaRate: 50,
   },
 };
@@ -147,6 +169,15 @@ function getApplicationSubtypeLabel(language, type, subtype, customLabel = "") {
     free_standing_billboard: "applicationSubtypeFreeStandingBillboard",
     led_billboard: "applicationSubtypeLedBillboard",
     normal_billboard: "applicationSubtypeNormalBillboard",
+    gantry: "advertisementTypeGantry",
+    unipole: "advertisementTypeUnipole",
+    minipole: "advertisementTypeMinipole",
+    directional_sign: "advertisementTypeDirectionalSign",
+    directory_sign: "advertisementTypeDirectorySign",
+    projecting_sign: "advertisementTypeProjectingSign",
+    roof_top_sign: "advertisementTypeRoofTopSign",
+    "wall_sign/building_wrap": "advertisementTypeWallSignBuildingWrap",
+    "pillar/column_wrap": "advertisementTypePillarColumnWrap",
   };
 
   if (knownCustomLabelKeys[normalizedCustomLabel]) {
@@ -467,9 +498,14 @@ function calculateIklFeeBreakdown(areaRequired, subtype = "") {
   if (!areaSqm) return "";
 
   const schedule = getIklFeeSchedule(subtype);
-  const firstAreaSqm = Math.min(areaSqm, schedule.firstAreaSqm);
+  const usesFixedFirstAreaFee = Number(schedule.firstAreaFixedFee || 0) > 0;
+  const firstAreaSqm = usesFixedFirstAreaFee
+    ? schedule.firstAreaSqm
+    : Math.min(areaSqm, schedule.firstAreaSqm);
   const additionalAreaSqm = Math.max(areaSqm - schedule.firstAreaSqm, 0);
-  const firstAreaFee = firstAreaSqm * schedule.firstAreaRate;
+  const firstAreaFee = usesFixedFirstAreaFee
+    ? schedule.firstAreaFixedFee
+    : firstAreaSqm * schedule.firstAreaRate;
   const additionalAreaFee = additionalAreaSqm * schedule.additionalAreaRate;
   const feeTotal = firstAreaFee + additionalAreaFee;
   const totalPayable = feeTotal + IKL_FIXED_DEPOSIT + IKL_PROCESSING_FEE;
@@ -478,6 +514,8 @@ function calculateIklFeeBreakdown(areaRequired, subtype = "") {
     scheduleNumber: schedule.number,
     firstAreaLimitSqm: schedule.firstAreaSqm,
     firstAreaRate: schedule.firstAreaRate,
+    firstAreaFixedFee: schedule.firstAreaFixedFee || 0,
+    usesFixedFirstAreaFee,
     additionalAreaRate: schedule.additionalAreaRate,
     areaSqm,
     firstAreaSqm,
@@ -541,8 +579,7 @@ function SittingApplicationPage({
   const [siteImages, setSiteImages] = useState([]);
 
   const [mapData, setMapData] = useState({
-    address:
-      "Muzium Kucing, Jalan Semariang, Petra Jaya, Kuching, Sarawak, Malaysia",
+    address: "",
     latitude: 1.586684,
     longitude: 110.334028,
   });
@@ -1289,10 +1326,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
 
   const [lng, setLng] = useState(value?.longitude || defaultLng);
   const [lat, setLat] = useState(value?.latitude || defaultLat);
-  const [address, setAddress] = useState(
-    value?.address ||
-      "Muzium Kucing, Jalan Semariang, Petra Jaya, Kuching, Sarawak, Malaysia"
-  );
+  const [address, setAddress] = useState(value?.address || "");
   const [suggestions, setSuggestions] = useState([]);
   const [mode, setMode] = useState("2d");
   const [scene, setScene] = useState("street");
@@ -1308,7 +1342,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   useEffect(() => {
     const nextLng = Number(value?.longitude || defaultLng);
     const nextLat = Number(value?.latitude || defaultLat);
-    const nextAddress = value?.address || address;
+    const nextAddress = value?.address ?? address;
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLng(nextLng);
@@ -2052,7 +2086,7 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
 
       <div className="border-t border-slate-200 bg-white px-3 py-2">
         {breakdown ? (
-          <div className="grid gap-1 text-[11px] text-slate-700">
+          <div className="grid gap-1.5 text-xs text-slate-700">
             <CalculationRow
               label={tx("calculationSchedule")}
               value={tx(`calculationSchedule${breakdown.scheduleNumber}`)}
@@ -2075,7 +2109,11 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
             />
             <CalculationRow
               label={tx(`calculationFirstArea${breakdown.scheduleNumber}`)}
-              value={`${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x RM${formatCalculatedAmount(breakdown.firstAreaRate)} = RM${formatCalculatedAmount(breakdown.firstAreaFee)}`}
+              value={
+                breakdown.usesFixedFirstAreaFee
+                  ? `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m = RM${formatCalculatedAmount(breakdown.firstAreaFixedFee)}`
+                  : `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x RM${formatCalculatedAmount(breakdown.firstAreaRate)} = RM${formatCalculatedAmount(breakdown.firstAreaFee)}`
+              }
             />
             <CalculationRow
               label={tx("calculationAdditionalArea")}
@@ -2100,7 +2138,7 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
             />
           </div>
         ) : (
-          <p className="text-[11px] text-slate-500">{tx("calculationEmpty")}</p>
+          <p className="text-xs text-slate-500">{tx("calculationEmpty")}</p>
         )}
       </div>
     </details>
@@ -2115,7 +2153,7 @@ function CalculationRow({ label, value, strong = false }) {
       }`}
     >
       <span>{label}</span>
-      <span className="font-mono tabular-nums">{value}</span>
+      <span className="tabular-nums text-slate-800">{value}</span>
     </div>
   );
 }
@@ -2167,14 +2205,47 @@ function ApplicationTypeCheckboxes({
   }
 
   function getCustomOptions(displayType, customLabel = "") {
-    if (!displayType) return customLabel ? [customLabel] : [];
+    if (!displayType) {
+      return customLabel
+        ? [{ value: customLabel, label: customLabel }]
+        : [];
+    }
 
-    return [
-      ...new Set([
-        ...(customAdvertisementTypes?.[selectedType]?.[displayType] || []),
-        customLabel,
-      ].filter(Boolean)),
-    ];
+    const defaultOptions = ["led", "non_led"].includes(displayType)
+      ? DEFAULT_ADVERTISEMENT_TYPES
+      : [];
+    const optionsByValue = new Map(
+      defaultOptions.map((option) => [
+        option.value.toLowerCase(),
+        {
+          value: option.value,
+          label: stepText(language, option.labelKey),
+        },
+      ])
+    );
+
+    [
+      ...(customAdvertisementTypes?.[selectedType]?.[displayType] || []),
+      customLabel,
+    ]
+      .filter(Boolean)
+      .forEach((label) => {
+        const value = String(label).trim();
+        const key = value.toLowerCase();
+        if (!optionsByValue.has(key)) {
+          optionsByValue.set(key, {
+            value,
+            label: getApplicationSubtypeLabel(
+              language,
+              selectedType,
+              getSubtypeForDisplayType(selectedType, displayType),
+              value
+            ),
+          });
+        }
+      });
+
+    return [...optionsByValue.values()];
   }
 
   function updateRow(index, updates) {
@@ -2367,9 +2438,12 @@ function ApplicationTypeCheckboxes({
                         <option value="">
                           {stepText(language, "selectAdvertisementType")}
                         </option>
-                        {customOptions.map((label) => (
-                          <option key={label} value={`custom:${label}`}>
-                            {label}
+                        {customOptions.map((option) => (
+                          <option
+                            key={option.value}
+                            value={`custom:${option.value}`}
+                          >
+                            {option.label}
                           </option>
                         ))}
                       </select>

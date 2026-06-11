@@ -33,7 +33,8 @@ const applicantNotificationStatuses = new Set([
   "license_renewal_released",
   "license_cancellation_released",
 ]);
-const technicalDepartments = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const technicalDepartmentOrder = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
+const technicalDepartments = new Set(technicalDepartmentOrder);
 const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const mphlgReviewDepartments = new Set(["MPHLG"]);
 const sutApprovalDepartments = new Set(["SUT"]);
@@ -150,6 +151,19 @@ function getUserMobile(user) {
   return String(user?.mobile_number || user?.phone || user?.phone_number || "").trim();
 }
 
+function getSelectedTechnicalDepartments(app) {
+  const selection = app?.technical_department_selection || app?.form_data?.technical_department_selection || {};
+  const referral = app?.technical_referral || app?.form_data?.technical_referral || {};
+  const selected = Array.isArray(selection?.departments)
+    ? selection.departments
+    : Array.isArray(referral?.participating_departments)
+      ? referral.participating_departments
+      : [];
+  const normalized = new Set(selected.map(normalizeDepartment).filter(Boolean));
+
+  return technicalDepartmentOrder.filter((department) => normalized.has(department));
+}
+
 function formatContactRecipient(email, mobile) {
   const parts = [email, mobile].map((value) => String(value || "").trim()).filter(Boolean);
   return parts.length ? parts.join(" / ") : "-";
@@ -201,9 +215,9 @@ function getNotificationSender(role, status, user) {
   if (
     role === "admin" &&
     technicalDepartments.has(department) &&
-    ["technical_review", "technical_site_visit"].includes(normalizedStatus)
+    normalizedStatus === "technical_review"
   ) {
-    return "IKL(TECHNICAL)";
+    return "KU(IKL)";
   }
 
   if (
@@ -286,12 +300,12 @@ function getMemoSubject(subject, title, reference, options = {}) {
 
   if (
     role === "admin" &&
-    ["technical_review", "technical_site_visit"].includes(status) &&
+    status === "technical_review" &&
     technicalDepartments.has(department)
   ) {
     return cleanReference
-      ? `${cleanReference} requires ${department} technical review`
-      : `Application requires ${department} technical review`;
+      ? `Application ${cleanReference} requires review.`
+      : "Application requires review.";
   }
 
   if (role === "admin" && status === "technical_review_completed" && department === "KU(IKL)") {
@@ -458,12 +472,16 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
     }
 
     if (department === "IKL (TECHNICAL)") {
-      return ["technical_review", "technical_site_visit", "technical_amendment"].includes(normalizedStatus);
+      return ["technical_site_visit", "technical_amendment"].includes(normalizedStatus);
     }
 
     if (!technicalDepartments.has(department)) return false;
+    if (normalizedStatus !== "technical_review") return false;
     if (!app) return true;
-    return !departmentHasSubmittedReview(app, department);
+    return (
+      getSelectedTechnicalDepartments(app).includes(department) &&
+      !departmentHasSubmittedReview(app, department)
+    );
   }
 
   return false;
@@ -677,20 +695,26 @@ function buildAdminNotifications(app, user) {
   if (adminTechnicalTaskStatuses.has(status) && isAdminNotificationAllowedForUser(status, user, app)) {
     const department = getUserDepartment(user);
     const amendmentTask = status === "technical_amendment";
+    const selectedDepartments = getSelectedTechnicalDepartments(app);
+    const departmentText = selectedDepartments.join(", ") || department;
     notifications.push(
       buildBaseNotification(
         app,
         "admin",
         "technical",
         "warning",
-        amendmentTask ? "IKL(TECHNICAL) amendment required" : `${department} technical task assigned`,
-        amendmentTask ? "Pindaan IKL(TECHNICAL) diperlukan" : `Tugasan teknikal ${department} diberikan`,
+        amendmentTask
+          ? "IKL(TECHNICAL) amendment required"
+          : `Application ${reference} requires review.`,
+        amendmentTask
+          ? "Pindaan IKL(TECHNICAL) diperlukan"
+          : `Permohonan ${reference} memerlukan semakan.`,
         amendmentTask
           ? `${reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue.`
-          : `${reference} is ready for ${department} site review.`,
+          : `Application ${reference} is ready for ${departmentText} review.`,
         amendmentTask
           ? `${reference} memerlukan pindaan IKL(TECHNICAL) sebelum KU(IKL) boleh meneruskan.`
-          : `${reference} sedia untuk semakan tapak ${department}.`,
+          : `Permohonan ${reference} sedia untuk semakan ${departmentText}.`,
         user
       )
     );
@@ -862,10 +886,14 @@ function getNotificationDisplayStatus(role, status, user = null, app = null) {
 }
 
 function normalizeApplicantNotificationText(value, role, status) {
-  if (normalizeStatus(status) === "submitted") {
+  if (role === "applicant" && normalizeStatus(status) === "submitted") {
     return String(value || "")
-      .replace(/\bApplication submitted\b/g, "New Application Submitted")
-      .replace(/\bapplication submitted\b/g, "new application submitted");
+      .replace(/ALiS\s*-\s*Application\s+[^(\n]+?\s+requires\s+KU\(IKL\)\s+review(?:\s+\([^)]+\))?/gi, "ALiS - Application submitted")
+      .replace(/Application\s+[^.\n]+?\s+requires\s+KU\(IKL\)\s+review\.?/gi, "Application submitted successfully")
+      .replace(/Application\s+[^.\n]+?\s+has been submitted and is ready for KU\(IKL\)\s+review\.?/gi, "Your application has been submitted successfully.")
+      .replace(/requires\s+KU\(IKL\)\s+review/gi, "has been submitted")
+      .replace(/\bApplication submitted\b/g, "Application submitted successfully")
+      .replace(/\bapplication submitted\b/g, "application submitted successfully");
   }
 
   if (role !== "applicant" || normalizeStatus(status) !== "incomplete") {
@@ -976,6 +1004,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       const type = metadata.type || "info";
       const status = normalizeStatus(metadata.event_status || delivery.status);
       const displayStatus = metadata.display_status || getNotificationDisplayStatus(role, status, user);
+      const reference = delivery.reference_no || metadata.account_username || "-";
       const title = normalizeApplicantNotificationText(
         metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject),
         role,
@@ -986,7 +1015,6 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         role,
         status
       );
-      const reference = delivery.reference_no || metadata.account_username || "-";
       const localizedCopy = getDeliveryLocalizedCopy(status, reference, delivery.latest_remark);
       const titleMs = normalizeApplicantNotificationText(metadata.title_ms || localizedCopy.titleMs || title, role, status);
       const messageMs = normalizeApplicantNotificationText(
@@ -1041,6 +1069,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         memoTo: metadata.to || "",
         from: metadata.from || metadata.sender || getNotificationSender(role, status, user),
         to,
+        recipientRole: role,
         subject,
         time: formatDateTime(timestamp),
         timestamp,

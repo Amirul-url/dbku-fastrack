@@ -543,6 +543,10 @@ function getNotificationRecipientLabel(item) {
   const currentValue = String(item?.to || "").trim();
   if (currentValue && currentValue !== "-") return currentValue;
 
+  if (item?.recipientRole === "applicant") {
+    return "-";
+  }
+
   const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
   const label = String(item?.statusLabel || item?.status || "").trim();
 
@@ -578,8 +582,13 @@ function localizeNotificationSender(value, language) {
 function getLocalizedMemoSubject(item, language, fallbackTitle = "") {
   const reference = String(item?.reference || "").trim();
   const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
+  const isApplicant = item?.recipientRole === "applicant";
 
   if (language === "ms") {
+    if (isApplicant && status === "submitted") {
+      return `ALiS - Permohonan dihantar${reference ? ` (${reference})` : ""}`;
+    }
+
     if (status === "rejected") {
       return `ALiS - Permohonan ditolak${reference ? ` (${reference})` : ""}`;
     }
@@ -594,6 +603,10 @@ function getLocalizedMemoSubject(item, language, fallbackTitle = "") {
   }
 
   if (language !== "ms") {
+    if (isApplicant && status === "submitted") {
+      return `ALiS - Application submitted${reference ? ` (${reference})` : ""}`;
+    }
+
     if (status === "rejected") {
       return `ALiS - Application rejected${reference ? ` (${reference})` : ""}`;
     }
@@ -614,7 +627,11 @@ function getNotificationSubjectLine(item, fallbackSubject, language = "en") {
   const reference = String(item?.reference || "").trim();
   const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
 
-  if (reference && (status === "submitted" || status === "ku_ikl_review")) {
+  if (item?.recipientRole === "applicant" && status === "submitted") {
+    return getLocalizedMemoSubject(item, language, fallbackSubject);
+  }
+
+  if (reference && (status === "submitted" || status === "ku_ikl_review" || status === "technical_review")) {
     return language === "ms"
       ? `Permohonan ${reference} memerlukan semakan.`
       : `Application ${reference} requires review.`;

@@ -23,7 +23,8 @@ KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)"
 NOTIFICATION_SIDE_EFFECTS_ENABLED = False
 
 
-TECHNICAL_DEPARTMENTS = {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}
+TECHNICAL_DEPARTMENT_ORDER = ("BLG", "GPM", "MNE", "IMT", "LNP", "ENG")
+TECHNICAL_DEPARTMENTS = set(TECHNICAL_DEPARTMENT_ORDER)
 PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
 KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
 IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL"}
@@ -98,9 +99,9 @@ STATUS_MESSAGES = {
         "Application {reference} is ready for KU(IKL) verification.",
     ),
     "technical_site_visit": (
-        "Technical site visit assigned",
+        "IKL(TECHNICAL) review required",
         "",
-        "Application {reference} is ready for your department site visit review.",
+        "Application {reference} has completed selected unit technical review and is ready for IKL(TECHNICAL) review.",
     ),
     "technical_amendment": (
         "Technical amendment required",
@@ -200,8 +201,9 @@ def notify_application_status_change(
     old_status=None,
     old_remark=None,
     old_form_data=None,
+    force=False,
 ):
-    if not notification_side_effects_enabled():
+    if not force and not notification_side_effects_enabled():
         return
 
     new_status = str(application.status or "").strip().lower()
@@ -232,6 +234,7 @@ def notify_application_status_change(
         create_and_send_delivery(
             application=application,
             event_key=event_key,
+            force=force,
             **recipient,
         )
 
@@ -1156,6 +1159,11 @@ def build_status_messages(application):
     if status_key == "management_review":
         title, admin_body = get_management_review_admin_text(application)
         subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+    elif status_key == "technical_review":
+        department_text = format_selected_technical_departments(application)
+        title = f"Application {application.reference_no} requires review."
+        admin_body = f"Application {application.reference_no} is ready for {department_text} review."
+        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         amendment_source = get_ku_amendment_source(application) or "KB(LES)"
         title = "KU(IKL) amendment required"
@@ -1251,11 +1259,19 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["memo_template"] = "pt_ikl_to_ku_ikl"
         metadata["from"] = "PT(IKL)"
         metadata["sender"] = "PT(IKL)"
-    elif memo_html and status_key == "technical_review":
-        metadata["memo_html"] = memo_html
-        metadata["memo_template"] = "ku_ikl_to_technical"
+    elif status_key == "technical_review":
+        if memo_html:
+            metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "ku_ikl_to_technical"
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
+        metadata["to"] = format_selected_technical_departments(application)
+    elif status_key == "technical_site_visit":
+        if memo_html:
+            metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "technical_units_to_ikl"
+        metadata["from"] = "Technical Units"
+        metadata["sender"] = "Technical Units"
         metadata["to"] = KU_TECHNICAL_MEMO_RECIPIENT
     elif memo_html and status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         amendment_source = get_ku_amendment_source(application) or "KB(LES)"
@@ -1526,7 +1542,11 @@ def build_recipients(application, messages):
     applicant_metadata = messages["applicant_metadata"]
     admin_metadata = messages["admin_metadata"]
 
-    if status_key in APPLICANT_NOTIFICATION_STATUSES and application.applicant_id:
+    if (
+        status_key in APPLICANT_NOTIFICATION_STATUSES
+        and status_key != "submitted"
+        and application.applicant_id
+    ):
         recipients.append({
             "user": application.applicant,
             "recipient_role": "applicant",
@@ -1651,6 +1671,17 @@ def get_admin_task_web_recipients(application):
     if status_key == "mphlg_decision_received":
         return [user for user in users if is_sut_approval_user(user)]
 
+    if status_key in {"technical_review", "technical_site_visit"}:
+        pending_departments = get_pending_technical_departments(application)
+        if pending_departments:
+            return [
+                user
+                for user in users
+                if normalize_department(getattr(user, "department", "")) in pending_departments
+            ]
+
+        return [user for user in users if is_ikl_technical_user(user)]
+
     if status_key in ADMIN_TECHNICAL_TASK_STATUSES:
         pending_departments = get_pending_technical_departments(application)
         return [
@@ -1714,6 +1745,17 @@ def get_pending_technical_departments(application):
         for department in selected_departments
         if not isinstance(reviews.get(department), dict) or not reviews.get(department)
     }
+
+
+def format_selected_technical_departments(application):
+    selected_departments = get_selected_technical_departments(application)
+    ordered_departments = [
+        department
+        for department in TECHNICAL_DEPARTMENT_ORDER
+        if department in selected_departments
+    ]
+
+    return ", ".join(ordered_departments) or "technical units"
 
 
 def get_selected_technical_departments(application):
@@ -1886,8 +1928,12 @@ def should_user_receive_admin_notification(user, application, status_key=None):
     if status == "technical_amendment":
         return department == "IKL (TECHNICAL)"
 
-    if status in {"technical_review", "technical_site_visit", "technical_amendment"} and department == "IKL (TECHNICAL)":
-        return True
+    if status == "technical_site_visit":
+        pending_departments = get_pending_technical_departments(application)
+        if pending_departments:
+            return department in pending_departments
+
+        return department == "IKL (TECHNICAL)"
 
     if status in ADMIN_TECHNICAL_TASK_STATUSES:
         return department in get_pending_technical_departments(application)
