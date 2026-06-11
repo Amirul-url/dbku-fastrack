@@ -210,7 +210,7 @@ export function getApplicantApplicationRoute(app) {
     return routes[step] || "edit";
   }
 
-  return "print-form";
+  return "edit";
 }
 
 export function getApplicantActionKey(app) {
