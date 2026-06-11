@@ -659,6 +659,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
   const showWorkspaceVerificationReport =
     showApprovalTechnicalReport || showELicenseVerificationReport;
+  const hideMphlgActionChrome =
+    isApprovalWorkspace && MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -2233,7 +2235,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             compact
             title={t("workspace.actionPanel")}
             description={
-              isReadOnlyActionPanel
+              hideMphlgActionChrome
+                ? ""
+                : isReadOnlyActionPanel
                 ? isApprovalHistoryRecord(selectedRecord)
                   ? t("workspace.approval.completedAction", "Final approval has been recorded.")
                   : t(
@@ -2247,37 +2251,53 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
             ) : (
               <div className="space-y-4">
-              <ApplicationSummary
-                app={selectedRecord}
-                uniformText={isFocusedPersonalWorkspace && userDepartment === "IKL (TECHNICAL)"}
-                labels={{
-                  reference: t("common.reference", "Reference"),
-                  selectedApplication: t("workspace.selectedApplication"),
-                  defaultTitle: t("workspace.defaultApplicationTitle"),
-                  applicant: t("common.applicant"),
-                  type: t("common.type"),
-                  status: t("common.status"),
-                  location: t("workspace.location"),
-                  created: t("workspace.created"),
-                  updated: t("common.updated"),
-                }}
-                statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
-                applicationType={getLocalizedApplicationType(selectedRecord, t, language)}
-                actions={
-                  isFocusedPersonalWorkspace || tableFirstWorkspace ? (
-                    <Button
-                      variant="secondary"
-                      icon="visibility"
-                      className="min-h-8 px-2.5 py-1 text-sm leading-5"
-                      onClick={() => openSelectedFormView(selectedRecord.id)}
-                    >
-                      {t("workspace.openForm")}
-                    </Button>
-                  ) : null
-                }
-              />
+              {!hideMphlgActionChrome && (
+                <ApplicationSummary
+                  app={selectedRecord}
+                  uniformText={isFocusedPersonalWorkspace && userDepartment === "IKL (TECHNICAL)"}
+                  labels={{
+                    reference: t("common.reference", "Reference"),
+                    selectedApplication: t("workspace.selectedApplication"),
+                    defaultTitle: t("workspace.defaultApplicationTitle"),
+                    applicant: t("common.applicant"),
+                    type: t("common.type"),
+                    status: t("common.status"),
+                    location: t("workspace.location"),
+                    created: t("workspace.created"),
+                    updated: t("common.updated"),
+                  }}
+                  statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
+                  applicationType={getLocalizedApplicationType(selectedRecord, t, language)}
+                  actions={
+                    isFocusedPersonalWorkspace || tableFirstWorkspace ? (
+                      <Button
+                        variant="secondary"
+                        icon="visibility"
+                        className="min-h-8 px-2.5 py-1 text-sm leading-5"
+                        onClick={() => openSelectedFormView(selectedRecord.id)}
+                      >
+                        {t("workspace.openForm")}
+                      </Button>
+                    ) : null
+                  }
+                />
+              )}
 
-              {showWorkspaceVerificationReport && (
+              {hideMphlgActionChrome && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="visibility"
+                    className="min-h-8 px-3 py-1 text-sm leading-5"
+                    onClick={() => openSelectedFormView(selectedRecord.id)}
+                  >
+                    {t("workspace.openForm", "View Form")}
+                  </Button>
+                </div>
+              )}
+
+              {showWorkspaceVerificationReport && !hideMphlgActionChrome && (
                 <>
                   <div className="flex justify-end">
                     <Button
@@ -2335,7 +2355,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     canSubmitWorkspaceAction &&
                     !isApprovalSupportWorkspace &&
                     !showApprovalDecisionButtons && (
-                    <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
+                    <Field
+                      label={
+                        isMphlgApprovalWorkspace
+                          ? t("workspace.decision.approveQuestion", "Approve?")
+                          : t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")
+                      }
+                    >
                       <select
                         value={decision}
                         onChange={(event) => setDecision(event.target.value)}
@@ -2343,7 +2369,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       >
                         {!isKbLesSupportWorkspace && (
                           <option value="">
-                            {t("workspace.decision.selectDecision", "Select decision")}
+                            {isMphlgApprovalWorkspace
+                              ? t("workspace.decision.selectDecisionDashed", "--select decision--")
+                              : t("workspace.decision.selectDecision", "Select decision")}
                           </option>
                         )}
                         {decisionOptions.map((item) => (
@@ -4261,7 +4289,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   if (isApprovalWorkspace && status === "management_review") {
-    return getApprovalStageLabel(app);
+    return getApprovalStageLabel(app, t);
   }
 
   if (isApprovalWorkspace && isApprovalHistoryRecord(app)) {
@@ -4299,7 +4327,7 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.mphlgAction", "Review the full application before approving it for SUT final approval.");
+      return "";
     }
 
     if (SUT_APPROVAL_DEPARTMENTS.includes(userDepartment)) {
@@ -4367,8 +4395,8 @@ function getWorkspaceDecisionOptions(config, app, department) {
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "mphlg") {
     return [
-      { value: "Approve", labelKey: "workspace.decision.approve" },
-      { value: "Reject", labelKey: "workspace.decision.reject" },
+      { value: "Approve", labelKey: "workspace.decision.yes" },
+      { value: "Reject", labelKey: "workspace.decision.no" },
     ];
   }
 
@@ -4774,15 +4802,30 @@ function canSupportCancellationNotice(app, department) {
   );
 }
 
-function getApprovalStageLabel(app) {
+function getApprovalStageLabel(app, t) {
   const stage = getApprovalStageKey(app);
 
-  if (stage === "kb_support") return "Pending KB(LES) Support";
-  if (stage === "support") return "Pending TP(RES)/PGH Final Approval";
-  if (stage === "mphlg") return "Pending MPHLG Approval";
-  if (stage === "sut") return "Pending SUT Approval";
-  if (stage === "completed") return "Approval Completed";
-  return "Pending KB(LES) Verification";
+  if (stage === "kb_support") {
+    return t("workspace.approval.stageKbSupport", "Pending KB(LES) Support");
+  }
+
+  if (stage === "support") {
+    return t("workspace.approval.stageSupport", "Pending TP(RES)/PGH Final Approval");
+  }
+
+  if (stage === "mphlg") {
+    return t("workspace.approval.stageMphlg", "Pending MPHLG Approval");
+  }
+
+  if (stage === "sut") {
+    return t("workspace.approval.stageSut", "Pending SUT Approval");
+  }
+
+  if (stage === "completed") {
+    return t("workspace.approval.stageCompleted", "Approval Completed");
+  }
+
+  return t("workspace.approval.stageKbVerification", "Pending KB(LES) Verification");
 }
 
 function getApprovalStageKey(app) {
@@ -5561,7 +5604,7 @@ function buildApprovalWorkflowPayload(app, data) {
     const rejectRemark = data.comment || getHtmlPlainText(data.memoHtml) || app.latest_remark || "";
 
     return {
-      status: approved ? "mphlg_decision_received" : "incomplete",
+      status: approved ? "approved" : "rejected",
       current_step: Math.max(Number(app.current_step || 1), 5),
       latest_remark: approved ? data.comment || app.latest_remark || "" : rejectRemark,
       form_data: mergeFormData(app, {
@@ -5586,16 +5629,18 @@ function buildApprovalWorkflowPayload(app, data) {
               memo_html: data.memoHtml || "",
               requested_at: now,
             },
-        sut_approval: approved
+        sut_approval: app.form_data?.sut_approval || null,
+        approval: approved
           ? {
-              ...(app.form_data?.sut_approval || {}),
-              status: "Pending SUT Approval",
-              routed_from: "MPHLG",
-              routed_at: now,
-              memo_html: data.memoHtml || app.form_data?.sut_approval?.memo_html || "",
+              ...(app.form_data?.approval || {}),
+              officer: "MPHLG",
+              status: "Approved",
+              decision,
+              remarks: data.comment,
+              memo_html: data.memoHtml || app.form_data?.approval?.memo_html || "",
+              approved_at: now,
             }
-          : null,
-        approval: app.form_data?.approval || null,
+          : app.form_data?.approval || null,
       }),
     };
   }

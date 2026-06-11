@@ -418,9 +418,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("Only MPHLG can return the application to KU(IKL) at this stage.")
             return
 
-        if requested_status == "incomplete" and current_status == "mphlg_processing":
+        if requested_status in {"incomplete", "rejected"} and current_status == "mphlg_processing":
             if department != "MPHLG":
                 raise PermissionDenied("Only MPHLG can return the application to the applicant at this stage.")
+            return
+
+        if requested_status == "approved" and current_status == "mphlg_processing":
+            if department != "MPHLG":
+                raise PermissionDenied("Only MPHLG can approve the application at this stage.")
             return
 
         if requested_status == "rejected" and current_status == "ku_ikl_review":

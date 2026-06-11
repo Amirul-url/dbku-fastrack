@@ -158,14 +158,12 @@ function buildAdminNav(taskCounts = {}, user = null) {
           children: eLicenseChildren,
         }
       : null,
-    isSupervisor
-      ? null
-      : {
-          labelKey: "nav.guidelines",
-          fallback: "Guidelines",
-          path: "/admin/guidelines",
-          icon: "menu_book",
-        },
+    {
+      labelKey: "nav.guidelines",
+      fallback: "Guidelines",
+      path: "/admin/guidelines",
+      icon: "menu_book",
+    },
   ].filter(Boolean);
 }
 
@@ -451,18 +449,16 @@ function AppShell({ children, role = "admin" }) {
             const activeView = getAdminSidebarView(location);
             const itemPathname = getPathname(item.path);
             const active =
-              (item.activePathPrefix &&
-                location.pathname.startsWith(item.activePathPrefix)) ||
-              (role === "admin" &&
-                item.view &&
-                location.pathname === itemPathname &&
-                activeView === item.view) ||
-              location.pathname === item.path ||
-              (role === "applicant" &&
-                item.path === "/user/dashboard" &&
-                location.pathname.startsWith("/applications")) ||
-              (item.path !== "/dashboard/admin" &&
-                location.pathname.startsWith(item.path));
+              role === "admin" && item.view
+                ? location.pathname === itemPathname && activeView === item.view
+                : (item.activePathPrefix &&
+                    location.pathname.startsWith(item.activePathPrefix)) ||
+                  location.pathname === item.path ||
+                  (role === "applicant" &&
+                    item.path === "/user/dashboard" &&
+                    location.pathname.startsWith("/applications")) ||
+                  (item.path !== "/dashboard/admin" &&
+                    location.pathname.startsWith(item.path));
             const hasChildren = Boolean(item.children || item.stepGroup);
             const adminDashboardItem = role === "admin" && item.path === "/dashboard/admin";
             const adminELicensesItem = role === "admin" && item.menuKey === "eLicenses";

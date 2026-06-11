@@ -390,6 +390,14 @@ function isMphlgReviewPending(app) {
   return status !== "approved" && status !== "reviewed";
 }
 
+function isMphlgApproved(app) {
+  const section = getApplicationSection(app, "mphlg_gateway");
+  const status = String(section?.status || "").trim().toLowerCase();
+  const decision = String(section?.decision || "").trim().toLowerCase();
+  const officer = normalizeDepartment(section?.officer);
+  return officer === "MPHLG" && (status === "approved" || decision === "approve");
+}
+
 function isSutApprovalPending(app) {
   return !hasApplicationSection(app, "approval");
 }
@@ -432,6 +440,10 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   }
 
   if (normalizedStatus === "approved") {
+    if (app && isMphlgApproved(app)) {
+      return department === "PT(IKL)" || department === "KU(IKL)" || department === "KB(LES)" || approvalSupportDepartments.has(department);
+    }
+
     return department === "PT(IKL)";
   }
 
@@ -771,16 +783,21 @@ function buildAdminNotifications(app, user) {
   }
 
   if (status === "approved" && isAdminNotificationAllowedForUser(status, user, app)) {
+    const mphlgApproved = isMphlgApproved(app);
     notifications.push(
       buildBaseNotification(
         app,
         "admin",
         "payment",
         "success",
-        "Final approval received",
-        "Kelulusan akhir diterima",
-        `${reference} has final TP(RES)/PGH approval. Generate the approval letter and bill.`,
-        `${reference} telah menerima kelulusan akhir TP(RES)/PGH. Jana surat kelulusan dan bil.`,
+        mphlgApproved ? "Application approved by MPHLG" : "Final approval received",
+        mphlgApproved ? "Permohonan diluluskan oleh MPHLG" : "Kelulusan akhir diterima",
+        mphlgApproved
+          ? `${reference} has been approved by MPHLG.`
+          : `${reference} has final TP(RES)/PGH approval. Generate the approval letter and bill.`,
+        mphlgApproved
+          ? `${reference} telah diluluskan oleh MPHLG.`
+          : `${reference} telah menerima kelulusan akhir TP(RES)/PGH. Jana surat kelulusan dan bil.`,
         user
       )
     );
@@ -1004,7 +1021,15 @@ function buildNotificationsFromDeliveries(deliveries, user) {
       const category = metadata.category || "progress";
       const type = metadata.type || "info";
       const status = normalizeStatus(metadata.event_status || delivery.status);
-      const displayStatus = metadata.display_status || getNotificationDisplayStatus(role, status, user);
+      const deliveryApplication = {
+        status,
+        form_data: {
+          kb_les_verification: delivery.kb_les_verification || {},
+          management_recommendation: delivery.management_recommendation || {},
+        },
+      };
+      const displayStatus =
+        metadata.display_status || getNotificationDisplayStatus(role, status, user, deliveryApplication);
       const reference = delivery.reference_no || metadata.account_username || "-";
       const title = normalizeApplicantNotificationText(
         metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject),

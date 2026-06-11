@@ -540,6 +540,11 @@ function cleanMemoSender(value) {
 }
 
 function getNotificationRecipientLabel(item) {
+  if (item?.memoTemplate === "kb_les_to_tp_pgh") return "TP(RES)/PGH";
+
+  const memoRecipient = cleanMemoSender(item?.memoTo);
+  if (memoRecipient) return memoRecipient;
+
   const currentValue = String(item?.to || "").trim();
   if (currentValue && currentValue !== "-") return currentValue;
 
@@ -566,7 +571,7 @@ function getNotificationRecipientLabel(item) {
 }
 
 function localizeNotificationSender(value, language) {
-  const sender = String(value || "").trim() || "ALiS Notification Center";
+  const sender = cleanMemoSender(value) || "ALiS Notification Center";
 
   if (language === "ms" && /^ALiS Notification Center$/i.test(sender)) {
     return "Pusat Notifikasi ALiS";
@@ -1193,7 +1198,7 @@ function getFormalMemoRecipient(item) {
   }
 
   if (item.memoTemplate === "kb_les_to_tp_pgh") {
-    return "TP(RES)";
+    return "TP(RES)/PGH";
   }
 
   if (item.memoTemplate === "kb_les_to_ku_ikl") {

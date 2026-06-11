@@ -1638,7 +1638,7 @@ function isMphlgApplicantCorrection(applicationRecord) {
   const target = String(correction.target || "").trim().toUpperCase();
   const status = String(applicationRecord?.status || "").trim().toLowerCase();
 
-  return status === "incomplete" && source === "MPHLG" && target === "APPLICANT";
+  return ["incomplete", "rejected"].includes(status) && source === "MPHLG" && target === "APPLICANT";
 }
 
 function formatRM(value) {

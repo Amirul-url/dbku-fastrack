@@ -798,7 +798,8 @@ def build_applicant_application_resubmitted_message(application):
 def build_staff_application_resubmitted_message(application):
     reference = getattr(application, "reference_no", "") or "-"
     title = "Application resubmitted"
-    body = f"Application {reference} has been resubmitted by the applicant and is ready for KU(IKL) review."
+    review_target = "MPHLG" if str(getattr(application, "status", "") or "").strip().lower() == "mphlg_processing" else "KU(IKL)"
+    body = f"Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
     subject = f"{APP_BRAND_NAME} - {title} ({reference})"
     metadata = build_web_metadata(
         application=application,
@@ -1183,6 +1184,10 @@ def build_status_messages(application):
         title = f"Application {application.reference_no} requires SUT approval"
         admin_body = f"Application {application.reference_no} is ready for SUT approval."
         subject = build_notification_subject(title, application.reference_no)
+    elif status_key == "approved" and is_mphlg_approved(application):
+        title = f"Application {application.reference_no} approved by MPHLG"
+        admin_body = f"Application {application.reference_no} has been approved by MPHLG."
+        subject = build_notification_subject(title, application.reference_no)
 
     applicant_metadata = build_web_metadata(
         application=application,
@@ -1260,9 +1265,10 @@ def build_web_metadata(application, title, body, recipient_role):
     elif memo_html and is_management_support_pending(application):
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "kb_les_to_tp_pgh"
-        metadata["from"] = "KB(LES) <ALiS Notification Center>"
-        metadata["sender"] = "KB(LES) <ALiS Notification Center>"
-        metadata["to"] = "TP(RES)"
+        metadata["display_status"] = "approval_support"
+        metadata["from"] = "KB(LES)"
+        metadata["sender"] = "KB(LES)"
+        metadata["to"] = "TP(RES)/PGH"
     elif memo_html and status_key == "ku_ikl_review":
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "pt_ikl_to_ku_ikl"
@@ -1321,6 +1327,16 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "MPHLG"
         metadata["sender"] = "MPHLG"
         metadata["to"] = "SUT"
+    elif status_key == "approved" and is_mphlg_approved(application):
+        if memo_html:
+            metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "mphlg_to_pt_ikl"
+        metadata["title_ms"] = "Permohonan diluluskan oleh MPHLG"
+        metadata["message_ms"] = f"Permohonan {application.reference_no} telah diluluskan oleh MPHLG."
+        metadata["mphlg_approved"] = True
+        metadata["from"] = "MPHLG"
+        metadata["sender"] = "MPHLG"
+        metadata["to"] = "PT(IKL), KU(IKL), KB(LES), TP(RES)/PGH"
     elif memo_html and status_key == "approved":
         metadata["memo_html"] = memo_html
         metadata["memo_template"] = "tp_pgh_to_pt_ikl"
@@ -1429,6 +1445,9 @@ def get_admin_memo_html(application):
 
     if status_key == "mphlg_decision_received":
         return get_sut_approval_memo_html(application)
+
+    if status_key == "approved" and is_mphlg_approved(application):
+        return get_mphlg_gateway_memo_html(application) or get_final_approval_memo_html(application)
 
     if status_key == "approved":
         return get_final_approval_memo_html(application)
@@ -1642,6 +1661,13 @@ def get_admin_task_web_recipients(application):
         return [user for user in users if is_ku_ikl_user(user)]
 
     if status_key == "approved":
+        if is_mphlg_approved(application):
+            return [
+                user
+                for user in users
+                if is_pt_ikl_user(user) or is_dbku_mphlg_approval_notice_user(user)
+            ]
+
         return [user for user in users if is_pt_ikl_user(user)]
 
     if status_key == "bill_pending_ku":
@@ -1834,6 +1860,15 @@ def is_sut_approval_user(user):
     return normalize_department(getattr(user, "department", "")) in SUT_APPROVAL_DEPARTMENTS
 
 
+def is_dbku_mphlg_approval_notice_user(user):
+    department = normalize_department(getattr(user, "department", ""))
+    return (
+        department == "KU(IKL)"
+        or department == "KB(LES)"
+        or department in APPROVAL_SUPPORT_DEPARTMENTS
+    )
+
+
 def get_form_section(application, key):
     form_data = getattr(application, "form_data", None) or {}
     return get_form_data_section(form_data, key)
@@ -1862,6 +1897,14 @@ def is_management_support_pending(application):
 def is_sut_result_recorded(application):
     status = normalize_status_value(get_form_section(application, "sut_approval").get("status"))
     return status in {"approved", "supported", "completed"}
+
+
+def is_mphlg_approved(application):
+    mphlg_gateway = get_form_section(application, "mphlg_gateway")
+    status = normalize_status_value(mphlg_gateway.get("status"))
+    decision = normalize_status_value(mphlg_gateway.get("decision"))
+    officer = normalize_department(mphlg_gateway.get("officer"))
+    return officer == "MPHLG" and (status == "approved" or decision == "approve")
 
 
 def normalize_department(value):
@@ -1903,6 +1946,8 @@ def should_user_receive_admin_notification(user, application, status_key=None):
         return department == "KU(IKL)"
 
     if status == "approved":
+        if is_mphlg_approved(application):
+            return department == "PT(IKL)" or is_dbku_mphlg_approval_notice_user(user)
         return department == "PT(IKL)"
 
     if status == "bill_pending_ku":

@@ -44,6 +44,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                     "ku_ikl_review",
                     "technical_review_completed",
                     "bill_pending_ku",
+                    "approved",
                 }
             elif department == "IKL (TECHNICAL)":
                 allowed_event_statuses = {
@@ -54,10 +55,11 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
             elif department in {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}:
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
             elif department in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
-                allowed_event_statuses = {"management_review"}
+                allowed_event_statuses = {"management_review", "approved"}
                 if department == "KB(LES)":
                     allowed_event_statuses = {
                         "management_review",
+                        "approved",
                         "license_cancellation_kb_support",
                         "license_renewal_3m",
                         "license_renewal_2m",

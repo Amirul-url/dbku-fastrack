@@ -1429,6 +1429,51 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["from"], "MPHLG")
         self.assertEqual(delivery.metadata["to"], "SUT")
 
+    def test_mphlg_approval_notifies_pt_and_dbku_management(self):
+        recipients = {
+            "PT(IKL)": self.admin,
+        }
+        for index, department in enumerate(["KU(IKL)", "KB(LES)", "TP(RES)", "PGH"], start=1):
+            recipients[department] = User.objects.create_user(
+                username=f"mphlg-approved-{index}",
+                email=f"mphlg-approved-{index}@example.com",
+                password="Password123",
+                mobile_number=f"01751518{index:02d}",
+                role="supervisor" if department in {"KB(LES)", "TP(RES)", "PGH"} else "admin",
+                department=department,
+                is_active=True,
+            )
+
+        memo_html = "<p>MPHLG approved the application</p>"
+        self.application.form_data = {
+            **self.application.form_data,
+            "mphlg_gateway": {
+                "officer": "MPHLG",
+                "status": "Approved",
+                "decision": "Approve",
+                "memo_html": memo_html,
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        self.notify_status("approved", old_status="mphlg_processing")
+
+        for department, user in recipients.items():
+            with self.subTest(department=department):
+                deliveries = NotificationDelivery.objects.filter(
+                    user=user,
+                    recipient_role="admin",
+                    metadata__event_status="approved",
+                )
+                self.assertEqual(
+                    set(deliveries.values_list("channel", flat=True)),
+                    {"web", "email", "whatsapp"},
+                )
+                web_delivery = deliveries.get(channel="web")
+                self.assertIn("approved by MPHLG", web_delivery.metadata["title_en"])
+                self.assertIn("approved by MPHLG", web_delivery.metadata["message_en"])
+                self.assertEqual(web_delivery.metadata["from"], "MPHLG")
+
     def test_department_inbox_keeps_old_kb_les_memos(self):
         User.objects.create_user(
             username="kb-les-original",

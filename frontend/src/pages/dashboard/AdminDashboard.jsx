@@ -33,6 +33,13 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
 ]);
 const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+const APPROVAL_WORKFLOW_DEPARTMENTS = new Set([
+  "KB(LES)",
+  ...APPROVAL_SUPPORT_DEPARTMENTS,
+  "MPHLG",
+  "SUT",
+]);
 const IKL_HISTORY_STATUSES = [
   "submitted",
   "incomplete",
@@ -383,7 +390,7 @@ function buildStatusRecentActivity(application, userDepartment, t) {
 
 function getImportantApplicationActivities(application, userDepartment, t) {
   return getApplicationActivityLog(application)
-    .filter((activity) => isImportantAdminActivity(activity, userDepartment))
+    .filter((activity) => isImportantAdminActivity(activity, userDepartment, application))
     .map((activity) => ({
       id: `activity-${application.id}-${activity.created_at || ""}-${activity.title || ""}`,
       applicationId: application.id,
@@ -408,7 +415,7 @@ function getApplicationActivityLog(application) {
   return activityLog;
 }
 
-function isImportantAdminActivity(activity, userDepartment) {
+function isImportantAdminActivity(activity, userDepartment, application = null) {
   const title = String(activity?.title || "").trim().toLowerCase();
   const category = String(activity?.category || "").trim().toLowerCase();
   const actorDepartment = getActivityDepartment(activity);
@@ -437,6 +444,10 @@ function isImportantAdminActivity(activity, userDepartment) {
     return actorDepartment === userDepartment;
   }
 
+  if (APPROVAL_WORKFLOW_DEPARTMENTS.has(userDepartment)) {
+    return isApprovalActivityForDepartment(activity, userDepartment, application);
+  }
+
   if (userDepartment === "KU(IKL)") {
     return (
       title.includes("submitted") ||
@@ -449,6 +460,38 @@ function isImportantAdminActivity(activity, userDepartment) {
   }
 
   return true;
+}
+
+function isApprovalActivityForDepartment(activity, userDepartment, application = null) {
+  const title = String(activity?.title || "").toLowerCase();
+  const description = String(activity?.description || "").toLowerCase();
+  const actorDepartment = getActivityDepartment(activity);
+  const text = `${title} ${description}`;
+
+  if (actorDepartment === userDepartment) return true;
+
+  if (userDepartment === "KB(LES)") {
+    return text.includes("kb(les)");
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.has(userDepartment)) {
+    return (
+      APPROVAL_SUPPORT_DEPARTMENTS.has(actorDepartment) ||
+      text.includes("tp(res)") ||
+      text.includes("tp/pgh") ||
+      text.includes("pgh")
+    );
+  }
+
+  if (userDepartment === "MPHLG") {
+    return text.includes("mphlg");
+  }
+
+  if (userDepartment === "SUT") {
+    return text.includes("sut");
+  }
+
+  return isRelevantRecentActivity(application, userDepartment);
 }
 
 function getActivityDepartment(activity) {
@@ -468,6 +511,9 @@ function getActivityDepartment(activity) {
     "PT(IKL)",
     "KB(LES)",
     "TP(RES)",
+    "PGH",
+    "TP(RES)/PGH",
+    "TP/PGH",
     "MPHLG",
     "SUT",
     ...EXTERNAL_TECHNICAL_DEPARTMENTS,
@@ -679,9 +725,7 @@ function isRelevantRecentActivity(application, userDepartment) {
   }
 
   if (userDepartment === "MPHLG") {
-    return ["mphlg_processing", "mphlg_decision_received"].includes(
-      status
-    );
+    return status === "mphlg_processing";
   }
 
   if (userDepartment === "SUT") {
@@ -694,12 +738,32 @@ function isRelevantRecentActivity(application, userDepartment) {
   }
 
   if (["KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"].includes(userDepartment)) {
-    return ["management_review", "approved", "approved_with_conditions", "rejected"].includes(
-      status
-    );
+    if (userDepartment === "KB(LES)") {
+      return status === "management_review" && !isKbLesVerified(application);
+    }
+
+    return status === "management_review" && isKbLesVerified(application) && !hasManagementSupport(application);
   }
 
   return true;
+}
+
+function getApplicationSection(application, key) {
+  return application?.[key] || application?.form_data?.[key] || {};
+}
+
+function isKbLesVerified(application) {
+  const status = String(getApplicationSection(application, "kb_les_verification")?.status || "")
+    .trim()
+    .toLowerCase();
+  return ["verified", "supported", "completed"].includes(status);
+}
+
+function hasManagementSupport(application) {
+  const status = String(getApplicationSection(application, "management_recommendation")?.status || "")
+    .trim()
+    .toLowerCase();
+  return ["supported", "approved", "completed"].includes(status);
 }
 
 function getAdminActivityTitle(application, userDepartment, t) {
@@ -744,6 +808,14 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (status === "management_review") {
+    if (userDepartment === "KB(LES)" && !isKbLesVerified(application)) {
+      return t("workspace.approval.stageKbVerification", "Pending KB(LES) Verification");
+    }
+
+    if (APPROVAL_SUPPORT_DEPARTMENTS.has(userDepartment) && isKbLesVerified(application)) {
+      return t("workspace.approval.stageSupport", "Pending TP(RES)/PGH Final Approval");
+    }
+
     return t("admin.dashboard.activityManagementReview", "Management review required");
   }
 
@@ -827,6 +899,20 @@ function getAdminActivityDescription(application, userDepartment, t) {
   }
 
   if (status === "management_review") {
+    if (userDepartment === "KB(LES)" && !isKbLesVerified(application)) {
+      return t(
+        "admin.dashboard.activityKbVerificationDesc",
+        `${reference} is waiting for KB(LES) verification.`
+      ).replace("{reference}", reference);
+    }
+
+    if (APPROVAL_SUPPORT_DEPARTMENTS.has(userDepartment) && isKbLesVerified(application)) {
+      return t(
+        "admin.dashboard.activityTpPghApprovalDesc",
+        `${reference} is waiting for TP(RES)/PGH final approval.`
+      ).replace("{reference}", reference);
+    }
+
     return t(
       "admin.dashboard.activityManagementDesc",
       `${reference} is waiting for management review.`

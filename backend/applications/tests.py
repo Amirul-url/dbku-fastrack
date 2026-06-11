@@ -204,6 +204,91 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertNotIn("Status:", staff_message)
         self.assertNotIn("Project:", staff_message)
 
+    def test_mphlg_reject_resubmit_routes_back_to_mphlg(self):
+        User = get_user_model()
+        mphlg_user = User.objects.create_user(
+            username="mphlg-resubmit-reviewer",
+            email="mphlg-resubmit@example.com",
+            password="testpass123",
+            mobile_number="0175151830",
+            role="admin",
+            department="MPHLG",
+            is_active=True,
+        )
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="MPHLG correction application",
+            status="mphlg_processing",
+            form_data={
+                "mphlg_gateway": {
+                    "status": "Pending MPHLG Approval",
+                    "routed_from": "TP(RES)",
+                }
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=mphlg_user)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "rejected",
+                "latest_remark": "Please update MPHLG details.",
+                "form_data": {
+                    "mphlg_gateway": {
+                        "officer": "MPHLG",
+                        "status": "Returned to Applicant",
+                        "decision": "Reject",
+                        "remarks": "Please update MPHLG details.",
+                    },
+                    "correction_request": {
+                        "source": "MPHLG",
+                        "target": "Applicant",
+                        "remarks": "Please update MPHLG details.",
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "rejected")
+
+        client.force_authenticate(user=self.applicant)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "mphlg_processing",
+                "form_data": {
+                    "step_11": {"submitted": True},
+                    "correction_request": None,
+                    "mphlg_gateway": {
+                        "status": "Pending MPHLG Approval",
+                        "decision": "",
+                        "remarks": "",
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "mphlg_processing")
+        self.assertIsNone(application.form_data.get("correction_request"))
+        self.assertEqual(application.form_data["mphlg_gateway"]["status"], "Pending MPHLG Approval")
+
+        staff_deliveries = NotificationDelivery.objects.filter(
+            application=application,
+            user=mphlg_user,
+            recipient_role="admin",
+            metadata__event_status="mphlg_processing",
+        )
+        self.assertEqual(staff_deliveries.count(), 3)
+        self.assertEqual(set(staff_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertIn("ready for MPHLG review", staff_deliveries.get(channel="email").message)
+
     def test_applicant_submit_creates_safe_applicant_and_internal_staff_notifications(self):
         application = Application.objects.create(
             applicant=self.applicant,
