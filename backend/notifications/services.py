@@ -1152,18 +1152,18 @@ def build_status_messages(application):
     }
 
     title = subject_template.format(**context)
-    subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+    subject = build_notification_subject(title, application.reference_no)
     applicant_body = applicant_template.format(**context)
     admin_body = admin_template.format(**context)
 
     if status_key == "management_review":
         title, admin_body = get_management_review_admin_text(application)
-        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+        subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review":
         department_text = format_selected_technical_departments(application)
         title = f"Application {application.reference_no} requires review."
         admin_body = f"Application {application.reference_no} is ready for {department_text} review."
-        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+        subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         amendment_source = get_ku_amendment_source(application) or "KB(LES)"
         title = "KU(IKL) amendment required"
@@ -1174,15 +1174,15 @@ def build_status_messages(application):
         remark = get_latest_remark(application)
         if remark:
             admin_body = f"{admin_body}\n\nRemark: {remark}"
-        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+        subject = build_notification_subject(title, application.reference_no)
     elif status_key == "mphlg_processing":
         title = "MPHLG approval required"
         admin_body = f"Application {application.reference_no} is ready for MPHLG approval."
-        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+        subject = build_notification_subject(title, application.reference_no)
     elif status_key == "mphlg_decision_received":
         title = "SUT approval required"
         admin_body = f"Application {application.reference_no} is ready for SUT approval."
-        subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
+        subject = build_notification_subject(title, application.reference_no)
 
     applicant_metadata = build_web_metadata(
         application=application,
@@ -1216,6 +1216,15 @@ def build_status_messages(application):
         "applicant_metadata": applicant_metadata,
         "admin_metadata": admin_metadata,
     }
+
+
+def build_notification_subject(title, reference):
+    clean_title = str(title or "").strip()
+    clean_reference = str(reference or "").strip()
+    if clean_reference and clean_reference.lower() not in clean_title.lower():
+        clean_title = f"{clean_title} ({clean_reference})"
+
+    return f"{APP_BRAND_NAME} - {clean_title}"
 
 
 def build_web_metadata(application, title, body, recipient_role):

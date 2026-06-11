@@ -79,6 +79,11 @@ const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
   "bill_pending_ku",
   "rejected",
 ]);
+const KU_IKL_FORWARD_RECORD_STATUSES = new Set([
+  "technical_review",
+  "technical_site_visit",
+  "technical_amendment",
+]);
 
 const units = [
   {
@@ -1141,10 +1146,21 @@ function getUnitQueueRows(unit) {
 }
 
 function shouldKeepCompletedRecordInQueue(application, unit) {
-  if (normalizeStatus(application.status) !== "rejected") return false;
-
   const department = unit?.department || "";
   if (!department) return false;
+  const status = normalizeStatus(application.status);
+
+  if (
+    department === "KU(IKL)" &&
+    KU_IKL_FORWARD_RECORD_STATUSES.has(status)
+  ) {
+    return hasDepartmentActivity(application, department, [
+      "sent to technical review",
+      "technical review",
+    ]);
+  }
+
+  if (status !== "rejected") return false;
 
   const correctionSource = normalizeDepartmentCode(
     application.form_data?.correction_request?.source ||
@@ -1154,21 +1170,38 @@ function shouldKeepCompletedRecordInQueue(application, unit) {
 
   if (correctionSource === department) return true;
 
+  return hasDepartmentActivity(application, department, ["rejected"]);
+}
+
+function hasDepartmentActivity(application, department, titleKeywords = []) {
   const activityLog = Array.isArray(application.activity_log)
     ? application.activity_log
     : Array.isArray(application.form_data?.activity_log)
     ? application.form_data.activity_log
     : [];
-  const departmentText = department.toLowerCase();
+  const departmentText = String(department || "").toLowerCase();
+  const keywords = titleKeywords.map((keyword) =>
+    String(keyword || "").toLowerCase()
+  );
 
   return activityLog.some((activity) => {
     const title = String(activity?.title || "").toLowerCase();
     const description = String(activity?.description || "").toLowerCase();
+    const actorDepartment = String(
+      activity?.actor_department ||
+        activity?.department ||
+        activity?.unit ||
+        ""
+    ).toLowerCase();
+    const hasKeyword =
+      keywords.length === 0 ||
+      keywords.some((keyword) => title.includes(keyword));
+    const hasDepartment =
+      actorDepartment === departmentText ||
+      title.includes(departmentText) ||
+      description.includes(departmentText);
 
-    return (
-      title.includes("rejected") &&
-      (title.includes(departmentText) || description.includes(departmentText))
-    );
+    return hasKeyword && hasDepartment;
   });
 }
 

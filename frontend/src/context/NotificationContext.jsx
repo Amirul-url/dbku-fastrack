@@ -25,6 +25,7 @@ const POLL_INTERVAL_MS = 5000;
 const applicantNotificationStatuses = new Set([
   "registration_success",
   "applicant_submitted",
+  "applicant_resubmitted",
   "submitted",
   "incomplete",
   "rejected",

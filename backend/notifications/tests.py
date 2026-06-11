@@ -93,7 +93,7 @@ class NotificationRoutingTests(TestCase):
         notify_application_status_change(self.application, old_status)
 
     def test_submitted_notifies_admin_only(self):
-        User.objects.create_user(
+        ku_user = User.objects.create_user(
             username="ku-submitted",
             email="ku-submitted@sample.com",
             password="Password123",
@@ -117,6 +117,25 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
         self.assertEqual(admin_channels, {"web", "email", "whatsapp"})
+        email_delivery = NotificationDelivery.objects.get(
+            user=ku_user,
+            recipient_role="admin",
+            channel="email",
+            metadata__event_status="submitted",
+        )
+        whatsapp_delivery = NotificationDelivery.objects.get(
+            user=ku_user,
+            recipient_role="admin",
+            channel="whatsapp",
+            metadata__event_status="submitted",
+        )
+        expected_subject = f"ALiS - Application {self.application.reference_no} requires KU(IKL) review"
+        expected_message = (
+            f"Application {self.application.reference_no} has been submitted "
+            "and is ready for KU(IKL) review."
+        )
+        self.assertEqual(email_delivery.subject, expected_subject)
+        self.assertEqual(whatsapp_delivery.message, expected_message)
 
     def test_submitted_does_not_use_official_superadmin_contact_as_recipient_fallback(self):
         self.notify_status("submitted")
