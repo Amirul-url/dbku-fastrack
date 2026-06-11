@@ -99,32 +99,32 @@ STATUS_MESSAGES = {
         "Application {reference} is ready for KU(IKL) verification.",
     ),
     "technical_site_visit": (
-        "IKL(TECHNICAL) review required",
+        "Application {reference} requires IKL(TECHNICAL) review",
         "",
         "Application {reference} has completed selected unit technical review and is ready for IKL(TECHNICAL) review.",
     ),
     "technical_amendment": (
-        "Technical amendment required",
+        "Application {reference} requires technical amendment",
         "",
         "Application {reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue.",
     ),
     "technical_review_completed": (
-        "KU(IKL) technical review required",
+        "Application {reference} requires KU(IKL) technical review",
         "",
         "Application {reference} has completed technical department feedback and is ready for KU(IKL) review.",
     ),
     "management_review": (
-        "KB(LES) verification required",
+        "Application {reference} requires KB(LES) verification",
         "",
         "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
     ),
     "mphlg_processing": (
-        "MPHLG approval required",
+        "Application {reference} requires MPHLG approval",
         "",
         "Application {reference} is ready for MPHLG approval.",
     ),
     "mphlg_decision_received": (
-        "SUT approval required",
+        "Application {reference} requires SUT approval",
         "",
         "Application {reference} is ready for SUT approval.",
     ),
@@ -1161,7 +1161,7 @@ def build_status_messages(application):
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review":
         department_text = format_selected_technical_departments(application)
-        title = f"Application {application.reference_no} requires review."
+        title = f"Application {application.reference_no} requires {department_text} review."
         admin_body = f"Application {application.reference_no} is ready for {department_text} review."
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
@@ -1176,11 +1176,11 @@ def build_status_messages(application):
             admin_body = f"{admin_body}\n\nRemark: {remark}"
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "mphlg_processing":
-        title = "MPHLG approval required"
+        title = f"Application {application.reference_no} requires MPHLG approval"
         admin_body = f"Application {application.reference_no} is ready for MPHLG approval."
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "mphlg_decision_received":
-        title = "SUT approval required"
+        title = f"Application {application.reference_no} requires SUT approval"
         admin_body = f"Application {application.reference_no} is ready for SUT approval."
         subject = build_notification_subject(title, application.reference_no)
 
@@ -1724,18 +1724,18 @@ def get_management_review_admin_text(application):
 
     if is_management_support_pending(application):
         return (
-            "TP(RES)/PGH approval required",
+            f"Application {reference} requires TP(RES)/PGH approval",
             f"Application {reference} is ready for TP(RES)/PGH final approval.",
         )
 
     if is_sut_result_recorded(application):
         return (
-            "KB(LES) support required",
+            f"Application {reference} requires KB(LES) support",
             f"SUT approval result for application {reference} has been recorded. KB(LES) support is required before TP(RES)/PGH final approval.",
         )
 
     return (
-        "KB(LES) verification required",
+        f"Application {reference} requires KB(LES) verification",
         f"Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
     )
 

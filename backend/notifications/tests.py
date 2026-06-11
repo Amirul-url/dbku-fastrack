@@ -427,9 +427,12 @@ class NotificationRoutingTests(TestCase):
             user=gpm_user,
         )
         expected_body = f"Application {self.application.reference_no} is ready for GPM, MNE, IMT, LNP, ENG review."
+        expected_title = (
+            f"Application {self.application.reference_no} requires GPM, MNE, IMT, LNP, ENG review."
+        )
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "GPM, MNE, IMT, LNP, ENG")
-        self.assertEqual(delivery.metadata["title_en"], f"Application {self.application.reference_no} requires review.")
+        self.assertEqual(delivery.metadata["title_en"], expected_title)
         self.assertEqual(delivery.metadata["message_en"], expected_body)
         self.assertEqual(delivery.message, expected_body)
 
@@ -467,9 +470,10 @@ class NotificationRoutingTests(TestCase):
             user=blg_user,
         )
         expected_body = f"Application {self.application.reference_no} is ready for BLG review."
+        expected_title = f"Application {self.application.reference_no} requires BLG review."
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "BLG")
-        self.assertEqual(delivery.metadata["title_en"], f"Application {self.application.reference_no} requires review.")
+        self.assertEqual(delivery.metadata["title_en"], expected_title)
         self.assertEqual(delivery.metadata["message_en"], expected_body)
         self.assertEqual(delivery.message, expected_body)
 
@@ -779,6 +783,11 @@ class NotificationRoutingTests(TestCase):
         self.assertIn(ikl_user.id, notified_users)
         self.assertNotIn(blg_user.id, notified_users)
         self.assertEqual(ikl_channels, {"web", "email", "whatsapp"})
+        email_delivery = deliveries.get(user=ikl_user, channel="email")
+        self.assertEqual(
+            email_delivery.subject,
+            f"ALiS - Application {self.application.reference_no} requires IKL(TECHNICAL) review",
+        )
 
     def test_ku_ikl_final_check_values_are_visible_to_kb_les(self):
         ku_user = User.objects.create_user(
