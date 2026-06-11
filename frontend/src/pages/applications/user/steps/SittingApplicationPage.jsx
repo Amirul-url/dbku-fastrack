@@ -2364,7 +2364,7 @@ function ApplicationTypeCheckboxes({
         {APPLICATION_TYPE_OPTIONS.map((option) => (
           <label
             key={option.value}
-            className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 ${
+            className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 text-sm leading-5 ${
               selectedType === option.value
                 ? "border-emerald-600 bg-emerald-50 text-emerald-800"
                 : "border-slate-200 bg-white text-slate-700"
@@ -2378,7 +2378,7 @@ function ApplicationTypeCheckboxes({
               onChange={() => selectType(option.value)}
               className="h-4 w-4 accent-emerald-700"
             />
-            <span>{stepText(language, option.labelKey)}</span>
+            <span className="text-sm leading-5">{stepText(language, option.labelKey)}</span>
           </label>
         ))}
       </div>

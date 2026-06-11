@@ -47,11 +47,28 @@ import {
   buildManualAdvertisementLicenseForIssuance,
   getAdvertisementLicenseDraftFields,
 } from "../../utils/advertisementLicenseDocument";
+import { stepText } from "../applications/user/steps/ApplicationStepText";
 
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const MEMO_EDITOR_ENABLED = false;
 const KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)";
 const APPLICATION_TYPE_OPTIONS = ["open_space", "building"];
+const TECHNICAL_DISPLAY_TYPE_OPTIONS = [
+  { value: "non_led", labelKey: "displayTypeNonLed" },
+  { value: "led", labelKey: "displayTypeLed" },
+];
+const TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES = [
+  { value: "Gantry", labelKey: "advertisementTypeGantry" },
+  { value: "Unipole", labelKey: "advertisementTypeUnipole" },
+  { value: "Minipole", labelKey: "advertisementTypeMinipole" },
+  { value: "Free Standing Billboard", labelKey: "applicationSubtypeFreeStandingBillboard" },
+  { value: "Directional Sign", labelKey: "advertisementTypeDirectionalSign" },
+  { value: "Directory Sign", labelKey: "advertisementTypeDirectorySign" },
+  { value: "Projecting Sign", labelKey: "advertisementTypeProjectingSign" },
+  { value: "Roof Top Sign", labelKey: "advertisementTypeRoofTopSign" },
+  { value: "Wall Sign/Building Wrap", labelKey: "advertisementTypeWallSignBuildingWrap" },
+  { value: "Pillar/Column Wrap", labelKey: "advertisementTypePillarColumnWrap" },
+];
 const SQFT_TO_SQM = 0.092903;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
@@ -232,6 +249,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     site_photos: [],
     fee_date: "",
     fee_items: [createTechnicalFeeItem()],
+    advertisement_rows: [],
     width_ft: "",
     height_ft: "",
     area_sqft: "",
@@ -322,21 +340,31 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const feeItems = normalizeTechnicalFeeItems(saved.fee_items);
     const feeTotals = getTechnicalFeeTotals(feeItems);
     const applicationSubtype = getApplicationSubtypeFromApplication(selectedDetail);
-    const calculatedFees = calculateTechnicalFee({
+    const preparedSite = mergeTechnicalFeeRowsCalculation({
       ...saved,
+      application_subtype: applicationSubtype,
+      advertisement_rows: getTechnicalFeeRowsFromApplication(
+        selectedDetail,
+        saved.advertisement_rows
+      ),
+    });
+    const calculatedFees = calculateTechnicalFee({
+      ...preparedSite,
       application_subtype: applicationSubtype,
     });
     setTechnicalSite({
+      ...preparedSite,
       application_subtype: applicationSubtype,
       fee_schedule_key: saved.fee_schedule_key || calculatedFees.scheduleKey || "",
       fee_schedule_no: saved.fee_schedule_no || calculatedFees.scheduleNumber || "",
       site_photos: currentPhotos,
       fee_date: saved.fee_date || new Date().toISOString().slice(0, 10),
       fee_items: feeItems,
-      width_ft: saved.width_ft || "",
-      height_ft: saved.height_ft || "",
-      area_sqft: saved.area_sqft || calculatedFees.areaSqft || "",
-      area_sqm: saved.area_sqm || calculatedFees.areaSqm || "",
+      advertisement_rows: preparedSite.advertisement_rows || [],
+      width_ft: preparedSite.width_ft || saved.width_ft || "",
+      height_ft: preparedSite.height_ft || saved.height_ft || "",
+      area_sqft: preparedSite.area_sqft || saved.area_sqft || calculatedFees.areaSqft || "",
+      area_sqm: preparedSite.area_sqm || saved.area_sqm || calculatedFees.areaSqm || "",
       chargeable_area_sqm: saved.chargeable_area_sqm || calculatedFees.chargeableAreaSqm || "",
       first_area_fee: saved.first_area_fee || calculatedFees.firstAreaFee || "",
       additional_area_sqm: saved.additional_area_sqm || calculatedFees.additionalAreaSqm || "",
@@ -843,7 +871,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   async function saveTechnicalApplicationTypeSelection(
     nextSelection = technicalApplicationTypeSelection,
-    nextSubtype = ""
+    nextSubtype = "",
+    advertisementMeta = {}
   ) {
     if (!selectedRecord?.id) {
       setError(t("workspace.selectApplication", "Please select an application first."));
@@ -868,6 +897,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         getDefaultApplicationSubtype(selectedType);
       const applicationTypeLabel = getApplicationTypeOptionsLabel(selectedTypes, "en", subtype);
       const step1 = selectedRecord.form_data?.step_1 || {};
+      const existingSelection = selectedRecord.form_data?.technical_department_selection || {};
+      const existingReferral = selectedRecord.form_data?.technical_referral || {};
+      const existingDepartments = normalizeTechnicalDepartmentSelection(
+        existingSelection.departments || existingReferral.participating_departments || []
+      );
+      const departmentsUnchanged =
+        existingDepartments.length === departments.length &&
+        departments.every((department) => existingDepartments.includes(department));
+      const selectedAt = departmentsUnchanged && existingSelection.selected_at
+        ? existingSelection.selected_at
+        : now;
+      const departmentsSelectedAt =
+        departmentsUnchanged && existingReferral.departments_selected_at
+          ? existingReferral.departments_selected_at
+          : selectedAt;
+      const advertisementRows = buildTechnicalAdvertisementRows(
+        step1,
+        selectedType,
+        subtype,
+        advertisementMeta
+      );
+      const primaryAdvertisementRow = advertisementRows[0] || {};
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -880,22 +931,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               application_type_options: selectedTypes,
               application_subtype: subtype,
               application_subtype_label: getApplicationSubtypeLabel(selectedType, subtype, "en"),
+              advertisement_rows: advertisementRows,
+              advertisement_display_type: primaryAdvertisementRow.displayType,
+              advertisement_display_type_label: getTechnicalDisplayTypeLabel(primaryAdvertisementRow.displayType, "en"),
+              advertisement_type_custom_label: primaryAdvertisementRow.customLabel,
+              advertisement_type_label: primaryAdvertisementRow.customLabel,
               project_category: applicationTypeLabel,
               technical_departments: departments,
             },
             technical_department_selection: {
+              ...existingSelection,
               departments,
               application_type_options: selectedTypes,
               selected_by: "IKL (TECHNICAL)",
-              selected_at: now,
+              selected_at: selectedAt,
             },
             technical_referral: {
-              ...(selectedRecord.form_data?.technical_referral || {}),
+              ...existingReferral,
               status: "Referred",
-              source: selectedRecord.form_data?.technical_referral?.source || "KU(IKL)",
+              source: existingReferral.source || "KU(IKL)",
               target: KU_TECHNICAL_MEMO_RECIPIENT,
               participating_departments: departments,
-              departments_selected_at: now,
+              departments_selected_at: departmentsSelectedAt,
             },
           }),
         }),
@@ -1332,8 +1389,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     technicalSiteDraftSaveIdRef.current = saveId;
     const applicationSubtype =
       nextSite.application_subtype || getApplicationSubtypeFromApplication(selectedRecord);
-    const technicalFee = calculateTechnicalFee({
+    const preparedSite = mergeTechnicalFeeRowsCalculation({
       ...nextSite,
+      application_subtype: applicationSubtype,
+    });
+    const technicalFee = calculateTechnicalFee({
+      ...preparedSite,
       application_subtype: applicationSubtype,
     });
     const saved = selectedRecord.form_data?.technical_site_visit || {};
@@ -1342,25 +1403,26 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       application_subtype: applicationSubtype,
       fee_schedule_key: technicalFee.scheduleKey,
       fee_schedule_no: technicalFee.scheduleNumber,
-      site_photos: nextSite.site_photos || saved.site_photos || [],
-      site_photo: nextSite.site_photos?.[0] || saved.site_photo || null,
-      fee_date: nextSite.fee_date || saved.fee_date || new Date().toISOString().slice(0, 10),
+      site_photos: preparedSite.site_photos || saved.site_photos || [],
+      site_photo: preparedSite.site_photos?.[0] || saved.site_photo || null,
+      fee_date: preparedSite.fee_date || saved.fee_date || new Date().toISOString().slice(0, 10),
       fee_items: [],
-      width_ft: nextSite.width_ft || "",
-      height_ft: nextSite.height_ft || "",
-      area_sqft: technicalFee.areaSqft ? String(technicalFee.areaSqft) : "",
-      area_sqm: technicalFee.areaSqm ? String(technicalFee.areaSqm) : "",
-      chargeable_area_sqm: technicalFee.chargeableAreaSqm ? String(technicalFee.chargeableAreaSqm) : "",
-      first_area_sqm: technicalFee.firstAreaSqm ? String(technicalFee.firstAreaSqm) : "",
-      first_area_fee: technicalFee.firstAreaFee ? String(technicalFee.firstAreaFee) : "",
-      additional_area_sqm: technicalFee.additionalAreaSqm ? String(technicalFee.additionalAreaSqm) : "0",
-      additional_area_fee: technicalFee.additionalAreaFee ? String(technicalFee.additionalAreaFee) : "0",
-      fee_total: technicalFee.feeTotal,
-      payable_total: technicalFee.totalPayable,
-      license_fee_calculation: technicalFee.feeTotal ? String(technicalFee.feeTotal) : "",
+      advertisement_rows: preparedSite.advertisement_rows || [],
+      width_ft: preparedSite.width_ft || "",
+      height_ft: preparedSite.height_ft || "",
+      area_sqft: preparedSite.area_sqft || "",
+      area_sqm: preparedSite.area_sqm || "",
+      chargeable_area_sqm: preparedSite.chargeable_area_sqm || "",
+      first_area_sqm: preparedSite.first_area_sqm || "",
+      first_area_fee: preparedSite.first_area_fee || "",
+      additional_area_sqm: preparedSite.additional_area_sqm || "0",
+      additional_area_fee: preparedSite.additional_area_fee || "0",
+      fee_total: preparedSite.fee_total || technicalFee.feeTotal,
+      payable_total: preparedSite.payable_total || technicalFee.totalPayable,
+      license_fee_calculation: preparedSite.license_fee_calculation || "",
       deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
       processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
-      site_remarks: nextSite.site_remarks || saved.site_remarks || "",
+      site_remarks: preparedSite.site_remarks || saved.site_remarks || "",
       officer_role: saved.officer_role || "PT/PO/KP Unit Iklan",
       draft_saved_at: new Date().toISOString(),
     };
@@ -1516,8 +1578,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (
       action?.buildPayload === buildIklTechnicalDecisionPayload &&
       userDepartment === "IKL (TECHNICAL)" &&
-      (parseTechnicalNumber(technicalSite.width_ft) <= 0 ||
-        parseTechnicalNumber(technicalSite.height_ft) <= 0)
+      getTechnicalFeeRowsFromSite(technicalSite).some(
+        (row) =>
+          parseTechnicalNumber(row.width_ft || row.widthFt) <= 0 ||
+          parseTechnicalNumber(row.height_ft || row.heightFt) <= 0
+      )
     ) {
       setTechnicalSizeError(t("workspace.technical.sizeRequired", "Please enter the advertisement width and height first."));
       return;
@@ -2204,6 +2269,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Button
                       variant="secondary"
                       icon="visibility"
+                      className="min-h-8 px-2.5 py-1 text-[13px] leading-5"
                       onClick={() => openSelectedFormView(selectedRecord.id)}
                     >
                       {t("workspace.openForm")}
@@ -2429,6 +2495,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   {showSiteVisitFields && (
                     <TechnicalSiteVisitFields
                       t={t}
+                      language={language}
                       applicationId={selectedRecord.id}
                       value={technicalSite}
                       onChange={setTechnicalSite}
@@ -2496,7 +2563,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     {showBottomFormButton && (
                       <Button
                         variant="secondary"
-                        className="w-full"
+                        className="min-h-8 w-full px-2.5 py-1 text-[13px] leading-5"
                         icon="visibility"
                         onClick={() => openSelectedFormView(selectedRecord.id)}
                       >
@@ -4182,6 +4249,10 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
   }
 
+  if (isIklWorkspace && userDepartment === "IKL (TECHNICAL)" && TECHNICAL_REVIEW_STATUSES.has(status)) {
+    return t("status.ikl_technical_review", "IKL(TECH) Review");
+  }
+
   if (isIklWorkspace && TECHNICAL_REVIEW_STATUSES.has(status)) {
     return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${getTechnicalRouteLabel(app)}`;
   }
@@ -4207,6 +4278,10 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
 
 function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord) {
   if (config?.key === "screening") {
+    if (userDepartment === "IKL (TECHNICAL)") {
+      return "";
+    }
+
     const copy = getIklScreeningCopy(userDepartment);
     return t(copy.actionDescriptionKey, copy.actionDescription);
   }
@@ -4847,21 +4922,39 @@ function getTechnicalFeeSchedule(subtype) {
     : TECHNICAL_FEE_SCHEDULES.schedule_1;
 }
 
+function getApplicationTypeFromSubtype(subtype) {
+  if (APPLICATION_SUBTYPE_OPTIONS.building.some((option) => option.value === subtype)) {
+    return "building";
+  }
+  if (APPLICATION_SUBTYPE_OPTIONS.open_space.some((option) => option.value === subtype)) {
+    return "open_space";
+  }
+  return "";
+}
+
 function calculateTechnicalFee(site = {}) {
   const schedule = getTechnicalFeeSchedule(site.application_subtype);
   const widthFt = parseTechnicalNumber(site.width_ft);
   const heightFt = parseTechnicalNumber(site.height_ft);
   const areaSqft = widthFt > 0 && heightFt > 0 ? widthFt * heightFt : 0;
-  const areaSqm = areaSqft * SQFT_TO_SQM;
+  const providedAreaSqm = parseTechnicalNumber(
+    site.area_sqm || site.areaRequired || site.area_required || site.areaSqm
+  );
+  const areaSqm = areaSqft > 0 ? areaSqft * SQFT_TO_SQM : providedAreaSqm;
+  const hasArea = areaSqm > 0;
   const usesFixedFirstAreaFee = Number(schedule.firstAreaFixedFee || 0) > 0;
-  const firstAreaSqm = usesFixedFirstAreaFee
-    ? schedule.firstAreaSqm
-    : Math.min(areaSqm, schedule.firstAreaSqm);
-  const additionalAreaSqm = Math.max(areaSqm - schedule.firstAreaSqm, 0);
-  const firstAreaFee = usesFixedFirstAreaFee
-    ? schedule.firstAreaFixedFee
-    : firstAreaSqm * schedule.firstAreaRate;
-  const additionalAreaFee = additionalAreaSqm * schedule.additionalAreaRate;
+  const firstAreaSqm = hasArea
+    ? usesFixedFirstAreaFee
+      ? schedule.firstAreaSqm
+      : Math.min(areaSqm, schedule.firstAreaSqm)
+    : 0;
+  const additionalAreaSqm = hasArea ? Math.max(areaSqm - schedule.firstAreaSqm, 0) : 0;
+  const firstAreaFee = hasArea
+    ? usesFixedFirstAreaFee
+      ? schedule.firstAreaFixedFee
+      : firstAreaSqm * schedule.firstAreaRate
+    : 0;
+  const additionalAreaFee = hasArea ? additionalAreaSqm * schedule.additionalAreaRate : 0;
   const feeTotal = firstAreaFee + additionalAreaFee;
 
   return {
@@ -4924,6 +5017,22 @@ function formatTechnicalCurrency(value) {
   return formatCurrency(value).replace(/^RM\s+/, "RM");
 }
 
+function formatTechnicalDecimal(value, maxDecimals = 10) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "";
+  const rounded = roundTechnicalNumber(number, maxDecimals);
+  return Number.isInteger(rounded)
+    ? String(rounded)
+    : String(rounded).replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+}
+
+function formatTechnicalAmountInput(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0
+    ? roundTechnicalNumber(number, 2).toFixed(2)
+    : "";
+}
+
 function mergeTechnicalFeeCalculation(site = {}) {
   const fees = calculateTechnicalFee(site);
   return {
@@ -4939,6 +5048,103 @@ function mergeTechnicalFeeCalculation(site = {}) {
     fee_total: fees.feeTotal ? String(fees.feeTotal) : "",
     payable_total: fees.feeTotal ? String(fees.totalPayable) : "",
     license_fee_calculation: fees.feeTotal ? String(fees.feeTotal) : "",
+    deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
+    processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
+  };
+}
+
+function getTechnicalFeeRowsFromSite(site = {}) {
+  const rows = Array.isArray(site.advertisement_rows)
+    ? site.advertisement_rows
+    : [];
+  const normalizedRows = rows
+    .map((row) =>
+      normalizeTechnicalAdvertisementRow(
+        row,
+        row.applicationType || row.application_type || getApplicationTypeFromSubtype(row.subtype) || "open_space",
+        row.subtype || site.application_subtype
+      )
+    )
+    .filter((row) => row.displayType || row.subtype || row.customLabel);
+
+  if (normalizedRows.length > 0) return normalizedRows;
+
+  return [
+    normalizeTechnicalAdvertisementRow(
+      {
+        applicationType: getApplicationTypeFromSubtype(site.application_subtype) || "open_space",
+        application_type: getApplicationTypeFromSubtype(site.application_subtype) || "open_space",
+        displayType: getTechnicalDisplayTypeFromSubtype(site.application_subtype),
+        display_type: getTechnicalDisplayTypeFromSubtype(site.application_subtype),
+        subtype: site.application_subtype,
+        customLabel: "",
+        custom_label: "",
+        width_ft: site.width_ft || "",
+        height_ft: site.height_ft || "",
+      },
+      getApplicationTypeFromSubtype(site.application_subtype) || "open_space",
+      site.application_subtype
+    ),
+  ];
+}
+
+function calculateTechnicalFeeRows(rows = []) {
+  return rows.map((row) => {
+    const applicationSubtype = row.subtype || "";
+    const fees = calculateTechnicalFee({
+      application_subtype: applicationSubtype,
+      width_ft: row.width_ft || row.widthFt || "",
+      height_ft: row.height_ft || row.heightFt || "",
+      area_sqm: "",
+    });
+
+    return {
+      ...row,
+      application_subtype: applicationSubtype,
+      fee_schedule_key: fees.scheduleKey,
+      fee_schedule_no: fees.scheduleNumber,
+      area_sqft: fees.areaSqft ? String(fees.areaSqft) : "",
+      area_sqm: fees.areaSqm ? String(fees.areaSqm) : "",
+      chargeable_area_sqm: fees.chargeableAreaSqm ? String(fees.chargeableAreaSqm) : "",
+      first_area_sqm: fees.firstAreaSqm ? String(fees.firstAreaSqm) : "",
+      first_area_fee: fees.firstAreaFee ? String(fees.firstAreaFee) : "",
+      additional_area_sqm: fees.additionalAreaSqm ? String(fees.additionalAreaSqm) : "0",
+      additional_area_fee: fees.additionalAreaFee ? String(fees.additionalAreaFee) : "0",
+      fee_total: fees.feeTotal ? String(fees.feeTotal) : "",
+      payable_total: fees.feeTotal ? String(fees.totalPayable) : "",
+    };
+  });
+}
+
+function mergeTechnicalFeeRowsCalculation(site = {}) {
+  const calculatedRows = calculateTechnicalFeeRows(getTechnicalFeeRowsFromSite(site));
+  const primaryRow = calculatedRows[0] || {};
+  const totals = calculatedRows.reduce(
+    (sum, row) => ({
+      feeTotal: sum.feeTotal + parseTechnicalNumber(row.fee_total),
+      payableTotal: sum.payableTotal + parseTechnicalNumber(row.payable_total),
+    }),
+    { feeTotal: 0, payableTotal: 0 }
+  );
+
+  return {
+    ...site,
+    advertisement_rows: calculatedRows,
+    application_subtype: site.application_subtype || primaryRow.subtype || primaryRow.application_subtype || "",
+    fee_schedule_key: primaryRow.fee_schedule_key || site.fee_schedule_key || "",
+    fee_schedule_no: primaryRow.fee_schedule_no || site.fee_schedule_no || "",
+    width_ft: primaryRow.width_ft || primaryRow.widthFt || site.width_ft || "",
+    height_ft: primaryRow.height_ft || primaryRow.heightFt || site.height_ft || "",
+    area_sqft: primaryRow.area_sqft || site.area_sqft || "",
+    area_sqm: primaryRow.area_sqm || site.area_sqm || "",
+    chargeable_area_sqm: primaryRow.chargeable_area_sqm || site.chargeable_area_sqm || "",
+    first_area_sqm: primaryRow.first_area_sqm || site.first_area_sqm || "",
+    first_area_fee: primaryRow.first_area_fee || site.first_area_fee || "",
+    additional_area_sqm: primaryRow.additional_area_sqm || site.additional_area_sqm || "0",
+    additional_area_fee: primaryRow.additional_area_fee || site.additional_area_fee || "0",
+    fee_total: totals.feeTotal ? String(totals.feeTotal) : site.fee_total || "",
+    payable_total: totals.payableTotal ? String(totals.payableTotal) : site.payable_total || "",
+    license_fee_calculation: totals.feeTotal ? String(totals.feeTotal) : site.license_fee_calculation || "",
     deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
     processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
   };
@@ -5082,8 +5288,12 @@ function buildIklTechnicalDecisionPayload(app, data) {
   const now = new Date().toISOString();
   const applicationSubtype =
     data.technicalSite.application_subtype || getApplicationSubtypeFromApplication(app);
-  const technicalFee = calculateTechnicalFee({
+  const preparedSite = mergeTechnicalFeeRowsCalculation({
     ...data.technicalSite,
+    application_subtype: applicationSubtype,
+  });
+  const technicalFee = calculateTechnicalFee({
+    ...preparedSite,
     application_subtype: applicationSubtype,
   });
   const notSupported = data.decision === "Not Supported";
@@ -5107,28 +5317,29 @@ function buildIklTechnicalDecisionPayload(app, data) {
       },
       technical_site_visit: {
         ...(app.form_data?.technical_site_visit || {}),
-        site_photos: data.technicalSite.site_photos || [],
-        site_photo: data.technicalSite.site_photos?.[0] || null,
-        fee_date: data.technicalSite.fee_date || new Date().toISOString().slice(0, 10),
+        site_photos: preparedSite.site_photos || [],
+        site_photo: preparedSite.site_photos?.[0] || null,
+        fee_date: preparedSite.fee_date || new Date().toISOString().slice(0, 10),
         fee_items: [],
         application_subtype: applicationSubtype,
         fee_schedule_key: technicalFee.scheduleKey,
         fee_schedule_no: technicalFee.scheduleNumber,
-        width_ft: data.technicalSite.width_ft || "",
-        height_ft: data.technicalSite.height_ft || "",
-        area_sqft: technicalFee.areaSqft ? String(technicalFee.areaSqft) : "",
-        area_sqm: technicalFee.areaSqm ? String(technicalFee.areaSqm) : "",
-        chargeable_area_sqm: technicalFee.chargeableAreaSqm ? String(technicalFee.chargeableAreaSqm) : "",
-        first_area_sqm: technicalFee.firstAreaSqm ? String(technicalFee.firstAreaSqm) : "",
-        first_area_fee: technicalFee.firstAreaFee ? String(technicalFee.firstAreaFee) : "",
-        additional_area_sqm: technicalFee.additionalAreaSqm ? String(technicalFee.additionalAreaSqm) : "0",
-        additional_area_fee: technicalFee.additionalAreaFee ? String(technicalFee.additionalAreaFee) : "0",
-        fee_total: technicalFee.feeTotal,
-        payable_total: technicalFee.totalPayable,
-        license_fee_calculation: technicalFee.feeTotal ? String(technicalFee.feeTotal) : "",
+        advertisement_rows: preparedSite.advertisement_rows || [],
+        width_ft: preparedSite.width_ft || "",
+        height_ft: preparedSite.height_ft || "",
+        area_sqft: preparedSite.area_sqft || "",
+        area_sqm: preparedSite.area_sqm || "",
+        chargeable_area_sqm: preparedSite.chargeable_area_sqm || "",
+        first_area_sqm: preparedSite.first_area_sqm || "",
+        first_area_fee: preparedSite.first_area_fee || "",
+        additional_area_sqm: preparedSite.additional_area_sqm || "0",
+        additional_area_fee: preparedSite.additional_area_fee || "0",
+        fee_total: preparedSite.fee_total || technicalFee.feeTotal,
+        payable_total: preparedSite.payable_total || technicalFee.totalPayable,
+        license_fee_calculation: preparedSite.license_fee_calculation || "",
         deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
         processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
-        site_remarks: data.technicalSite.site_remarks || data.comment,
+        site_remarks: preparedSite.site_remarks || data.comment,
         officer_role: "PT/PO/KP Unit Iklan",
         visited_at: now,
       },
@@ -5463,8 +5674,10 @@ function getActiveTechnicalReviewCycle(app) {
 function isCurrentTechnicalReviewCycle(app, review) {
   const activeCycle = getActiveTechnicalReviewCycle(app);
   const reviewCycle = String(review?.cycle_id || "");
-  const cycleMatches = activeCycle ? reviewCycle === activeCycle : true;
-  if (!cycleMatches) return false;
+  if (activeCycle) {
+    if (reviewCycle !== activeCycle) return false;
+    return true;
+  }
 
   const formData = app?.form_data || {};
   const selectionTime =
@@ -5557,6 +5770,216 @@ function getApplicationSubtypeLabel(type, subtype, language = "en") {
     (item) => item.value === subtype
   );
   return option?.[language === "ms" ? "ms" : "en"] || "";
+}
+
+function getTechnicalDisplayTypeFromSubtype(subtype) {
+  return TECHNICAL_LED_SUBTYPES.has(subtype) ? "led" : "non_led";
+}
+
+function getSubtypeForTechnicalDisplayType(type, displayType) {
+  const options = APPLICATION_SUBTYPE_OPTIONS[type] || [];
+  const matcher =
+    displayType === "led"
+      ? (option) => TECHNICAL_LED_SUBTYPES.has(option.value)
+      : (option) => !TECHNICAL_LED_SUBTYPES.has(option.value);
+
+  return options.find(matcher)?.value || getDefaultApplicationSubtype(type);
+}
+
+function getTechnicalDisplayTypeLabel(displayType, language = "en") {
+  if (displayType === "led") return stepText(language, "displayTypeLed");
+  if (displayType === "non_led") return stepText(language, "displayTypeNonLed");
+  return "";
+}
+
+function getTechnicalAdvertisementTypeValue(step1 = {}, displayType = "") {
+  const rows = Array.isArray(step1.advertisement_rows)
+    ? step1.advertisement_rows
+    : [];
+  const matchingRow =
+    rows.find((row) => (row?.displayType || row?.display_type) === displayType) ||
+    rows[0] ||
+    null;
+  const label =
+    matchingRow?.customLabel ||
+    matchingRow?.custom_label ||
+    step1.advertisement_type_custom_label ||
+    step1.advertisement_type_label ||
+    "";
+
+  return label || TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES[0]?.value || "";
+}
+
+function normalizeTechnicalAdvertisementRow(row = {}, selectedType, fallbackSubtype = "") {
+  const rowDisplayType =
+    row.displayType === "led" || row.display_type === "led"
+      ? "led"
+      : row.displayType === "non_led" || row.display_type === "non_led"
+        ? "non_led"
+        : "";
+  const subtype =
+    normalizeApplicationSubtype(row.subtype, selectedType) ||
+    normalizeApplicationSubtype(fallbackSubtype, selectedType) ||
+    getSubtypeForTechnicalDisplayType(selectedType, rowDisplayType);
+  const displayType =
+    rowDisplayType ||
+    getTechnicalDisplayTypeFromSubtype(subtype);
+  const customLabel = String(row.customLabel || row.custom_label || "").trim();
+
+  return {
+    ...row,
+    applicationType: selectedType,
+    application_type: selectedType,
+    displayType,
+    display_type: displayType,
+    subtype,
+    customLabel,
+    custom_label: customLabel,
+  };
+}
+
+function createTechnicalAdvertisementRow() {
+  return {
+    displayType: "",
+    display_type: "",
+    subtype: "",
+    customLabel: "",
+    custom_label: "",
+  };
+}
+
+function getTechnicalAdvertisementRowsFromStep1(step1 = {}, selectedType, fallbackSubtype = "") {
+  const rows = Array.isArray(step1.advertisement_rows)
+    ? step1.advertisement_rows
+    : [];
+  const normalizedRows = rows.map((row) =>
+    normalizeTechnicalAdvertisementRow(row, selectedType, fallbackSubtype)
+  );
+
+  if (normalizedRows.length > 0) return normalizedRows;
+
+  const fallbackRow = normalizeTechnicalAdvertisementRow(
+    {
+      displayType: getTechnicalDisplayTypeFromSubtype(fallbackSubtype),
+      subtype: fallbackSubtype,
+      customLabel: getTechnicalAdvertisementTypeValue(step1, getTechnicalDisplayTypeFromSubtype(fallbackSubtype)),
+    },
+    selectedType,
+    fallbackSubtype
+  );
+
+  if (fallbackRow.displayType || fallbackRow.subtype || fallbackRow.customLabel) {
+    return [
+      fallbackRow,
+    ];
+  }
+
+  return [
+    normalizeTechnicalAdvertisementRow(
+      createTechnicalAdvertisementRow(),
+      selectedType,
+      fallbackSubtype
+    ),
+  ];
+}
+
+function getTechnicalFeeRowsFromApplication(app, savedRows = []) {
+  const saved = app?.form_data?.technical_site_visit || {};
+  const step1 = app?.form_data?.step_1 || {};
+  const selectedTypes = getApplicationTypeOptionsFromApplication(app);
+  const primaryType = selectedTypes[0] || getApplicationTypeFromSubtype(saved.application_subtype) || "open_space";
+  const fallbackSubtype =
+    saved.application_subtype ||
+    getApplicationSubtypeFromApplication(app) ||
+    getDefaultApplicationSubtype(primaryType);
+  const sourceRows =
+    Array.isArray(savedRows) && savedRows.length > 0
+      ? savedRows
+      : getTechnicalAdvertisementRowsFromStep1(step1, primaryType, fallbackSubtype);
+
+  return sourceRows.map((row) => {
+    const normalized = normalizeTechnicalAdvertisementRow(
+      row,
+      row.applicationType || row.application_type || primaryType,
+      row.subtype || fallbackSubtype
+    );
+
+    return {
+      ...normalized,
+      width_ft: row.width_ft || row.widthFt || row.width || row.width_ft_value || "",
+      height_ft: row.height_ft || row.heightFt || row.height || row.height_ft_value || "",
+      area_sqm:
+        row.area_sqm ||
+        row.areaSqm ||
+        row.areaRequired ||
+        row.area_required ||
+        row.area_required_sqm ||
+        "",
+      payable_total:
+        row.payable_total ||
+        row.payableTotal ||
+        row.totalPayable ||
+        row.total_payable ||
+        row.amount ||
+        "",
+    };
+  });
+}
+
+function getTechnicalAdvertisementOptionLabel(value, language = "en") {
+  const option = TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES.find(
+    (item) => item.value.toLowerCase() === String(value || "").trim().toLowerCase()
+  );
+  return option ? stepText(language, option.labelKey) : value;
+}
+
+function getTechnicalAdvertisementOptions(row = {}, language = "en") {
+  const optionsByValue = new Map(
+    TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES.map((option) => [
+      option.value.toLowerCase(),
+      {
+        value: option.value,
+        label: stepText(language, option.labelKey),
+      },
+    ])
+  );
+  const customLabel = String(row.customLabel || row.custom_label || "").trim();
+
+  if (customLabel && !optionsByValue.has(customLabel.toLowerCase())) {
+    optionsByValue.set(customLabel.toLowerCase(), {
+      value: customLabel,
+      label: customLabel,
+    });
+  }
+
+  return [...optionsByValue.values()];
+}
+
+function buildTechnicalAdvertisementRow(step1 = {}, selectedType, subtype, advertisementMeta = {}) {
+  const displayType =
+    advertisementMeta.displayType ||
+    getTechnicalDisplayTypeFromSubtype(subtype);
+  const customLabel =
+    advertisementMeta.advertisementType ||
+    getTechnicalAdvertisementTypeValue(step1, displayType);
+
+  return {
+    displayType,
+    display_type: displayType,
+    subtype,
+    customLabel,
+    custom_label: customLabel,
+  };
+}
+
+function buildTechnicalAdvertisementRows(step1 = {}, selectedType, subtype, advertisementMeta = {}) {
+  if (Array.isArray(advertisementMeta.rows) && advertisementMeta.rows.length > 0) {
+    return advertisementMeta.rows.map((row) =>
+      normalizeTechnicalAdvertisementRow(row, selectedType, subtype)
+    );
+  }
+
+  return [buildTechnicalAdvertisementRow(step1, selectedType, subtype, advertisementMeta)];
 }
 
 function getApplicationSubtypeFromApplication(app) {
@@ -6524,7 +6947,7 @@ function IklWorkspaceSections({
   const showTechnicalDepartmentRemarks =
     userDepartment === "IKL (TECHNICAL)" || showKuTechnicalReview;
   const showStandaloneTechnicalDepartmentRemarks =
-    showTechnicalDepartmentRemarks && !showKuTechnicalReview;
+    showTechnicalDepartmentRemarks && !showKuTechnicalReview && !showTechnicalFinalDecision;
   const [kuDecision, setKuDecision] = useState(
     ""
   );
@@ -6608,16 +7031,23 @@ function IklWorkspaceSections({
 
     setTechnicalApplicationTypeSelection(nextSelection);
     const nextSubtype = getDefaultApplicationSubtype(nextSelection[0]);
+    const nextDisplayType = getTechnicalDisplayTypeFromSubtype(nextSubtype);
     setTechnicalSite((prev) =>
       mergeTechnicalFeeCalculation({
         ...prev,
         application_subtype: nextSubtype,
       })
     );
-    saveTechnicalApplicationTypeSelection(nextSelection, nextSubtype);
+    saveTechnicalApplicationTypeSelection(nextSelection, nextSubtype, {
+      displayType: nextDisplayType,
+      advertisementType: getTechnicalAdvertisementTypeValue(
+        selectedRecord.form_data?.step_1 || {},
+        nextDisplayType
+      ),
+    });
   }
 
-  function handleTechnicalApplicationSubtypeChange(nextSubtype) {
+  function handleTechnicalApplicationSubtypeChange(nextSubtype, advertisementMeta = {}) {
     const selectedType = normalizeApplicationTypeOptions(technicalApplicationTypeSelection)[0];
     const normalizedSubtype = normalizeApplicationSubtype(nextSubtype, selectedType);
 
@@ -6629,7 +7059,11 @@ function IklWorkspaceSections({
         application_subtype: normalizedSubtype,
       })
     );
-    saveTechnicalApplicationTypeSelection(technicalApplicationTypeSelection, normalizedSubtype);
+    saveTechnicalApplicationTypeSelection(
+      technicalApplicationTypeSelection,
+      normalizedSubtype,
+      advertisementMeta
+    );
   }
 
   function scheduleTechnicalSiteVisitDraftSave(nextSite) {
@@ -6748,25 +7182,31 @@ function IklWorkspaceSections({
       {showTechnicalFinalDecision && (
         <section className="space-y-3">
           {userDepartment === "IKL (TECHNICAL)" && (
-            <TechnicalApplicationTypePanel
-              t={t}
-              language={language}
-              selectedTypes={technicalApplicationTypeSelection}
-              selectedSubtype={
-                technicalSite.application_subtype ||
-                getApplicationSubtypeFromApplication(selectedRecord)
-              }
-              derivedDepartments={getApplicationTypeTechnicalDepartmentsFromTypes(
-                technicalApplicationTypeSelection
-              )}
-              saving={saving}
-              onToggle={handleTechnicalApplicationTypeToggle}
-              onSubtypeChange={handleTechnicalApplicationSubtypeChange}
-            />
+            <>
+              <TechnicalApplicationTypePanel
+                t={t}
+                language={language}
+                selectedTypes={technicalApplicationTypeSelection}
+                selectedSubtype={
+                  technicalSite.application_subtype ||
+                  getApplicationSubtypeFromApplication(selectedRecord)
+                }
+                derivedDepartments={getApplicationTypeTechnicalDepartmentsFromTypes(
+                  technicalApplicationTypeSelection
+                )}
+                step1={selectedRecord.form_data?.step_1 || {}}
+                saving={saving}
+                onToggle={handleTechnicalApplicationTypeToggle}
+                onSubtypeChange={handleTechnicalApplicationSubtypeChange}
+              />
+
+              <TechnicalDepartmentRemarks app={selectedRecord} t={t} compact />
+            </>
           )}
 
           <TechnicalSiteVisitFields
             t={t}
+            language={language}
             applicationId={selectedRecord.id}
             value={technicalSite}
             onChange={setTechnicalSite}
@@ -6869,13 +7309,25 @@ function IklWorkspaceSections({
             selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
             selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
             derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
+            step1={selectedRecord.form_data?.step_1 || {}}
             saving={false}
             onToggle={() => {}}
             readOnly
           />
 
+          <KuTechnicalFurtherReviewPanel
+            t={t}
+            language={language}
+            selectedRecord={selectedRecord}
+            technicalSite={reviewTechnicalSite}
+            checks={kuChecks}
+            onCheckChange={updateKuCheck}
+            compact
+          />
+
           <TechnicalSiteVisitFields
             t={t}
+            language={language}
             applicationId={selectedRecord.id}
             value={reviewTechnicalSite}
             onChange={() => {}}
@@ -6884,15 +7336,6 @@ function IklWorkspaceSections({
           />
 
           <section className="space-y-3">
-              <KuTechnicalFurtherReviewPanel
-                t={t}
-                selectedRecord={selectedRecord}
-                technicalSite={reviewTechnicalSite}
-                checks={kuChecks}
-                onCheckChange={updateKuCheck}
-                compact
-              />
-
               <Field label={t("common.decision")}>
                 <select
                   value={kuDecision}
@@ -6968,23 +7411,33 @@ function getReviewTechnicalSite(technicalSite, selectedRecord) {
     technicalSite.application_subtype ||
     saved.application_subtype ||
     getApplicationSubtypeFromApplication(selectedRecord);
-  const calculatedFees = calculateTechnicalFee({
+  const preparedSite = mergeTechnicalFeeRowsCalculation({
     ...saved,
     ...technicalSite,
+    application_subtype: applicationSubtype,
+    advertisement_rows: getTechnicalFeeRowsFromApplication(
+      selectedRecord,
+      technicalSite.advertisement_rows || saved.advertisement_rows
+    ),
+  });
+  const calculatedFees = calculateTechnicalFee({
+    ...preparedSite,
     application_subtype: applicationSubtype,
   });
 
   return {
+    ...preparedSite,
     application_subtype: applicationSubtype,
     fee_schedule_key: calculatedFees.scheduleKey || saved.fee_schedule_key || "",
     fee_schedule_no: calculatedFees.scheduleNumber || saved.fee_schedule_no || "",
     site_photos: currentPhotos.length > 0 ? currentPhotos : savedPhotos,
     fee_date: technicalSite.fee_date || saved.fee_date || "",
     fee_items: feeItems,
-    width_ft: technicalSite.width_ft || saved.width_ft || "",
-    height_ft: technicalSite.height_ft || saved.height_ft || "",
-    area_sqft: calculatedFees.areaSqft || saved.area_sqft || "",
-    area_sqm: calculatedFees.areaSqm || saved.area_sqm || "",
+    advertisement_rows: preparedSite.advertisement_rows || [],
+    width_ft: preparedSite.width_ft || technicalSite.width_ft || saved.width_ft || "",
+    height_ft: preparedSite.height_ft || technicalSite.height_ft || saved.height_ft || "",
+    area_sqft: preparedSite.area_sqft || calculatedFees.areaSqft || saved.area_sqft || "",
+    area_sqm: preparedSite.area_sqm || calculatedFees.areaSqm || saved.area_sqm || "",
     chargeable_area_sqm: calculatedFees.chargeableAreaSqm || saved.chargeable_area_sqm || "",
     first_area_sqm: calculatedFees.firstAreaSqm || saved.first_area_sqm || "",
     first_area_fee: calculatedFees.firstAreaFee || saved.first_area_fee || "",
@@ -7057,119 +7510,368 @@ function TechnicalApplicationTypePanel({
   selectedTypes,
   selectedSubtype = "",
   derivedDepartments,
+  step1 = {},
   saving,
   onToggle,
   onSubtypeChange,
   readOnly = false,
 }) {
+  const [advertisementTypeModal, setAdvertisementTypeModal] = useState({
+    rowIndex: null,
+    value: "",
+  });
+  const [isEditingApplicationType, setIsEditingApplicationType] = useState(false);
   const selectedType = normalizeApplicationTypeOptions(selectedTypes)[0] || "";
   const selectedSet = new Set(selectedType ? [selectedType] : []);
   const subtypeOptions = APPLICATION_SUBTYPE_OPTIONS[selectedType] || [];
   const normalizedSubtype =
     normalizeApplicationSubtype(selectedSubtype, selectedType) ||
     getDefaultApplicationSubtype(selectedType);
-  const departmentLabel =
-    derivedDepartments.length > 0
-      ? derivedDepartments.join(", ")
-      : t("workspace.technical.noExternalDepartments", "No external departments selected");
-  const showApplicationTypeMeta = !readOnly;
+  const advertisementRows = getTechnicalAdvertisementRowsFromStep1(
+    step1,
+    selectedType,
+    normalizedSubtype
+  );
+  const canEdit = !saving && !readOnly && isEditingApplicationType;
+  const departmentsText = Array.isArray(derivedDepartments)
+    ? derivedDepartments.join(", ")
+    : String(derivedDepartments || "").trim();
+
+  function commitAdvertisementRows(nextRows) {
+    const primaryRow = nextRows[0] || {};
+    const nextSubtype =
+      normalizeApplicationSubtype(primaryRow.subtype, selectedType) ||
+      getSubtypeForTechnicalDisplayType(selectedType, primaryRow.displayType);
+
+    onSubtypeChange?.(nextSubtype, {
+      rows: nextRows,
+      displayType: primaryRow.displayType,
+      advertisementType: primaryRow.customLabel,
+    });
+  }
+
+  function handleDisplayTypeChange(rowIndex, nextDisplayType) {
+    const nextSubtype = getSubtypeForTechnicalDisplayType(selectedType, nextDisplayType);
+    const nextRows = advertisementRows.map((row, index) =>
+      index === rowIndex
+        ? {
+            ...row,
+            displayType: nextDisplayType,
+            display_type: nextDisplayType,
+            subtype: nextSubtype,
+            customLabel: "",
+            custom_label: "",
+          }
+        : row
+    );
+
+    commitAdvertisementRows(nextRows);
+  }
+
+  function handleAdvertisementTypeChange(rowIndex, nextAdvertisementType) {
+    const currentRow = advertisementRows[rowIndex] || {};
+    const displayType = currentRow.displayType || getTechnicalDisplayTypeFromSubtype(normalizedSubtype);
+    const nextRows = advertisementRows.map((row, index) =>
+      index === rowIndex
+        ? {
+            ...row,
+            displayType,
+            display_type: displayType,
+            subtype: getSubtypeForTechnicalDisplayType(selectedType, displayType),
+            customLabel: nextAdvertisementType,
+            custom_label: nextAdvertisementType,
+          }
+        : row
+    );
+
+    commitAdvertisementRows(nextRows);
+  }
+
+  function handleAddRow() {
+    if (!canEdit) return;
+    commitAdvertisementRows([...advertisementRows, createTechnicalAdvertisementRow()]);
+  }
+
+  function handleDeleteRow(rowIndex) {
+    if (!canEdit) return;
+
+    const nextRows =
+      advertisementRows.length <= 1
+        ? [createTechnicalAdvertisementRow()]
+        : advertisementRows.filter((_, index) => index !== rowIndex);
+
+    commitAdvertisementRows(nextRows);
+  }
+
+  function handleOpenAddAdvertisementType(rowIndex) {
+    if (!canEdit) return;
+
+    const displayType = advertisementRows[rowIndex]?.displayType || "";
+    if (!displayType) {
+      window.alert(stepText(language, "selectDisplayTypeFirst"));
+      return;
+    }
+
+    setAdvertisementTypeModal({
+      rowIndex,
+      value: "",
+    });
+  }
+
+  function handleCloseAdvertisementTypeModal() {
+    setAdvertisementTypeModal({
+      rowIndex: null,
+      value: "",
+    });
+  }
+
+  function handleSaveAdvertisementTypeModal() {
+    const rowIndex = advertisementTypeModal.rowIndex;
+    const nextValue = String(advertisementTypeModal.value || "").trim();
+
+    if (rowIndex === null || rowIndex === undefined || !nextValue) return;
+
+    handleAdvertisementTypeChange(rowIndex, nextValue);
+    handleCloseAdvertisementTypeModal();
+  }
 
   return (
-    <section className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="mb-3">
-        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
-          {t("workspace.technical.applicationTypeTitle", "Application Type")}
-        </h3>
-        {showApplicationTypeMeta && (
-          <p className="mt-1 text-[14px] leading-5 text-slate-500">
-            {t(
-              "workspace.technical.applicationTypeDesc",
-              "Correct the application type if needed. The participating departments will follow the selected type."
-            )}
+    <>
+    <section className="rounded-sm border border-slate-200 bg-white">
+      <div className="border-b border-black bg-slate-50 px-3 py-2">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-[13px] font-bold leading-5 text-slate-800">
+            {stepText(language, "typeOfApplication")}{" "}
+            <span className="text-red-600" aria-hidden="true">*</span>
+          </h3>
+          {!readOnly && (
+            <button
+              type="button"
+              className={`min-h-9 rounded-sm border px-4 py-1.5 text-sm font-semibold ${
+                isEditingApplicationType
+                  ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                  : "border-emerald-700 bg-white text-emerald-700 hover:bg-emerald-50"
+              } disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400`}
+              disabled={saving}
+              onClick={() => setIsEditingApplicationType((editing) => !editing)}
+            >
+              {isEditingApplicationType
+                ? t("common.done", "Done")
+                : t("common.edit", "Edit")}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3 p-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {APPLICATION_TYPE_OPTIONS.map((type) => (
+            <label
+              key={type}
+              className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 text-sm leading-5 ${
+                selectedSet.has(type)
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                  : "border-slate-200 bg-white text-slate-700"
+              } ${canEdit ? "cursor-pointer" : "cursor-default opacity-80"}`}
+            >
+              <input
+                type="radio"
+                name="technical-application-type"
+                checked={selectedSet.has(type)}
+                disabled={!canEdit}
+                onChange={() => onToggle(type, true)}
+                className="h-4 w-4 accent-emerald-700"
+              />
+              <span className="text-sm leading-5">{getApplicationTypeOptionLabel(type, language)}</span>
+            </label>
+          ))}
+        </div>
+
+        {subtypeOptions.length > 0 && (
+          <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white">
+          <table className="min-w-[680px] w-full border-collapse text-sm">
+            <thead className="bg-slate-50 text-left text-xs font-bold text-slate-700">
+              <tr>
+                <th className="w-16 border-b border-slate-200 px-3 py-2">
+                  {stepText(language, "advertisementNumber")}
+                </th>
+                <th className="w-[30%] border-b border-slate-200 px-3 py-2">
+                  {stepText(language, "displayType")}
+                </th>
+                <th className="border-b border-slate-200 px-3 py-2">
+                  {stepText(language, "advertisementType")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {advertisementRows.map((row, index) => {
+                const selectedAdvertisementValue =
+                  row.customLabel ||
+                  row.custom_label ||
+                  getApplicationSubtypeLabel(selectedType, row.subtype, "en") ||
+                  "";
+                const advertisementOptions = getTechnicalAdvertisementOptions(
+                  row,
+                  language
+                );
+                if (
+                  selectedAdvertisementValue &&
+                  !advertisementOptions.some(
+                    (option) =>
+                      option.value.toLowerCase() === selectedAdvertisementValue.toLowerCase()
+                  )
+                ) {
+                  advertisementOptions.push({
+                    value: selectedAdvertisementValue,
+                    label: getTechnicalAdvertisementOptionLabel(
+                      selectedAdvertisementValue,
+                      language
+                    ),
+                  });
+                }
+
+                return (
+                  <tr key={`technical-advertisement-row-${index}`} className="align-top">
+                    <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-700">
+                      {index + 1}
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <select
+                        className="spa-input"
+                        value={row.displayType || ""}
+                        disabled={!canEdit}
+                        onChange={(event) => handleDisplayTypeChange(index, event.target.value)}
+                      >
+                        <option value="">
+                          {stepText(language, "selectDisplayType")}
+                        </option>
+                        {TECHNICAL_DISPLAY_TYPE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {stepText(language, option.labelKey)}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <select
+                          className="spa-input min-w-0 flex-1"
+                          value={selectedAdvertisementValue}
+                          disabled={!canEdit}
+                          onChange={(event) => handleAdvertisementTypeChange(index, event.target.value)}
+                        >
+                          <option value="">
+                            {stepText(language, "selectAdvertisementType")}
+                          </option>
+                          {advertisementOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label || getTechnicalAdvertisementOptionLabel(option.value, language)}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-sm bg-[#006d32] px-3 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                          disabled={!canEdit}
+                          onClick={() => handleOpenAddAdvertisementType(index)}
+                        >
+                          {stepText(language, "addAdvertisementOption")}
+                        </button>
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-sm border border-red-600 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                          disabled={!canEdit}
+                          onClick={() => handleDeleteRow(index)}
+                        >
+                          {stepText(language, "deleteAdvertisementRow")}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
+            <button
+              type="button"
+              className="rounded-sm border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+              disabled={!canEdit}
+              onClick={handleAddRow}
+            >
+              {stepText(language, "addAdvertisementRow")}
+            </button>
+          </div>
+          </div>
+        )}
+        {departmentsText && (
+          <p className="text-sm leading-5 text-slate-700">
+            <span className="font-semibold">
+              {t("workspace.technical.departmentsInvolved", "Departments involved")}:
+            </span>{" "}
+            {departmentsText}
           </p>
         )}
       </div>
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {APPLICATION_TYPE_OPTIONS.map((type) => (
-          <label
-            key={type}
-            className={`flex min-h-10 w-full items-center gap-2 rounded-md border px-3 py-2 text-[14px] font-semibold leading-5 sm:w-56 ${
-              selectedSet.has(type)
-                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            } ${saving || readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
-          >
-            <input
-              type="radio"
-              name="technical-application-type"
-              checked={selectedSet.has(type)}
-              disabled={saving || readOnly}
-              onChange={() => onToggle(type, true)}
-              className="h-4 w-4 accent-emerald-700"
-            />
-            {getApplicationTypeOptionLabel(type, language)}
-          </label>
-        ))}
-      </div>
-
-      {subtypeOptions.length > 0 && (
-        <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="mb-2 text-[13px] font-semibold leading-5 text-slate-700">
-            {t(
-              "workspace.technical.advertisementType",
-              language === "ms" ? "Jenis Iklan" : "Type of Advertisement"
-            )}
-          </p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            {subtypeOptions.map((option) => (
-              <label
-                key={option.value}
-                className={`flex min-h-10 w-full items-center gap-2 rounded-md border px-3 py-2 text-[14px] font-semibold leading-5 sm:w-64 ${
-                  normalizedSubtype === option.value
-                    ? "border-emerald-600 bg-white text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                } ${saving || readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
-              >
-                <input
-                  type="radio"
-                  name={`technical-application-subtype-${selectedType || "none"}`}
-                  checked={normalizedSubtype === option.value}
-                  disabled={saving || readOnly}
-                  onChange={() => onSubtypeChange?.(option.value)}
-                  className="h-4 w-4 accent-emerald-700"
-                />
-                {option[language === "ms" ? "ms" : "en"] || option.en}
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showApplicationTypeMeta && (
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1 text-[13px] leading-5 text-slate-600">
-            <p>
-              <span className="font-semibold text-slate-700">
-                {t("workspace.technical.derivedDepartments", "Departments involved")}:
-              </span>{" "}
-              {departmentLabel}
-            </p>
-          </div>
-          {saving && (
-            <span className="inline-flex min-h-9 items-center gap-1 text-[13px] font-semibold leading-5 text-emerald-700">
-              <Icon name="sync" className="text-[18px]" />
-              {t("workspace.saving")}
-            </span>
-          )}
-        </div>
-      )}
     </section>
+    {advertisementTypeModal.rowIndex !== null && advertisementTypeModal.rowIndex !== undefined && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4">
+        <div className="w-full max-w-md rounded-sm border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-200 px-4 py-3">
+            <h3 className="text-sm font-bold text-slate-800">
+              {stepText(language, "addAdvertisementTypeModalTitle")}
+            </h3>
+          </div>
+
+          <div className="space-y-2 px-4 py-4">
+            <label className="text-xs font-bold text-slate-700">
+              {stepText(language, "advertisementType")}
+            </label>
+            <input
+              className="spa-input"
+              value={advertisementTypeModal.value}
+              autoFocus
+              onChange={(event) =>
+                setAdvertisementTypeModal((prev) => ({
+                  ...prev,
+                  value: event.target.value,
+                }))
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleSaveAdvertisementTypeModal();
+                if (event.key === "Escape") handleCloseAdvertisementTypeModal();
+              }}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+            <button
+              type="button"
+              className="rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              onClick={handleCloseAdvertisementTypeModal}
+            >
+              {stepText(language, "cancel")}
+            </button>
+            <button
+              type="button"
+              className="rounded-sm bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+              disabled={!String(advertisementTypeModal.value || "").trim()}
+              onClick={handleSaveAdvertisementTypeModal}
+            >
+              {stepText(language, "save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
 function KuTechnicalFurtherReviewPanel({
   t,
+  language = "en",
   selectedRecord,
   technicalSite,
   checks,
@@ -7268,6 +7970,7 @@ function KuTechnicalFurtherReviewPanel({
         <div className="rounded-md border border-slate-200 bg-white p-3">
           <TechnicalFeeCalculationSheet
             t={t}
+            language={language}
             value={reviewTechnicalSite}
             readOnly
           />
@@ -7288,6 +7991,7 @@ function KuTechnicalFurtherReviewPanel({
         app={selectedRecord}
         t={t}
         leadingRows={compiledRemarksLeadingRows.length > 0 ? compiledRemarksLeadingRows : compact ? iklTechnicalRemarkRows : []}
+        compact={compact}
       />
 
       {!compact && (
@@ -7355,22 +8059,15 @@ function ApprovalTechnicalReviewSummary({
         selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
         selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
         derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
+        step1={selectedRecord.form_data?.step_1 || {}}
         saving={false}
         onToggle={() => {}}
         readOnly
       />
 
-      <TechnicalSiteVisitFields
-        t={t}
-        applicationId={selectedRecord.id}
-        value={reviewTechnicalSite}
-        onChange={() => {}}
-        onFileChange={() => {}}
-        readOnly
-      />
-
       <KuTechnicalFurtherReviewPanel
         t={t}
+        language={language}
         selectedRecord={selectedRecord}
         technicalSite={reviewTechnicalSite}
         checks={createKuTechnicalChecks(kuReview.checks)}
@@ -7378,6 +8075,17 @@ function ApprovalTechnicalReviewSummary({
         compact
         readOnly
       />
+
+      <TechnicalSiteVisitFields
+        t={t}
+        language={language}
+        applicationId={selectedRecord.id}
+        value={reviewTechnicalSite}
+        onChange={() => {}}
+        onFileChange={() => {}}
+        readOnly
+      />
+
     </div>
   );
 }
@@ -7506,7 +8214,7 @@ function formatReportAmount(value) {
   return text;
 }
 
-function TechnicalDepartmentRemarks({ app, t, leadingRows = [] }) {
+function TechnicalDepartmentRemarks({ app, t, leadingRows = [], compact = false }) {
   const reviews = getCurrentTechnicalDepartmentReviews(app);
   const selectedDepartments = getSelectedTechnicalDepartments(app);
   const hasSelection = hasTechnicalDepartmentSelection(app);
@@ -7514,32 +8222,24 @@ function TechnicalDepartmentRemarks({ app, t, leadingRows = [] }) {
 
   return (
     <div className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+      <div className={`border-b border-slate-200 px-3 ${compact ? "py-1.5" : "py-2"}`}>
+        <h3 className={`${compact ? "text-[14px] leading-5" : "text-[16px] leading-6"} font-semibold text-slate-950`}>
           {t("workspace.technical.compiledRemarksTitle")}
         </h3>
-        <p className="mt-1 text-[14px] leading-5 text-slate-500">
-          {t("workspace.technical.compiledRemarksDesc")}
-        </p>
+        {!compact && (
+          <p className="mt-1 text-[14px] leading-5 text-slate-500">
+            {t("workspace.technical.compiledRemarksDesc")}
+          </p>
+        )}
       </div>
       <div className="divide-y divide-slate-100">
-        <div className="hidden grid-cols-1 gap-4 bg-slate-50 px-3 py-2 text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500 md:grid md:grid-cols-[110px_210px_1fr]">
+        <div className={`hidden grid-cols-1 gap-4 bg-slate-50 px-3 font-semibold uppercase leading-5 tracking-wide text-slate-500 md:grid md:grid-cols-[110px_1fr] ${compact ? "py-1.5 text-[12px]" : "py-2 text-[13px]"}`}>
           <div>{t("common.department", "Department")}</div>
-          <div>{t("common.status", "Status")}</div>
           <div>{t("workspace.comment.remarks", "Remarks")}</div>
         </div>
         {leadingRows.map((review) => (
-          <div key={review.department} className="grid grid-cols-1 gap-4 px-3 py-2 text-[14px] leading-5 md:grid-cols-[110px_210px_1fr]">
+          <div key={review.department} className={`grid grid-cols-1 gap-4 px-3 leading-5 md:grid-cols-[110px_1fr] ${compact ? "py-1.5 text-[13px]" : "py-2 text-[14px]"}`}>
             <div className="font-semibold text-slate-950">{review.department}</div>
-            <div>
-              <StatusPill
-                value={
-                  review.decision
-                    ? t(getDecisionLabelKey(review.decision), review.decision)
-                    : t("workspace.stat.pending")
-                }
-              />
-            </div>
             <div className="min-w-0 text-slate-700">
               {review.remarks ? (
                 <>
@@ -7557,7 +8257,7 @@ function TechnicalDepartmentRemarks({ app, t, leadingRows = [] }) {
           </div>
         ))}
         {departments.length === 0 && leadingRows.length === 0 && (
-          <div className="px-3 py-3 text-[14px] leading-5 text-slate-500">
+          <div className={`px-3 leading-5 text-slate-500 ${compact ? "py-2 text-[13px]" : "py-3 text-[14px]"}`}>
             {t("workspace.technical.noExternalDepartments", "No external departments selected")}
           </div>
         )}
@@ -7565,17 +8265,8 @@ function TechnicalDepartmentRemarks({ app, t, leadingRows = [] }) {
           const review = reviews?.[department];
 
           return (
-            <div key={department} className="grid grid-cols-1 gap-4 px-3 py-2 text-[14px] leading-5 md:grid-cols-[110px_210px_1fr]">
+            <div key={department} className={`grid grid-cols-1 gap-4 px-3 leading-5 md:grid-cols-[110px_1fr] ${compact ? "py-1.5 text-[13px]" : "py-2 text-[14px]"}`}>
               <div className="font-semibold text-slate-950">{department}</div>
-              <div>
-                <StatusPill
-                  value={
-                    review?.decision
-                      ? t(getDecisionLabelKey(review.decision), review.decision)
-                      : t("workspace.stat.pending")
-                  }
-                />
-              </div>
               <div className="min-w-0 text-slate-700">
                 {review?.remarks ? (
                   <>
@@ -7669,6 +8360,7 @@ function getIklScreeningDecisionOptions(decisions, department) {
 
 function TechnicalSiteVisitFields({
   t,
+  language = "en",
   applicationId,
   value,
   onChange,
@@ -7681,11 +8373,41 @@ function TechnicalSiteVisitFields({
   const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
   const [deletingIndex, setDeletingIndex] = useState(null);
 
-  function updateSizeField(field, nextValue) {
+  function updateRowSizeField(rowIndex, field, nextValue) {
     if (readOnly) return;
     if (sizeError) onSizeErrorChange?.("");
     onChange((prev) => {
-      const nextSite = mergeTechnicalFeeCalculation({ ...prev, [field]: nextValue });
+      const rows = getTechnicalFeeRowsFromSite(prev);
+      const nextRows = rows.map((row, index) => {
+        if (index !== rowIndex) return row;
+        const nextRow = { ...row, [field]: nextValue };
+        const hasCompleteSize =
+          parseTechnicalNumber(nextRow.width_ft || nextRow.widthFt) > 0 &&
+          parseTechnicalNumber(nextRow.height_ft || nextRow.heightFt) > 0;
+
+        if (hasCompleteSize) return nextRow;
+
+        return {
+          ...nextRow,
+          area_sqft: "",
+          area_sqm: "",
+          areaSqm: "",
+          areaRequired: "",
+          area_required: "",
+          chargeable_area_sqm: "",
+          first_area_sqm: "",
+          first_area_fee: "",
+          additional_area_sqm: "",
+          additional_area_fee: "",
+          fee_total: "",
+          payable_total: "",
+          payableTotal: "",
+        };
+      });
+      const nextSite = mergeTechnicalFeeRowsCalculation({
+        ...prev,
+        advertisement_rows: nextRows,
+      });
       onDraftChange?.(nextSite);
       return nextSite;
     });
@@ -7713,24 +8435,24 @@ function TechnicalSiteVisitFields({
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3">
+    <div className="space-y-2.5 rounded-md border border-slate-200 bg-white p-2.5">
       <div>
-        <h3 className="text-[16px] font-semibold leading-6 text-slate-950">
+        <h3 className="text-[14px] font-semibold leading-5 text-slate-950">
           {t("workspace.technical.siteVisitTitle")}
         </h3>
-        <p className="mt-1 text-[14px] leading-5 text-slate-600">
+        <p className="mt-0.5 text-[13px] leading-5 text-slate-600">
           {t("workspace.technical.siteVisitDesc")}
         </p>
       </div>
 
       <div>
-        <p className="mb-1.5 text-[14px] font-semibold leading-5 text-slate-700">
+        <p className="mb-1 text-[13px] font-semibold leading-5 text-slate-700">
           {t("workspace.technical.sitePhoto")}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {!readOnly && (
-            <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-[14px] font-semibold leading-5 text-white hover:bg-emerald-800">
-              <Icon name="add_photo_alternate" className="mr-1 text-base" />
+            <label className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[13px] font-semibold leading-5 text-white hover:bg-emerald-800">
+              <Icon name="add_photo_alternate" className="mr-1 text-[15px]" />
               {t("workspace.technical.uploadSitePhoto")}
               <input
                 type="file"
@@ -7745,12 +8467,12 @@ function TechnicalSiteVisitFields({
             </label>
           )}
           {sitePhotos.length > 0 && (
-            <span className="text-[14px] font-medium leading-5 text-emerald-700">
+            <span className="text-[13px] font-medium leading-5 text-emerald-700">
               {t("workspace.technical.sitePhotoUploaded")}: {sitePhotos.length}
             </span>
           )}
           {readOnly && sitePhotos.length === 0 && (
-            <span className="text-[14px] font-medium leading-5 text-slate-500">
+            <span className="text-[13px] font-medium leading-5 text-slate-500">
               {t("workspace.technical.noSitePhoto", "No site photo uploaded.")}
             </span>
           )}
@@ -7758,15 +8480,15 @@ function TechnicalSiteVisitFields({
       </div>
 
       {sitePhotos.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {sitePhotos.map((photo, index) => (
             <div
               key={`${photo.name || "site-photo"}-${index}`}
-              className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5"
             >
               <div className="flex min-w-0 items-center gap-2">
-                <Icon name="image" className="shrink-0 text-[20px] text-slate-500" />
-                <span className="truncate text-[14px] font-medium leading-5 text-slate-700">
+                <Icon name="image" className="shrink-0 text-[18px] text-slate-500" />
+                <span className="truncate text-[13px] font-medium leading-5 text-slate-700">
                   {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
                 </span>
               </div>
@@ -7789,8 +8511,9 @@ function TechnicalSiteVisitFields({
 
       <TechnicalFeeCalculationSheet
         t={t}
+        language={language}
         value={value}
-        onSizeChange={updateSizeField}
+        onRowSizeChange={updateRowSizeField}
         readOnly={readOnly}
         sizeError={sizeError}
       />
@@ -7799,259 +8522,333 @@ function TechnicalSiteVisitFields({
   );
 }
 
-function TechnicalFeeCalculationSheet({ t, value, onSizeChange, readOnly = false, sizeError = "" }) {
-  const technicalFee = calculateTechnicalFee(value);
-  const hasAdvertisementSize = technicalFee.areaSqft > 0;
-  const isScheduleSix = technicalFee.scheduleNumber === "6";
-  const scheduleAdvertisementDescKey = isScheduleSix
-    ? "workspace.technical.schedule6AdvertisementDesc"
-    : "workspace.technical.scheduleAdvertisementDesc";
-  const scheduleFirstAreaKey = isScheduleSix
-    ? "workspace.technical.schedule6FirstArea"
-    : "workspace.technical.scheduleFirstArea";
-  const firstAreaLabelKey = isScheduleSix
-    ? "workspace.technical.firstTen"
-    : "workspace.technical.firstTwenty";
+function TechnicalFeeCalculationSheet({
+  t,
+  language = "en",
+  value,
+  onRowSizeChange,
+  readOnly = false,
+  sizeError = "",
+}) {
+  const rows = getTechnicalFeeRowsFromSite(value);
+  const scheduleNumbers = Array.from(
+    new Set(
+      rows
+        .map((row) =>
+          calculateTechnicalFee({
+            application_subtype: row.subtype,
+            width_ft: row.width_ft || row.widthFt || "",
+            height_ft: row.height_ft || row.heightFt || "",
+            area_sqm: row.area_sqm || row.areaSqm || row.areaRequired || row.area_required || "",
+          }).scheduleNumber
+        )
+        .filter(Boolean)
+    )
+  );
 
   return (
-    <section className="pt-2">
-      <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
+    <section className="pt-1">
+      <h4 className="text-[14px] font-semibold leading-5 text-slate-950">
         {t("workspace.technical.feeCalculationTitle", "Advertisement Size & Fee Calculation")}
       </h4>
 
-      <div className="mt-3 rounded-md border border-slate-300 bg-white p-4">
-        <div className="text-center">
-          <p className="text-[13px] font-normal uppercase italic leading-5 text-slate-950">
-            {t("workspace.technical.scheduleTitle", "SECOND SCHEDULE")}
-          </p>
-          <div className="mt-1 flex items-center justify-center gap-4">
-            <span className="h-px w-24 bg-slate-950" />
-            <p className="text-[19px] font-bold leading-6 text-slate-950">
-              {t("workspace.technical.scheduleFeesTitle", "LICENCE FEES")}
-            </p>
-            <span className="h-px w-24 bg-slate-950" />
-          </div>
-          <p className="mt-1 text-[13px] font-bold leading-5 text-slate-950">
-            {t("workspace.technical.scheduleBylaws", "(By-laws 9 and 10)")}
-          </p>
-        </div>
+      <TechnicalFeeScheduleReference scheduleNumbers={scheduleNumbers} />
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[960px] table-fixed overflow-hidden text-[13px] leading-5 text-slate-950">
-            <colgroup>
-              <col className="w-[64px]" />
-              <col className="w-[340px]" />
-              <col className="w-[300px]" />
-              <col className="w-[220px]" />
-              <col className="w-[210px]" />
-            </colgroup>
-            <thead>
-              <tr className="text-center italic">
-                <th className="px-3 py-3 font-normal" aria-hidden="true"></th>
-                <th className="px-3 py-3 font-normal">
-                  {t("workspace.technical.scheduleAdvertisementType", "Type of Advertisement")}
-                </th>
-                <th className="px-3 py-3 font-normal">
-                  {t("workspace.technical.scheduleFeePayable", "Fee Payable")}
-                </th>
-                <th className="px-3 py-3 font-normal">
-                  {t("workspace.technical.scheduleCityLine1", "City/")}
-                  {t("workspace.technical.scheduleCityLine2", "Municipal Council")}
-                </th>
-                <th className="px-3 py-3 font-normal">
-                  {t("workspace.technical.scheduleDistrictLine1", "District")}{" "}
-                  {t("workspace.technical.scheduleDistrictLine2", "Council")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="font-normal">
-              <tr className="align-top">
-                <td
-                  className="px-3 py-4 text-center text-[13px] font-normal"
-                  rowSpan={isScheduleSix ? 3 : 2}
-                >
-                  {technicalFee.scheduleNumber}.
-                </td>
-                <td
-                  className="px-5 py-4 text-justify font-normal"
-                  rowSpan={isScheduleSix ? 3 : 2}
-                >
-                  {t(
-                    scheduleAdvertisementDescKey,
-                    "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support"
-                  )}
-                </td>
-                <td className="px-5 py-4 text-justify font-normal">
-                  <div className="flex items-start gap-3">
-                    <span className="w-7 shrink-0 font-normal text-slate-950">(a)</span>
-                    <span>
-                      {t(scheduleFirstAreaKey, "For the first 20 square metre or part thereof")}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">
-                    {formatTechnicalCurrency(isScheduleSix ? 2000 : technicalFee.firstAreaRate)}
-                  </span>{" "}
-                  {t(
-                    isScheduleSix ? "workspace.technical.schedulePerYear" : "workspace.technical.scheduleCityFirstRateSuffix",
-                    isScheduleSix ? "per year" : "for every square metre per year"
-                  )}
-                </td>
-                <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">
-                    {formatTechnicalCurrency(isScheduleSix ? 1500 : 70)}
-                  </span>{" "}
-                  {t(
-                    isScheduleSix ? "workspace.technical.schedulePerYear" : "workspace.technical.scheduleDistrictFirstRateSuffix",
-                    isScheduleSix ? "per year" : "for every square metre per year"
-                  )}
-                </td>
-              </tr>
-              <tr className="align-top">
-                <td className="px-5 py-4 text-justify font-normal">
-                  <div className="flex items-start gap-3">
-                    <span className="w-7 shrink-0 font-normal text-slate-950">(b)</span>
-                    <span>
-                      {t(
-                        isScheduleSix
-                          ? "workspace.technical.schedule6AdditionalArea"
-                          : "workspace.technical.scheduleAdditionalArea",
-                        isScheduleSix
-                          ? "For every additional square metre or"
-                          : "For every additional square metre or part thereof"
-                      )}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">
-                    {formatTechnicalCurrency(technicalFee.additionalAreaRate)}
-                  </span>{" "}
-                  {t("workspace.technical.schedulePerYear", "per year")}
-                </td>
-                <td className="px-5 py-4 text-justify font-normal">
-                  <span className="font-normal text-slate-950">
-                    {formatTechnicalCurrency(isScheduleSix ? 35 : 50)}
-                  </span>{" "}
-                  {t("workspace.technical.schedulePerYear", "per year")}
-                </td>
-              </tr>
-              {isScheduleSix && (
-                <tr className="align-top">
-                  <td className="px-5 py-4 text-justify font-normal">
-                    <div className="flex items-start gap-3">
-                      <span className="w-7 shrink-0 font-normal text-slate-950">(c)</span>
-                      <span>
-                        {t(
-                          "workspace.technical.schedule6DeviceSet",
-                          "For every set of device producing non-measurable advertisement"
-                        )}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-justify font-normal">
-                    <span className="font-normal text-slate-950">
-                      {formatTechnicalCurrency(1000)}
-                    </span>{" "}
-                    {t("workspace.technical.schedulePerYear", "per year")}
-                  </td>
-                  <td className="px-5 py-4 text-justify font-normal">
-                    <span className="font-normal text-slate-950">
-                      {formatTechnicalCurrency(750)}
-                    </span>{" "}
-                    {t("workspace.technical.schedulePerYear", "per year")}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="mt-3 overflow-x-auto">
-        <div className="min-w-[820px] divide-y divide-slate-100 text-[14px] leading-5">
-          <FeeSheetSizeRow
-            label={t("workspace.technical.size", "Size")}
-            widthLabel={t("workspace.technical.widthFt", "Width (ft)")}
-            widthValue={value.width_ft || ""}
-            heightLabel={t("workspace.technical.heightFt", "Height (ft)")}
-            heightValue={value.height_ft || ""}
-            onWidthChange={(nextValue) => onSizeChange?.("width_ft", nextValue)}
-            onHeightChange={(nextValue) => onSizeChange?.("height_ft", nextValue)}
+      <div className="mt-2 space-y-2">
+        {rows.map((row, index) => (
+          <TechnicalFeeCalculationRow
+            key={`${row.displayType || row.display_type || "display"}-${row.subtype || "subtype"}-${index}`}
+            row={row}
+            index={index}
+            language={language}
             readOnly={readOnly}
-            required={!readOnly}
-            error={sizeError}
+            sizeError={index === 0 ? sizeError : ""}
+            onFieldChange={(field, nextValue) => onRowSizeChange?.(index, field, nextValue)}
           />
-          {sizeError && !readOnly && (
-            <div className="grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] items-center gap-2 bg-white px-2 pb-2">
-              <span aria-hidden="true" />
-              <p className="col-span-6 text-[13px] font-medium leading-5 text-red-600">
-                {sizeError}
-              </p>
-            </div>
-          )}
-          <FeeSheetRow
-            label={t("workspace.technical.totalAreaFt", "Total Area (ft)")}
-            value={hasAdvertisementSize ? formatTechnicalArea(technicalFee.areaSqft) : "-"}
-            unit="ft"
-          />
-          <FeeSheetRow
-            label={t("workspace.technical.totalAreaSqm", "Total Area (m2)")}
-            value={hasAdvertisementSize ? formatTechnicalArea(technicalFee.areaSqm) : "-"}
-            unit="m2"
-          />
-          <FeeSheetSection label={t("workspace.technical.fees", "Fees:")} />
-          <FeeSheetRow
-            label={t(firstAreaLabelKey, "(i) First 20 m2")}
-            value={formatTechnicalArea(technicalFee.firstAreaSqm || 0)}
-            unit="m2"
-            operator={technicalFee.usesFixedFirstAreaFee ? "" : "x"}
-            multiplier={
-              technicalFee.usesFixedFirstAreaFee
-                ? ""
-                : formatTechnicalCurrency(technicalFee.firstAreaRate)
-            }
-            equals="="
-            amount={formatTechnicalCurrency(technicalFee.firstAreaFee)}
-          />
-          <FeeSheetRow
-            label={t("workspace.technical.additionalArea", "(ii) Additional Area")}
-            value={formatTechnicalArea(technicalFee.additionalAreaSqm || 0)}
-            unit="m2"
-            operator="x"
-            multiplier={formatTechnicalCurrency(technicalFee.additionalAreaRate)}
-            equals="="
-            amount={formatTechnicalCurrency(technicalFee.additionalAreaFee)}
-          />
-          <FeeSheetRow
-            label={t("workspace.technical.totalFee", "Total Fee")}
-            value={formatTechnicalCurrency(technicalFee.feeTotal)}
-            emphasized
-          />
-          <FeeSheetRow
-            label={t("workspace.technical.depositShort", "Deposit")}
-            value={formatTechnicalCurrency(TECHNICAL_FIXED_DEPOSIT)}
-          />
-          <FeeSheetRow
-            label={t("workspace.technical.processingFee", "Processing Fee")}
-            value={formatTechnicalCurrency(TECHNICAL_PROCESSING_FEE)}
-          />
-          <FeeSheetRow
-            label={t("workspace.technical.total", "TOTAL")}
-            value={formatTechnicalCurrency(technicalFee.totalPayable)}
-            emphasized
-            total
-          />
-        </div>
+        ))}
       </div>
     </section>
   );
 }
 
+function TechnicalFeeScheduleReference({ scheduleNumbers = [] }) {
+  const visibleSchedules = scheduleNumbers.length > 0 ? scheduleNumbers : ["1"];
+
+  return (
+    <div className="mt-2 rounded-sm border border-slate-300 bg-white px-3 py-3 text-[12px] leading-5 text-slate-950">
+      <div className="mb-3 text-center">
+        <div className="mx-auto flex max-w-[420px] items-center justify-center gap-3">
+          <span className="h-px flex-1 bg-slate-900" />
+          <div>
+            <p className="italic">SECOND SCHEDULE</p>
+            <p className="text-[18px] font-bold leading-6">LICENCE FEES</p>
+            <p className="font-bold">(By-laws 9 and 10)</p>
+          </div>
+          <span className="h-px flex-1 bg-slate-900" />
+        </div>
+      </div>
+
+      <div className="grid gap-x-7 gap-y-1 lg:grid-cols-[44px_minmax(0,1.2fr)_minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
+        <div aria-hidden="true" />
+        <p className="text-center italic">Type of Advertisement</p>
+        <p className="text-center italic">Fee Payable</p>
+        <p className="text-center italic">City/Municipal Council</p>
+        <p className="text-center italic">District Council</p>
+
+        {visibleSchedules.map((scheduleNumber) => (
+          <TechnicalFeeScheduleBlock key={scheduleNumber} scheduleNumber={scheduleNumber} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TechnicalFeeScheduleBlock({ scheduleNumber }) {
+  const isLedSchedule = String(scheduleNumber) === "6";
+  const typeDescription = isLedSchedule
+    ? "Advertisement by means of electronic or any non-print device"
+    : "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support";
+  const firstAreaText = isLedSchedule
+    ? "For the first 10 square metre or part thereof"
+    : "For the first 20 square metre or part thereof";
+  const additionalAreaText = isLedSchedule
+    ? "For every additional square metre"
+    : "For every additional square metre or part thereof";
+  const firstCityRate = isLedSchedule ? "RM2,000.00 per year" : "RM100.00 for every square metre per year";
+  const firstDistrictRate = isLedSchedule ? "RM1,500.00 per year" : "RM70.00 for every square metre per year";
+  const additionalCityRate = isLedSchedule ? "RM50.00 per year" : "RM70.00 per year";
+  const additionalDistrictRate = isLedSchedule ? "RM35.00 per year" : "RM50.00 per year";
+
+  return (
+    <>
+      <div className={isLedSchedule ? "pt-4" : ""}>{scheduleNumber}.</div>
+      <p className={isLedSchedule ? "pt-4" : ""}>{typeDescription}</p>
+      <div className={`grid self-start gap-y-1 ${isLedSchedule ? "pt-4" : ""}`}>
+        <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-2">
+          <span>(a)</span>
+          <p>{firstAreaText}</p>
+        </div>
+        <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-2">
+          <span>(b)</span>
+          <p>{additionalAreaText}</p>
+        </div>
+        {isLedSchedule && (
+          <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-2">
+            <span>(c)</span>
+            <p>For every set of device producing non-measurable advertisement</p>
+          </div>
+        )}
+      </div>
+      <div className={`grid self-start gap-y-1 ${isLedSchedule ? "pt-4" : ""}`}>
+        <p>{firstCityRate}</p>
+        <p>{additionalCityRate}</p>
+        {isLedSchedule && <p>RM1,000.00 per year</p>}
+      </div>
+      <div className={`grid self-start gap-y-1 ${isLedSchedule ? "pt-4" : ""}`}>
+        <p>{firstDistrictRate}</p>
+        <p>{additionalDistrictRate}</p>
+        {isLedSchedule && <p>RM750.00 per year</p>}
+      </div>
+    </>
+  );
+}
+
+function TechnicalFeeCalculationRow({
+  row,
+  index,
+  language = "en",
+  readOnly = false,
+  sizeError = "",
+  onFieldChange,
+}) {
+  const applicationType =
+    row.applicationType || row.application_type || getApplicationTypeFromSubtype(row.subtype);
+  const typeLabel = getApplicationTypeOptionLabel(applicationType, language);
+  const displayType = row.displayType || row.display_type || getTechnicalDisplayTypeFromSubtype(row.subtype);
+  const displayLabel = getTechnicalDisplayTypeLabel(displayType, language);
+  const advertisementLabel = getTechnicalAdvertisementOptionLabel(
+    row.customLabel || row.custom_label,
+    language
+  );
+  const fee = calculateTechnicalFee({
+    application_subtype: row.subtype,
+    width_ft: row.width_ft || row.widthFt || "",
+    height_ft: row.height_ft || row.heightFt || "",
+    area_sqm: "",
+  });
+  const widthValue = row.width_ft || row.widthFt || "";
+  const heightValue = row.height_ft || row.heightFt || "";
+  const hasCompleteSize = parseTechnicalNumber(widthValue) > 0 && parseTechnicalNumber(heightValue) > 0;
+  const areaValue = hasCompleteSize ? fee.areaSqm : 0;
+  const totalPayable = hasCompleteSize && fee.feeTotal ? fee.totalPayable : 0;
+  const inputClassName = `h-8 rounded-sm border px-2 text-xs leading-4 outline-none ${
+    sizeError
+      ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]"
+      : "border-slate-300 focus:border-emerald-700 focus:shadow-[0_0_0_3px_rgba(4,120,87,0.12)]"
+  } ${readOnly ? "bg-slate-50 text-slate-700" : "bg-white text-slate-950"}`;
+
+  return (
+    <div className="rounded-sm border border-slate-200 bg-white p-2">
+      <p className="text-xs font-semibold leading-4 text-slate-950">
+        {index + 1}. {typeLabel}: {displayLabel} - {advertisementLabel || "-"}
+      </p>
+
+      <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
+        <div className="space-y-1.5">
+          <div>
+            <label className="mb-1 block text-xs font-semibold leading-4 text-slate-800">
+              {stepText(language, "advertisementSizeFt")} {!readOnly && <span className="text-red-600">*</span>}
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label={`${stepText(language, "advertisementSizeFt")} ${index + 1} width`}
+                value={widthValue}
+                onChange={(event) => onFieldChange?.("width_ft", event.target.value)}
+                readOnly={readOnly}
+                className={`${inputClassName} w-[min(11.5rem,42vw)]`}
+                inputMode="decimal"
+                placeholder="Width (ft)"
+              />
+              <span className="text-xs text-slate-700">ft</span>
+              <span className="text-xs text-slate-700">x</span>
+              <input
+                aria-label={`${stepText(language, "advertisementSizeFt")} ${index + 1} height`}
+                value={heightValue}
+                onChange={(event) => onFieldChange?.("height_ft", event.target.value)}
+                readOnly={readOnly}
+                className={`${inputClassName} w-[min(11.5rem,42vw)]`}
+                inputMode="decimal"
+                placeholder="Height (ft)"
+              />
+              <span className="text-xs text-slate-700">ft</span>
+            </div>
+            {sizeError && !readOnly && (
+              <p className="mt-1 text-xs font-medium leading-4 text-red-600">
+                {sizeError}
+              </p>
+            )}
+          </div>
+
+          <ReadOnlyCalculationInput
+            label={stepText(language, "areaRequired")}
+            value={formatTechnicalDecimal(areaValue)}
+          />
+          <ReadOnlyCalculationInput
+            label={stepText(language, "malaysiaPlanRm")}
+            value={formatTechnicalAmountInput(totalPayable)}
+          />
+        </div>
+
+        <TechnicalCalculationBreakdown row={row} fee={fee} language={language} />
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyCalculationInput({ label, value }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-semibold leading-4 text-slate-800">
+        {label} <span className="text-red-600">*</span>
+      </span>
+      <input
+        value={value || ""}
+        readOnly
+        className="h-8 w-full rounded-sm border border-slate-300 bg-white px-2 text-xs leading-4 text-slate-900"
+      />
+    </label>
+  );
+}
+
+function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
+  const width = parseTechnicalNumber(row.width_ft || row.widthFt);
+  const height = parseTechnicalNumber(row.height_ft || row.heightFt);
+  const hasCompleteSize = width > 0 && height > 0;
+  const areaSqft = hasCompleteSize ? width * height : 0;
+  const areaSqm = hasCompleteSize ? fee.areaSqm : 0;
+
+  return (
+    <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
+      <summary className="cursor-pointer select-none px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">
+        {stepText(language, "calculationBreakdown")}
+      </summary>
+      <div className="border-t border-slate-200 bg-white px-2.5 py-1.5">
+        <div className="grid gap-1 text-xs text-slate-700">
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationSchedule")}
+            value={stepText(language, `calculationSchedule${fee.scheduleNumber}`)}
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationSize")}
+            value={
+              width > 0 && height > 0
+                ? `${formatTechnicalDecimal(width)} ft x ${formatTechnicalDecimal(height)} ft`
+                : "-"
+            }
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationAreaFt")}
+            value={areaSqft ? `${formatTechnicalDecimal(areaSqft)} ft2` : "-"}
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationAreaSqm")}
+            value={
+              areaSqft
+                ? `${formatTechnicalDecimal(areaSqft)} x ${SQFT_TO_SQM} = ${formatTechnicalDecimal(areaSqm)} Sq. m`
+                : "-"
+            }
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, `calculationFirstArea${fee.scheduleNumber}`)}
+            value={
+              fee.usesFixedFirstAreaFee
+                ? `${formatTechnicalDecimal(fee.firstAreaSqm)} Sq. m = ${formatTechnicalCurrency(fee.firstAreaFixedFee)}`
+                : `${formatTechnicalDecimal(fee.firstAreaSqm)} Sq. m x ${formatTechnicalCurrency(fee.firstAreaRate)} = ${formatTechnicalCurrency(fee.firstAreaFee)}`
+            }
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationAdditionalArea")}
+            value={`${formatTechnicalDecimal(fee.additionalAreaSqm || 0)} Sq. m x ${formatTechnicalCurrency(fee.additionalAreaRate)} = ${formatTechnicalCurrency(fee.additionalAreaFee)}`}
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationFeeTotal")}
+            value={formatTechnicalCurrency(fee.feeTotal)}
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationDeposit")}
+            value={formatTechnicalCurrency(fee.deposit)}
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationProcessingFee")}
+            value={formatTechnicalCurrency(fee.processingFee)}
+          />
+          <TechnicalCalculationRow
+            label={stepText(language, "calculationTotalPayable")}
+            value={formatTechnicalCurrency(fee.totalPayable)}
+            strong
+          />
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function TechnicalCalculationRow({ label, value, strong = false }) {
+  return (
+    <div
+      className={`grid gap-2 sm:grid-cols-[210px_minmax(0,1fr)] ${
+        strong ? "border-t border-slate-200 pt-1 font-bold text-slate-900" : ""
+      }`}
+    >
+      <span>{label}</span>
+      <span className="tabular-nums text-slate-800">{value}</span>
+    </div>
+  );
+}
+
 function FeeSheetSection({ label }) {
   return (
-    <div className="grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] gap-2 bg-slate-50 px-2 py-2 font-semibold text-slate-800">
+    <div className="grid grid-cols-[170px_110px_40px_28px_110px_32px_125px] gap-1.5 bg-slate-50 px-2 py-1.5 font-semibold text-slate-800">
       <span>{label}</span>
     </div>
   );
@@ -8069,7 +8866,7 @@ function FeeSheetSizeRow({
   required = false,
   error = "",
 }) {
-  const inputClassName = `h-8 w-full rounded border px-2 py-1 text-right text-[14px] leading-5 outline-none ${
+  const inputClassName = `h-7 w-full rounded border px-2 py-0.5 text-right text-[13px] leading-5 outline-none ${
     error
       ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]"
       : "border-slate-300 focus:border-emerald-700 focus:shadow-[0_0_0_3px_rgba(4,120,87,0.12)]"
@@ -8078,7 +8875,7 @@ function FeeSheetSizeRow({
   }`;
 
   return (
-    <div className="grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] items-center gap-2 bg-white px-2 py-2">
+    <div className="grid grid-cols-[170px_110px_40px_28px_110px_32px_125px] items-center gap-1.5 bg-white px-2 py-1.5">
       <span className="font-semibold text-slate-800">
         {label}
         {required && <span className="ml-1 text-red-600">*</span>}
@@ -8132,18 +8929,18 @@ function FeeSheetRow({
 
   return (
     <div
-      className={`grid grid-cols-[190px_120px_48px_36px_120px_36px_140px] items-center gap-2 px-2 py-2 ${
+      className={`grid grid-cols-[170px_110px_40px_28px_110px_32px_125px] items-center gap-1.5 px-2 py-1.5 ${
         total ? "bg-emerald-50" : emphasized ? "bg-slate-50/70" : "bg-white"
       }`}
     >
       <span className={`${total ? "font-bold" : "font-semibold"} text-slate-800`}>{label}</span>
-      <span className={`rounded border border-slate-300 bg-white px-2 py-1 text-right ${emphasized || total ? "font-bold text-slate-950" : "text-slate-800"}`}>
+      <span className={`rounded border border-slate-300 bg-white px-2 py-0.5 text-right ${emphasized || total ? "font-bold text-slate-950" : "text-slate-800"}`}>
         {value}
       </span>
       <span className="text-slate-700">{unit}</span>
       <span className="text-center text-slate-700">{operator}</span>
       {hasMultiplier ? (
-        <span className="rounded border border-slate-200 bg-white px-2 py-1 text-right text-slate-800">
+        <span className="rounded border border-slate-200 bg-white px-2 py-0.5 text-right text-slate-800">
           {multiplier}
         </span>
       ) : (
@@ -8151,7 +8948,7 @@ function FeeSheetRow({
       )}
       <span className="text-center text-slate-700">{equals || multiplierUnit}</span>
       {hasAmount ? (
-        <span className="rounded border border-slate-300 bg-white px-2 py-1 text-right font-bold text-slate-950">
+        <span className="rounded border border-slate-300 bg-white px-2 py-0.5 text-right font-bold text-slate-950">
           {amount}
         </span>
       ) : (

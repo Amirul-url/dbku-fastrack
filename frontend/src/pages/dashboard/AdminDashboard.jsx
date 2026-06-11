@@ -265,13 +265,20 @@ function AdminHomeDashboard({ user }) {
 
   useEffect(() => {
     window.addEventListener("fastrack:applications-changed", fetchApplications);
+    window.addEventListener("focus", fetchApplications);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchApplications({ silent: true });
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     const interval = window.setInterval(
       () => fetchApplications({ silent: true }),
-      15000
+      5000
     );
 
     return () => {
       window.removeEventListener("fastrack:applications-changed", fetchApplications);
+      window.removeEventListener("focus", fetchApplications);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(interval);
     };
   }, [fetchApplications]);
@@ -444,6 +451,10 @@ function isImportantAdminActivity(activity, userDepartment) {
     return actorDepartment === userDepartment;
   }
 
+  if (userDepartment === "IKL (TECHNICAL)") {
+    return actorDepartment === userDepartment;
+  }
+
   if (userDepartment === "KU(IKL)") {
     return (
       title.includes("submitted") ||
@@ -540,6 +551,10 @@ function getAdminActivityLogTitle(activity, t) {
     return t("admin.dashboard.activityPaymentSubmitted", "Payment proof submitted");
   }
 
+  if (normalized === "application reviewed") {
+    return t("admin.dashboard.activityReviewed", "Application reviewed");
+  }
+
   return title || t("admin.dashboard.activityUpdated", "Application updated");
 }
 
@@ -625,6 +640,16 @@ function getAdminActivityLogDescription(activity, application, t) {
     ).replace("{reference}", reference);
   }
 
+  if (title === "application reviewed") {
+    const department = getActivityDepartment(activity) || String(activity?.actor || "").trim();
+    return t(
+      "admin.dashboard.activityReviewedDesc",
+      `${reference} was reviewed by {department}.`
+    )
+      .replace("{reference}", reference)
+      .replace("{department}", department || "ALiS");
+  }
+
   if (description) return description;
 
   return t(
@@ -707,7 +732,22 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (["technical_review", "technical_site_visit"].includes(status)) {
+    if (userDepartment === "IKL (TECHNICAL)" && status === "technical_site_visit") {
+      return t(
+        "admin.dashboard.activityIklTechnicalReview",
+        "IKL(TECHNICAL) review required"
+      );
+    }
+
     if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(userDepartment)) {
+      if (hasTechnicalDepartmentReview(application, userDepartment)) {
+        if (status === "technical_site_visit") {
+          return t("admin.dashboard.activitySentIklTechnical", "Sent to IKL(TECH)");
+        }
+
+        return t("admin.dashboard.activityReviewSubmitted", "Review submitted");
+      }
+
       return t(
         "admin.dashboard.activityUnitTechnicalReview",
         `${userDepartment} technical review required`
@@ -768,7 +808,28 @@ function getAdminActivityDescription(application, userDepartment, t) {
   }
 
   if (["technical_review", "technical_site_visit"].includes(status)) {
+    if (userDepartment === "IKL (TECHNICAL)" && status === "technical_site_visit") {
+      return t(
+        "admin.dashboard.activityIklTechnicalDesc",
+        `${reference} is ready for IKL(TECHNICAL) review.`
+      ).replace("{reference}", reference);
+    }
+
     if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(userDepartment)) {
+      if (hasTechnicalDepartmentReview(application, userDepartment)) {
+        if (status === "technical_site_visit") {
+          return t(
+            "admin.dashboard.activitySentIklTechnicalDesc",
+            `Technical unit feedback for ${reference} has been sent to IKL(TECHNICAL).`
+          ).replace("{reference}", reference);
+        }
+
+        return t(
+          "admin.dashboard.activityReviewSubmittedDesc",
+          `Your unit review for ${reference} has been submitted.`
+        ).replace("{reference}", reference);
+      }
+
       return t(
         "admin.dashboard.activityUnitTechnicalDesc",
         `Application ${reference} is ready for ${userDepartment} review.`
@@ -843,13 +904,20 @@ function PersonalTaskDashboard() {
 
   useEffect(() => {
     window.addEventListener("fastrack:applications-changed", fetchApplications);
+    window.addEventListener("focus", fetchApplications);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchApplications({ silent: true });
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     const interval = window.setInterval(
       () => fetchApplications({ silent: true }),
-      15000
+      5000
     );
 
     return () => {
       window.removeEventListener("fastrack:applications-changed", fetchApplications);
+      window.removeEventListener("focus", fetchApplications);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(interval);
     };
   }, [fetchApplications]);
@@ -979,6 +1047,7 @@ function ClaimableTaskView({
             {
               key: "reference",
               label: t("common.reference"),
+              className: "w-[9rem] whitespace-nowrap",
               render: (application) => (
                 <Link
                   to={getApplicationViewPath(application)}
@@ -991,12 +1060,14 @@ function ClaimableTaskView({
             {
               key: "type",
               label: t("common.type"),
+              className: "w-[7rem] whitespace-nowrap",
               render: (application) => getApplicationType(application, language),
             },
-            { key: "project", label: t("common.project"), render: getProjectName },
+            { key: "project", label: t("common.project"), className: "min-w-[18rem]", render: getProjectName },
             {
               key: "status",
               label: t("common.status"),
+              className: "w-[14rem] whitespace-nowrap",
               render: (application) => (
                 <StatusPill value={getDashboardTaskStatusLabel(application, selected, t)} />
               ),
@@ -1004,6 +1075,7 @@ function ClaimableTaskView({
             {
               key: "updated",
               label: t("common.updated"),
+              className: "w-[11rem] whitespace-nowrap",
               render: (application) => (
                 <span className="whitespace-nowrap text-[12px] leading-5">
                   {formatCompactDateTime(application.updated_at)}
@@ -1015,6 +1087,7 @@ function ClaimableTaskView({
                   {
                     key: "action",
                     label: t("common.action"),
+                    className: "w-[8rem] whitespace-nowrap",
                     render: (application) =>
                       isUnitActionableApplication(application, selected) ? (
                         <LinkButton
@@ -1158,6 +1231,13 @@ function shouldKeepCompletedRecordInQueue(application, unit) {
       "sent to technical review",
       "technical review",
     ]);
+  }
+
+  if (
+    EXTERNAL_TECHNICAL_DEPARTMENTS.has(department) &&
+    TECHNICAL_DEPARTMENT_STATUS_SET.has(status)
+  ) {
+    return hasTechnicalDepartmentReview(application, department);
   }
 
   if (status !== "rejected") return false;
@@ -1316,13 +1396,22 @@ function getDashboardTaskStatusLabel(application, unit, t) {
   }
 
   if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
-    const selectedDepartments = getSelectedTechnicalDepartments(application);
-    const route = [...selectedDepartments, "IKL (TECHNICAL)"].join(" / ");
-    return `${t(`status.${status}`, formatWorkflowStatus(status))}: ${route}`;
+    return t("status.ikl_technical_review", "IKL(TECH) Review");
   }
 
   if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit?.department) && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
-    return `${unit.department} Review`;
+    if (hasTechnicalDepartmentReview(application, unit.department)) {
+      if (status === "technical_site_visit") {
+        return t("admin.dashboard.statusSentToIklTechnical", "Sent to IKL(TECH)");
+      }
+
+      return t("admin.dashboard.statusReviewSubmitted", "Review Submitted");
+    }
+
+    return t("admin.dashboard.statusUnitReview", "{department} Review").replace(
+      "{department}",
+      unit.department
+    );
   }
 
   return t(`status.${status}`, formatWorkflowStatus(status));
