@@ -36,6 +36,7 @@ import {
   getApplicationLocation,
   getApplicationReference,
   getApplicationType,
+  getPrimaryApplicationType,
   getInvoiceNo,
   getLicenseId,
   getProjectName,
@@ -1575,19 +1576,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    if (
-      action?.buildPayload === buildIklTechnicalDecisionPayload &&
-      userDepartment === "IKL (TECHNICAL)" &&
-      getTechnicalFeeRowsFromSite(technicalSite).some(
-        (row) =>
-          parseTechnicalNumber(row.width_ft || row.widthFt) <= 0 ||
-          parseTechnicalNumber(row.height_ft || row.heightFt) <= 0
-      )
-    ) {
-      setTechnicalSizeError(t("workspace.technical.sizeRequired", "Please enter the advertisement width and height first."));
-      return;
-    }
-
     if (action.requiresReceipt && !selectedRecord.form_data?.payment?.receipt_file) {
       setError("Please wait for the applicant to upload a payment receipt first.");
       return;
@@ -2148,8 +2136,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 },
                 {
                   key: "type",
-                  label: t("common.type"),
-                  render: (app) => getApplicationType(app, language),
+                  label: t("common.applicationType", "Type of Application"),
+                  render: (app) =>
+                    userDepartment === "IKL (TECHNICAL)"
+                      ? getPrimaryApplicationType(app, language)
+                      : getApplicationType(app, language),
                 },
                 { key: "project", label: t("common.project"), render: getProjectName },
                 {
@@ -2251,6 +2242,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               <div className="space-y-4">
               <ApplicationSummary
                 app={selectedRecord}
+                uniformText={isFocusedPersonalWorkspace && userDepartment === "IKL (TECHNICAL)"}
                 labels={{
                   reference: t("common.reference", "Reference"),
                   selectedApplication: t("workspace.selectedApplication"),
@@ -2269,7 +2261,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Button
                       variant="secondary"
                       icon="visibility"
-                      className="min-h-8 px-2.5 py-1 text-[13px] leading-5"
+                      className="min-h-8 px-2.5 py-1 text-sm leading-5"
                       onClick={() => openSelectedFormView(selectedRecord.id)}
                     >
                       {t("workspace.openForm")}
@@ -6373,8 +6365,8 @@ const configs = {
     },
     technicalActions: [
       {
-        label: "Supported",
-        labelKey: "workspace.decision.supported",
+        label: "Yes",
+        labelKey: "workspace.decision.yes",
         icon: "check_circle",
         decision: "Supported",
         requiresComment: false,
@@ -6383,19 +6375,8 @@ const configs = {
         buildPayload: buildIklTechnicalDecisionPayload,
       },
       {
-        label: "Supported with Conditions",
-        labelKey: "workspace.decision.supportedConditions",
-        icon: "rule",
-        variant: "secondary",
-        decision: "Supported with Conditions",
-        requiresComment: true,
-        success: "Technical review saved.",
-        successKey: "workspace.message.technicalSaved",
-        buildPayload: buildIklTechnicalDecisionPayload,
-      },
-      {
-        label: "Not Supported",
-        labelKey: "workspace.decision.notSupported",
+        label: "No",
+        labelKey: "workspace.decision.no",
         icon: "cancel",
         variant: "danger",
         decision: "Not Supported",
@@ -7117,14 +7098,14 @@ function IklWorkspaceSections({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-sm leading-5">
       {showScreeningDecision && (
-        <section className="rounded-md border border-slate-200 bg-white p-2.5 text-[13px] leading-5">
+        <section className="rounded-md border border-slate-200 bg-white p-2.5 text-sm leading-5">
           <div className="mb-2.5">
             <h3 className="text-[14px] font-semibold leading-5 text-slate-950">
               {t(screeningCopy.titleKey, screeningCopy.title)}
             </h3>
-            <p className="mt-1 text-[13px] leading-5 text-slate-500">
+            <p className="mt-1 text-sm leading-5 text-slate-500">
               {t(screeningCopy.descriptionKey, screeningCopy.description)}
             </p>
           </div>
@@ -7132,7 +7113,7 @@ function IklWorkspaceSections({
           <div className="space-y-3">
             <Field
               label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}
-              labelClassName="!text-[13px]"
+              labelClassName="!text-sm"
             >
               <select
                 value={decision}
@@ -7152,7 +7133,7 @@ function IklWorkspaceSections({
 
             <Field
               label={t(config.commentLabelKey, config.commentLabel || "Notes")}
-              labelClassName="!text-[13px]"
+              labelClassName="!text-sm"
             >
               <textarea
                 value={comment}
@@ -7168,7 +7149,7 @@ function IklWorkspaceSections({
                 icon="fact_check"
                 disabled={saving}
                 onClick={() => submitAction(config.screeningAction)}
-                className="min-h-8 px-2.5 py-1 text-[13px] sm:w-auto"
+                className="min-h-8 px-2.5 py-1 text-sm sm:w-auto"
               >
                 {saving
                   ? t("workspace.saving")
@@ -7238,25 +7219,31 @@ function IklWorkspaceSections({
           )}
 
           <div className="rounded-md border border-slate-200 bg-white p-3">
-            <div className="space-y-3">
-              <Field label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}>
-                <select
-                value={technicalDecision}
-                onChange={(event) => setTechnicalDecision(event.target.value)}
-                className="form-input min-h-10 max-w-xl"
+            <div className="space-y-2.5">
+              <Field
+                label={t("workspace.technical.supportQuestion", "Support?")}
+                labelClassName="!mb-1 !text-[13px] !leading-4"
               >
-                <option value="">
-                  {t("workspace.decision.selectDecision", "Select decision")}
-                </option>
-                {config.technicalActions.map((action) => (
-                  <option key={action.decision} value={action.decision}>
-                    {t(action.labelKey, action.label)}
+                <select
+                  value={technicalDecision}
+                  onChange={(event) => setTechnicalDecision(event.target.value)}
+                  className="form-input form-input-sm max-w-sm"
+                >
+                  <option value="">
+                    {t("workspace.decision.selectDecision", "Select decision")}
+                  </option>
+                  {config.technicalActions.map((action) => (
+                    <option key={action.decision} value={action.decision}>
+                      {t(action.labelKey, action.label)}
                     </option>
                   ))}
                 </select>
               </Field>
 
-              <Field label={t("workspace.technical.siteRemarks")}>
+              <Field
+                label={t("workspace.comment.remarks", "Remarks")}
+                labelClassName="!mb-1 !text-[13px] !leading-4"
+              >
                 <textarea
                   value={technicalSite.site_remarks}
                   onChange={(event) => {
@@ -7266,12 +7253,12 @@ function IklWorkspaceSections({
                       site_remarks: event.target.value,
                     }));
                   }}
-                  rows="4"
-                  className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  rows="2"
+                  className={`form-input form-input-sm !min-h-[58px] ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t("workspace.technical.siteRemarksPlaceholder")}
                 />
                 {commentError && (
-                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                  <p className="mt-1.5 text-sm font-medium leading-5 text-red-600">
                     {commentError}
                   </p>
                 )}
@@ -7640,7 +7627,7 @@ function TechnicalApplicationTypePanel({
     <section className="rounded-sm border border-slate-200 bg-white">
       <div className="border-b border-black bg-slate-50 px-3 py-2">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-[13px] font-bold leading-5 text-slate-800">
+          <h3 className="text-sm font-bold leading-5 text-slate-800">
             {stepText(language, "typeOfApplication")}{" "}
             <span className="text-red-600" aria-hidden="true">*</span>
           </h3>
@@ -7690,7 +7677,7 @@ function TechnicalApplicationTypePanel({
         {subtypeOptions.length > 0 && (
           <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white">
           <table className="min-w-[680px] w-full border-collapse text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-bold text-slate-700">
+            <thead className="bg-slate-50 text-left text-sm font-bold text-slate-700">
               <tr>
                 <th className="w-16 border-b border-slate-200 px-3 py-2">
                   {stepText(language, "advertisementNumber")}
@@ -7737,7 +7724,7 @@ function TechnicalApplicationTypePanel({
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">
                       <select
-                        className="spa-input"
+                        className="spa-input !text-sm"
                         value={row.displayType || ""}
                         disabled={!canEdit}
                         onChange={(event) => handleDisplayTypeChange(index, event.target.value)}
@@ -7755,7 +7742,7 @@ function TechnicalApplicationTypePanel({
                     <td className="border-t border-slate-100 px-3 py-3">
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <select
-                          className="spa-input min-w-0 flex-1"
+                          className="spa-input min-w-0 flex-1 !text-sm"
                           value={selectedAdvertisementValue}
                           disabled={!canEdit}
                           onChange={(event) => handleAdvertisementTypeChange(index, event.target.value)}
@@ -7771,7 +7758,7 @@ function TechnicalApplicationTypePanel({
                         </select>
                         <button
                           type="button"
-                          className="shrink-0 rounded-sm bg-[#006d32] px-3 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                          className="shrink-0 rounded-sm bg-[#006d32] px-3 py-2 text-sm font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
                           disabled={!canEdit}
                           onClick={() => handleOpenAddAdvertisementType(index)}
                         >
@@ -7779,7 +7766,7 @@ function TechnicalApplicationTypePanel({
                         </button>
                         <button
                           type="button"
-                          className="shrink-0 rounded-sm border border-red-600 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                          className="shrink-0 rounded-sm border border-red-600 bg-white px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
                           disabled={!canEdit}
                           onClick={() => handleDeleteRow(index)}
                         >
@@ -7796,7 +7783,7 @@ function TechnicalApplicationTypePanel({
           <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
             <button
               type="button"
-              className="rounded-sm border border-emerald-700 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+              className="rounded-sm border border-emerald-700 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
               disabled={!canEdit}
               onClick={handleAddRow}
             >
@@ -7825,11 +7812,11 @@ function TechnicalApplicationTypePanel({
           </div>
 
           <div className="space-y-2 px-4 py-4">
-            <label className="text-xs font-bold text-slate-700">
+            <label className="text-sm font-bold text-slate-700">
               {stepText(language, "advertisementType")}
             </label>
             <input
-              className="spa-input"
+              className="spa-input !text-sm"
               value={advertisementTypeModal.value}
               autoFocus
               onChange={(event) =>
@@ -7848,14 +7835,14 @@ function TechnicalApplicationTypePanel({
           <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
             <button
               type="button"
-              className="rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              className="rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
               onClick={handleCloseAdvertisementTypeModal}
             >
               {stepText(language, "cancel")}
             </button>
             <button
               type="button"
-              className="rounded-sm bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded-sm bg-[#006d32] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
               disabled={!String(advertisementTypeModal.value || "").trim()}
               onClick={handleSaveAdvertisementTypeModal}
             >
@@ -8223,29 +8210,29 @@ function TechnicalDepartmentRemarks({ app, t, leadingRows = [], compact = false 
   return (
     <div className="rounded-md border border-slate-200 bg-white">
       <div className={`border-b border-slate-200 px-3 ${compact ? "py-1.5" : "py-2"}`}>
-        <h3 className={`${compact ? "text-[14px] leading-5" : "text-[16px] leading-6"} font-semibold text-slate-950`}>
+        <h3 className="text-sm font-semibold leading-5 text-slate-950">
           {t("workspace.technical.compiledRemarksTitle")}
         </h3>
         {!compact && (
-          <p className="mt-1 text-[14px] leading-5 text-slate-500">
+          <p className="mt-1 text-sm leading-5 text-slate-500">
             {t("workspace.technical.compiledRemarksDesc")}
           </p>
         )}
       </div>
       <div className="divide-y divide-slate-100">
-        <div className={`hidden grid-cols-1 gap-4 bg-slate-50 px-3 font-semibold uppercase leading-5 tracking-wide text-slate-500 md:grid md:grid-cols-[110px_1fr] ${compact ? "py-1.5 text-[12px]" : "py-2 text-[13px]"}`}>
+        <div className={`hidden grid-cols-1 gap-4 bg-slate-50 px-3 text-sm font-semibold uppercase leading-5 tracking-wide text-slate-500 md:grid md:grid-cols-[110px_1fr] ${compact ? "py-1.5" : "py-2"}`}>
           <div>{t("common.department", "Department")}</div>
           <div>{t("workspace.comment.remarks", "Remarks")}</div>
         </div>
         {leadingRows.map((review) => (
-          <div key={review.department} className={`grid grid-cols-1 gap-4 px-3 leading-5 md:grid-cols-[110px_1fr] ${compact ? "py-1.5 text-[13px]" : "py-2 text-[14px]"}`}>
+          <div key={review.department} className={`grid grid-cols-1 gap-4 px-3 text-sm leading-5 md:grid-cols-[110px_1fr] ${compact ? "py-1.5" : "py-2"}`}>
             <div className="font-semibold text-slate-950">{review.department}</div>
             <div className="min-w-0 text-slate-700">
               {review.remarks ? (
                 <>
                   <p className="whitespace-pre-wrap leading-5">{review.remarks}</p>
                   {review.reviewed_at && (
-                    <p className="mt-1 text-[13px] leading-5 text-slate-400">
+                    <p className="mt-1 text-sm leading-5 text-slate-400">
                       {formatDateTime(review.reviewed_at)}
                     </p>
                   )}
@@ -8257,7 +8244,7 @@ function TechnicalDepartmentRemarks({ app, t, leadingRows = [], compact = false 
           </div>
         ))}
         {departments.length === 0 && leadingRows.length === 0 && (
-          <div className={`px-3 leading-5 text-slate-500 ${compact ? "py-2 text-[13px]" : "py-3 text-[14px]"}`}>
+          <div className={`px-3 text-sm leading-5 text-slate-500 ${compact ? "py-2" : "py-3"}`}>
             {t("workspace.technical.noExternalDepartments", "No external departments selected")}
           </div>
         )}
@@ -8265,13 +8252,13 @@ function TechnicalDepartmentRemarks({ app, t, leadingRows = [], compact = false 
           const review = reviews?.[department];
 
           return (
-            <div key={department} className={`grid grid-cols-1 gap-4 px-3 leading-5 md:grid-cols-[110px_1fr] ${compact ? "py-1.5 text-[13px]" : "py-2 text-[14px]"}`}>
+            <div key={department} className={`grid grid-cols-1 gap-4 px-3 text-sm leading-5 md:grid-cols-[110px_1fr] ${compact ? "py-1.5" : "py-2"}`}>
               <div className="font-semibold text-slate-950">{department}</div>
               <div className="min-w-0 text-slate-700">
                 {review?.remarks ? (
                   <>
                     <p className="whitespace-pre-wrap leading-5">{review.remarks}</p>
-                    <p className="mt-1 text-[13px] leading-5 text-slate-400">
+                    <p className="mt-1 text-sm leading-5 text-slate-400">
                       {formatDateTime(review.reviewed_at)}
                     </p>
                   </>
@@ -8440,18 +8427,18 @@ function TechnicalSiteVisitFields({
         <h3 className="text-[14px] font-semibold leading-5 text-slate-950">
           {t("workspace.technical.siteVisitTitle")}
         </h3>
-        <p className="mt-0.5 text-[13px] leading-5 text-slate-600">
+        <p className="mt-0.5 text-sm leading-5 text-slate-600">
           {t("workspace.technical.siteVisitDesc")}
         </p>
       </div>
 
       <div>
-        <p className="mb-1 text-[13px] font-semibold leading-5 text-slate-700">
+        <p className="mb-1 text-sm font-semibold leading-5 text-slate-700">
           {t("workspace.technical.sitePhoto")}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {!readOnly && (
-            <label className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[13px] font-semibold leading-5 text-white hover:bg-emerald-800">
+            <label className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-sm font-semibold leading-5 text-white hover:bg-emerald-800">
               <Icon name="add_photo_alternate" className="mr-1 text-[15px]" />
               {t("workspace.technical.uploadSitePhoto")}
               <input
@@ -8467,12 +8454,12 @@ function TechnicalSiteVisitFields({
             </label>
           )}
           {sitePhotos.length > 0 && (
-            <span className="text-[13px] font-medium leading-5 text-emerald-700">
+            <span className="text-sm font-medium leading-5 text-emerald-700">
               {t("workspace.technical.sitePhotoUploaded")}: {sitePhotos.length}
             </span>
           )}
           {readOnly && sitePhotos.length === 0 && (
-            <span className="text-[13px] font-medium leading-5 text-slate-500">
+            <span className="text-sm font-medium leading-5 text-slate-500">
               {t("workspace.technical.noSitePhoto", "No site photo uploaded.")}
             </span>
           )}
@@ -8488,7 +8475,7 @@ function TechnicalSiteVisitFields({
             >
               <div className="flex min-w-0 items-center gap-2">
                 <Icon name="image" className="shrink-0 text-[18px] text-slate-500" />
-                <span className="truncate text-[13px] font-medium leading-5 text-slate-700">
+                <span className="truncate text-sm font-medium leading-5 text-slate-700">
                   {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
                 </span>
               </div>
@@ -8575,7 +8562,7 @@ function TechnicalFeeScheduleReference({ scheduleNumbers = [] }) {
   const visibleSchedules = scheduleNumbers.length > 0 ? scheduleNumbers : ["1"];
 
   return (
-    <div className="mt-2 rounded-sm border border-slate-300 bg-white px-3 py-3 text-[12px] leading-5 text-slate-950">
+    <div className="mt-2 rounded-sm border border-slate-300 bg-white px-3 py-3 text-sm leading-5 text-slate-950">
       <div className="mb-3 text-center">
         <div className="mx-auto flex max-w-[420px] items-center justify-center gap-3">
           <span className="h-px flex-1 bg-slate-900" />
@@ -8681,7 +8668,7 @@ function TechnicalFeeCalculationRow({
   const hasCompleteSize = parseTechnicalNumber(widthValue) > 0 && parseTechnicalNumber(heightValue) > 0;
   const areaValue = hasCompleteSize ? fee.areaSqm : 0;
   const totalPayable = hasCompleteSize && fee.feeTotal ? fee.totalPayable : 0;
-  const inputClassName = `h-8 rounded-sm border px-2 text-xs leading-4 outline-none ${
+  const inputClassName = `h-8 rounded-sm border px-2 text-sm leading-5 outline-none ${
     sizeError
       ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]"
       : "border-slate-300 focus:border-emerald-700 focus:shadow-[0_0_0_3px_rgba(4,120,87,0.12)]"
@@ -8689,15 +8676,15 @@ function TechnicalFeeCalculationRow({
 
   return (
     <div className="rounded-sm border border-slate-200 bg-white p-2">
-      <p className="text-xs font-semibold leading-4 text-slate-950">
+      <p className="text-sm font-semibold leading-5 text-slate-950">
         {index + 1}. {typeLabel}: {displayLabel} - {advertisementLabel || "-"}
       </p>
 
       <div className="mt-2 grid gap-3 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
         <div className="space-y-1.5">
           <div>
-            <label className="mb-1 block text-xs font-semibold leading-4 text-slate-800">
-              {stepText(language, "advertisementSizeFt")} {!readOnly && <span className="text-red-600">*</span>}
+            <label className="mb-1 block text-sm font-semibold leading-5 text-slate-800">
+              {stepText(language, "advertisementSizeFt")}
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -8709,8 +8696,8 @@ function TechnicalFeeCalculationRow({
                 inputMode="decimal"
                 placeholder="Width (ft)"
               />
-              <span className="text-xs text-slate-700">ft</span>
-              <span className="text-xs text-slate-700">x</span>
+              <span className="text-sm text-slate-700">ft</span>
+              <span className="text-sm text-slate-700">x</span>
               <input
                 aria-label={`${stepText(language, "advertisementSizeFt")} ${index + 1} height`}
                 value={heightValue}
@@ -8720,10 +8707,10 @@ function TechnicalFeeCalculationRow({
                 inputMode="decimal"
                 placeholder="Height (ft)"
               />
-              <span className="text-xs text-slate-700">ft</span>
+              <span className="text-sm text-slate-700">ft</span>
             </div>
             {sizeError && !readOnly && (
-              <p className="mt-1 text-xs font-medium leading-4 text-red-600">
+              <p className="mt-1 text-sm font-medium leading-5 text-red-600">
                 {sizeError}
               </p>
             )}
@@ -8748,13 +8735,13 @@ function TechnicalFeeCalculationRow({
 function ReadOnlyCalculationInput({ label, value }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold leading-4 text-slate-800">
-        {label} <span className="text-red-600">*</span>
+      <span className="mb-1 block text-sm font-semibold leading-5 text-slate-800">
+        {label}
       </span>
       <input
         value={value || ""}
         readOnly
-        className="h-8 w-full rounded-sm border border-slate-300 bg-white px-2 text-xs leading-4 text-slate-900"
+        className="h-8 w-full rounded-sm border border-slate-300 bg-white px-2 text-sm leading-5 text-slate-900"
       />
     </label>
   );
@@ -8769,11 +8756,11 @@ function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
 
   return (
     <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
-      <summary className="cursor-pointer select-none px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">
+      <summary className="cursor-pointer select-none px-2.5 py-1.5 text-sm font-bold leading-5 text-slate-700 hover:bg-slate-100">
         {stepText(language, "calculationBreakdown")}
       </summary>
       <div className="border-t border-slate-200 bg-white px-2.5 py-1.5">
-        <div className="grid gap-1 text-xs text-slate-700">
+        <div className="grid gap-1 text-sm leading-5 text-slate-700">
           <TechnicalCalculationRow
             label={stepText(language, "calculationSchedule")}
             value={stepText(language, `calculationSchedule${fee.scheduleNumber}`)}

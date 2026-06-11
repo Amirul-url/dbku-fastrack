@@ -412,6 +412,42 @@ export function getApplicationType(app, language = "en") {
   return labelMap[rawType] || rawType;
 }
 
+export function getPrimaryApplicationType(app, language = "en") {
+  const step1 = getStep(app, "step_1");
+  const selectedTypes = Array.isArray(step1.application_type_options)
+    ? step1.application_type_options
+    : String(step1.application_type || "").split(",");
+  const typeLabels = selectedTypes
+    .map((value) => getLocalizedApplicationTypeLabel(value, language))
+    .filter(Boolean);
+
+  if (typeLabels.length > 0) {
+    return [...new Set(typeLabels)].join(", ");
+  }
+
+  const subtype = String(step1.application_subtype || "").trim().toLowerCase();
+  if (subtype.startsWith("building_")) {
+    return getLocalizedApplicationTypeLabel("building", language);
+  }
+  if (subtype.startsWith("open_space_") || subtype === "free_standing_billboard") {
+    return getLocalizedApplicationTypeLabel("open_space", language);
+  }
+
+  const rawType =
+    step1.application_type_label ||
+    step1.project_category ||
+    step1.nature_of_application ||
+    app?.application_type_label ||
+    app?.application_type ||
+    "";
+  const mainType = String(rawType).split(/\s+-\s+/)[0].trim();
+
+  return (
+    getLocalizedApplicationTypeLabel(mainType, language) ||
+    String(getApplicationType(app, language) || "").split(/\s+-\s+/)[0].trim()
+  );
+}
+
 function getAdvertisementRowsTypeLabels(rows, typeLabel, language = "en") {
   if (!Array.isArray(rows) || !typeLabel) return [];
 

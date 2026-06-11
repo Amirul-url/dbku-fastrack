@@ -19,6 +19,7 @@ import {
   formatWorkflowStatus,
   getApplicationReference,
   getApplicationType,
+  getPrimaryApplicationType,
   getProjectName,
   normalizeStatus,
 } from "../../utils/workflow";
@@ -1060,8 +1061,14 @@ function ClaimableTaskView({
             {
               key: "type",
               label: t("common.type"),
-              className: "w-[7rem] whitespace-nowrap",
-              render: (application) => getApplicationType(application, language),
+              className:
+                selected.department === "IKL (TECHNICAL)"
+                  ? "w-[11rem] whitespace-nowrap"
+                  : "w-[7rem] whitespace-nowrap",
+              render: (application) =>
+                selected.department === "IKL (TECHNICAL)"
+                  ? getPrimaryApplicationType(application, language)
+                  : getApplicationType(application, language),
             },
             { key: "project", label: t("common.project"), className: "min-w-[18rem]", render: getProjectName },
             {

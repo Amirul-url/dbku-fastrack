@@ -194,6 +194,8 @@ export function StatusPill({ value, size = "md" }) {
   const sizeClass =
     size === "sm"
       ? "px-2 py-0 text-[12px] leading-4"
+      : size === "lg"
+        ? "px-2.5 py-0.5 text-sm leading-5"
       : "px-2.5 py-0.5 text-[13px] leading-5";
 
   if (
@@ -357,25 +359,44 @@ export function WorkflowStrip({ currentStatus, language = "en" }) {
   );
 }
 
-export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
+export function ApplicationSummary({
+  app,
+  labels = {},
+  actions,
+  statusLabel,
+  uniformText = false,
+}) {
   if (!app) return null;
   const status = statusLabel || formatWorkflowStatus(app.status);
+  const summaryTextClass = uniformText ? "text-sm" : "text-[13px]";
 
   return (
     <div className="rounded-md border border-slate-200 bg-slate-50 p-2.5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 text-[13px] leading-5 sm:grid-cols-2 lg:grid-cols-4">
-          <Info label={labels.reference || "Reference"} value={getApplicationReference(app)} />
+        <div className={`grid min-w-0 flex-1 grid-cols-1 gap-3 leading-5 sm:grid-cols-2 lg:grid-cols-4 ${summaryTextClass}`}>
+          <Info
+            label={labels.reference || "Reference"}
+            value={getApplicationReference(app)}
+            uniformText={uniformText}
+          />
           <div>
-            <p className="text-[11px] font-semibold uppercase leading-4 tracking-wide text-slate-500">
+            <p className={`${uniformText ? "text-sm leading-5" : "text-[11px] leading-4"} font-semibold uppercase tracking-wide text-slate-500`}>
               {labels.status || "Status"}
             </p>
             <div className="mt-1">
-              <StatusPill value={status} size="sm" />
+              <StatusPill value={status} size={uniformText ? "lg" : "sm"} />
             </div>
           </div>
-          <Info label={labels.created || "Created"} value={formatDateTime(app.created_at)} />
-          <Info label={labels.updated || "Updated"} value={formatDateTime(app.updated_at)} />
+          <Info
+            label={labels.created || "Created"}
+            value={formatDateTime(app.created_at)}
+            uniformText={uniformText}
+          />
+          <Info
+            label={labels.updated || "Updated"}
+            value={formatDateTime(app.updated_at)}
+            uniformText={uniformText}
+          />
         </div>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
@@ -383,13 +404,15 @@ export function ApplicationSummary({ app, labels = {}, actions, statusLabel }) {
   );
 }
 
-export function Info({ label, value }) {
+export function Info({ label, value, uniformText = false }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase leading-4 tracking-wide text-slate-500">
+      <p className={`${uniformText ? "text-sm leading-5" : "text-[11px] leading-4"} font-semibold uppercase tracking-wide text-slate-500`}>
         {label}
       </p>
-      <p className="mt-1 text-[13px] font-medium leading-5 text-slate-800">{value || "-"}</p>
+      <p className={`mt-1 font-medium leading-5 text-slate-800 ${uniformText ? "text-sm" : "text-[13px]"}`}>
+        {value || "-"}
+      </p>
     </div>
   );
 }
