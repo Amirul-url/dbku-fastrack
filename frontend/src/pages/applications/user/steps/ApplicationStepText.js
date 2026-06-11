@@ -1,5 +1,6 @@
 const TEXT = {
   en: {
+    reference: "Reference",
     status: "Status",
     applicationType: "Application Type",
     prepareCase: "Prepare Case",
@@ -193,6 +194,7 @@ const TEXT = {
     cityState: "City / State",
   },
   ms: {
+    reference: "Rujukan",
     status: "Status",
     applicationType: "Jenis Permohonan",
     prepareCase: "Sedia Kes",

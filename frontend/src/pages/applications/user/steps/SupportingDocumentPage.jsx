@@ -9,16 +9,16 @@ import {
 } from "../../../../services/api";
 import {
   canEditApplicationForm,
-  getApplicationType,
 } from "../../../../utils/workflow";
+import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import {
-  applicationStatusLabel,
   documentDescription,
   documentTitle,
   stepText,
 } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
+import ApplicationSummary from "./ApplicationSummary";
 
 const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
 const SUPPORTING_DOCUMENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -237,7 +237,7 @@ function SupportingDocumentPage({
         saved_at: new Date().toISOString(),
       };
 
-      await apiRequest(`/applications/${applicationId}/`, {
+      const savedApplication = await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
           current_step: goNext ? 4 : 3,
@@ -246,6 +246,9 @@ function SupportingDocumentPage({
           },
         }),
       });
+      if (!isAdminReview) {
+        markApplicantRecordSeen("status", savedApplication);
+      }
 
       if (goNext) {
         navigate(
@@ -444,7 +447,11 @@ function SupportingDocumentPage({
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference step1={step1} language={language} />
+            <ApplicationSummary
+              application={applicationRecord}
+              step1={step1}
+              language={language}
+            />
 
             <div className="space-y-7 p-4 lg:p-5">
               <SupportingTable
@@ -519,26 +526,6 @@ function SupportingDocumentPage({
         </main>
       </div>
     </Layout>
-  );
-}
-
-function ApplicationReference({ step1, language }) {
-  const tx = (key) => stepText(language, key);
-
-  return (
-    <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
-      <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>{tx("status")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {applicationStatusLabel(language, step1.status)}
-        </p>
-
-        <p>{tx("applicationType")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {getApplicationType({ form_data: { step_1: step1 } }, language)}
-        </p>
-      </div>
-    </div>
   );
 }
 

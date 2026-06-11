@@ -5,11 +5,12 @@ import { useLanguage } from "../../../../context/LanguageContext";
 import { apiRequest } from "../../../../services/api";
 import {
   canEditApplicationForm,
-  getApplicationType,
 } from "../../../../utils/workflow";
+import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import { stepText } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
+import ApplicationSummary from "./ApplicationSummary";
 
 const stateCityOptions = {
   Johor: [
@@ -152,10 +153,6 @@ function normalizeStateCity(state, city) {
   }
 
   return { state: "", city: "" };
-}
-
-function getStepOneApplicationTypeText(language, step1 = {}) {
-  return getApplicationType({ form_data: { step_1: step1 } }, language);
 }
 
 function SubmittingPersonPage({
@@ -335,7 +332,7 @@ function SubmittingPersonPage({
     }
 
     try {
-      await apiRequest(`/applications/${applicationId}/`, {
+      const savedApplication = await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
           current_step: goNext ? 3 : 2,
@@ -344,6 +341,9 @@ function SubmittingPersonPage({
           },
         }),
       });
+      if (!isAdminReview) {
+        markApplicantRecordSeen("status", savedApplication);
+      }
 
       if (goNext) {
         navigate(
@@ -441,9 +441,10 @@ function SubmittingPersonPage({
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference
+            <ApplicationSummary
+              application={applicationRecord}
+              step1={applicationRecord?.form_data?.step_1 || {}}
               language={language}
-              applicationRecord={applicationRecord}
             />
 
             <fieldset disabled={isReadOnly} className="p-5 space-y-4">
@@ -726,26 +727,6 @@ function SubmittingPersonPage({
         </main>
       </div>
     </Layout>
-  );
-}
-
-function ApplicationReference({ language, applicationRecord }) {
-  const tx = (key) => stepText(language, key);
-  const step1 = applicationRecord?.form_data?.step_1 || {};
-  const applicationTypeText = getStepOneApplicationTypeText(language, step1);
-
-  return (
-    <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
-      <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>{tx("status")}</p>
-        <p className="font-semibold text-[#006d32]">{tx("prepareCase")}</p>
-
-        <p>{tx("applicationType")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {applicationTypeText}
-        </p>
-      </div>
-    </div>
   );
 }
 

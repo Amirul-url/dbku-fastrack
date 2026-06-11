@@ -289,7 +289,14 @@ export function getApplicantDisplayStatus(status) {
 }
 
 export function getApplicationReference(app) {
-  return app?.reference_no || `FT-${String(app?.id || 0).padStart(5, "0")}`;
+  if (app?.reference_no) return app.reference_no;
+
+  const createdYear = app?.created_at
+    ? new Date(app.created_at).getFullYear()
+    : new Date().getFullYear();
+  const safeYear = Number.isFinite(createdYear) ? createdYear : new Date().getFullYear();
+
+  return `ALiS.${safeYear}-${String(app?.id || 0).padStart(4, "0")}`;
 }
 
 export function getStep(app, stepKey) {
@@ -315,40 +322,66 @@ export function getApplicantName(app) {
   );
 }
 
-export function getProjectName(app) {
+export function getProjectName(app, language = "en") {
   const step1 = getStep(app, "step_1");
-
-  return (
+  const rawProjectName =
     step1.project_name ||
     step1.project_title ||
     app?.title ||
-    "Siting Application"
-  );
+    "Siting Application";
+
+  return getLocalizedDefaultProjectName(rawProjectName, language);
+}
+
+function getLocalizedDefaultProjectName(value, language = "en") {
+  const text = String(value || "").trim();
+  const normalized = text.toLowerCase();
+  const isDraftSitting =
+    normalized === "draft sitting application" ||
+    normalized === "draf permohonan tapak" ||
+    normalized === "draft permohonan tapak";
+  const isSitting =
+    normalized === "siting application" ||
+    normalized === "sitting application" ||
+    normalized === "permohonan tapak";
+
+  if (isDraftSitting) {
+    return language === "ms" ? "Draf Permohonan Tapak" : "Draft Sitting Application";
+  }
+
+  if (isSitting) {
+    return language === "ms" ? "Permohonan Tapak" : "Sitting Application";
+  }
+
+  return text;
 }
 
 export function getApplicationType(app, language = "en") {
   const step1 = getStep(app, "step_1");
-  const firstAdvertisementRow = Array.isArray(step1.advertisement_rows)
-    ? step1.advertisement_rows.find(
-        (row) => row?.subtype || row?.customLabel || row?.custom_label
-      )
-    : null;
+  const optionLabels = Array.isArray(step1.application_type_options)
+    ? step1.application_type_options
+        .map((value) => getLocalizedApplicationTypeLabel(value, language))
+        .filter(Boolean)
+    : [];
+  const primaryTypeLabel = optionLabels[0] || "";
+  const advertisementRowLabels = getAdvertisementRowsTypeLabels(
+    step1.advertisement_rows,
+    primaryTypeLabel,
+    language
+  );
+
+  if (advertisementRowLabels.length > 0) {
+    return advertisementRowLabels.join(", ");
+  }
+
   const rawSubtype =
-    firstAdvertisementRow?.customLabel ||
-    firstAdvertisementRow?.custom_label ||
     step1.advertisement_type_custom_label ||
-    firstAdvertisementRow?.subtype ||
     step1.application_subtype ||
     step1.application_subtype_label ||
     "";
   const subtypeLabel =
     getLocalizedApplicationSubtypeLabel(rawSubtype, language) ||
     String(rawSubtype || "").trim();
-  const optionLabels = Array.isArray(step1.application_type_options)
-    ? step1.application_type_options
-        .map((value) => getLocalizedApplicationTypeLabel(value, language))
-        .filter(Boolean)
-    : [];
 
   if (optionLabels.length > 0) {
     return [optionLabels[0], subtypeLabel].filter(Boolean).join(" - ");
@@ -377,6 +410,30 @@ export function getApplicationType(app, language = "en") {
   };
 
   return labelMap[rawType] || rawType;
+}
+
+function getAdvertisementRowsTypeLabels(rows, typeLabel, language = "en") {
+  if (!Array.isArray(rows) || !typeLabel) return [];
+
+  const labels = rows
+    .map((row) => {
+      const rawSubtype =
+        row?.customLabel ||
+        row?.custom_label ||
+        row?.subtype ||
+        row?.application_subtype ||
+        "";
+      const subtypeLabel =
+        getLocalizedApplicationSubtypeLabel(rawSubtype, language) ||
+        String(rawSubtype || "").trim();
+
+      if (!subtypeLabel) return "";
+
+      return [typeLabel, subtypeLabel].filter(Boolean).join(" - ");
+    })
+    .filter(Boolean);
+
+  return [...new Set(labels)];
 }
 
 function getLocalizedApplicationTypeText(value, language = "en") {

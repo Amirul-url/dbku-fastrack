@@ -11,11 +11,13 @@ import {
   getStoredUser,
   recordLogoutSession,
 } from "../services/api";
+import {
+  getApplicantRecordSeen,
+  getRecordUpdatedTime,
+} from "../utils/applicantSeenRecords";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
-const APPLICANT_STATUS_SEEN_KEY = "fastrack_applicant_status_seen_records";
-const APPLICANT_E_LICENSE_SEEN_KEY = "fastrack_applicant_e_license_seen_records";
 const PT_IKL_TASK_STATUSES = new Set([
   "incomplete",
 ]);
@@ -87,31 +89,6 @@ function writeSessionBoolean(key, value) {
   } catch {
     // Session storage can be unavailable in some browser privacy modes.
   }
-}
-
-function readLocalJson(key, fallback = {}) {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    const value = JSON.parse(raw);
-    return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function getUserStorageKey(baseKey, user) {
-  const userKey = String(user?.id || user?.pk || user?.username || user?.email || "anonymous")
-    .trim()
-    .toLowerCase();
-  return `${baseKey}:${userKey || "anonymous"}`;
-}
-
-function getApplicantSeenAt(user) {
-  return {
-    status: readLocalJson(getUserStorageKey(APPLICANT_STATUS_SEEN_KEY, user)),
-    eLicense: readLocalJson(getUserStorageKey(APPLICANT_E_LICENSE_SEEN_KEY, user)),
-  };
 }
 
 function buildAdminNav(taskCounts = {}, user = null) {
@@ -304,7 +281,7 @@ function AppShell({ children, role = "admin" }) {
   const [creatingStepRoute, setCreatingStepRoute] = useState("");
   const [adminTaskCounts, setAdminTaskCounts] = useState({ personal: 0, approval: 0 });
   const [applicantTaskCounts, setApplicantTaskCounts] = useState({ status: 0, eLicense: 0 });
-  const [applicantSeenAt, setApplicantSeenAt] = useState(() => getApplicantSeenAt(getStoredUser()));
+  const [applicantSeenAt, setApplicantSeenAt] = useState(() => getApplicantRecordSeen(getStoredUser()));
   const userDisplayName = getHeaderDisplayName(user, role, t);
   const currentApplicationId = getApplicationIdFromPath(location.pathname);
   const stepApplicationId = currentApplicationId;
@@ -351,7 +328,7 @@ function AppShell({ children, role = "admin" }) {
         localStorage.setItem("fastrack_user", JSON.stringify(normalizedUser));
         setUser(normalizedUser);
         if (role === "applicant") {
-          setApplicantSeenAt(getApplicantSeenAt(normalizedUser));
+          setApplicantSeenAt(getApplicantRecordSeen(normalizedUser));
         }
 
         if (role === "admin" && !hasSessionBoolean(ADMIN_DASHBOARD_MENU_KEY)) {
@@ -413,7 +390,7 @@ function AppShell({ children, role = "admin" }) {
       return undefined;
     }
 
-    const handleSeenChange = () => setApplicantSeenAt(getApplicantSeenAt(user));
+    const handleSeenChange = () => setApplicantSeenAt(getApplicantRecordSeen(user));
     window.addEventListener("fastrack:applicant-record-seen", handleSeenChange);
 
     return () => {
@@ -875,7 +852,7 @@ function getApplicantTaskCounts(applications, seenAt = {}) {
   return applications.reduce(
     (counts, application) => {
       const status = normalizeWorkflowStatus(application?.status);
-      const updatedAt = getApplicationUpdatedTime(application);
+      const updatedAt = getRecordUpdatedTime(application);
 
       if (
         status &&
@@ -896,17 +873,6 @@ function getApplicantTaskCounts(applications, seenAt = {}) {
     },
     { status: 0, eLicense: 0 }
   );
-}
-
-function getApplicationUpdatedTime(application) {
-  const value =
-    application?.updated_at ||
-    application?.updatedAt ||
-    application?.modified_at ||
-    application?.created_at;
-  const time = Date.parse(value || "");
-
-  return Number.isFinite(time) ? time : 0;
 }
 
 function isApplicantELicenseItem(status) {

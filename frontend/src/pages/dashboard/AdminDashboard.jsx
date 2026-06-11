@@ -77,6 +77,7 @@ const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
   "ku_ikl_review",
   "technical_review_completed",
   "bill_pending_ku",
+  "rejected",
 ]);
 
 const units = [
@@ -271,23 +272,7 @@ function AdminHomeDashboard({ user }) {
   }, [fetchApplications]);
 
   const activities = useMemo(() => {
-    return applications
-      .filter((application) => isRelevantRecentActivity(application, userDepartment))
-      .sort((a, b) => {
-        const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
-        const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
-        return bTime - aTime;
-      })
-      .slice(0, 5)
-      .map((application) => ({
-        id: application.id,
-        reference: getApplicationReference(application),
-        project: getProjectName(application),
-        title: getAdminActivityTitle(application, t),
-        description: getAdminActivityDescription(application, userDepartment, t),
-        createdAt: application.updated_at || application.created_at,
-        status: normalizeStatus(application.status),
-      }));
+    return buildAdminRecentActivities(applications, userDepartment, t).slice(0, 5);
   }, [applications, t, userDepartment]);
 
   return (
@@ -363,6 +348,286 @@ function MphlgDashboard({ user }) {
   );
 }
 
+function buildAdminRecentActivities(applications, userDepartment, t) {
+  const activities = applications.flatMap((application) => {
+    const logActivities = getImportantApplicationActivities(
+      application,
+      userDepartment,
+      t
+    );
+    const hasCurrentStatusLog = logActivities.some((activity) =>
+      isActivityForCurrentStatus(activity, application)
+    );
+    const statusActivity =
+      isRelevantRecentActivity(application, userDepartment) && !hasCurrentStatusLog
+        ? [buildStatusRecentActivity(application, userDepartment, t)]
+        : [];
+
+    return [...logActivities, ...statusActivity];
+  });
+
+  return dedupeRecentActivities(activities).sort((a, b) => {
+    const bTime = new Date(b.createdAt || 0).getTime();
+    const aTime = new Date(a.createdAt || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+function buildStatusRecentActivity(application, userDepartment, t) {
+  return {
+    id: `status-${application.id}-${normalizeStatus(application.status)}`,
+    applicationId: application.id,
+    reference: getApplicationReference(application),
+    project: getProjectName(application),
+    title: getAdminActivityTitle(application, t),
+    description: getAdminActivityDescription(application, userDepartment, t),
+    createdAt: application.updated_at || application.created_at,
+    status: normalizeStatus(application.status),
+    source: "status",
+  };
+}
+
+function getImportantApplicationActivities(application, userDepartment, t) {
+  return getApplicationActivityLog(application)
+    .filter((activity) => isImportantAdminActivity(activity, userDepartment))
+    .map((activity) => ({
+      id: `activity-${application.id}-${activity.created_at || ""}-${activity.title || ""}`,
+      applicationId: application.id,
+      reference: getApplicationReference(application),
+      project: getProjectName(application),
+      title: getAdminActivityLogTitle(activity, t),
+      description: getAdminActivityLogDescription(activity, application, t),
+      createdAt: activity.created_at || application.updated_at || application.created_at,
+      status: normalizeStatus(application.status),
+      source: "activity",
+      rawTitle: activity.title || "",
+    }));
+}
+
+function getApplicationActivityLog(application) {
+  const activityLog = Array.isArray(application.activity_log)
+    ? application.activity_log
+    : Array.isArray(application.form_data?.activity_log)
+    ? application.form_data.activity_log
+    : [];
+
+  return activityLog;
+}
+
+function isImportantAdminActivity(activity, userDepartment) {
+  const title = String(activity?.title || "").trim().toLowerCase();
+  const category = String(activity?.category || "").trim().toLowerCase();
+
+  if (!title || title.endsWith(" details saved")) return false;
+  if (title.includes("uploaded") || title.includes("removed")) return false;
+
+  const important =
+    category === "workflow" ||
+    title.includes("submitted") ||
+    title.includes("resubmitted") ||
+    title.includes("review") ||
+    title.includes("rejected") ||
+    title.includes("approved") ||
+    title.includes("bill") ||
+    title.includes("payment") ||
+    title.includes("license");
+
+  if (!important) return false;
+
+  if (userDepartment === "KU(IKL)") {
+    return (
+      title.includes("submitted") ||
+      title.includes("resubmitted") ||
+      title.includes("ku(ikl)") ||
+      title.includes("technical") ||
+      title.includes("rejected") ||
+      title.includes("bill")
+    );
+  }
+
+  return true;
+}
+
+function getAdminActivityLogTitle(activity, t) {
+  const title = String(activity?.title || "").trim();
+  const normalized = title.toLowerCase();
+
+  if (normalized === "application submitted") {
+    return t("admin.dashboard.activitySubmitted", "Application submitted");
+  }
+
+  if (normalized === "application resubmitted") {
+    return t("admin.dashboard.activityResubmitted", "Application resubmitted");
+  }
+
+  if (normalized.startsWith("application rejected by") || normalized === "application rejected") {
+    return t("admin.dashboard.activityRejected", "Application rejected");
+  }
+
+  if (normalized === "application sent to ku(ikl)") {
+    return t("admin.dashboard.activitySentKu", "Application sent to KU(IKL)");
+  }
+
+  if (normalized === "application sent to technical review") {
+    return t(
+      "admin.dashboard.activitySentTechnical",
+      "Application sent to technical review"
+    );
+  }
+
+  if (normalized === "technical review completed") {
+    return t("admin.dashboard.activityTechnicalCompleted", "Technical review completed");
+  }
+
+  if (normalized === "technical amendment requested") {
+    return t(
+      "admin.dashboard.activityTechnicalAmendment",
+      "Technical amendment requested"
+    );
+  }
+
+  if (normalized === "application sent for management review") {
+    return t(
+      "admin.dashboard.activitySentManagement",
+      "Application sent for management review"
+    );
+  }
+
+  if (normalized === "bill pending ku(ikl) confirmation") {
+    return t("admin.dashboard.activityBillPending", "Bill confirmation required");
+  }
+
+  if (normalized === "application approved") {
+    return t("admin.dashboard.activityApproved", "Application approved");
+  }
+
+  if (normalized === "payment receipt submitted") {
+    return t("admin.dashboard.activityPaymentSubmitted", "Payment proof submitted");
+  }
+
+  return title || t("admin.dashboard.activityUpdated", "Application updated");
+}
+
+function getAdminActivityLogDescription(activity, application, t) {
+  const reference = getApplicationReference(application);
+  const title = String(activity?.title || "").trim().toLowerCase();
+  const description = String(activity?.description || "").trim();
+
+  if (title === "application submitted") {
+    return t(
+      "admin.dashboard.activitySubmittedLogDesc",
+      `${reference} was submitted by the applicant.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "application resubmitted") {
+    return t(
+      "admin.dashboard.activityResubmittedDesc",
+      `${reference} was resubmitted by the applicant.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title.startsWith("application rejected by") || title === "application rejected") {
+    return t(
+      "admin.dashboard.activityRejectedDesc",
+      `${reference} was rejected and returned to the applicant for correction.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "application sent to ku(ikl)") {
+    return t(
+      "admin.dashboard.activitySubmittedDesc",
+      `${reference} is ready for KU(IKL) review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "application sent to technical review") {
+    return t(
+      "admin.dashboard.activitySentTechnicalDesc",
+      `${reference} was reviewed and sent to technical review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "technical review completed") {
+    return t(
+      "admin.dashboard.activityTechnicalCompletedDesc",
+      `${reference} completed technical review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "technical amendment requested") {
+    return t(
+      "admin.dashboard.activityTechnicalAmendmentDesc",
+      `${reference} requires technical amendment.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "application sent for management review") {
+    return t(
+      "admin.dashboard.activitySentManagementDesc",
+      `${reference} was reviewed and sent for management review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "bill pending ku(ikl) confirmation") {
+    return t(
+      "admin.dashboard.activityBillPendingDesc",
+      `${reference} has a generated bill waiting for KU(IKL) confirmation.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "application approved") {
+    return t(
+      "admin.dashboard.activityApprovedDesc",
+      `${reference} was approved.`
+    ).replace("{reference}", reference);
+  }
+
+  if (title === "payment receipt submitted") {
+    return t(
+      "admin.dashboard.activityPaymentSubmittedDesc",
+      `The applicant submitted a payment receipt for ${reference}.`
+    ).replace("{reference}", reference);
+  }
+
+  if (description) return description;
+
+  return t(
+    "admin.dashboard.activityUpdatedDesc",
+    `${reference} was updated.`
+  ).replace("{reference}", reference);
+}
+
+function isActivityForCurrentStatus(activity, application) {
+  const status = normalizeStatus(application.status);
+  const title = String(activity.rawTitle || activity.title || "").toLowerCase();
+
+  if (status === "rejected") return title.includes("rejected");
+  if (status === "technical_review") return title.includes("technical review");
+  if (status === "technical_review_completed") return title.includes("technical review completed");
+  if (status === "bill_pending_ku") return title.includes("bill");
+  if (status === "ku_ikl_review") return title.includes("ku(ikl)");
+  if (status === "submitted") return title.includes("submitted");
+
+  return false;
+}
+
+function dedupeRecentActivities(activities) {
+  const seen = new Set();
+
+  return activities.filter((activity) => {
+    const key = [
+      activity.applicationId,
+      String(activity.title || "").trim().toLowerCase(),
+      String(activity.description || "").trim().toLowerCase(),
+    ].join(":");
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function isRelevantRecentActivity(application, userDepartment) {
   if (!userDepartment) return true;
   const status = normalizeStatus(application.status);
@@ -430,6 +695,10 @@ function getAdminActivityTitle(application, t) {
     return t("admin.dashboard.activityBillPending", "Bill confirmation required");
   }
 
+  if (status === "rejected") {
+    return t("admin.dashboard.activityRejected", "Application rejected");
+  }
+
   if (status === "payment_submitted") {
     return t("admin.dashboard.activityPaymentSubmitted", "Payment proof submitted");
   }
@@ -467,6 +736,13 @@ function getAdminActivityDescription(application, userDepartment, t) {
     return t(
       "admin.dashboard.activityManagementDesc",
       `${reference} is waiting for management review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (status === "rejected") {
+    return t(
+      "admin.dashboard.activityRejectedDesc",
+      `${reference} was rejected and returned to the applicant for correction.`
     ).replace("{reference}", reference);
   }
 

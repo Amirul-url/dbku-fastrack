@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from notifications.models import NotificationDelivery
@@ -9,6 +10,7 @@ from .models import Application
 
 class ApplicationReferenceTests(TestCase):
     def test_reference_generation_does_not_reuse_deleted_count_gap(self):
+        year = timezone.now().year
         User = get_user_model()
         applicant = User.objects.create_user(
             username="draft-user",
@@ -32,10 +34,11 @@ class ApplicationReferenceTests(TestCase):
             title="Draft Sitting Application",
         )
 
-        self.assertEqual(second.reference_no, "FT-00002")
-        self.assertEqual(draft.reference_no, "FT-00003")
+        self.assertEqual(second.reference_no, f"ALiS.{year}-0002")
+        self.assertEqual(draft.reference_no, f"ALiS.{year}-0003")
 
     def test_reference_generation_uses_highest_existing_reference_number(self):
+        year = timezone.now().year
         User = get_user_model()
         applicant = User.objects.create_user(
             username="high-reference-user",
@@ -45,7 +48,7 @@ class ApplicationReferenceTests(TestCase):
 
         Application.objects.create(
             applicant=applicant,
-            reference_no="FT-00100",
+            reference_no=f"ALiS.{year}-0100",
             title="Existing imported application",
         )
 
@@ -54,7 +57,7 @@ class ApplicationReferenceTests(TestCase):
             title="Draft Sitting Application",
         )
 
-        self.assertEqual(draft.reference_no, "FT-00101")
+        self.assertEqual(draft.reference_no, f"ALiS.{year}-0101")
 
     def test_application_list_includes_form_applicant_name_before_nric_username(self):
         User = get_user_model()
@@ -193,6 +196,10 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         application.refresh_from_db()
         self.assertEqual(application.status, "rejected")
+        activity_log = application.form_data.get("activity_log", [])
+        self.assertEqual(activity_log[0]["title"], "Application rejected by KU(IKL)")
+        self.assertEqual(activity_log[0]["category"], "workflow")
+        self.assertIn("reviewed and rejected by KU(IKL)", activity_log[0]["description"])
         deliveries = NotificationDelivery.objects.filter(
             application=application,
             recipient_role="applicant",

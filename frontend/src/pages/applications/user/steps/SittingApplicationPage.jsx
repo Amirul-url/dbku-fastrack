@@ -16,12 +16,11 @@ import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 import {
   canEditApplicationForm,
 } from "../../../../utils/workflow";
-import {
-  applicationTypeLabel,
-  stepText,
-} from "./ApplicationStepText";
+import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
+import { stepText } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
+import ApplicationSummary from "./ApplicationSummary";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || "YOUR_MAPBOX_TOKEN";
 mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -160,11 +159,65 @@ function getApplicationSubtypeLabel(language, type, subtype, customLabel = "") {
   return option ? stepText(language, option.labelKey) : "";
 }
 
-function getApplicationTypeDisplayLabel(language, types, subtype, customSubtypeLabel = "") {
-  const type = getPrimaryApplicationType(types);
-  const typeLabel = getApplicationTypeLabel(language, [type]);
-  const subtypeLabel = getApplicationSubtypeLabel(language, type, subtype, customSubtypeLabel);
-  return [typeLabel, subtypeLabel].filter(Boolean).join(" - ");
+function getDisplayTypeLabel(language, displayType) {
+  const normalized = String(displayType || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  if (normalized === "led") return stepText(language, "displayTypeLed");
+  if (normalized === "non_led") return stepText(language, "displayTypeNonLed");
+
+  return "";
+}
+
+function getAdvertisementRowsDisplayTypeLabel(
+  language,
+  rows,
+  fallbackDisplayType = ""
+) {
+  const labels = (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const displayType =
+        row?.displayType ||
+        row?.display_type ||
+        getApplicationDisplayTypeFromSubtype(row?.subtype);
+
+      return getDisplayTypeLabel(language, displayType);
+    })
+    .filter(Boolean);
+  const uniqueLabels = [...new Set(labels)];
+
+  if (uniqueLabels.length > 0) return uniqueLabels.join(", ");
+
+  return getDisplayTypeLabel(language, fallbackDisplayType);
+}
+
+function getAdvertisementRowsSubtypeLabel(
+  language,
+  type,
+  rows,
+  fallbackSubtype = "",
+  fallbackCustomSubtypeLabel = ""
+) {
+  const labels = (Array.isArray(rows) ? rows : [])
+    .map((row) => {
+      const subtype = normalizeApplicationSubtype(row?.subtype, type);
+      const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
+
+      return getApplicationSubtypeLabel(language, type, subtype, customLabel);
+    })
+    .filter(Boolean);
+  const uniqueLabels = [...new Set(labels)];
+
+  if (uniqueLabels.length > 0) return uniqueLabels.join(", ");
+
+  return getApplicationSubtypeLabel(
+    language,
+    type,
+    fallbackSubtype,
+    fallbackCustomSubtypeLabel
+  );
 }
 
 function normalizeCustomAdvertisementTypes(value) {
@@ -622,15 +675,16 @@ function SittingApplicationPage({
     const selectedSubtype =
       normalizeApplicationSubtype(primaryAdvertisementRow?.subtype, selectedType);
     const selectedCustomLabel = primaryAdvertisementRow?.customLabel || "";
-    const applicationTypeDisplay = getApplicationTypeDisplayLabel(
+    const applicationTypeDisplay = getApplicationTypeLabel(language, selectedTypes);
+    const displayTypeDisplay = getAdvertisementRowsDisplayTypeLabel(
       language,
-      selectedTypes,
-      selectedSubtype,
-      selectedCustomLabel
+      calculatedAdvertisementRows,
+      getApplicationDisplayTypeFromSubtype(selectedSubtype)
     );
-    const applicationSubtypeDisplay = getApplicationSubtypeLabel(
+    const advertisementTypeDisplay = getAdvertisementRowsSubtypeLabel(
       language,
       selectedType,
+      calculatedAdvertisementRows,
       selectedSubtype,
       selectedCustomLabel
     );
@@ -653,8 +707,10 @@ function SittingApplicationPage({
           application_type_label: applicationTypeDisplay,
           application_type_options: selectedTypes,
           application_subtype: selectedSubtype,
-          application_subtype_label: applicationSubtypeDisplay,
+          application_subtype_label: advertisementTypeDisplay,
           advertisement_display_type: getApplicationDisplayTypeFromSubtype(selectedSubtype),
+          advertisement_display_type_label: displayTypeDisplay,
+          advertisement_type_label: advertisementTypeDisplay,
           advertisement_type_custom_label: selectedCustomLabel,
           advertisement_rows: calculatedAdvertisementRows,
           custom_advertisement_types: customAdvertisementTypes,
@@ -863,6 +919,9 @@ function SittingApplicationPage({
       const payload = await buildStepOnePayload(projectName, 2);
       const data = await saveApplication(payload);
       const savedData = await uploadPendingSiteImages(data, payload);
+      if (!isAdminReview) {
+        markApplicantRecordSeen("status", savedData);
+      }
 
       navigate(
         isAdminReview
@@ -907,6 +966,14 @@ function SittingApplicationPage({
     (!isAdminReview &&
       Boolean(applicationId) &&
       (!applicationRecord || !canEditApplicationForm(applicationRecord)));
+  const summaryStep1 = {
+    status: "Prepare Case",
+    application_type: applicationTypeOptions.join(","),
+    application_type_options: applicationTypeOptions,
+    application_subtype: applicationSubtype,
+    advertisement_type_custom_label: customAdvertisementTypeLabel,
+    advertisement_rows: advertisementRows,
+  };
 
   return (
     <Layout>
@@ -960,11 +1027,10 @@ function SittingApplicationPage({
           </div>
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
-            <ApplicationReference
+            <ApplicationSummary
+              application={applicationRecord}
               language={language}
-              applicationTypeOptions={applicationTypeOptions}
-              applicationSubtype={applicationSubtype}
-              customAdvertisementTypeLabel={customAdvertisementTypeLabel}
+              step1={summaryStep1}
             />
 
             <div className="p-4 space-y-3">
@@ -1938,37 +2004,6 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
         </p>
       </div>
     </FormSection>
-  );
-}
-
-function ApplicationReference({
-  language,
-  applicationTypeOptions = ["open_space"],
-  applicationSubtype = "",
-  customAdvertisementTypeLabel = "",
-}) {
-  const tx = (key) => stepText(language, key);
-  const applicationTypeText =
-    getApplicationTypeDisplayLabel(
-      language,
-      applicationTypeOptions,
-      applicationSubtype,
-      customAdvertisementTypeLabel
-    ) ||
-    applicationTypeLabel(language, "Application for Site (New Site)");
-
-  return (
-    <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
-      <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>{tx("status")}</p>
-        <p className="font-semibold text-[#006d32]">{tx("prepareCase")}</p>
-
-        <p>{tx("applicationType")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {applicationTypeText}
-        </p>
-      </div>
-    </div>
   );
 }
 

@@ -212,7 +212,7 @@ function localizePtIklToKuMemoHtml(html, language) {
     ? [
         [/APPLICATION FOR KU\(IKL\) REVIEW/gi, "PERMOHONAN UNTUK SEMAKAN KU(IKL)"],
         [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
-        [/Application (FT-\d+) has been reviewed by PT\(IKL\) and forwarded to KU\(IKL\) for further review\./gi, "Permohonan $1 telah disemak oleh PT(IKL) dan dikemukakan kepada KU(IKL) untuk semakan lanjut."],
+        [/Application ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) has been reviewed by PT\(IKL\) and forwarded to KU\(IKL\) for further review\./gi, "Permohonan $1 telah disemak oleh PT(IKL) dan dikemukakan kepada KU(IKL) untuk semakan lanjut."],
         [/Applicant/gi, "Pemohon"],
         [/Application Type/gi, "Jenis Permohonan"],
         [/Project/gi, "Projek"],
@@ -224,7 +224,7 @@ function localizePtIklToKuMemoHtml(html, language) {
     : [
         [/PERMOHONAN UNTUK SEMAKAN KU\(IKL\)/gi, "APPLICATION FOR KU(IKL) REVIEW"],
         [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
-        [/Permohonan (FT-\d+) telah disemak oleh PT\(IKL\) dan dikemukakan kepada KU\(IKL\) untuk semakan lanjut\./gi, "Application $1 has been reviewed by PT(IKL) and forwarded to KU(IKL) for further review."],
+        [/Permohonan ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) telah disemak oleh PT\(IKL\) dan dikemukakan kepada KU\(IKL\) untuk semakan lanjut\./gi, "Application $1 has been reviewed by PT(IKL) and forwarded to KU(IKL) for further review."],
         [/Pemohon/gi, "Applicant"],
         [/Jenis Permohonan/gi, "Application Type"],
         [/Projek/gi, "Project"],
@@ -262,7 +262,7 @@ function localizeKuIklToTechnicalMemoHtml(html, language) {
     ? [
         [/APPLICATION FOR TECHNICAL REVIEW/gi, "PERMOHONAN UNTUK SEMAKAN TEKNIKAL"],
         [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
-        [/Application (FT-\d+) has been reviewed by KU\(IKL\) and forwarded to IKL\(TECHNICAL\) for technical review\./gi, "Permohonan $1 telah disemak oleh KU(IKL) dan dikemukakan kepada IKL(TECHNICAL) untuk semakan teknikal."],
+        [/Application ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) has been reviewed by KU\(IKL\) and forwarded to IKL\(TECHNICAL\) for technical review\./gi, "Permohonan $1 telah disemak oleh KU(IKL) dan dikemukakan kepada IKL(TECHNICAL) untuk semakan teknikal."],
         [/Applicant/gi, "Pemohon"],
         [/Application Type/gi, "Jenis Permohonan"],
         [/Project/gi, "Projek"],
@@ -274,7 +274,7 @@ function localizeKuIklToTechnicalMemoHtml(html, language) {
     : [
         [/PERMOHONAN UNTUK SEMAKAN TEKNIKAL/gi, "APPLICATION FOR TECHNICAL REVIEW"],
         [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
-        [/Permohonan (FT-\d+) telah disemak oleh KU\(IKL\) dan dikemukakan kepada IKL\(TECHNICAL\) untuk semakan teknikal\./gi, "Application $1 has been reviewed by KU(IKL) and forwarded to IKL(TECHNICAL) for technical review."],
+        [/Permohonan ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) telah disemak oleh KU\(IKL\) dan dikemukakan kepada IKL\(TECHNICAL\) untuk semakan teknikal\./gi, "Application $1 has been reviewed by KU(IKL) and forwarded to IKL(TECHNICAL) for technical review."],
         [/Pemohon/gi, "Applicant"],
         [/Jenis Permohonan/gi, "Application Type"],
         [/Projek/gi, "Project"],
@@ -312,7 +312,7 @@ function localizeIklTechnicalToKuMemoHtml(html, language) {
     ? [
         [/TECHNICAL REVIEW DECISION FOR KU\(IKL\)/gi, "KEPUTUSAN SEMAKAN TEKNIKAL UNTUK KU(IKL)"],
         [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
-        [/Technical review for application (FT-\d+) has been completed and forwarded to KU\(IKL\) for further review\./gi, "Semakan teknikal bagi permohonan $1 telah selesai dan dikemukakan kepada KU(IKL) untuk semakan lanjut."],
+        [/Technical review for application ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) has been completed and forwarded to KU\(IKL\) for further review\./gi, "Semakan teknikal bagi permohonan $1 telah selesai dan dikemukakan kepada KU(IKL) untuk semakan lanjut."],
         [/Applicant/gi, "Pemohon"],
         [/Application Type/gi, "Jenis Permohonan"],
         [/Project/gi, "Projek"],
@@ -330,7 +330,7 @@ function localizeIklTechnicalToKuMemoHtml(html, language) {
     : [
         [/KEPUTUSAN SEMAKAN TEKNIKAL UNTUK KU\(IKL\)/gi, "TECHNICAL REVIEW DECISION FOR KU(IKL)"],
         [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
-        [/Semakan teknikal bagi permohonan (FT-\d+) telah selesai dan dikemukakan kepada KU\(IKL\) untuk semakan lanjut\./gi, "Technical review for application $1 has been completed and forwarded to KU(IKL) for further review."],
+        [/Semakan teknikal bagi permohonan ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) telah selesai dan dikemukakan kepada KU\(IKL\) untuk semakan lanjut\./gi, "Technical review for application $1 has been completed and forwarded to KU(IKL) for further review."],
         [/Pemohon/gi, "Applicant"],
         [/Jenis Permohonan/gi, "Application Type"],
         [/Projek/gi, "Project"],
@@ -496,7 +496,7 @@ function localizeKbLesToKuMemoHtml(html, language) {
     ? [
         [/KU\(IKL\) REVIEW AMENDMENT REQUIRED/gi, "PINDAAN SEMAKAN KU(IKL) DIPERLUKAN"],
         [/With due respect, the above matter is referred\./gi, "Dengan segala hormatnya perkara di atas dirujuk."],
-        [/Application (FT-\d+) has been reviewed by KB\(LES\) and returned to KU\(IKL\) for amendment before verification can continue\./gi, "Permohonan $1 telah disemak oleh KB(LES) dan dikembalikan kepada KU(IKL) untuk pindaan sebelum pengesahan boleh diteruskan."],
+        [/Application ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) has been reviewed by KB\(LES\) and returned to KU\(IKL\) for amendment before verification can continue\./gi, "Permohonan $1 telah disemak oleh KB(LES) dan dikembalikan kepada KU(IKL) untuk pindaan sebelum pengesahan boleh diteruskan."],
         [/Applicant/gi, "Pemohon"],
         [/Application Type/gi, "Jenis Permohonan"],
         [/Project/gi, "Projek"],
@@ -508,7 +508,7 @@ function localizeKbLesToKuMemoHtml(html, language) {
     : [
         [/PINDAAN SEMAKAN KU\(IKL\) DIPERLUKAN/gi, "KU(IKL) REVIEW AMENDMENT REQUIRED"],
         [/Dengan segala hormatnya perkara di atas dirujuk\./gi, "With due respect, the above matter is referred."],
-        [/Permohonan (FT-\d+) telah disemak oleh KB\(LES\) dan dikembalikan kepada KU\(IKL\) untuk pindaan sebelum pengesahan boleh diteruskan\./gi, "Application $1 has been reviewed by KB(LES) and returned to KU(IKL) for amendment before verification can continue."],
+        [/Permohonan ((?:FT-\d+)|(?:ALiS\.\d{4}-\d{4})) telah disemak oleh KB\(LES\) dan dikembalikan kepada KU\(IKL\) untuk pindaan sebelum pengesahan boleh diteruskan\./gi, "Application $1 has been reviewed by KB(LES) and returned to KU(IKL) for amendment before verification can continue."],
         [/Pemohon/gi, "Applicant"],
         [/Jenis Permohonan/gi, "Application Type"],
         [/Projek/gi, "Project"],

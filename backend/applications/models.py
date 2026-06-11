@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import IntegrityError, models
+from django.utils import timezone
 import re
 
 
@@ -77,7 +78,9 @@ class Application(models.Model):
         ]
 
     @classmethod
-    def next_reference_no(cls):
+    def next_reference_no(cls, year=None):
+        reference_year = int(year or timezone.now().year)
+        prefix = f"ALiS.{reference_year}-"
         references = cls.objects.exclude(reference_no="").values_list(
             "reference_no",
             flat=True,
@@ -85,14 +88,17 @@ class Application(models.Model):
         highest_number = 0
 
         for reference_no in references:
-            match = re.fullmatch(r"FT-(\d+)", str(reference_no or ""))
+            match = re.fullmatch(
+                rf"{re.escape(prefix)}(\d{{4}})",
+                str(reference_no or ""),
+            )
             if match:
                 highest_number = max(highest_number, int(match.group(1)))
 
         next_number = highest_number + 1
 
         while True:
-            reference_no = f"FT-{next_number:05d}"
+            reference_no = f"{prefix}{next_number:04d}"
             if not cls.objects.filter(reference_no=reference_no).exists():
                 return reference_no
 

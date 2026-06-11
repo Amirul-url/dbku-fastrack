@@ -54,7 +54,7 @@ function UserApplicationsPage() {
     return applications.filter((app) => {
       const haystack = [
         getApplicationReference(app),
-        getProjectName(app),
+        getProjectName(app, language),
         getApplicationType(app, language),
         getApplicationRemark(app),
         translatedStatus(t, app.status),
@@ -145,7 +145,7 @@ function UserApplicationsPage() {
               className: "w-[28%]",
               render: (app) => (
                 <span className="block max-w-[34rem] whitespace-normal leading-5">
-                  {getProjectName(app)}
+                  {getProjectName(app, language)}
                 </span>
               ),
             },

@@ -5,14 +5,12 @@ import { apiRequest } from "../../../../services/api";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   canEditApplicationForm,
-  getApplicationType,
 } from "../../../../utils/workflow";
-import {
-  applicationStatusLabel,
-  stepText,
-} from "./ApplicationStepText";
+import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
+import { stepText } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
+import ApplicationSummary from "./ApplicationSummary";
 
 function DeclarationPage({
   LayoutComponent = UserDashboardLayout,
@@ -109,7 +107,7 @@ function DeclarationPage({
         saved_at: now,
       };
 
-      await apiRequest(`/applications/${applicationId}/`, {
+      const savedApplication = await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
           current_step: goNext ? 5 : 4,
@@ -118,6 +116,9 @@ function DeclarationPage({
           },
         }),
       });
+      if (!isAdminReview) {
+        markApplicantRecordSeen("status", savedApplication);
+      }
 
       setStep11(updatedStep11);
 
@@ -266,7 +267,11 @@ function DeclarationPage({
           </div>
 
           <section className="overflow-hidden rounded-sm border border-slate-200 bg-white">
-            <ApplicationReference step1={step1} language={language} />
+            <ApplicationSummary
+              application={applicationRecord}
+              step1={step1}
+              language={language}
+            />
 
             <div className="space-y-5 p-4 text-[12px]">
               {error && (
@@ -385,26 +390,6 @@ function joinAddress(parts) {
     .join(", ");
 
   return address || "-";
-}
-
-function ApplicationReference({ step1, language }) {
-  const tx = (key) => stepText(language, key);
-
-  return (
-    <div className="border-b border-slate-200 bg-[#f5f5f5] px-4 py-3 text-xs">
-      <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>{tx("status")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {applicationStatusLabel(language, step1.status)}
-        </p>
-
-        <p>{tx("applicationType")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {getApplicationType({ form_data: { step_1: step1 } }, language)}
-        </p>
-      </div>
-    </div>
-  );
 }
 
 export default DeclarationPage;

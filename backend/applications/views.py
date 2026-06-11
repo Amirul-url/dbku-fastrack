@@ -158,6 +158,68 @@ def get_applicant_activity_message(application, request_data):
     )
 
 
+def get_staff_workflow_activity_message(application, old_status, new_status, actor):
+    department = get_user_workflow_department(actor)
+    created_year = getattr(getattr(application, "created_at", None), "year", None)
+    reference = application.reference_no or f"ALiS.{created_year or timezone_now_iso()[:4]}-{application.id:04d}"
+    old_status_key = str(old_status or "").strip().lower()
+    new_status_key = str(new_status or "").strip().lower()
+
+    if new_status_key == "rejected":
+        actor_label = department or "ALiS"
+        return (
+            f"Application rejected by {actor_label}",
+            f"{reference} was reviewed and rejected by {actor_label}.",
+        )
+
+    if old_status_key == "submitted" and new_status_key == "ku_ikl_review":
+        return (
+            "Application sent to KU(IKL)",
+            f"{reference} was reviewed and sent to KU(IKL).",
+        )
+
+    if new_status_key == "technical_review":
+        return (
+            "Application sent to technical review",
+            f"{reference} was reviewed by KU(IKL) and sent to technical review.",
+        )
+
+    if new_status_key == "technical_review_completed":
+        return (
+            "Technical review completed",
+            f"{reference} completed technical review.",
+        )
+
+    if new_status_key == "technical_amendment":
+        return (
+            "Technical amendment requested",
+            f"{reference} requires technical amendment.",
+        )
+
+    if new_status_key == "management_review":
+        return (
+            "Application sent for management review",
+            f"{reference} was reviewed and sent for management review.",
+        )
+
+    if new_status_key == "bill_pending_ku":
+        return (
+            "Bill pending KU(IKL) confirmation",
+            f"{reference} has a generated bill waiting for KU(IKL) confirmation.",
+        )
+
+    if new_status_key == "approved":
+        return (
+            "Application approved",
+            f"{reference} was approved.",
+        )
+
+    return (
+        "Application reviewed",
+        f"{reference} was reviewed by {department or get_activity_actor_name(actor)}.",
+    )
+
+
 def get_applicant_saved_step_label(form_keys):
     step_labels = {
         "step_1": "Sitting Application",
@@ -276,6 +338,22 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 self.request.user,
                 activity_title,
                 activity_description,
+            )
+        if self.request.user.role in STAFF_ROLES and (
+            old_status_key != new_status_key or remark_changed
+        ):
+            activity_title, activity_description = get_staff_workflow_activity_message(
+                application,
+                old_status,
+                application.status,
+                self.request.user,
+            )
+            append_application_activity(
+                application,
+                self.request.user,
+                activity_title,
+                activity_description,
+                category="workflow",
             )
         notify_application_status_change(
             application,
@@ -702,6 +780,19 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_remark = application.latest_remark
         application.status = "rejected"
         application.save()
+        activity_title, activity_description = get_staff_workflow_activity_message(
+            application,
+            old_status,
+            application.status,
+            request.user,
+        )
+        append_application_activity(
+            application,
+            request.user,
+            activity_title,
+            activity_description,
+            category="workflow",
+        )
         notify_application_status_change(application, old_status, old_remark)
         notify_applicant_application_rejected(
             application,

@@ -8,8 +8,8 @@ import {
   canEditApplicationForm,
   getApplicationType,
 } from "../../../../utils/workflow";
+import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
 import {
-  applicationStatusLabel,
   applicationTypeLabel,
   documentDescription,
   documentTitle,
@@ -18,6 +18,7 @@ import {
 } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
 import UserViewStepControls from "./UserViewStepControls";
+import ApplicationSummary from "./ApplicationSummary";
 
 const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
 const PRINT_FORM_TOTAL_PAGES = 3;
@@ -118,7 +119,7 @@ function PrintFormPage({
       const workflowReset = submit ? getWorkflowResetOnResubmit(applicationRecord, now) : {};
       const nextStatus = submit ? getSubmitStatusOnResubmit(applicationRecord) : undefined;
 
-      await apiRequest(`/applications/${applicationId}/`, {
+      const savedApplication = await apiRequest(`/applications/${applicationId}/`, {
         method: "PATCH",
         body: JSON.stringify({
           current_step: 5,
@@ -134,6 +135,9 @@ function PrintFormPage({
           },
         }),
       });
+      if (!isAdminReview) {
+        markApplicantRecordSeen("status", savedApplication);
+      }
 
       setStep9(updatedStep9);
       return true;
@@ -393,7 +397,11 @@ function PrintFormPage({
 
           <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
             <div className="print-hide">
-              <ApplicationReference step1={step1} language={language} />
+              <ApplicationSummary
+                application={applicationRecord}
+                step1={step1}
+                language={language}
+              />
             </div>
 
             <div className="p-5 border-b border-slate-200 print-hide">
@@ -610,26 +618,6 @@ function PrintFormPage({
         </main>
       </div>
     </Layout>
-  );
-}
-
-function ApplicationReference({ step1, language }) {
-  const tx = (key) => stepText(language, key);
-
-  return (
-    <div className="bg-[#f5f5f5] border-b border-slate-200 px-4 py-3 text-xs">
-      <div className="grid grid-cols-[140px_1fr] gap-y-1">
-        <p>{tx("status")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {applicationStatusLabel(language, step1.status)}
-        </p>
-
-        <p>{tx("applicationType")}</p>
-        <p className="font-semibold text-[#006d32]">
-          {getApplicationType({ form_data: { step_1: step1 } }, language)}
-        </p>
-      </div>
-    </div>
   );
 }
 

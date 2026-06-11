@@ -34,51 +34,22 @@ import {
   getApplicationType,
   getInvoiceNo,
   getProjectName,
+  needsApplicantCorrection,
   normalizeStatus,
 } from "../../utils/workflow";
 import {
   buildAdvertisementLicenseHtml,
   openAdvertisementLicenseDocument,
 } from "../../utils/advertisementLicenseDocument";
+import {
+  getApplicantRecordSeen,
+  getRecordUpdatedTime,
+  markApplicantRecordSeen,
+} from "../../utils/applicantSeenRecords";
 
 const VALID_SECTIONS = ["applications", "status", "license"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TABLE_PAGE_SIZE = 5;
-const APPLICANT_STATUS_SEEN_KEY = "fastrack_applicant_status_seen_records";
-const APPLICANT_E_LICENSE_SEEN_KEY = "fastrack_applicant_e_license_seen_records";
-
-function getUserStorageKey(baseKey, user) {
-  const userKey = String(user?.id || user?.pk || user?.username || user?.email || "anonymous")
-    .trim()
-    .toLowerCase();
-  return `${baseKey}:${userKey || "anonymous"}`;
-}
-
-function readLocalJson(key, fallback = {}) {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    const value = JSON.parse(raw);
-    return value && typeof value === "object" && !Array.isArray(value) ? value : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeLocalJson(key, value) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Local storage can be unavailable in some browser privacy modes.
-  }
-}
-
-function getApplicantRecordSeen(user) {
-  return {
-    status: readLocalJson(getUserStorageKey(APPLICANT_STATUS_SEEN_KEY, user)),
-    eLicense: readLocalJson(getUserStorageKey(APPLICANT_E_LICENSE_SEEN_KEY, user)),
-  };
-}
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -304,25 +275,13 @@ function UserDashboard() {
   function markApplicationSeen(tab, app) {
     if (!app?.id) return;
 
-    const user = getStoredUser();
     const mapKey = tab === "license" ? "eLicense" : "status";
-    const storageKey = getUserStorageKey(
-      tab === "license" ? APPLICANT_E_LICENSE_SEEN_KEY : APPLICANT_STATUS_SEEN_KEY,
-      user
-    );
-    const currentMap = readLocalJson(storageKey);
-    const seenTime = Math.max(Date.now(), getApplicationUpdatedTime(app));
-    const nextMap = {
-      ...currentMap,
-      [app.id]: seenTime,
-    };
+    const nextMap = markApplicantRecordSeen(tab === "license" ? "license" : "status", app);
 
-    writeLocalJson(storageKey, nextMap);
     setRecordSeen((current) => ({
       ...current,
       [mapKey]: nextMap,
     }));
-    window.dispatchEvent(new Event("fastrack:applicant-record-seen"));
   }
 
   function openLicenseRecord(app) {
@@ -479,6 +438,7 @@ function UserDashboard() {
       {activeSection === "overview" && (
         <OverviewSection
           applications={applications}
+          language={language}
           loading={loading}
           t={t}
         />
@@ -570,14 +530,14 @@ function UserDashboard() {
   );
 }
 
-function OverviewSection({ applications, loading, t }) {
+function OverviewSection({ applications, language, loading, t }) {
   const statusSummary = useMemo(
     () => buildOverviewStatusSummary(applications, t),
     [applications, t]
   );
   const recentActivities = useMemo(
-    () => buildRecentActivities(applications, t),
-    [applications, t]
+    () => buildRecentActivities(applications, t, language),
+    [applications, language, t]
   );
 
   return (
@@ -1201,7 +1161,7 @@ function LicenseListSection({
             cellClassName: "w-[28%] text-sm",
             render: (app) => (
               <span className="block max-w-[34rem] whitespace-normal text-sm leading-5">
-                {getProjectName(app)}
+                {getProjectName(app, language)}
               </span>
             ),
           },
@@ -1519,7 +1479,7 @@ function ApplicationTable({
           cellClassName: "w-[28%] text-sm",
           render: (app) => (
             <span className="block max-w-[34rem] whitespace-normal text-sm leading-5">
-              {getProjectName(app)}
+              {getProjectName(app, language)}
             </span>
           ),
         },
@@ -1571,7 +1531,9 @@ function ApplicationTable({
                 onClick={() => onOpen(app)}
                 className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50"
               >
-                {t("common.view", "View")}
+                {needsApplicantCorrection(app)
+                  ? t("common.edit", "Edit")
+                  : t("common.view", "View")}
               </button>
             ) : (
               !shouldHideApplicantAction(app) && (
@@ -1763,7 +1725,7 @@ function filterDashboardApplications(applications, filters) {
     const normalizedStatus = normalizeStatus(app.status);
     const matchesKeyword = !keyword || [
       getApplicationReference(app),
-      getProjectName(app),
+      getProjectName(app, language),
       getApplicationType(app, language),
       getApplicationRemark(app),
       translatedStatus(t, app.status),
@@ -1809,8 +1771,8 @@ function buildOverviewStatusSummary(applications, t) {
       tone: "blue",
     },
     {
-      key: "pending",
-      label: t("common.pending"),
+      key: "under_review",
+      label: t("dashboard.underReview", "Under Review"),
       value: pending,
       icon: "pending_actions",
       tone: "amber",
@@ -1832,7 +1794,7 @@ function buildOverviewStatusSummary(applications, t) {
   ];
 }
 
-function buildRecentActivities(applications, t) {
+function buildRecentActivities(applications, t, language = "en") {
   const activities = applications
     .flatMap((app) => {
       const activityLog = Array.isArray(app.activity_log)
@@ -1847,7 +1809,7 @@ function buildRecentActivities(applications, t) {
         return {
           applicationId: app.id,
           reference: getApplicationReference(app),
-          project: getProjectName(app),
+          project: getProjectName(app, language),
           title: friendlyCopy.title,
           description: friendlyCopy.description,
           rawTitle: activity.title || "",
@@ -2007,16 +1969,9 @@ function isApplicantRecordNew(app, tab, seen = {}) {
   if (!app?.id) return false;
 
   const map = tab === "license" ? seen.eLicense : seen.status;
-  const updatedAt = getApplicationUpdatedTime(app);
+  const updatedAt = getRecordUpdatedTime(app);
 
   return updatedAt > Number(map?.[app.id] || 0);
-}
-
-function getApplicationUpdatedTime(app) {
-  const value = app?.updated_at || app?.updatedAt || app?.modified_at || app?.created_at;
-  const time = Date.parse(value || "");
-
-  return Number.isFinite(time) ? time : 0;
 }
 
 function shouldHideApplicantAction(app) {
