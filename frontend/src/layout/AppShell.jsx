@@ -36,24 +36,6 @@ const TECHNICAL_DEPARTMENT_TASK_STATUSES = new Set([
   "technical_site_visit",
 ]);
 const TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
-const COMPLETED_VIEW_DEPARTMENTS = new Set([
-  "PT(IKL)",
-  "KU(IKL)",
-  "IKL (TECHNICAL)",
-  "BLG",
-  "GPM",
-  "MNE",
-  "IMT",
-  "LNP",
-  "ENG",
-  "KB(LES)",
-  "TP(RES)",
-  "PGH",
-  "TP(RES)/PGH",
-  "TP/PGH",
-  "MPHLG",
-  "SUT",
-]);
 const APPROVAL_TASK_STATUSES = new Set([
   "management_review",
   "mphlg_processing",
@@ -109,18 +91,10 @@ function buildAdminNav(taskCounts = {}, user = null) {
         icon: "check_circle",
         badge: taskCounts.approval || 0,
       },
-      {
-        labelKey: "admin.dashboard.completedApprovals",
-        fallback: "Completed",
-        path: "/dashboard/admin?view=completed",
-        view: "completed",
-        icon: "task_alt",
-      },
     ];
   }
 
   const isSupervisor = isApprovalWorkflowUser(user);
-  const canViewCompleted = isCompletedWorkflowUser(user);
 
   const dashboardChildren = [
     isSupervisor
@@ -139,14 +113,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
       view: "approval",
       badge: taskCounts.approval || 0,
     },
-    canViewCompleted
-      ? {
-          labelKey: "admin.dashboard.completedApprovals",
-          fallback: "Completed",
-          path: "/dashboard/admin?view=completed",
-          view: "completed",
-        }
-      : null,
   ].filter(Boolean);
   const dashboardBadge = dashboardChildren.reduce(
     (total, child) => total + Number(child.badge || 0),
@@ -909,13 +875,6 @@ function isApprovalWorkflowUser(user) {
   );
 }
 
-function isCompletedWorkflowUser(user) {
-  const role = String(user?.role || "").trim().toLowerCase();
-  const department = normalizeDepartmentCode(user?.department);
-
-  return role === "supervisor" || COMPLETED_VIEW_DEPARTMENTS.has(department);
-}
-
 function isMphlgUser(user) {
   return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
 }
@@ -1173,7 +1132,7 @@ function getAdminSidebarView(location) {
   const params = new URLSearchParams(location.search);
 
   if (isCompletedSidebarContext(params)) {
-    return "completed";
+    return "approval";
   }
 
   const view = params.get("view");
@@ -1210,7 +1169,7 @@ function getViewFromPath(path) {
     const params = parsed.searchParams;
 
     if (isCompletedSidebarContext(params)) {
-      return "completed";
+      return "approval";
     }
 
     return params.get("view") || "";

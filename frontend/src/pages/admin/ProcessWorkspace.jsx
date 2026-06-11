@@ -1842,7 +1842,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         setSelectedId("");
         setSelectedDetail(null);
         await fetchApplications({ silent: true });
-        navigate("/dashboard/admin?view=completed", { replace: true });
+        navigate("/dashboard/admin?view=approval", { replace: true });
         return true;
       }
 
@@ -1860,7 +1860,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (tableFirstWorkspace && config.key === "approval" && isApprovalHistoryRecord(refreshed)) {
         setSelectedId("");
         setSelectedDetail(null);
-        navigate("/dashboard/admin?view=completed");
+        navigate("/dashboard/admin?view=approval");
         return true;
       }
 
@@ -2111,6 +2111,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 {
                   key: "reference",
                   label: t("common.reference"),
+                  className: "w-[10%] whitespace-nowrap",
                   render: (app) => {
                     const canOpenRow =
                       !isELicenseWorkspace || canOpenWorkspaceRow(config, app, userDepartment);
@@ -2135,17 +2136,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   },
                 },
                 {
-                  key: "type",
-                  label: t("common.applicationType", "Type of Application"),
-                  render: (app) =>
-                    userDepartment === "IKL (TECHNICAL)"
-                      ? getPrimaryApplicationType(app, language)
-                      : getApplicationType(app, language),
+                  key: "project",
+                  label: t("common.project"),
+                  className: "w-[39%] min-w-[18rem]",
+                  render: getProjectName,
                 },
-                { key: "project", label: t("common.project"), render: getProjectName },
+                {
+                  key: "type",
+                  label: t("common.type"),
+                  className: "w-[13%]",
+                  render: (app) => getPrimaryApplicationType(app, language),
+                },
                 {
                   key: "status",
                   label: t("common.status"),
+                  className: "w-[16%]",
                   render: (app) => (
                     <StatusPill value={getWorkspaceStatusLabel(app, config, t, userDepartment)} />
                   ),
@@ -2153,6 +2158,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 {
                   key: "updated",
                   label: t("common.updated"),
+                  className: "w-[14%] whitespace-nowrap",
                   render: (app) => (
                     <span className="whitespace-nowrap text-[12px] leading-5">
                       {formatCompactDateTime(app.updated_at)}
@@ -2164,6 +2170,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       {
                         key: "action",
                         label: t("common.action"),
+                        className: "w-[8%] whitespace-nowrap",
                         render: (app) => {
                           if (!canViewWorkspaceRow(config, app, userDepartment)) return null;
 
@@ -4440,8 +4447,10 @@ function isPaymentTaskForDepartment(app, department) {
 function isApprovalTaskForDepartment(app, department) {
   const stage = getApprovalStageKey(app);
 
+  if (!isApprovalWorkflowRecord(app)) return false;
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
+  if (hasApprovalDecisionForDepartment(app, department)) return true;
   if (department === "KB(LES)") return stage === "kb" || stage === "kb_support" || isKbLesMonitoredRecord(app);
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     return stage === "support" || isApprovalSupportMonitoredRecord(app);
@@ -4454,6 +4463,46 @@ function isApprovalTaskForDepartment(app, department) {
   }
 
   return false;
+}
+
+function isApprovalWorkflowRecord(app) {
+  const status = normalizeStatus(app?.status);
+
+  return (
+    ["management_review", "mphlg_processing", "mphlg_decision_received"].includes(status) ||
+    isApprovalHistoryRecord(app) ||
+    [
+      "kb_les_verification",
+      "management_recommendation",
+      "mphlg_gateway",
+      "sut_approval",
+    ].some((key) => hasApplicationSection(app, key))
+  );
+}
+
+function hasApprovalDecisionForDepartment(app, department) {
+  let section = {};
+
+  if (department === "KB(LES)") {
+    section = getApplicationSection(app, "kb_les_verification");
+  } else if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+    section = getApplicationSection(app, "management_recommendation");
+    const officer = normalizeDepartmentCode(section.officer || section.decided_by);
+    if (officer && !APPROVAL_SUPPORT_DEPARTMENTS.includes(officer)) return false;
+  } else if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+    section = getApplicationSection(app, "mphlg_gateway");
+  } else if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
+    section = getApplicationSection(app, "sut_approval");
+  }
+
+  return Boolean(
+    section?.decision ||
+      section?.final_decision ||
+      section?.verified_at ||
+      section?.decided_at ||
+      section?.reviewed_at ||
+      section?.approved_at
+  );
 }
 
 function isKbLesMonitoredRecord(app) {
@@ -6249,6 +6298,10 @@ function getWorkspaceStatusScope(config, department) {
         "payment_verified",
       ];
     }
+  }
+
+  if (config?.key === "approval") {
+    return [];
   }
 
   return Array.isArray(config?.statuses) ? config.statuses : [];

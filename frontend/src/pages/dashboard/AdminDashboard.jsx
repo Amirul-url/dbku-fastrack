@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
-import CompletedApprovalsPage from "../admin/approval/CompletedApprovalsPage";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, fetchApplicationList, getStoredUser } from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
@@ -34,24 +33,6 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
 ]);
 const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
-const COMPLETED_VIEW_DEPARTMENTS = new Set([
-  "PT(IKL)",
-  "KU(IKL)",
-  "IKL (TECHNICAL)",
-  "BLG",
-  "GPM",
-  "MNE",
-  "IMT",
-  "LNP",
-  "ENG",
-  "KB(LES)",
-  "TP(RES)",
-  "PGH",
-  "TP(RES)/PGH",
-  "TP/PGH",
-  "MPHLG",
-  "SUT",
-]);
 const IKL_HISTORY_STATUSES = [
   "submitted",
   "incomplete",
@@ -210,8 +191,8 @@ function AdminDashboard() {
     };
   }, []);
 
-  if (isCompletedWorkflowUser(currentUser) && view === "completed") {
-    return <CompletedApprovalsPage />;
+  if (view === "completed") {
+    return <ApprovalPage />;
   }
 
   if (isMphlgUser(currentUser) && view === "approval") {
@@ -1154,13 +1135,6 @@ function isApprovalWorkflowUser(user) {
     department === "TP(RES)/PGH" ||
     department === "TP/PGH"
   );
-}
-
-function isCompletedWorkflowUser(user) {
-  const role = String(user?.role || "").trim().toLowerCase();
-  const department = normalizeDepartmentCode(user?.department);
-
-  return role === "supervisor" || COMPLETED_VIEW_DEPARTMENTS.has(department);
 }
 
 function isMphlgUser(user) {
