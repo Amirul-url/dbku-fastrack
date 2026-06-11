@@ -265,6 +265,27 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertIn("Please correct the applicant details.", web_delivery.message)
 
+    def test_applicant_rejection_external_message_is_plain_notice(self):
+        self.application.latest_remark = "resubmit"
+        self.application.save(update_fields=["latest_remark"])
+
+        self.notify_status("rejected", old_status="submitted")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="applicant",
+            metadata__event_status="rejected",
+            channel__in=["email", "whatsapp"],
+        )
+        self.assertEqual(deliveries.count(), 2)
+
+        for delivery in deliveries:
+            self.assertIn("Your application", delivery.message)
+            self.assertIn("Remark: resubmit", delivery.message)
+            self.assertNotIn("Reference:", delivery.message)
+            self.assertNotIn("Status:", delivery.message)
+            self.assertNotIn("Project:", delivery.message)
+            self.assertNotIn("KU(IKL)", delivery.message)
+
     def test_pt_ikl_approval_memo_is_sent_to_ku_ikl_notification(self):
         ku_user = User.objects.create_user(
             username="ku-memo",

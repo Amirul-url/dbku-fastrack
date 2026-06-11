@@ -1448,22 +1448,16 @@ def format_notification_message(title, body, application, recipient_role):
     if recipient_role != "applicant":
         return format_simple_internal_notification_message(body, application)
 
+    message = str(body or "").strip()
+    remark = get_message_remark(application)
+    if remark and not re.search(r"\bRemark\s*:", message, flags=re.IGNORECASE):
+        message = f"{message}\n\nRemark: {remark}" if message else f"Remark: {remark}"
+
     lines = [
         APP_BRAND_NAME,
         "",
-        title,
-        f"Reference: {application.reference_no}",
-        f"Status: {get_notification_status_label(application)}",
+        message,
     ]
-
-    if application.title:
-        lines.append(f"Project: {application.title}")
-
-    lines.extend(["", body])
-
-    remark = get_message_remark(application)
-    if remark:
-        lines.extend(["", f"Remark: {remark}"])
 
     return "\n".join(lines)
 
