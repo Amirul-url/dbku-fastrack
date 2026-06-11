@@ -1628,6 +1628,8 @@ const dictionaries = {
     "applicant.activityResubmittedDesc": "Permohonan yang dikemas kini telah dihantar semula untuk semakan.",
     "applicant.activityPaymentTitle": "Anda menghantar resit bayaran",
     "applicant.activityPaymentDesc": "ALiS akan mengesahkan resit sebelum e-lesen dikeluarkan.",
+    "applicant.activityRejectedTitle": "Permohonan ditolak",
+    "applicant.activityRejectedDesc": "Permohonan anda telah ditolak. Sila semak catatan dan kemas kini permohonan anda.",
     "applicant.activityUploadedTitle": "Anda memuat naik {item}",
     "applicant.activityUploadedDesc": "Fail: {file}",
     "applicant.activityRemovedTitle": "Anda membuang {item}",
@@ -1742,6 +1744,8 @@ const dictionaries = {
     "status.payment_verified": "Bayaran Disahkan",
     "status.license_issued": "E-Lesen Dijana",
     "status.license_revoked": "Lesen Dibatalkan",
+    "status.applicant_submitted": "Permohonan Dihantar",
+    "status.applicant_resubmitted": "Permohonan Dihantar Semula",
   },
   en: {
     ...adminWorkflowEn,
@@ -2191,6 +2195,8 @@ const dictionaries = {
     "applicant.activityResubmittedDesc": "Your updated application was sent back for review.",
     "applicant.activityPaymentTitle": "You submitted your payment receipt",
     "applicant.activityPaymentDesc": "ALiS will verify the receipt before issuing the e-license.",
+    "applicant.activityRejectedTitle": "Application rejected",
+    "applicant.activityRejectedDesc": "Your application was rejected. Please review the remark and update your application.",
     "applicant.activityUploadedTitle": "You uploaded {item}",
     "applicant.activityUploadedDesc": "File: {file}",
     "applicant.activityRemovedTitle": "You removed {item}",
@@ -2305,6 +2311,8 @@ const dictionaries = {
     "status.payment_verified": "Payment Verified",
     "status.license_issued": "E-License Generated",
     "status.license_revoked": "License Revoked",
+    "status.applicant_submitted": "Application Submitted",
+    "status.applicant_resubmitted": "Application Resubmitted",
   },
 };
 

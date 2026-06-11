@@ -858,7 +858,7 @@ function ClaimableTaskView({
   onSelectUnit,
   unitTasks,
 }) {
-  const rows = selected.tasks || [];
+  const rows = getUnitQueueRows(selected);
   const rowsHaveActions = rows.some((application) =>
     isUnitActionableApplication(application, selected)
   );
@@ -1075,6 +1075,57 @@ function isUnitHistoryApplication(application, unit, activeDepartment = "") {
   return true;
 }
 
+function getUnitQueueRows(unit) {
+  const rows = [...(unit?.tasks || [])];
+  const seen = new Set(rows.map((application) => application.id));
+
+  (unit?.records || [])
+    .filter((application) => shouldKeepCompletedRecordInQueue(application, unit))
+    .forEach((application) => {
+      if (seen.has(application.id)) return;
+      seen.add(application.id);
+      rows.push(application);
+    });
+
+  return rows.sort((a, b) => {
+    const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+    const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
+function shouldKeepCompletedRecordInQueue(application, unit) {
+  if (normalizeStatus(application.status) !== "rejected") return false;
+
+  const department = unit?.department || "";
+  if (!department) return false;
+
+  const correctionSource = normalizeDepartmentCode(
+    application.form_data?.correction_request?.source ||
+      application.form_data?.correction_request?.reviewer ||
+      ""
+  );
+
+  if (correctionSource === department) return true;
+
+  const activityLog = Array.isArray(application.activity_log)
+    ? application.activity_log
+    : Array.isArray(application.form_data?.activity_log)
+    ? application.form_data.activity_log
+    : [];
+  const departmentText = department.toLowerCase();
+
+  return activityLog.some((activity) => {
+    const title = String(activity?.title || "").toLowerCase();
+    const description = String(activity?.description || "").toLowerCase();
+
+    return (
+      title.includes("rejected") &&
+      (title.includes(departmentText) || description.includes(departmentText))
+    );
+  });
+}
+
 function getProcessIconTitle(unit) {
   return IKL_DEPARTMENTS.has(unit?.department) ? "LES" : unit?.title || "";
 }
@@ -1195,7 +1246,7 @@ function getDashboardTaskStatusLabel(application, unit, t) {
     return `${unit.department} Review`;
   }
 
-  return formatWorkflowStatus(status);
+  return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
 export default AdminDashboard;

@@ -98,15 +98,15 @@ function shouldShowNotificationRemark(status) {
   return ["incomplete", "rejected", "technical_amendment"].includes(normalizeStatus(status));
 }
 
-function appendNotificationRemark(message, remark, status) {
+function appendNotificationRemark(message, remark, status, remarkLabel = "Remark") {
   const cleanMessage = String(message || "").trim();
   const clean = cleanRemark(remark);
 
-  if (!clean || !shouldShowNotificationRemark(status) || /\bRemark\s*:/i.test(cleanMessage)) {
+  if (!clean || !shouldShowNotificationRemark(status) || /\b(Remark|Catatan)\s*:/i.test(cleanMessage)) {
     return message || "";
   }
 
-  return cleanMessage ? `${cleanMessage}\n\nRemark: ${clean}` : `Remark: ${clean}`;
+  return cleanMessage ? `${cleanMessage}\n\n${remarkLabel}: ${clean}` : `${remarkLabel}: ${clean}`;
 }
 
 function getAdminApplicationViewUrl(app) {
@@ -515,7 +515,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
   const remark = getLatestRemark(app);
   const remarkKey = remark ? `:${remark}` : "";
   const memoMessageEn = appendNotificationRemark(messageEn, remark, status);
-  const memoMessageMs = appendNotificationRemark(messageMs, remark, status);
+  const memoMessageMs = appendNotificationRemark(messageMs, remark, status, "Catatan");
 
   return {
     id: `${role}:${app.id}:${status}:${category}:${updatedAt}${remarkKey}`,
@@ -882,12 +882,25 @@ function normalizeApplicantNotificationText(value, role, status) {
     .replace(/\bIncomplete\b/g, "Rejected");
 }
 
-function getDeliveryLocalizedCopy(status, reference) {
+function getDeliveryLocalizedCopy(status, reference, remark = "") {
   const safeReference = reference && reference !== "-" ? reference : "permohonan";
+  const clean = cleanRemark(remark);
   const copy = {
+    applicant_submitted: {
+      titleMs: "Permohonan berjaya dihantar",
+      messageMs: `Permohonan anda ${safeReference} telah berjaya dihantar. ALiS akan menyemak permohonan anda dan memaklumkan jika terdapat kemas kini.`,
+    },
+    applicant_resubmitted: {
+      titleMs: "Permohonan berjaya dihantar semula",
+      messageMs: `Permohonan anda ${safeReference} telah berjaya dihantar semula. ALiS akan menyemak permohonan yang dikemas kini dan memaklumkan jika terdapat kemas kini.`,
+    },
     submitted: {
       titleMs: "Permohonan baharu dihantar",
       messageMs: `Permohonan baharu ${safeReference} telah dihantar dan sedang menunggu semakan.`,
+    },
+    rejected: {
+      titleMs: "Permohonan ditolak",
+      messageMs: `Permohonan anda ${safeReference} telah ditolak. Sila semak catatan dan kemas kini permohonan anda.${clean ? `\n\nCatatan: ${clean}` : ""}`,
     },
     ku_ikl_review: {
       titleMs: "Semakan KU(IKL) diperlukan",
@@ -974,7 +987,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         status
       );
       const reference = delivery.reference_no || metadata.account_username || "-";
-      const localizedCopy = getDeliveryLocalizedCopy(status, reference);
+      const localizedCopy = getDeliveryLocalizedCopy(status, reference, delivery.latest_remark);
       const titleMs = normalizeApplicantNotificationText(metadata.title_ms || localizedCopy.titleMs || title, role, status);
       const messageMs = normalizeApplicantNotificationText(
         metadata.message_ms || localizedCopy.messageMs || message,
@@ -982,7 +995,7 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         status
       );
       const memoMessage = appendNotificationRemark(message, delivery.latest_remark, status);
-      const memoMessageMs = appendNotificationRemark(messageMs, delivery.latest_remark, status);
+      const memoMessageMs = appendNotificationRemark(messageMs, delivery.latest_remark, status, "Catatan");
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
       const recipientName = String(delivery.recipient_name || "").trim();
       const recipientEmail = String(delivery.recipient_email || "").trim();
@@ -1148,7 +1161,9 @@ export function NotificationProvider({ children }) {
     const readSet = new Set(readIds);
     return notifications.map((item) => ({
       ...item,
-      read: Boolean(item.read || readSet.has(item.id)),
+      read: String(item.id || "").startsWith("web:")
+        ? Boolean(item.read)
+        : Boolean(item.read || readSet.has(item.id)),
     }));
   }, [notifications, readIds]);
 

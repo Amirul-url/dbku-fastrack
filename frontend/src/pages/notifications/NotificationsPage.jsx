@@ -67,7 +67,7 @@ function formatLocalizedDateTime(value, language) {
 
 function getMemoBodyParts(body) {
   const text = String(body || "").trim();
-  const remarkMatch = text.match(/^(.*?)(?:\s+Remark:\s*)(.+)$/is);
+  const remarkMatch = text.match(/^(.*?)(?:\s+(?:Remark|Catatan):\s*)(.+)$/is);
 
   if (!remarkMatch) {
     return {
@@ -81,7 +81,7 @@ function getMemoBodyParts(body) {
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean),
-    remark: remarkMatch[2].trim(),
+    remark: remarkMatch[2].trim().replace(/^(?:Remark|Catatan):\s*/i, ""),
   };
 }
 
@@ -561,15 +561,66 @@ function getNotificationRecipientLabel(item) {
   return "-";
 }
 
-function getNotificationSubjectLine(item, fallbackSubject) {
+function localizeNotificationSender(value, language) {
+  const sender = String(value || "").trim() || "ALiS Notification Center";
+
+  if (language === "ms" && /^ALiS Notification Center$/i.test(sender)) {
+    return "Pusat Notifikasi ALiS";
+  }
+
+  if (language !== "ms" && /^Pusat Notifikasi ALiS$/i.test(sender)) {
+    return "ALiS Notification Center";
+  }
+
+  return sender;
+}
+
+function getLocalizedMemoSubject(item, language, fallbackTitle = "") {
+  const reference = String(item?.reference || "").trim();
+  const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
+
+  if (language === "ms") {
+    if (status === "rejected") {
+      return `ALiS - Permohonan ditolak${reference ? ` (${reference})` : ""}`;
+    }
+
+    if (status === "applicant_submitted") {
+      return `ALiS - Permohonan dihantar${reference ? ` (${reference})` : ""}`;
+    }
+
+    if (status === "applicant_resubmitted") {
+      return `ALiS - Permohonan dihantar semula${reference ? ` (${reference})` : ""}`;
+    }
+  }
+
+  if (language !== "ms") {
+    if (status === "rejected") {
+      return `ALiS - Application rejected${reference ? ` (${reference})` : ""}`;
+    }
+
+    if (status === "applicant_submitted") {
+      return `ALiS - Application submitted${reference ? ` (${reference})` : ""}`;
+    }
+
+    if (status === "applicant_resubmitted") {
+      return `ALiS - Application resubmitted${reference ? ` (${reference})` : ""}`;
+    }
+  }
+
+  return fallbackTitle || item?.subject || "";
+}
+
+function getNotificationSubjectLine(item, fallbackSubject, language = "en") {
   const reference = String(item?.reference || "").trim();
   const status = String(item?.eventStatus || item?.status || "").trim().toLowerCase();
 
   if (reference && (status === "submitted" || status === "ku_ikl_review")) {
-    return `Application ${reference} requires review.`;
+    return language === "ms"
+      ? `Permohonan ${reference} memerlukan semakan.`
+      : `Application ${reference} requires review.`;
   }
 
-  return fallbackSubject;
+  return getLocalizedMemoSubject(item, language, fallbackSubject);
 }
 
 function NotificationsPage() {
@@ -821,9 +872,10 @@ function NotificationMemo({
   }
 
   const localizedTitle = getLocalized(item, "title", language);
-  const subject = item.subject || localizedTitle;
+  const subject = getLocalizedMemoSubject(item, language, localizedTitle);
   const recipientLabel = getNotificationRecipientLabel(item);
-  const subjectLine = getNotificationSubjectLine(item, subject);
+  const subjectLine = getNotificationSubjectLine(item, subject, language);
+  const senderLabel = localizeNotificationSender(item.from, language);
   const body = getLocalized(item, "body", language) || getLocalized(item, "message", language);
   const bodyParts = getMemoBodyParts(body);
 
@@ -860,7 +912,7 @@ function NotificationMemo({
       <div className="space-y-5 px-5 py-5">
         <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm md:grid-cols-[88px_1fr]">
           <dt className="font-semibold text-slate-500">{t("notifications.memo.from", "From")}:</dt>
-          <dd className="min-w-0 break-words text-slate-900">{item.from || "ALiS Notification Center"}</dd>
+          <dd className="min-w-0 break-words text-slate-900">{senderLabel}</dd>
           <dt className="font-semibold text-slate-500">{t("notifications.memo.to", "To")}:</dt>
           <dd className="min-w-0 break-words text-slate-900">{recipientLabel}</dd>
           <dt className="font-semibold text-slate-500">{t("notifications.memo.subject", "Subject")}:</dt>

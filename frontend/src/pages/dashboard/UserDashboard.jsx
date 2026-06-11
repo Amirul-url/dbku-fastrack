@@ -1859,6 +1859,16 @@ function getApplicantActivityCopy(activity, t) {
     };
   }
 
+  if (normalizedTitle.startsWith("application rejected by") || normalizedTitle === "application rejected") {
+    return {
+      title: t("applicant.activityRejectedTitle", "Application rejected"),
+      description: t(
+        "applicant.activityRejectedDesc",
+        "Your application was rejected. Please review the remark and update your application."
+      ),
+    };
+  }
+
   if (normalizedTitle === "application details saved") {
     return {
       title: t("applicant.activitySavedTitle", "You saved application details"),
