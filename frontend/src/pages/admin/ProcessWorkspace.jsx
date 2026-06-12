@@ -1602,7 +1602,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    if (action.requiresPaymentDocuments && !hasPaymentDocuments(selectedRecord)) {
+    if (action.requiresPaymentDocuments && !hasUploadedPaymentDocuments(selectedRecord)) {
       setError(t(
         "workspace.payment.documentsRequired",
         "Please upload the approval letter and bill before sending to the applicant."
@@ -1920,6 +1920,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function openSelectedTask(app) {
     if (!app?.id) return;
+
+    if (
+      config.key === "payment" &&
+      ["payment_verified", "license_issued", "license_revoked"].includes(normalizeStatus(app.status))
+    ) {
+      navigate(`/admin/e-licenses/license?id=${app.id}`);
+      return;
+    }
 
     setSelectedId(String(app.id));
     const params = new URLSearchParams(location.search);
@@ -2410,20 +2418,34 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onManualLicenseDraftChange={updateManualLicenseDraft}
                           officialReceiptMode={officialReceiptMode}
                           setOfficialReceiptMode={setOfficialReceiptMode}
+                          paymentReceiptDecision={decision}
                         />
                       )
                     )
                   )}
 
                   {showPaymentReceiptDecision && (
-                    <Field label={t("common.decision", "Decision")}>
+                    <Field
+                      label={
+                        <span className="relative inline-flex items-center gap-1.5">
+                          <span>{t("common.decision", "Decision")}</span>
+                          <WorkspaceGuidelineHint
+                            text={t(
+                              "workspace.payment.receiptDecisionHint",
+                              "Please view the applicant receipt first, then select a decision before submitting."
+                            )}
+                          />
+                        </span>
+                      }
+                      labelClassName="!text-[13px]"
+                    >
                       <select
                         value={decision}
                         onChange={(event) => {
                           setDecision(event.target.value);
                           if (commentError) setCommentError("");
                         }}
-                        className="form-input max-w-xs"
+                        className="form-input form-input-sm max-w-xs"
                       >
                         <option value="">
                           {t("workspace.decision.selectDecision", "Select decision")}
@@ -2449,6 +2471,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           )}
                         </>
                       }
+                      labelClassName={showPaymentReceiptDecision ? "!text-[13px]" : ""}
                     >
                       <textarea
                         value={comment}
@@ -2459,7 +2482,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         rows="5"
                         required={workspaceActions.some((action) => action.requiresComment)}
                         aria-required={workspaceActions.some((action) => action.requiresComment)}
-                        className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                        className={`form-input ${showPaymentReceiptDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                         placeholder={
                           isSutApprovalWorkspace
                             ? t("workspace.comment.approvalRemarksPlaceholder", "Enter remarks if needed.")
@@ -2582,6 +2605,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onManualLicenseDraftChange={updateManualLicenseDraft}
                         officialReceiptMode={officialReceiptMode}
                         setOfficialReceiptMode={setOfficialReceiptMode}
+                        paymentReceiptDecision={decision}
                       />
                     )
                   )}
@@ -6650,18 +6674,16 @@ const configs = {
         successKey: "workspace.message.paymentVerified",
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
+        requiresPaymentDocuments: true,
         requiresOfficialReceipt: true,
+        requiresLicenseDocument: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
         buildPayload: (app, data) => ({
           status: "payment_verified",
           form_data: mergeFormData(app, {
             approval_letter: {
-              ...buildOfficialReceiptApprovalLetterForSending(
-                app,
-                data.department,
-                data.officialReceiptMode
-              ),
+              ...(app.form_data?.approval_letter || {}),
             },
             payment: {
               ...(app.form_data?.payment || {}),
@@ -9082,6 +9104,22 @@ function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hi
   );
 }
 
+function WorkspaceGuidelineHint({ text }) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={text}
+      className="group/icon relative inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-blue-500 bg-blue-50 text-[10px] font-black leading-none text-blue-700 outline-none hover:border-blue-700 hover:bg-blue-100 focus:border-blue-700 focus:bg-blue-100"
+    >
+      i
+      <span className="pointer-events-none absolute left-full top-1/2 z-40 ml-2 hidden w-[min(20rem,calc(100vw-2rem))] -translate-y-1/2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-left text-[11px] font-medium leading-4 text-blue-800 shadow-lg group-hover/icon:block group-focus/icon:block">
+        {text}
+      </span>
+    </span>
+  );
+}
+
 function PaymentDetails({
   app,
   t,
@@ -9089,17 +9127,22 @@ function PaymentDetails({
   saving,
   onPaymentDocumentUpload,
   onPaymentDocumentDelete,
+  onLicenseDocumentUpload,
+  onLicenseDocumentDelete,
   onManualPaymentDraftChange,
   officialReceiptMode = "upload",
   setOfficialReceiptMode,
+  paymentReceiptDecision = "",
 }) {
   const payment = app.form_data?.payment || {};
   const approvalLetter = app.form_data?.approval_letter || {};
+  const license = app.form_data?.license || {};
   const receiptFile = payment.receipt_file;
   const receiptSource = getPaymentReceiptSource(receiptFile);
   const letterFile = approvalLetter.letter_file;
   const billFile = approvalLetter.bill_file;
-  const officialReceiptFile = approvalLetter.official_receipt_file;
+  const officialReceiptFile = approvalLetter.official_receipt_file || null;
+  const licenseFile = license.license_file || null;
   const status = normalizeStatus(app?.status);
   const letterReady = Boolean(letterFile);
   const billReady = Boolean(billFile);
@@ -9115,6 +9158,7 @@ function PaymentDetails({
     payment.verification_result ||
     payment.verification_notes
   );
+  const showVerificationUploads = isReceiptVerification && paymentReceiptDecision === "Verify Receipt";
 
   async function viewReceipt() {
     if (!receiptSource) return;
@@ -9137,18 +9181,16 @@ function PaymentDetails({
     }
   }
 
-  const receiptEditorSection = isReceiptVerification ? (
+  const officialReceiptUploadSection = showVerificationUploads ? (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <div>
-          <div>
-            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              {t("workspace.payment.officialReceiptUploadDesc", "Upload the official receipt file to send it to the applicant.")}
-            </p>
-          </div>
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+            {t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            {t("workspace.payment.officialReceiptUploadDesc", "Send an uploaded official receipt file to the applicant.")}
+          </p>
         </div>
       </div>
 
@@ -9161,6 +9203,33 @@ function PaymentDetails({
           saving={saving}
           onFileChange={(file) => onPaymentDocumentUpload?.("official_receipt", file)}
           onDelete={() => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile)}
+        />
+      </div>
+    </section>
+  ) : null;
+
+  const licenseUploadSection = showVerificationUploads ? (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <div>
+          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+            {t("workspace.license.documentTitle", "Advertisement License")}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            {t("workspace.license.uploadDesc", "Upload the advertisement license file that will be issued with the QR verification link.")}
+          </p>
+        </div>
+      </div>
+
+      <div className="px-3 py-3">
+        <PaymentDocumentSlot
+          label={t("workspace.license.documentTitle", "Advertisement License")}
+          file={licenseFile}
+          t={t}
+          canUpload
+          saving={saving}
+          onFileChange={(file) => onLicenseDocumentUpload?.(file)}
+          onDelete={() => onLicenseDocumentDelete?.(licenseFile)}
         />
       </div>
     </section>
@@ -9209,30 +9278,38 @@ function PaymentDetails({
   );
 
   const receiptSection = showReceiptDetails ? (
-    <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Info
-          label={t("workspace.info.receipt")}
-          value={receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
-        />
-        {payment.verification_result && (
-          <Info label={t("workspace.info.verificationResult")} value={payment.verification_result} />
-        )}
-        {payment.verification_notes && (
-          <Info label={t("workspace.info.verificationNotes")} value={payment.verification_notes} />
-        )}
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          {t("workspace.payment.applicantReceipt", "Applicant Receipt")}
+        </p>
       </div>
 
-      {receiptSource && (
-        <button
-          type="button"
-          onClick={viewReceipt}
-          className="mt-3 inline-flex w-fit items-center gap-1 text-sm font-semibold text-emerald-700 hover:underline"
-        >
-          <Icon name="visibility" className="text-base" />
-          {t("workspace.info.viewReceipt")}
-        </button>
-      )}
+      <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950">
+            {receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
+          </p>
+          {payment.verification_result && (
+            <p className="mt-1 text-xs text-slate-500">{payment.verification_result}</p>
+          )}
+          {payment.verification_notes && (
+            <p className="mt-1 text-xs text-slate-500">{payment.verification_notes}</p>
+          )}
+        </div>
+
+        {receiptSource && (
+          <Button
+            type="button"
+            variant="secondary"
+            icon="visibility"
+            className="min-h-9 px-3 py-1 text-xs"
+            onClick={viewReceipt}
+          >
+            {t("common.view", "View")}
+          </Button>
+        )}
+      </div>
     </section>
   ) : null;
 
@@ -9243,9 +9320,16 @@ function PaymentDetails({
       <div className="space-y-4">
         {isReceiptVerification ? (
           <>
-            {receiptSection}
-            {documentSection}
-            {receiptEditorSection}
+            <div className="grid gap-4 xl:grid-cols-2">
+              {documentSection}
+              {receiptSection}
+            </div>
+            {showVerificationUploads && (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {officialReceiptUploadSection}
+                {licenseUploadSection}
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -9266,8 +9350,8 @@ function PaymentQrPanel({ app, t }) {
   const verificationUrl = licenseFileUrl || license.verification_url || getLicenseVerificationUrl(licenseId);
 
   return (
-    <section className="rounded-md border border-slate-200 bg-slate-50">
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-4 text-center">
+    <section className="self-start rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex min-h-[340px] flex-col items-center justify-center gap-3 p-4 text-center">
         {licenseReady ? (
           <>
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -9285,7 +9369,7 @@ function PaymentQrPanel({ app, t }) {
             </p>
           </>
         ) : (
-          <div className="flex h-full min-h-[300px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
+          <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
             <p className="max-w-xs text-sm font-medium text-slate-500">
               {t("applicant.qrWillDisplayHere", "QR e-license will be displayed here.")}
             </p>
@@ -10715,6 +10799,14 @@ function hasPaymentDocuments(app) {
       getPaymentDocumentSource(approvalLetter.bill_file)
     ) ||
     hasManualPaymentDocuments(app)
+  );
+}
+
+function hasUploadedPaymentDocuments(app) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  return Boolean(
+    getPaymentDocumentSource(approvalLetter.letter_file) &&
+    getPaymentDocumentSource(approvalLetter.bill_file)
   );
 }
 

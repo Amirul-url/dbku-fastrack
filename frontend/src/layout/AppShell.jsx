@@ -120,22 +120,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
   );
   const eLicensePaymentBadge = Number(taskCounts.eLicensePayment || 0);
   const eLicenseLicenseBadge = Number(taskCounts.eLicenseLicense || 0);
-  const eLicenseChildren = [
-    {
-      labelKey: "nav.approvalBillingReceipts",
-      fallback: "Approval Letter, Bill & Receipt",
-      path: "/admin/e-licenses/payment",
-      badge: eLicensePaymentBadge,
-    },
-    isPtIklUser(user)
-      ? {
-          labelKey: "nav.advertisementLicenseQr",
-          fallback: "Advertisement License / QR",
-          path: "/admin/e-licenses/license",
-          badge: eLicenseLicenseBadge,
-        }
-      : null,
-  ].filter(Boolean);
 
   return [
     {
@@ -150,12 +134,10 @@ function buildAdminNav(taskCounts = {}, user = null) {
       ? {
           labelKey: "nav.eLicenses",
           fallback: "E-Licenses",
-          path: "/admin/e-licenses/payment",
+          path: "/admin/e-licenses",
           activePathPrefix: "/admin/e-licenses",
           icon: "qr_code_2",
-          menuKey: "eLicenses",
           badge: eLicensePaymentBadge + eLicenseLicenseBadge,
-          children: eLicenseChildren,
         }
       : null,
     {
