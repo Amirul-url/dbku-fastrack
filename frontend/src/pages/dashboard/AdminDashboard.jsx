@@ -567,8 +567,8 @@ function getAdminActivityLogTitle(activity, t) {
     );
   }
 
-  if (normalized === "bill pending ku(ikl) confirmation") {
-    return t("admin.dashboard.activityBillPending", "Bill confirmation required");
+  if (normalized === "bill pending ku(ikl) confirmation" || normalized === "bill ready for applicant") {
+    return t("admin.dashboard.activityBillPending", "Bill ready for applicant");
   }
 
   if (normalized === "application approved") {
@@ -647,10 +647,10 @@ function getAdminActivityLogDescription(activity, application, t) {
     ).replace("{reference}", reference);
   }
 
-  if (title === "bill pending ku(ikl) confirmation") {
+  if (title === "bill pending ku(ikl) confirmation" || title === "bill ready for applicant") {
     return t(
       "admin.dashboard.activityBillPendingDesc",
-      `${reference} has a generated bill waiting for KU(IKL) confirmation.`
+      `${reference} has a generated bill ready to be sent to the applicant.`
     ).replace("{reference}", reference);
   }
 
@@ -828,7 +828,7 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (status === "bill_pending_ku") {
-    return t("admin.dashboard.activityBillPending", "Bill confirmation required");
+    return t("admin.dashboard.activityBillPending", "Bill ready for applicant");
   }
 
   if (status === "rejected") {
@@ -1378,10 +1378,6 @@ function getAdminTaskWorkspacePath(application, unit) {
     if (status === "payment_verified") {
       return "/admin/e-licenses/license";
     }
-  }
-
-  if (unit?.department === "KU(IKL)" && status === "bill_pending_ku") {
-    return "/admin/e-licenses/payment";
   }
 
   return unit?.path || "/dashboard/admin";

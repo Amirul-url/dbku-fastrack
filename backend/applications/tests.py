@@ -289,6 +289,70 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(set(staff_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
         self.assertIn("ready for MPHLG review", staff_deliveries.get(channel="email").message)
 
+    def test_pt_ikl_letter_bill_submit_routes_directly_to_applicant_payment(self):
+        User = get_user_model()
+        pt_ikl = User.objects.create_user(
+            username="pt-ikl-letter-bill",
+            email="pt-ikl-letter-bill@example.com",
+            password="testpass123",
+            role="admin",
+            department="PT(IKL)",
+            is_active=True,
+        )
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="Approved application",
+            status="approved",
+            form_data={
+                "approval_letter": {
+                    "letter_file": "approval.pdf",
+                    "bill_file": "bill.pdf",
+                }
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=pt_ikl)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "invoice_generated",
+                "form_data": {
+                    "approval_letter": {
+                        "letter_file": "approval.pdf",
+                        "bill_file": "bill.pdf",
+                        "status": "Sent to Applicant",
+                        "submitted_by": "PT(IKL)",
+                    },
+                    "payment": {
+                        "status": "Awaiting Payment",
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "invoice_generated")
+        self.assertEqual(application.form_data["payment"]["status"], "Awaiting Payment")
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                application=application,
+                recipient_role="admin",
+                metadata__event_status="invoice_generated",
+            ).exists()
+        )
+
+        applicant_deliveries = NotificationDelivery.objects.filter(
+            application=application,
+            recipient_role="applicant",
+            metadata__event_status="invoice_generated",
+        )
+        self.assertEqual(applicant_deliveries.count(), 3)
+        self.assertEqual(set(applicant_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertIn("proof of payment", applicant_deliveries.get(channel="email").message)
+
     def test_applicant_submit_creates_safe_applicant_and_internal_staff_notifications(self):
         application = Application.objects.create(
             applicant=self.applicant,

@@ -254,7 +254,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.APPROVED]: "Approved",
     [WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS]: "Approved with Conditions",
     [WORKFLOW_STATUS.REJECTED]: "Rejected",
-    [WORKFLOW_STATUS.BILL_PENDING_KU]: "Pending Bill Confirmation",
+    [WORKFLOW_STATUS.BILL_PENDING_KU]: "Pending Bill Sending",
     [WORKFLOW_STATUS.INVOICE_GENERATED]: "Bill Generated",
     [WORKFLOW_STATUS.PAYMENT_SUBMITTED]: "Payment Submitted",
     [WORKFLOW_STATUS.PAYMENT_VERIFIED]: "Payment Verified",

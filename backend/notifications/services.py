@@ -60,7 +60,7 @@ STATUS_MESSAGES = {
     ),
     "invoice_generated": (
         "Payment proof required",
-        "Bill for application {reference} has been confirmed. Please upload your proof of payment.",
+        "Bill for application {reference} is ready. Please upload your proof of payment.",
         "",
     ),
     "approved": (
@@ -69,9 +69,9 @@ STATUS_MESSAGES = {
         "Application {reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill.",
     ),
     "bill_pending_ku": (
-        "Bill confirmation required",
+        "Bill ready for applicant",
         "",
-        "Application {reference} has a generated bill waiting for KU(IKL) confirmation.",
+        "Application {reference} has a generated bill ready to be sent to the applicant.",
     ),
     "payment_submitted": (
         "Payment proof submitted",
@@ -1671,7 +1671,7 @@ def get_admin_task_web_recipients(application):
         return [user for user in users if is_pt_ikl_user(user)]
 
     if status_key == "bill_pending_ku":
-        return [user for user in users if is_ku_ikl_user(user)]
+        return [user for user in users if is_pt_ikl_user(user)]
 
     if status_key in {"payment_submitted", "payment_verified"}:
         return [user for user in users if is_pt_ikl_user(user)]
@@ -1951,7 +1951,7 @@ def should_user_receive_admin_notification(user, application, status_key=None):
         return department == "PT(IKL)"
 
     if status == "bill_pending_ku":
-        return department == "KU(IKL)"
+        return department == "PT(IKL)"
 
     if status in {"payment_submitted", "payment_verified"}:
         return department == "PT(IKL)"

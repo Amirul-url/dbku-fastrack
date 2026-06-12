@@ -1599,7 +1599,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (action.requiresPaymentDocuments && !hasPaymentDocuments(selectedRecord)) {
       setError(t(
         "workspace.payment.documentsRequired",
-        "Please upload the approval letter and bill before submitting to KU(IKL)."
+        "Please upload the approval letter and bill before sending to the applicant."
       ));
       return;
     }
@@ -4297,7 +4297,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   if (config?.key === "payment" && status === "bill_pending_ku") {
-    return t("status.bill_pending_ku", "Pending Bill Confirmation");
+    return t("status.bill_pending_ku", "Pending Bill Sending");
   }
 
   return t(`status.${status}`, formatWorkflowStatus(status));
@@ -4343,12 +4343,10 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
         return t("workspace.payment.ptReceiptAction", "Review the uploaded receipt, then verify or reject it.");
       }
 
-      return t("workspace.payment.ptAction", "Generate the approval letter and bill, then verify uploaded payment proof.");
+      return t("workspace.payment.ptAction", "Upload the approval letter and bill, send them to the applicant, then verify uploaded payment proof.");
     }
 
-    if (userDepartment === "KU(IKL)") {
-      return t("workspace.payment.kuAction", "Confirm the generated bill before it is sent to the applicant.");
-    }
+    return "";
   }
 
   if (config?.key === "license" && userDepartment === "PT(IKL)") {
@@ -4453,15 +4451,6 @@ function isPaymentTaskForDepartment(app, department) {
   if (department === "PT(IKL)") {
     return [
       "approved",
-      "bill_pending_ku",
-      "invoice_generated",
-      "payment_submitted",
-      "payment_verified",
-    ].includes(status);
-  }
-
-  if (department === "KU(IKL)") {
-    return [
       "bill_pending_ku",
       "invoice_generated",
       "payment_submitted",
@@ -4663,12 +4652,12 @@ function getActionUnavailableMessage(config, app, department) {
 function getPaymentActionUnavailableMessage(app, department) {
   const status = normalizeStatus(app?.status);
 
-  if (department === "PT(IKL)" && ["approved", "payment_submitted"].includes(status)) {
+  if (department === "PT(IKL)" && ["approved", "bill_pending_ku", "payment_submitted"].includes(status)) {
     return "";
   }
 
   if (department === "KU(IKL)" && status === "bill_pending_ku") {
-    return "";
+    return "PT(IKL) now sends the approval letter and bill directly to the applicant.";
   }
 
   if (department === "KU(IKL)" && status === "invoice_generated") {
@@ -4684,7 +4673,7 @@ function getPaymentActionUnavailableMessage(app, department) {
   }
 
   if (department === "PT(IKL)" && status === "bill_pending_ku") {
-    return "The bill is waiting for KU(IKL) confirmation before it is sent to the applicant.";
+    return "";
   }
 
   if (department === "PT(IKL)" && status === "invoice_generated") {
@@ -4696,10 +4685,10 @@ function getPaymentActionUnavailableMessage(app, department) {
   }
 
   if (department === "KU(IKL)") {
-    return "KU(IKL) confirmation is available after PT(IKL) generates the approval letter and bill.";
+    return "Billing and receipt actions are handled by PT(IKL).";
   }
 
-  return "Payment actions are available to PT(IKL) and KU(IKL) only.";
+  return "Payment actions are available to PT(IKL) only.";
 }
 
 function getLicenseActionUnavailableMessage(app, department) {
@@ -6335,14 +6324,6 @@ function getWorkspaceStatusScope(config, department) {
       ];
     }
 
-    if (department === "KU(IKL)") {
-      return [
-        "bill_pending_ku",
-        "invoice_generated",
-        "payment_submitted",
-        "payment_verified",
-      ];
-    }
   }
 
   if (config?.key === "approval") {
@@ -6594,23 +6575,23 @@ const configs = {
   },
   payment: {
     key: "payment",
-    allowedDepartments: ["PT(IKL)", "KU(IKL)"],
+    allowedDepartments: ["PT(IKL)"],
     statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.payment.listEyebrow",
     listTitle: "Approval Letter, Bill & Receipt",
     listTitleKey: "workspace.payment.listTitle",
-    listDescription: "Select an approved application to upload the approval letter and bill, confirm billing, or review payment receipts.",
+    listDescription: "Select an approved application to upload the approval letter and bill or review payment receipts.",
     listDescriptionKey: "workspace.payment.listDescription",
     eyebrow: "Payment",
     eyebrowKey: "workspace.payment.eyebrow",
     title: "Bill and Payment",
     titleKey: "workspace.payment.title",
-    description: "PT(IKL) uploads approval letters and bills, KU(IKL) confirms bills, and PT(IKL) verifies uploaded payment proof.",
+    description: "PT(IKL) uploads approval letters and bills, the applicant uploads payment proof, and PT(IKL) verifies the receipt.",
     descriptionKey: "workspace.payment.description",
     queueTitle: "Payment Queue",
     queueTitleKey: "workspace.payment.queue",
-    actionDescription: "Upload an approval letter and bill, confirm the bill, then verify whether the uploaded receipt is valid or fake.",
+    actionDescription: "Upload an approval letter and bill, send them to the applicant, then verify whether the uploaded receipt is valid or fake.",
     actionDescriptionKey: "workspace.payment.action",
     showComment: true,
     commentLabel: "Receipt Verification Notes",
@@ -6629,56 +6610,28 @@ const configs = {
         label: "Submit Letter & Bill",
         labelKey: "workspace.action.submitLetterBill",
         icon: "upload_file",
-        success: "Approval letter and bill submitted for KU(IKL) confirmation.",
+        success: "Approval letter and bill sent to applicant.",
         successKey: "workspace.message.invoiceGenerated",
         requiresPaymentDocuments: true,
         isAvailable: (app, department) =>
-          department === "PT(IKL)" && normalizeStatus(app?.status) === "approved",
-        buildPayload: (app) => ({
-          status: "bill_pending_ku",
-          form_data: mergeFormData(app, {
-            approval_letter: {
-              ...(app.form_data?.approval_letter || {}),
-              status: "Submitted to KU(IKL)",
-              submitted_by: "PT(IKL)",
-              submitted_at: new Date().toISOString(),
-            },
-            payment: {
-              ...(app.form_data?.payment || {}),
-              invoice_no: getInvoiceNo(app),
-              amount: getBillAmount(app),
-              status: "Pending Bill Confirmation",
-              generated_by: "PT(IKL)",
-              generated_at: new Date().toISOString(),
-            },
-          }),
-        }),
-      },
-      {
-        label: "Confirm Approval Letter & Bill",
-        labelKey: "workspace.action.confirmBill",
-        icon: "task_alt",
-        success: "Approval letter, appendix, and bill confirmed and sent to applicant.",
-        successKey: "workspace.message.billConfirmed",
-        isAvailable: (app, department) =>
-          department === "KU(IKL)" && normalizeStatus(app?.status) === "bill_pending_ku",
+          department === "PT(IKL)" && ["approved", "bill_pending_ku"].includes(normalizeStatus(app?.status)),
         buildPayload: (app) => ({
           status: "invoice_generated",
           form_data: mergeFormData(app, {
             approval_letter: {
               ...(app.form_data?.approval_letter || {}),
-              status: "Confirmed and Sent to Applicant",
-              confirmed_by: "KU(IKL)",
-              confirmed_at: new Date().toISOString(),
+              status: "Sent to Applicant",
+              submitted_by: "PT(IKL)",
+              submitted_at: new Date().toISOString(),
               sent_to_applicant_at: new Date().toISOString(),
             },
             payment: {
               ...(app.form_data?.payment || {}),
               invoice_no: getInvoiceNo(app),
               amount: getBillAmount(app),
-              status: "Bill Confirmed - Awaiting Payment",
-              confirmed_by: "KU(IKL)",
-              confirmed_at: new Date().toISOString(),
+              status: "Awaiting Payment",
+              generated_by: "PT(IKL)",
+              generated_at: new Date().toISOString(),
             },
           }),
         }),
@@ -9520,7 +9473,7 @@ function ManualPaymentDocumentsForm({
           {t("workspace.payment.manual.billReceiptTitle", "Bill")}
         </p>
         <p className="text-sm text-slate-500">
-          {t("workspace.payment.manual.billReceiptDesc", "Prepare bill payment information for KU(IKL) confirmation.")}
+          {t("workspace.payment.manual.billReceiptDesc", "Prepare bill payment information for the applicant.")}
         </p>
       </div>
 
@@ -10133,7 +10086,7 @@ function ManualPaymentDocumentsForm({
                 ? t("workspace.payment.manualReceiptSectionDesc", "Edit the official receipt here before verifying payment and sending it to the applicant.")
                 : readOnly
                   ? t("workspace.payment.manualReviewSectionDesc", "Review the submitted approval letter, appendix, and bill.")
-                  : t("workspace.payment.manualSectionDesc", "Edit the approval letter, appendix, and bill content here, then save before submitting to KU(IKL).")}
+                  : t("workspace.payment.manualSectionDesc", "Edit the approval letter, appendix, and bill content here, then save before sending to the applicant.")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

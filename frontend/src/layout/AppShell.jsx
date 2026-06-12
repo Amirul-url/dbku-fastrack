@@ -876,13 +876,13 @@ function isMphlgUser(user) {
 }
 
 function isELicensePaymentTask(application) {
-  return ["approved", "payment_submitted"].includes(
+  return ["approved", "bill_pending_ku", "payment_submitted"].includes(
     normalizeWorkflowStatus(application?.status)
   );
 }
 
 function isKuELicensePaymentTask(application) {
-  return normalizeWorkflowStatus(application?.status) === "bill_pending_ku";
+  return false;
 }
 
 function isELicenseLicenseTask(application) {

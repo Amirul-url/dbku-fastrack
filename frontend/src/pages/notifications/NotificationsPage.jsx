@@ -1330,12 +1330,12 @@ function getWorkflowMemoCopy(status, reference, isMalay) {
     },
     bill_pending_ku: {
       en: {
-        subject: `${reference} requires KU(IKL) bill confirmation`,
-        lines: [`Application ${reference} has a generated bill waiting for KU(IKL) confirmation.`],
+        subject: `${reference} approval letter and bill are ready for applicant`,
+        lines: [`Application ${reference} has a generated bill ready to be sent to the applicant.`],
       },
       ms: {
-        subject: `${reference} memerlukan pengesahan bil KU(IKL)`,
-        lines: [`Permohonan ${reference} mempunyai bil yang dijana dan sedang menunggu pengesahan KU(IKL).`],
+        subject: `${reference} surat kelulusan dan bil sedia untuk pemohon`,
+        lines: [`Permohonan ${reference} mempunyai bil yang sedia dihantar kepada pemohon.`],
       },
     },
     payment_submitted: {

@@ -208,8 +208,8 @@ def get_staff_workflow_activity_message(application, old_status, new_status, act
 
     if new_status_key == "bill_pending_ku":
         return (
-            "Bill pending KU(IKL) confirmation",
-            f"{reference} has a generated bill waiting for KU(IKL) confirmation.",
+            "Bill ready for applicant",
+            f"{reference} has a generated bill ready to be sent to the applicant.",
         )
 
     if new_status_key == "approved":
@@ -448,9 +448,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied("Only PT(IKL) can generate the approval letter and bill.")
             return
 
-        if requested_status == "invoice_generated" and current_status == "bill_pending_ku":
-            if department != "KU(IKL)":
-                raise PermissionDenied("Only KU(IKL) can confirm the bill.")
+        if requested_status == "invoice_generated" and current_status in {"approved", "bill_pending_ku"}:
+            if department != "PT(IKL)":
+                raise PermissionDenied("Only PT(IKL) can send the approval letter and bill to the applicant.")
             return
 
         if requested_status == "invoice_generated" and current_status == "payment_submitted":

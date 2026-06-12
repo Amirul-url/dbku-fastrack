@@ -200,7 +200,7 @@ function getNotificationSender(role, status, user) {
   if (
     role === "admin" &&
     department === "KU(IKL)" &&
-    ["ku_ikl_review", "bill_pending_ku"].includes(normalizedStatus)
+    normalizedStatus === "ku_ikl_review"
   ) {
     return "PT(IKL)";
   }
@@ -277,10 +277,10 @@ function getMemoSubject(subject, title, reference, options = {}) {
       : "Application requires KU(IKL) review";
   }
 
-  if (role === "admin" && status === "bill_pending_ku" && department === "KU(IKL)") {
+  if (role === "admin" && status === "bill_pending_ku" && department === "PT(IKL)") {
     return cleanReference
-      ? `${cleanReference} requires KU(IKL) bill confirmation`
-      : "Application requires KU(IKL) bill confirmation";
+      ? `${cleanReference} approval letter and bill are ready for applicant`
+      : "Approval letter and bill are ready for applicant";
   }
 
   if (
@@ -448,7 +448,7 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   }
 
   if (normalizedStatus === "bill_pending_ku") {
-    return department === "KU(IKL)";
+    return department === "PT(IKL)";
   }
 
   if (["payment_submitted", "payment_verified"].includes(normalizedStatus)) {
@@ -810,10 +810,10 @@ function buildAdminNotifications(app, user) {
         "admin",
         "payment",
         "warning",
-        "Bill confirmation required",
-        "Pengesahan bil diperlukan",
-        `${reference} has a generated bill waiting for KU(IKL) confirmation.`,
-        `${reference} mempunyai bil yang menunggu pengesahan KU(IKL).`,
+        "Bill ready for applicant",
+        "Bil sedia untuk pemohon",
+        `${reference} has a generated bill ready to be sent to the applicant.`,
+        `${reference} mempunyai bil yang sedia dihantar kepada pemohon.`,
         user
       )
     );
@@ -977,8 +977,8 @@ function getDeliveryLocalizedCopy(status, reference, remark = "") {
       messageMs: `Permohonan ${safeReference} telah menerima kelulusan akhir TP(RES)/PGH. Sila jana surat kelulusan dan bil.`,
     },
     bill_pending_ku: {
-      titleMs: "Pengesahan bil diperlukan",
-      messageMs: `Permohonan ${safeReference} mempunyai bil yang dijana dan sedang menunggu pengesahan KU(IKL).`,
+      titleMs: "Bil sedia untuk pemohon",
+      messageMs: `Permohonan ${safeReference} mempunyai bil yang sedia dihantar kepada pemohon.`,
     },
     payment_submitted: {
       titleMs: "Bukti bayaran dihantar",

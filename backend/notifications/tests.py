@@ -632,7 +632,7 @@ class NotificationRoutingTests(TestCase):
             ("mphlg_processing", "management_review", {}, ["MPHLG"]),
             ("mphlg_decision_received", "mphlg_processing", {}, ["SUT"]),
             ("approved", "management_review", {}, ["PT(IKL)"]),
-            ("bill_pending_ku", "approved", {}, ["KU(IKL)"]),
+            ("bill_pending_ku", "approved", {}, ["PT(IKL)"]),
             ("payment_submitted", "invoice_generated", {}, ["PT(IKL)"]),
             ("payment_verified", "payment_submitted", {}, ["PT(IKL)"]),
         ]
@@ -991,16 +991,7 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["from"], "TP(RES)/PGH")
         self.assertEqual(delivery.metadata["to"], "PT(IKL)")
 
-    def test_generated_bill_notifies_ku_ikl_for_confirmation(self):
-        ku_user = User.objects.create_user(
-            username="ku-ikl",
-            email="",
-            password="Password123",
-            role="admin",
-            department="KU(IKL)",
-            is_active=True,
-        )
-
+    def test_legacy_bill_pending_notifies_pt_ikl(self):
         self.notify_status("bill_pending_ku", old_status="approved")
 
         delivery = NotificationDelivery.objects.get(
@@ -1008,8 +999,8 @@ class NotificationRoutingTests(TestCase):
             recipient_role="admin",
             metadata__event_status="bill_pending_ku",
         )
-        self.assertEqual(delivery.user, ku_user)
-        self.assertIn("Bill confirmation", delivery.metadata["title_en"])
+        self.assertEqual(delivery.user, self.admin)
+        self.assertIn("Bill ready", delivery.metadata["title_en"])
 
     def test_technical_amendment_notification_includes_ku_remark_for_ikl_technical(self):
         ikl_technical_user = User.objects.create_user(
