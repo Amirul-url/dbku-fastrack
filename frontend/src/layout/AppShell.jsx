@@ -20,6 +20,10 @@ const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
 const PT_IKL_TASK_STATUSES = new Set([
   "incomplete",
+  "approved",
+  "bill_pending_ku",
+  "payment_submitted",
+  "payment_verified",
 ]);
 const KU_IKL_TASK_STATUSES = new Set([
   "submitted",
@@ -89,7 +93,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
         path: "/dashboard/admin?view=approval",
         view: "approval",
         icon: "check_circle",
-        badge: taskCounts.approval || 0,
       },
     ];
   }
@@ -111,7 +114,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
       fallback: "Awaiting Approval",
       path: "/dashboard/admin?view=approval",
       view: "approval",
-      badge: taskCounts.approval || 0,
     },
   ].filter(Boolean);
   const dashboardBadge = dashboardChildren.reduce(
@@ -175,6 +177,7 @@ function getApplicationStepPath(applicationId, route) {
 function buildApplicantNav(taskCounts = {}) {
   const statusBadge = Number(taskCounts.status || 0);
   const eLicenseBadge = Number(taskCounts.eLicense || 0);
+  const combinedStatusBadge = Number(taskCounts.combined || statusBadge + eLicenseBadge);
 
   return [
     {
@@ -182,7 +185,7 @@ function buildApplicantNav(taskCounts = {}) {
       fallback: "Dashboard",
       path: "/user/dashboard",
       icon: "dashboard",
-      badge: statusBadge + eLicenseBadge,
+      badge: combinedStatusBadge,
       children: [
         {
           labelKey: "applicant.tabApplications",
@@ -192,17 +195,10 @@ function buildApplicantNav(taskCounts = {}) {
         },
         {
           labelKey: "applicant.tabStatus",
-          fallback: "Status",
+          fallback: "Status & E-Licenses",
           path: "/user/dashboard?tab=status",
           tab: "status",
-          badge: statusBadge,
-        },
-        {
-          labelKey: "applicant.tabLicense",
-          fallback: "E-Licenses",
-          path: "/user/dashboard?tab=license",
-          tab: "license",
-          badge: eLicenseBadge,
+          badge: combinedStatusBadge,
         },
       ],
     },
@@ -253,16 +249,24 @@ function AppShell({ children, role = "admin" }) {
     }
   }, [role, user]);
 
-  const refreshApplicantTaskCounts = useCallback(async ({ silent = false } = {}) => {
+  const refreshApplicantTaskCounts = useCallback(async ({ silent = false, seenAt = null } = {}) => {
     if (role !== "applicant") return;
 
     try {
       const applications = await fetchApplicationList();
-      setApplicantTaskCounts(getApplicantTaskCounts(applications, applicantSeenAt));
+      const latestSeenAt = seenAt || getApplicantRecordSeen(user);
+      const openELicenseRecordId = getOpenApplicantELicenseRecordId(location);
+
+      setApplicantSeenAt(latestSeenAt);
+      setApplicantTaskCounts(
+        getApplicantTaskCounts(applications, latestSeenAt, {
+          openELicenseRecordId,
+        })
+      );
     } catch {
       if (!silent) setApplicantTaskCounts({ status: 0, eLicense: 0 });
     }
-  }, [applicantSeenAt, role]);
+  }, [location, role, user]);
 
   useEffect(() => {
     let active = true;
@@ -336,20 +340,37 @@ function AppShell({ children, role = "admin" }) {
       return undefined;
     }
 
-    const handleSeenChange = () => setApplicantSeenAt(getApplicantRecordSeen(user));
+    const handleSeenChange = () => {
+      const latestSeenAt = getApplicantRecordSeen(user);
+
+      setApplicantSeenAt(latestSeenAt);
+      refreshApplicantTaskCounts({ silent: true, seenAt: latestSeenAt });
+    };
+
     window.addEventListener("fastrack:applicant-record-seen", handleSeenChange);
 
     return () => {
       window.removeEventListener("fastrack:applicant-record-seen", handleSeenChange);
     };
-  }, [role, user]);
+  }, [refreshApplicantTaskCounts, role, user]);
 
   useEffect(() => {
     if (role !== "admin" || !location.pathname.startsWith("/admin/e-licenses")) {
       return undefined;
     }
 
+    const params = new URLSearchParams(location.search);
+    const fromPersonalTask = params.get("from") === "personal";
+
     const syncMenuStateId = window.setTimeout(() => {
+      if (fromPersonalTask) {
+        setAdminDashboardOpen(true);
+        setAdminELicensesOpen(false);
+        writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
+        writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false);
+        return;
+      }
+
       setAdminELicensesOpen(true);
       setAdminDashboardOpen(false);
       writeSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, true);
@@ -357,7 +378,7 @@ function AppShell({ children, role = "admin" }) {
     }, 0);
 
     return () => window.clearTimeout(syncMenuStateId);
-  }, [location.pathname, role]);
+  }, [location.pathname, location.search, role]);
 
   async function handleLogout() {
     await recordLogoutSession();
@@ -792,31 +813,48 @@ function getAdminTaskCounts(applications, user) {
   );
 }
 
-function getApplicantTaskCounts(applications, seenAt = {}) {
-  return applications.reduce(
-    (counts, application) => {
-      const status = normalizeWorkflowStatus(application?.status);
-      const updatedAt = getRecordUpdatedTime(application);
+function getApplicantTaskCounts(applications, seenAt = {}, options = {}) {
+  const openELicenseRecordId = String(options.openELicenseRecordId || "");
+  const combinedUnreadIds = new Set();
+  const counts = { status: 0, eLicense: 0, combined: 0 };
 
-      if (
-        status &&
-        status !== "draft" &&
-        updatedAt > Number(seenAt.status?.[application?.id] || 0)
-      ) {
-        counts.status += 1;
-      }
+  applications.forEach((application) => {
+    const id = String(application?.id || "");
+    const status = normalizeWorkflowStatus(application?.status);
+    const updatedAt = getRecordUpdatedTime(application);
+    const isOpenELicenseRecord = openELicenseRecordId && id === openELicenseRecordId;
 
-      if (
-        isApplicantELicenseItem(status) &&
-        updatedAt > Number(seenAt.eLicense?.[application?.id] || 0)
-      ) {
-        counts.eLicense += 1;
-      }
+    if (
+      !isOpenELicenseRecord &&
+      status &&
+      status !== "draft" &&
+      updatedAt > Number(seenAt.status?.[application?.id] || 0)
+    ) {
+      counts.status += 1;
+      if (id) combinedUnreadIds.add(id);
+    }
 
-      return counts;
-    },
-    { status: 0, eLicense: 0 }
-  );
+    if (
+      !isOpenELicenseRecord &&
+      isApplicantELicenseItem(status) &&
+      updatedAt > Number(seenAt.eLicense?.[application?.id] || 0)
+    ) {
+      counts.eLicense += 1;
+      if (id) combinedUnreadIds.add(id);
+    }
+  });
+
+  counts.combined = combinedUnreadIds.size;
+
+  return counts;
+}
+
+function getOpenApplicantELicenseRecordId(location) {
+  if (!location?.pathname?.startsWith("/user/dashboard")) return "";
+
+  const params = new URLSearchParams(location.search || "");
+
+  return ["license", "status"].includes(params.get("tab")) ? params.get("id") || "" : "";
 }
 
 function isApplicantELicenseItem(status) {
@@ -829,16 +867,8 @@ function isApplicantELicenseItem(status) {
   ].includes(status);
 }
 
-function isPtIklUser(user) {
-  return normalizeDepartmentCode(user?.department) === "PT(IKL)";
-}
-
-function isKuIklUser(user) {
-  return normalizeDepartmentCode(user?.department) === "KU(IKL)";
-}
-
-function isELicenseWorkflowUser(user) {
-  return isPtIklUser(user) || isKuIklUser(user);
+function isELicenseWorkflowUser() {
+  return false;
 }
 
 function isApprovalWorkflowUser(user) {
@@ -863,7 +893,7 @@ function isELicensePaymentTask(application) {
   );
 }
 
-function isKuELicensePaymentTask(application) {
+function isKuELicensePaymentTask() {
   return false;
 }
 
@@ -898,6 +928,10 @@ function isPersonalTaskForDepartment(application, department) {
 
 function isAwaitingApprovalTask(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
+
+  if (department === "PT(IKL)") {
+    return ["license_issued", "license_revoked"].includes(status);
+  }
 
   if (!APPROVAL_TASK_STATUSES.has(status) || hasApplicationSection(application, "approval")) {
     return false;

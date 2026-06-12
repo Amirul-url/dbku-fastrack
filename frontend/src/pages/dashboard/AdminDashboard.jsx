@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
 import { useLanguage } from "../../context/LanguageContext";
@@ -82,7 +82,13 @@ const units = [
     descriptionKey: "admin.unit.ptIkl.desc",
     icon: "description",
     color: "bg-cyan-700",
-    statuses: ["incomplete"],
+    statuses: [
+      "incomplete",
+      "approved",
+      "bill_pending_ku",
+      "payment_submitted",
+      "payment_verified",
+    ],
     historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/auto-screening",
   },
@@ -1050,19 +1056,6 @@ function ClaimableTaskView({
     isUnitActionableApplication(application, selected)
   );
 
-  function getApplicationViewPath(application) {
-    const workspacePath = getAdminTaskWorkspacePath(application, selected);
-    const returnParams = new URLSearchParams();
-    returnParams.set("id", application.id);
-
-    const viewParams = new URLSearchParams();
-    viewParams.set("id", application.id);
-    viewParams.set("from", "action-panel");
-    viewParams.set("returnTo", `${workspacePath}?${returnParams.toString()}`);
-
-    return `/admin/applications/${application.id}/view/step-1?${viewParams.toString()}`;
-  }
-
   return (
     <>
       <fieldset className="border border-slate-300 px-3 pb-4 pt-2">
@@ -1117,12 +1110,9 @@ function ClaimableTaskView({
               label: t("common.reference"),
               className: "w-[10%] whitespace-nowrap",
               render: (application) => (
-                <Link
-                  to={getApplicationViewPath(application)}
-                  className="font-semibold text-emerald-700 hover:underline"
-                >
+                <span className="font-semibold text-slate-950">
                   {getApplicationReference(application)}
-                </Link>
+                </span>
               ),
             },
             {
@@ -1167,7 +1157,7 @@ function ClaimableTaskView({
                     render: (application) =>
                       isUnitActionableApplication(application, selected) ? (
                         <LinkButton
-                          to={`${getAdminTaskWorkspacePath(application, selected)}?id=${application.id}`}
+                          to={`${getAdminTaskWorkspacePath(application, selected)}?id=${application.id}&from=personal`}
                           icon="open_in_new"
                           variant="secondary"
                           className="min-h-8 px-3 py-1 text-xs"
@@ -1371,7 +1361,7 @@ function getAdminTaskWorkspacePath(application, unit) {
   const status = normalizeStatus(application?.status);
 
   if (unit?.department === "PT(IKL)") {
-    if (["approved", "payment_submitted", "payment_verified", "license_issued", "license_revoked"].includes(status)) {
+    if (["approved", "payment_submitted", "payment_verified"].includes(status)) {
       return "/admin/e-licenses/payment";
     }
   }

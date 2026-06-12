@@ -536,7 +536,9 @@ export async function apiRequest(path, options = {}) {
 
   const method = String(options.method || "GET").toUpperCase();
   if (method !== "GET" && path.startsWith("/applications")) {
-    window.dispatchEvent(new Event("fastrack:applications-changed"));
+    window.setTimeout(() => {
+      window.dispatchEvent(new Event("fastrack:applications-changed"));
+    }, 0);
   }
 
   return data;

@@ -208,6 +208,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const searchParams = new URLSearchParams(location.search);
   const querySelectedId = searchParams.get("id") || "";
   const returnToPath = searchParams.get("returnTo") || "";
+  const fromPersonalTask = searchParams.get("from") === "personal";
   const fromCompletedApprovals = searchParams.get("from") === "completed-approvals";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
@@ -662,6 +663,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showApprovalTechnicalReport || showELicenseVerificationReport;
   const hideMphlgActionChrome =
     isApprovalWorkspace && MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
+  const isApprovalLicenseManagement =
+    isApprovalWorkspace &&
+    userDepartment === "PT(IKL)" &&
+    ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status));
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -692,6 +697,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace && Boolean(savedApprovalDecisionHtml) && !isApprovalSupportWorkspace;
   const showApprovalSupportReadOnly =
     isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
+  const showApprovalPaymentReadOnly =
+    isApprovalWorkspace && isPostApprovalPaymentRecord(selectedRecord);
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
@@ -700,6 +707,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
     workspaceActions.some((action) => action.requiresSubmittedReceipt);
   const showWorkspaceCommentField =
+    !isApprovalLicenseManagement &&
     config.showComment &&
     canSubmitWorkspaceAction &&
     !isApprovalSupportWorkspace &&
@@ -1582,7 +1590,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       (overrides.checkDecisionRemark ?? config.showComment) &&
       /reject|amendment|condition|not supported|not verify|not verified/i.test(String(actionDecision || ""));
 
-    if (config.showDecision && !actionDecision) {
+    if (config.showDecision && !isApprovalLicenseManagement && !actionDecision) {
       setError(t("workspace.decision.required", "Please select a decision."));
       return;
     }
@@ -1865,7 +1873,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess(t(action.successKey, action.success));
       setComment("");
       await fetchApplications();
-      if (isFocusedPersonalWorkspace) {
+      if (isFocusedPersonalWorkspace || fromPersonalTask) {
         navigate("/dashboard/admin?view=personal");
         return true;
       }
@@ -1936,6 +1944,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }
 
   function returnToTaskList() {
+    if (fromPersonalTask) {
+      returnToPersonalTask();
+      return;
+    }
+
     if (fromCompletedApprovals && returnToPath) {
       navigate(returnToPath);
       return;
@@ -2227,7 +2240,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           </div>
         )}
 
-        {tableFirstWorkspace && showActionPanel && (
+        {!isFocusedPersonalWorkspace && tableFirstWorkspace && showActionPanel && (
           <div className="flex justify-start">
             <Button
               type="button"
@@ -2239,7 +2252,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 ? fromCompletedApprovals
                   ? t("workspace.backToCompleted", "Back to Completed")
                   : t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
-                : t("workspace.backToELicenseList", "Back to E-Licenses List")}
+                : fromPersonalTask
+                  ? t("workspace.backToPersonalTask", "Back to Personal Task")
+                  : t("workspace.backToELicenseList", "Back to E-Licenses List")}
             </Button>
           </div>
         )}
@@ -2252,7 +2267,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               hideMphlgActionChrome
                 ? ""
                 : isReadOnlyActionPanel
-                ? isApprovalHistoryRecord(selectedRecord)
+                ? showApprovalPaymentReadOnly
+                  ? t(
+                      "workspace.approval.paymentReadOnlyAction",
+                      "View PT(IKL) post-approval progress, payment documents, receipt, and e-license files."
+                    )
+                  : isApprovalHistoryRecord(selectedRecord)
                   ? t("workspace.approval.completedAction", "Final approval has been recorded.")
                   : t(
                       "workspace.approval.viewOnlyAction",
@@ -2338,6 +2358,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </>
               )}
 
+              {showApprovalPaymentReadOnly && (
+                <PaymentDetails
+                  app={selectedRecord}
+                  t={t}
+                  userDepartment={userDepartment}
+                  saving={saving}
+                  readOnly
+                />
+              )}
+
               {isIklWorkspace ? (
                 <IklWorkspaceSections
                   key={selectedRecord.id}
@@ -2367,6 +2397,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 <>
                   {config.showDecision &&
                     canSubmitWorkspaceAction &&
+                    !isApprovalLicenseManagement &&
                     !isApprovalSupportWorkspace &&
                     !showApprovalDecisionButtons && (
                     <Field
@@ -4339,7 +4370,11 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return getApprovalStageLabel(app, t);
   }
 
-  if (isApprovalWorkspace && isApprovalHistoryRecord(app)) {
+  if (isApprovalWorkspace && isPostApprovalPaymentRecord(app)) {
+    return getPostApprovalPaymentStatusLabel(app, t);
+  }
+
+  if (isApprovalWorkspace && ["approved", "approved_with_conditions"].includes(status)) {
     return t("status.approved", "Approved");
   }
 
@@ -4348,6 +4383,19 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   return t(`status.${status}`, formatWorkflowStatus(status));
+}
+
+function getPostApprovalPaymentStatusLabel(app, t) {
+  const status = normalizeStatus(app?.status);
+  const labelMap = {
+    invoice_generated: t("status.invoice_generated", "Waiting for Payment"),
+    payment_submitted: t("status.payment_submitted", "Receipt Submitted"),
+    payment_verified: t("status.payment_verified", "Payment Verified"),
+    license_issued: t("status.license_issued", "E-License Issued"),
+    license_revoked: t("status.license_revoked", "License Revoked"),
+  };
+
+  return labelMap[status] || t(`status.${status}`, formatWorkflowStatus(status));
 }
 
 function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord) {
@@ -4361,6 +4409,16 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
   }
 
   if (config?.key === "approval") {
+    if (
+      userDepartment === "PT(IKL)" &&
+      ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status))
+    ) {
+      return t(
+        "workspace.approval.ptLicenseAction",
+        "Manage the issued e-license status. Revoke an active license or restore a revoked license when needed."
+      );
+    }
+
     if (userDepartment === "KB(LES)" && getApprovalStageKey(selectedRecord) === "kb_support") {
       return t("workspace.approval.kbSupportAction", "Support the application before sending it to TP(RES)/PGH.");
     }
@@ -4470,6 +4528,13 @@ function getWorkspaceActions(config, app, department) {
     });
   }
 
+  if (
+    department === "PT(IKL)" &&
+    ["license_issued", "license_revoked"].includes(normalizeStatus(app?.status))
+  ) {
+    return getWorkspaceActions(configs.payment, app, department);
+  }
+
   const stage = getApprovalStageKey(app);
   const canKbVerify = department === "KB(LES)" && (stage === "kb" || stage === "kb_support");
   const canSupport =
@@ -4502,8 +4567,6 @@ function isPaymentTaskForDepartment(app, department) {
       "invoice_generated",
       "payment_submitted",
       "payment_verified",
-      "license_issued",
-      "license_revoked",
     ].includes(status);
   }
 
@@ -4629,6 +4692,16 @@ function isApprovalHistoryRecord(app) {
   );
 }
 
+function isPostApprovalPaymentRecord(app) {
+  return [
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+    "license_revoked",
+  ].includes(normalizeStatus(app?.status));
+}
+
 function isApprovalActionDepartment(department) {
   return APPROVAL_TECHNICAL_REPORT_DEPARTMENTS.includes(department);
 }
@@ -4703,7 +4776,7 @@ function getPaymentActionUnavailableMessage(app, department) {
 
   if (
     department === "PT(IKL)" &&
-    ["approved", "bill_pending_ku", "payment_submitted", "license_issued", "license_revoked"].includes(status)
+    ["approved", "bill_pending_ku", "payment_submitted"].includes(status)
   ) {
     return "";
   }
@@ -6373,8 +6446,6 @@ function getWorkspaceStatusScope(config, department) {
         "invoice_generated",
         "payment_submitted",
         "payment_verified",
-        "license_issued",
-        "license_revoked",
       ];
     }
 
@@ -6630,7 +6701,7 @@ const configs = {
   payment: {
     key: "payment",
     allowedDepartments: ["PT(IKL)"],
-    statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified", "license_issued", "license_revoked"],
+    statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.payment.listEyebrow",
     listTitle: "Approval Letter, Bill & Receipt",
@@ -6902,45 +6973,6 @@ const configs = {
             }),
           };
         },
-      },
-      {
-        label: "Revoke",
-        labelKey: "workspace.action.revoke",
-        icon: "block",
-        variant: "danger",
-        success: "License revoked.",
-        successKey: "workspace.message.licenseRevoked",
-        isAvailable: (app, department) =>
-          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_issued",
-        buildPayload: (app) => ({
-          status: "license_revoked",
-          form_data: mergeFormData(app, {
-            license: {
-              ...(app.form_data?.license || {}),
-              status: "Revoked",
-              revoked_at: new Date().toISOString(),
-            },
-          }),
-        }),
-      },
-      {
-        label: "Reinstate",
-        icon: "restart_alt",
-        success: "License reinstated.",
-        isAvailable: (app, department) =>
-          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_revoked",
-        buildPayload: (app) => ({
-          status: "license_issued",
-          form_data: mergeFormData(app, {
-            license: {
-              ...(app.form_data?.license || {}),
-              status: "Active",
-              reinstated_at: new Date().toISOString(),
-              revoked_at: "",
-              revocation_reason: "",
-            },
-          }),
-        }),
       },
       {
         label: "Generate 3-Month Reminder",
@@ -9239,6 +9271,7 @@ function PaymentDetails({
   officialReceiptMode = "upload",
   setOfficialReceiptMode,
   paymentReceiptDecision = "",
+  readOnly = false,
 }) {
   const payment = app.form_data?.payment || {};
   const approvalLetter = app.form_data?.approval_letter || {};
@@ -9253,11 +9286,12 @@ function PaymentDetails({
   const letterReady = Boolean(letterFile);
   const billReady = Boolean(billFile);
   const canUploadDocuments =
-    userDepartment === "PT(IKL)" && status === "approved";
+    !readOnly && userDepartment === "PT(IKL)" && status === "approved";
   const isReceiptVerification =
-    userDepartment === "PT(IKL)" && status === "payment_submitted";
+    !readOnly && userDepartment === "PT(IKL)" && status === "payment_submitted";
   const uploadReady = letterReady && billReady;
   const showReceiptDetails = Boolean(
+    readOnly ||
     receiptFile?.name ||
     payment.receipt_reference ||
     receiptSource ||
@@ -9265,6 +9299,7 @@ function PaymentDetails({
     payment.verification_notes
   );
   const showVerificationUploads = isReceiptVerification && paymentReceiptDecision === "Verify Receipt";
+  const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
   async function viewReceipt() {
     if (!receiptSource) return;
@@ -9426,23 +9461,87 @@ function PaymentDetails({
     </section>
   ) : null;
 
+  const issuedDocumentSection = isIssuedLicenseView ? (
+    <IssuedPaymentDocumentList
+      t={t}
+      documents={[
+        {
+          label: t("workspace.payment.approvalLetter", "Approval Letter"),
+          file: letterFile,
+        },
+        {
+          label: t("workspace.payment.billDocument", "Bill"),
+          file: billFile,
+        },
+        {
+          label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+          file: officialReceiptFile,
+        },
+        {
+          label: t("workspace.license.documentTitle", "Advertisement License"),
+          file: licenseFile,
+        },
+      ]}
+    />
+  ) : null;
+  const verificationDocuments = [
+    {
+      label: t("workspace.payment.approvalLetter", "Approval Letter"),
+      file: letterFile,
+    },
+    {
+      label: t("workspace.payment.billDocument", "Bill"),
+      file: billFile,
+    },
+    ...(showOfficialReceiptSection
+      ? [
+          {
+            label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+            file: officialReceiptFile,
+            required: showVerificationUploads,
+            canUpload: showVerificationUploads,
+            onFileChange: (file) => onPaymentDocumentUpload?.("official_receipt", file),
+            onDelete: () => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile),
+          },
+        ]
+      : []),
+    ...(showLicenseDocumentSection
+      ? [
+          {
+            label: t("workspace.license.documentTitle", "Advertisement License"),
+            file: licenseFile,
+            required: showVerificationUploads,
+            canUpload: showVerificationUploads,
+            onFileChange: (file) => onLicenseDocumentUpload?.(file),
+            onDelete: () => onLicenseDocumentDelete?.(licenseFile),
+          },
+        ]
+      : []),
+  ];
+
+  const verificationDocumentSection = isReceiptVerification ? (
+    <PaymentVerificationDocumentList
+      t={t}
+      saving={saving}
+      canUploadIssueDocuments={showVerificationUploads}
+      documents={verificationDocuments}
+    />
+  ) : null;
+
   return (
     <div className="grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
       <PaymentQrPanel app={app} t={t} />
 
       <div className="space-y-4">
-        {isReceiptVerification ? (
+        {isIssuedLicenseView ? (
           <>
-            <div className="grid gap-4 xl:grid-cols-2">
-              {documentSection}
-              {receiptSection}
-            </div>
-            {(showOfficialReceiptSection || showLicenseDocumentSection) && (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {officialReceiptUploadSection}
-                {licenseUploadSection}
-              </div>
-            )}
+            {issuedDocumentSection}
+            {receiptSection}
+          </>
+        ) : isReceiptVerification ? (
+          <>
+            {verificationDocumentSection}
+            {receiptSection}
           </>
         ) : (
           <>
@@ -9466,14 +9565,16 @@ function PaymentQrPanel({ app, t }) {
   const licenseFileUrl = getPaymentDocumentSource(license.license_file);
   const licenseReady = Boolean(licenseFileUrl) || (normalizeStatus(app?.status) === "license_issued" && license.status === "Active");
   const licenseId = license.license_id || getLicenseId(app);
+  const displayReference = getApplicationReference(app);
   const verificationUrl = getLicenseVerificationUrl(licenseId);
+  const qrContainerRef = useRef(null);
 
   return (
     <section className="self-start rounded-md border border-slate-200 bg-slate-50">
       <div className="flex min-h-[340px] flex-col items-center justify-center gap-3 p-4 text-center">
         {licenseReady ? (
           <>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <QRCodeSVG
                 value={verificationUrl}
                 size={260}
@@ -9484,8 +9585,17 @@ function PaymentQrPanel({ app, t }) {
               />
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {licenseId}
+              {displayReference}
             </p>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => downloadPaymentQrCode(qrContainerRef.current, displayReference)}
+            >
+              {t("common.download", "Download")}
+            </Button>
           </>
         ) : (
           <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
@@ -9499,6 +9609,177 @@ function PaymentQrPanel({ app, t }) {
         )}
       </div>
     </section>
+  );
+}
+
+function IssuedPaymentDocumentList({ t, documents }) {
+  const availableDocuments = documents.filter((item) => getPaymentDocumentSource(item.file));
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <p className="text-sm font-semibold text-slate-950">
+          {t("workspace.payment.documents", "List of Document")}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
+        </p>
+      </div>
+
+      <div className="divide-y divide-slate-200">
+        {availableDocuments.map((item) => (
+          <div
+            key={item.label}
+            className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                {item.label}
+              </p>
+              <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+                {item.file?.name}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                icon="visibility"
+                className="min-h-9 px-3 py-1 text-xs"
+                onClick={() => openPaymentDocument(item.file, t)}
+              >
+                {t("common.view", "View")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                icon="download"
+                className="min-h-9 px-3 py-1 text-xs"
+                onClick={() => downloadPaymentDocument(item.file, item.label, t)}
+              >
+                {t("common.download", "Download")}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PaymentVerificationDocumentList({ t, documents, saving, canUploadIssueDocuments }) {
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <p className="text-sm font-semibold text-slate-950">
+          {t("workspace.payment.documents", "List of Document")}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {canUploadIssueDocuments
+            ? t(
+                "workspace.payment.verifyDocumentListDesc",
+                "View payment documents, then upload the official receipt and advertisement license."
+              )
+            : t(
+                "workspace.payment.verifyDocumentListPendingDesc",
+                "View the applicant documents before selecting a receipt decision."
+              )}
+        </p>
+      </div>
+
+      <div className="divide-y divide-slate-200">
+        {documents.map((item) => (
+          <PaymentVerificationDocumentRow
+            key={item.label}
+            item={item}
+            t={t}
+            saving={saving}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PaymentVerificationDocumentRow({ item, t, saving }) {
+  const fileSource = getPaymentDocumentSource(item.file);
+  const hasFile = Boolean(fileSource);
+
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          {item.label}
+          {item.required && <span className="text-red-600"> *</span>}
+        </p>
+        <p className={`mt-1 truncate text-sm font-semibold ${hasFile ? "text-slate-950" : "text-slate-900"}`}>
+          {item.file?.name || t("workspace.info.notUploaded", "Not uploaded")}
+        </p>
+        {item.canUpload && !hasFile && (
+          <p className="mt-0.5 text-xs text-slate-500">
+            PDF, JPG, or PNG
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {hasFile && (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => openPaymentDocument(item.file, t)}
+            >
+              {t("common.view", "View")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => downloadPaymentDocument(item.file, item.label, t)}
+            >
+              {t("common.download", "Download")}
+            </Button>
+          </>
+        )}
+
+        {item.canUpload && (
+          <>
+            <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+              <Icon name="upload_file" className="text-[17px]" />
+              {hasFile ? t("common.replace", "Replace") : t("common.uploadFile", "Upload File")}
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg"
+                className="hidden"
+                disabled={saving}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) item.onFileChange?.(file);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            {hasFile && (
+              <Button
+                type="button"
+                variant="secondary"
+                icon="delete"
+                className="min-h-9 px-3 py-1 text-xs text-red-700"
+                disabled={saving}
+                onClick={item.onDelete}
+              >
+                {t("common.remove", "Remove")}
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -10914,6 +11195,95 @@ async function openPaymentDocument(file, t) {
     console.error("Failed to open payment document:", error);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
+}
+
+async function downloadPaymentDocument(file, fallbackLabel, t) {
+  const source = getPaymentDocumentSource(file);
+  if (!source) return;
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+    const filename = getPaymentDownloadFilename(file?.name || fallbackLabel, "document");
+
+    triggerPaymentDownload(url, filename);
+
+    if (!isInlineFile) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (error) {
+    console.error("Failed to download payment document:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function getPaymentQrSvgBlob(qrContainer) {
+  const svg = qrContainer?.querySelector("svg");
+  if (!svg) return null;
+
+  const clone = svg.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  return new Blob([new XMLSerializer().serializeToString(clone)], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+}
+
+async function downloadPaymentQrCode(qrContainer, reference) {
+  const blob = getPaymentQrSvgBlob(qrContainer);
+  if (!blob) return;
+
+  const sourceUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = 720;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!pngBlob) return;
+
+    const downloadUrl = URL.createObjectURL(pngBlob);
+    triggerPaymentDownload(downloadUrl, `${reference || "e-license"}-qr.png`);
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+  } catch (error) {
+    console.error("Failed to download QR code:", error);
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function triggerPaymentDownload(url, filename) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function getPaymentDownloadFilename(value, fallbackExtension) {
+  const raw = String(value || "document").trim() || "document";
+  const normalized = raw
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  const extension = String(fallbackExtension || "").replace(/^\./, "");
+
+  if (!extension || /\.[a-z0-9]{2,8}$/i.test(normalized)) {
+    return normalized || `document.${extension}`;
+  }
+
+  return `${normalized}.${extension}`;
 }
 
 function hasPaymentDocuments(app) {

@@ -914,7 +914,7 @@ def notify_license_renewal_released(application, months):
         body=body,
         recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
         recipient_role="applicant",
-        action_url="/user/dashboard?tab=license",
+        action_url="/user/dashboard?tab=status",
         extra_metadata={"months_before_expiry": months},
         include_external=True,
     )
@@ -966,7 +966,7 @@ def notify_license_cancellation_released(application):
         body=body,
         recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
         recipient_role="applicant",
-        action_url="/user/dashboard?tab=license",
+        action_url="/user/dashboard?tab=status",
         include_external=True,
     )
 

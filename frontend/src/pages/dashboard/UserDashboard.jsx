@@ -50,7 +50,7 @@ import {
   markApplicantRecordSeen,
 } from "../../utils/applicantSeenRecords";
 
-const VALID_SECTIONS = ["applications", "status", "license"];
+const VALID_SECTIONS = ["applications", "status"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TABLE_PAGE_SIZE = 5;
 
@@ -61,14 +61,15 @@ function UserDashboard() {
   const tRef = useRef(t);
   const queryTab = searchParams.get("tab");
   const querySelectedId = searchParams.get("id") || "";
-  const activeSection = VALID_SECTIONS.includes(queryTab)
-    ? queryTab
+  const normalizedQueryTab = queryTab === "license" ? "status" : queryTab;
+  const activeSection = VALID_SECTIONS.includes(normalizedQueryTab)
+    ? normalizedQueryTab
     : "overview";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [licensePanelOpen, setLicensePanelOpen] = useState(
-    activeSection === "license" && Boolean(querySelectedId)
+    activeSection === "status" && Boolean(querySelectedId)
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,10 +83,6 @@ function UserDashboard() {
   const [statusFilterStatus, setStatusFilterStatus] = useState("all");
   const [statusFilterMonth, setStatusFilterMonth] = useState("all");
   const [statusFilterYear, setStatusFilterYear] = useState("all");
-  const [licenseSearch, setLicenseSearch] = useState("");
-  const [licenseFilterStatus, setLicenseFilterStatus] = useState("all");
-  const [licenseFilterMonth, setLicenseFilterMonth] = useState("all");
-  const [licenseFilterYear, setLicenseFilterYear] = useState("all");
   const [recordSeen, setRecordSeen] = useState(() => getApplicantRecordSeen(getStoredUser()));
 
   useEffect(() => {
@@ -150,17 +147,17 @@ function UserDashboard() {
     if (
       selectedId &&
       activeSection !== "applications" &&
-      (activeSection !== "license" || licensePanelOpen)
+      (activeSection !== "status" || licensePanelOpen)
     ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApplicationDetails(selectedId, {
-        markSeen: activeSection === "license" && licensePanelOpen,
+        markSeen: activeSection === "status" && licensePanelOpen,
       });
     }
   }, [activeSection, fetchApplicationDetails, licensePanelOpen, selectedId]);
 
   useEffect(() => {
-    if (activeSection !== "license") return;
+    if (activeSection !== "status") return;
 
     if (querySelectedId) {
       setSelectedId(querySelectedId);
@@ -182,11 +179,6 @@ function UserDashboard() {
     () => applications.filter((app) => normalizeStatus(app.status) !== "draft"),
     [applications]
   );
-  const eLicenseApplications = useMemo(
-    () => applications.filter(isELicenseApplication),
-    [applications]
-  );
-
   const filteredApplications = useMemo(() => {
     return filterDashboardApplications(draftApplications, {
       search,
@@ -217,25 +209,6 @@ function UserDashboard() {
     t,
   ]);
 
-  const filteredELicenseApplications = useMemo(() => {
-    return filterDashboardApplications(eLicenseApplications, {
-      search: licenseSearch,
-      status: licenseFilterStatus,
-      month: licenseFilterMonth,
-      year: licenseFilterYear,
-      language,
-      t,
-    });
-  }, [
-    eLicenseApplications,
-    language,
-    licenseSearch,
-    licenseFilterMonth,
-    licenseFilterStatus,
-    licenseFilterYear,
-    t,
-  ]);
-
   const applicationYearOptions = useMemo(
     () => getApplicationYearOptions(draftApplications),
     [draftApplications]
@@ -244,10 +217,6 @@ function UserDashboard() {
     () => getApplicationYearOptions(submittedApplications),
     [submittedApplications]
   );
-  const eLicenseYearOptions = useMemo(
-    () => getApplicationYearOptions(eLicenseApplications),
-    [eLicenseApplications]
-  );
   const applicationStatusOptions = useMemo(
     () => getStatusFilterOptions(draftApplications, t),
     [draftApplications, t]
@@ -255,10 +224,6 @@ function UserDashboard() {
   const submittedStatusOptions = useMemo(
     () => getStatusFilterOptions(submittedApplications, t),
     [submittedApplications, t]
-  );
-  const eLicenseStatusOptions = useMemo(
-    () => getStatusFilterOptions(eLicenseApplications, t),
-    [eLicenseApplications, t]
   );
 
   const latest = applications[0];
@@ -271,7 +236,7 @@ function UserDashboard() {
 
   function showSection(tab) {
     setSearchParams({ tab });
-    if (tab !== "license") {
+    if (tab !== "status") {
       setLicensePanelOpen(false);
       setSelectedApplication(null);
       setPaymentReceipt(null);
@@ -315,7 +280,7 @@ function UserDashboard() {
     setSelectedId(String(app.id));
     setSelectedApplication(app);
     setLicensePanelOpen(true);
-    setSearchParams({ tab: "license", id: String(app.id) });
+    setSearchParams({ tab: "status", id: String(app.id) });
     markApplicationSeen("all", app);
     fetchApplicationDetails(app.id, { markSeen: true });
   }
@@ -325,7 +290,7 @@ function UserDashboard() {
     setSelectedApplication(null);
     setPaymentReceipt(null);
     setMessage({ type: "", text: "" });
-    setSearchParams({ tab: "license" });
+    setSearchParams({ tab: "status" });
   }
 
   async function submitPayment() {
@@ -348,34 +313,46 @@ function UserDashboard() {
       }
 
       const receipt = receiptFile.name || currentPayment.receipt_reference || `RECEIPT-${Date.now()}`;
+      const submittedAt = new Date().toISOString();
+      const nextPayment = {
+        ...currentPayment,
+        invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
+        amount: currentPayment.amount || "",
+        status: "Payment Submitted",
+        verification_result: null,
+        verification_notes: "",
+        rejected_at: null,
+        receipt_reference: receipt,
+        receipt_file: receiptFile,
+        submitted_at: submittedAt,
+      };
+      const nextApplication = {
+        ...current,
+        status: "payment_submitted",
+        updated_at: submittedAt,
+        form_data: {
+          ...(current.form_data || {}),
+          payment: nextPayment,
+        },
+      };
 
-      await apiRequest(`/applications/${selectedApplication.id}/`, {
+      const updatedApplication = await apiRequest(`/applications/${selectedApplication.id}/`, {
         method: "PATCH",
         body: JSON.stringify({
           status: "payment_submitted",
           form_data: {
-            payment: {
-              ...currentPayment,
-              invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
-              amount: currentPayment.amount || "",
-              status: "Payment Submitted",
-              verification_result: null,
-              verification_notes: "",
-              rejected_at: null,
-              receipt_reference: receipt,
-              receipt_file: receiptFile,
-              submitted_at: new Date().toISOString(),
-            },
+            payment: nextPayment,
           },
         }),
       });
 
+      markApplicationSeen("all", updatedApplication?.id ? updatedApplication : nextApplication);
       setMessage({
         type: "success",
         text: t("applicant.paymentSubmittedSuccess"),
       });
       await fetchApplications();
-      await fetchApplicationDetails(selectedApplication.id);
+      await fetchApplicationDetails(selectedApplication.id, { markSeen: true });
     } catch (err) {
       setMessage({ type: "error", text: err.message || t("applicant.paymentSubmissionFailed") });
     } finally {
@@ -397,6 +374,10 @@ function UserDashboard() {
         "Payment Receipt",
         file
       );
+      markApplicationSeen("all", {
+        ...activeApplication,
+        updated_at: receipt.uploaded_at || new Date().toISOString(),
+      });
       const refreshed = await fetchApplicationDetails(activeApplication.id, { markSeen: true });
       setPaymentReceipt(receipt);
       markApplicationSeen("all", refreshed || activeApplication);
@@ -495,30 +476,6 @@ function UserDashboard() {
       )}
 
       {activeSection === "status" && (
-        <StatusSection
-          applications={filteredSubmittedApplications}
-          loading={loading}
-          t={t}
-          language={language}
-          search={statusSearch}
-          status={statusFilterStatus}
-          month={statusFilterMonth}
-          year={statusFilterYear}
-          years={submittedYearOptions}
-          statuses={submittedStatusOptions}
-          onSearch={setStatusSearch}
-          onStatusChange={setStatusFilterStatus}
-          onMonthChange={setStatusFilterMonth}
-          onYearChange={setStatusFilterYear}
-          isReferenceNew={(app) => isApplicantRecordNew(app, "status", recordSeen)}
-          onOpen={(app) => {
-            markApplicationSeen("status", app);
-            openApplication(app);
-          }}
-        />
-      )}
-
-      {activeSection === "license" && (
         licensePanelOpen && activeApplication ? (
           <LicenseSection
             app={activeApplication}
@@ -534,24 +491,33 @@ function UserDashboard() {
           />
         ) : (
           <LicenseListSection
-            applications={filteredELicenseApplications}
+            applications={filteredSubmittedApplications}
             loading={loading}
             t={t}
             language={language}
-            search={licenseSearch}
-            status={licenseFilterStatus}
-            month={licenseFilterMonth}
-            year={licenseFilterYear}
-            years={eLicenseYearOptions}
-            statuses={eLicenseStatusOptions}
-            onSearch={setLicenseSearch}
-            onStatusChange={setLicenseFilterStatus}
-            onMonthChange={setLicenseFilterMonth}
-            onYearChange={setLicenseFilterYear}
-            isReferenceNew={(app) => isApplicantRecordNew(app, "license", recordSeen)}
+            search={statusSearch}
+            status={statusFilterStatus}
+            month={statusFilterMonth}
+            year={statusFilterYear}
+            years={submittedYearOptions}
+            statuses={submittedStatusOptions}
+            onSearch={setStatusSearch}
+            onStatusChange={setStatusFilterStatus}
+            onMonthChange={setStatusFilterMonth}
+            onYearChange={setStatusFilterYear}
+            isReferenceNew={(app) =>
+              isApplicantRecordNew(app, "status", recordSeen) ||
+              isApplicantRecordNew(app, "license", recordSeen)
+            }
             onOpen={(app) => {
-              markApplicationSeen("license", app);
-              openLicenseRecord(app);
+              if (isELicenseApplication(app)) {
+                markApplicationSeen("all", app);
+                openLicenseRecord(app);
+                return;
+              }
+
+              markApplicationSeen("status", app);
+              openApplication(app);
             }}
           />
         )
@@ -766,62 +732,6 @@ function ApplicationsSection({
   );
 }
 
-function StatusSection({
-  applications,
-  loading,
-  t,
-  language,
-  search,
-  status,
-  month,
-  year,
-  years,
-  statuses,
-  onSearch,
-  onStatusChange,
-  onMonthChange,
-  onYearChange,
-  isReferenceNew,
-  onOpen,
-}) {
-  if (loading) {
-    return (
-      <div className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500">
-        {t("common.loading")}
-      </div>
-    );
-  }
-
-  return (
-    <section className="space-y-4">
-      <DashboardTableFilters
-        t={t}
-        language={language}
-        search={search}
-        status={status}
-        month={month}
-        year={year}
-        years={years}
-        statuses={statuses}
-        onSearch={onSearch}
-        onStatusChange={onStatusChange}
-        onMonthChange={onMonthChange}
-        onYearChange={onYearChange}
-      />
-      <ApplicationTable
-        applications={applications}
-        loading={loading}
-        t={t}
-        language={language}
-        emptyText={t("applicant.noApplicationSubmitted")}
-        onOpen={onOpen}
-        actionMode="view"
-        isReferenceNew={isReferenceNew}
-      />
-    </section>
-  );
-}
-
 function LicenseSection({
   app,
   payment,
@@ -849,7 +759,7 @@ function LicenseSection({
           icon="arrow_back"
           onClick={onBack}
         >
-          {t("applicant.backToELicenseList", "Back to E-Licenses List")}
+          {t("applicant.backToStatusELicenses", "Back to Status & E-Licenses")}
         </Button>
       </div>
 
@@ -1311,29 +1221,6 @@ function EmptyDashboardSection({ message }) {
   );
 }
 
-function EmptyLicenseSection({ t }) {
-  return (
-    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-slate-950">
-          {t("applicant.paymentProofTitle")}
-        </h2>
-        <p className="mt-2 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-          {t("applicant.createApplicationHint")}
-        </p>
-      </div>
-      <div className="rounded-md border border-slate-200 bg-white p-4">
-        <h2 className="text-base font-semibold text-slate-950">
-          {t("applicant.tabLicense")}
-        </h2>
-        <p className="mt-2 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-          {t("applicant.qrLicensePending")}
-        </p>
-      </div>
-    </section>
-  );
-}
-
 function DashboardTableFilters({
   t,
   language,
@@ -1629,6 +1516,15 @@ function ApplicationTable({
 }
 
 function translatedStatus(t, status) {
+  const normalized = normalizeStatus(status);
+  const applicantStatusLabels = {
+    invoice_generated: t("applicant.statusReadyForPayment", "Ready for Payment"),
+  };
+
+  if (applicantStatusLabels[normalized]) {
+    return applicantStatusLabels[normalized];
+  }
+
   const displayStatus = getApplicantDisplayStatus(status);
 
   return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
@@ -3033,13 +2929,6 @@ function getDashboardHeader(activeSection, t) {
     return {
       title: t("applicant.statusSectionTitle"),
       description: t("applicant.statusTrackingDescription"),
-    };
-  }
-
-  if (activeSection === "license") {
-    return {
-      title: t("applicant.licenseSectionTitle"),
-      description: t("applicant.licenseSectionDescription"),
     };
   }
 
