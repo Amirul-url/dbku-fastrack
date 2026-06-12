@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
@@ -34,6 +35,7 @@ import {
   getApplicationType,
   getPrimaryApplicationType,
   getInvoiceNo,
+  getLicenseId,
   getProjectName,
   needsApplicantCorrection,
   normalizeStatus,
@@ -98,7 +100,7 @@ function UserDashboard() {
     }
   }, []);
 
-  const fetchApplicationDetails = useCallback(async (id) => {
+  const fetchApplicationDetails = useCallback(async (id, options = {}) => {
     try {
       const data = await apiRequest(`/applications/${id}/`);
       const paymentData = data?.form_data?.payment || {};
@@ -108,9 +110,14 @@ function UserDashboard() {
 
       setSelectedApplication(data);
       setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
+      if (options.markSeen) {
+        markApplicationSeen("all", data);
+      }
+      return data;
     } catch (err) {
       console.error("Failed to load application details:", err);
       setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
+      return null;
     }
   }, [t]);
 
@@ -141,7 +148,9 @@ function UserDashboard() {
       (activeSection !== "license" || licensePanelOpen)
     ) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchApplicationDetails(selectedId);
+      fetchApplicationDetails(selectedId, {
+        markSeen: activeSection === "license" && licensePanelOpen,
+      });
     }
   }, [activeSection, fetchApplicationDetails, licensePanelOpen, selectedId]);
 
@@ -276,6 +285,18 @@ function UserDashboard() {
   function markApplicationSeen(tab, app) {
     if (!app?.id) return;
 
+    if (tab === "all") {
+      const nextStatusMap = markApplicantRecordSeen("status", app);
+      const nextLicenseMap = markApplicantRecordSeen("license", app);
+
+      setRecordSeen((current) => ({
+        ...current,
+        status: nextStatusMap,
+        eLicense: nextLicenseMap,
+      }));
+      return;
+    }
+
     const mapKey = tab === "license" ? "eLicense" : "status";
     const nextMap = markApplicantRecordSeen(tab === "license" ? "license" : "status", app);
 
@@ -290,7 +311,8 @@ function UserDashboard() {
     setSelectedApplication(app);
     setLicensePanelOpen(true);
     setSearchParams({ tab: "license", id: String(app.id) });
-    fetchApplicationDetails(app.id);
+    markApplicationSeen("all", app);
+    fetchApplicationDetails(app.id, { markSeen: true });
   }
 
   function returnToLicenseList() {
@@ -370,7 +392,9 @@ function UserDashboard() {
         "Payment Receipt",
         file
       );
+      const refreshed = await fetchApplicationDetails(activeApplication.id, { markSeen: true });
       setPaymentReceipt(receipt);
+      markApplicationSeen("all", refreshed || activeApplication);
       setMessage({ type: "", text: "" });
     } catch (err) {
       console.error("Receipt upload failed:", err);
@@ -834,41 +858,44 @@ function LicenseSection({
           </p>
         </div>
 
-        <div className="space-y-4 p-4">
-          <ApplicantPaymentDocuments app={app} t={t} />
+        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
+          <LicenseQrPanel app={app} t={t} />
 
-          <section className="rounded-md border border-slate-200 bg-slate-50">
-            <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h4 className="text-sm font-semibold text-slate-950">
-                  {isPaymentLocked
-                    ? t("applicant.paymentReceipt", "Payment Receipt")
-                    : t("common.uploadReceipt")}
-                </h4>
-                <p className="mt-1 text-sm text-slate-500">
-                  {getPaymentHint(app, t)}
-                </p>
+          <div className="space-y-4">
+            <ApplicantPaymentDocuments app={app} t={t} />
+
+            <section className="rounded-md border border-slate-200 bg-slate-50">
+              <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-950">
+                    {isPaymentLocked
+                      ? t("applicant.paymentReceipt", "Payment Receipt")
+                      : t("common.uploadReceipt")}
+                  </h4>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {getPaymentHint(app, t)}
+                  </p>
+                </div>
+                {!isPaymentLocked && (
+                  <p className="text-sm text-slate-500">
+                    {t("applicant.receiptUploadHint")}
+                  </p>
+                )}
               </div>
-              {!isPaymentLocked && (
-                <p className="text-sm text-slate-500">
-                  {t("applicant.receiptUploadHint")}
-                </p>
+
+              {isReceiptRejected && (
+                <div className="mx-3 mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                  {t("applicant.paymentHintReceiptRejected")}
+                </div>
               )}
-            </div>
 
-            {isReceiptRejected && (
-              <div className="mx-3 mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                {t("applicant.paymentHintReceiptRejected")}
-              </div>
-            )}
+              {isReceiptSubmitted && (
+                <div className="mx-3 mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                  {t("applicant.paymentSubmittedSuccess")}
+                </div>
+              )}
 
-            {isReceiptSubmitted && (
-              <div className="mx-3 mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                {t("applicant.paymentSubmittedSuccess")}
-              </div>
-            )}
-
-            <div className="border-t border-slate-200 bg-white px-3 py-3">
+              <div className="border-t border-slate-200 bg-white px-3 py-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-emerald-700 ring-1 ring-slate-200">
@@ -936,40 +963,102 @@ function LicenseSection({
                     )}
                   </div>
                 </div>
-            </div>
-
-            {canSubmitPaymentProof && (
-              <div className="flex justify-end border-t border-slate-200 bg-white px-3 py-3">
-                {isReceiptSubmitted ? (
-                  <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
-                    <span className="material-symbols-outlined text-[16px]">
-                      check_circle
-                    </span>
-                    {t("applicant.paymentStatusSubmitted")}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onSubmitPayment}
-                    disabled={saving || !paymentReceipt}
-                    className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                  >
-                    <span className="material-symbols-outlined text-[16px] text-white">
-                      upload_file
-                    </span>
-                    {saving ? t("common.submitting") : t("applicant.submitPayment")}
-                  </button>
-                )}
               </div>
-            )}
-          </section>
 
-          {!canViewLicense(app) && (
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-              {t("applicant.qrLicensePending")}
-            </div>
-          )}
+              {canSubmitPaymentProof && (
+                <div className="flex justify-end border-t border-slate-200 bg-white px-3 py-3">
+                  {isReceiptSubmitted ? (
+                    <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
+                      <span className="material-symbols-outlined text-[16px]">
+                        check_circle
+                      </span>
+                      {t("applicant.paymentStatusSubmitted")}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onSubmitPayment}
+                      disabled={saving || !paymentReceipt}
+                      className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    >
+                      <span className="material-symbols-outlined text-[16px] text-white">
+                        upload_file
+                      </span>
+                      {saving ? t("common.submitting") : t("applicant.submitPayment")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function LicenseQrPanel({ app, t }) {
+  const license = app?.form_data?.license || {};
+  const licenseReady = canViewLicense(app);
+  const licenseId = license.license_id || getLicenseId(app);
+  const verificationUrl = license.verification_url || getLicenseVerificationUrl(licenseId);
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-4 text-center">
+        {licenseReady ? (
+          <>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <QRCodeSVG
+                value={verificationUrl}
+                size={260}
+                level="M"
+                includeMargin
+                role="img"
+                aria-label="License verification QR"
+              />
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {licenseId}
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  license.license_file
+                    ? openApplicantPaymentDocument(license.license_file, t)
+                    : openAdvertisementLicenseDocument(app, t)
+                }
+                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  visibility
+                </span>
+                {t("common.view", "View")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  license.license_file
+                    ? downloadApplicantPaymentDocument(license.license_file, t("workspace.license.documentTitle", "Advertisement License"), t)
+                    : downloadApplicantAdvertisementLicenseDocument(app, t)
+                }
+                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  download
+                </span>
+                {t("common.download", "Download")}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex h-full min-h-[300px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
+            <p className="max-w-xs text-sm font-medium text-slate-500">
+              {t("applicant.qrWillDisplayHere", "QR e-license will be displayed here.")}
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -977,10 +1066,8 @@ function LicenseSection({
 
 function ApplicantPaymentDocuments({ app, t }) {
   const approvalLetter = app?.form_data?.approval_letter || {};
-  const license = app?.form_data?.license || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
   const officialReceiptFile = getSentOfficialReceiptFile(app);
-  const showAdvertisementLicense = canViewLicense(app);
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
     manualReceipt.sent_at ||
@@ -1007,16 +1094,6 @@ function ApplicantPaymentDocuments({ app, t }) {
             file: officialReceiptFile,
             manual: manualReceipt,
             type: "receipt",
-          },
-        ]
-      : []),
-    ...(showAdvertisementLicense
-      ? [
-          {
-            label: t("workspace.license.documentTitle", "Advertisement License"),
-            file: license.license_file,
-            type: "advertisement_license",
-            available: Boolean(getPaymentDocumentSource(license.license_file)),
           },
         ]
       : []),
@@ -2129,6 +2206,15 @@ function getSentOfficialReceiptFile(app) {
   }
 
   return null;
+}
+
+function getLicenseVerificationUrl(licenseId) {
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "";
+
+  return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
 }
 
 async function printHtmlDocument(html, title) {
