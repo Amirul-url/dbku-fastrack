@@ -1,78 +1,43 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useLanguage } from "../../context/LanguageContext";
-import { fetchApplicationList } from "../../services/api";
 import {
-  getLicenseId,
-  normalizeStatus,
-} from "../../utils/workflow";
-import { buildAdvertisementLicenseHtml } from "../../utils/advertisementLicenseDocument";
+  fetchPublicLicenseVerification,
+  getApiUrl,
+} from "../../services/api";
 
 function LicenseVerificationPage() {
   const { licenseId } = useParams();
-  const { t } = useLanguage();
-
-  const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const openedLicenseRef = useRef(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchApplications();
-  }, []);
+    let active = true;
 
-  async function fetchApplications() {
-    try {
-      setLoading(true);
-      const list = await fetchApplicationList();
-      setApplications(list);
-    } catch (error) {
-      console.error("Failed to verify license:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
+    async function openLicenseDocument() {
+      try {
+        setLoading(true);
+        setError("");
+        const verification = await fetchPublicLicenseVerification(licenseId);
+        if (!active) return;
 
-  const application = useMemo(() => {
-    const scannedId = normalizeLicenseId(licenseId);
+        if (!verification?.document_url) {
+          throw new Error("Advertisement license document is unavailable.");
+        }
 
-    return applications.find(
-      (app) => {
-        const status = normalizeStatus(app?.status);
-        const isLicenseRecord =
-          status === "license_issued" || status === "license_revoked";
-        const storedLicenseId = app.form_data?.license?.license_id;
-        const generatedLicenseId = getLicenseId(app);
-
-        return (
-          isLicenseRecord &&
-          [storedLicenseId, generatedLicenseId].some(
-            (candidate) => normalizeLicenseId(candidate) === scannedId
-          )
-        );
+        window.location.replace(getApiUrl(verification.document_url));
+      } catch (requestError) {
+        if (!active) return;
+        console.error("Failed to verify license:", requestError);
+        setError(requestError.message || "The scanned license could not be opened.");
+        setLoading(false);
       }
-    );
-  }, [applications, licenseId]);
+    }
 
-  const advertisementLicenseHtml = application
-    ? buildAdvertisementLicenseHtml(application, t)
-    : "";
-
-  useEffect(() => {
-    if (!advertisementLicenseHtml || openedLicenseRef.current) return;
-
-    openedLicenseRef.current = true;
-    document.open();
-    document.write(advertisementLicenseHtml);
-    document.close();
-  }, [advertisementLicenseHtml]);
-
-  if (application) {
-    return (
-      <div className="min-h-screen bg-white px-4 py-8 text-sm text-slate-500">
-        Opening advertisement license...
-      </div>
-    );
-  }
+    openLicenseDocument();
+    return () => {
+      active = false;
+    };
+  }, [licenseId]);
 
   return (
     <div className="min-h-screen bg-[#f5f7f6] px-4 py-8 text-[#1a1c1c]">
@@ -89,24 +54,20 @@ function LicenseVerificationPage() {
 
         {loading ? (
           <Panel>
-            <p className="text-sm text-slate-500">Loading license details...</p>
+            <p className="text-sm text-slate-500">Opening advertisement license...</p>
           </Panel>
-        ) : !application ? (
+        ) : (
           <Panel>
             <StatusNotice
               type="error"
-              title="License not found"
-              description="The scanned license ID does not match any license record."
+              title="License unavailable"
+              description={error || "The scanned license ID does not match an available license document."}
             />
           </Panel>
-        ) : null}
+        )}
       </div>
     </div>
   );
-}
-
-function normalizeLicenseId(value) {
-  return String(value || "").trim().toUpperCase();
 }
 
 function Panel({ title, children }) {

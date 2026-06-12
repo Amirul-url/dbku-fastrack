@@ -578,6 +578,15 @@ export async function fetchApplicationList(options = {}) {
   return data.results;
 }
 
+export async function fetchPublicLicenseVerification(licenseId) {
+  const encodedLicenseId = encodeURIComponent(String(licenseId || "").trim());
+  if (!encodedLicenseId) {
+    throw new Error("License ID is required.");
+  }
+
+  return apiRequest(`/applications/license-verification/${encodedLicenseId}/`);
+}
+
 export async function uploadApplicationDocument(applicationId, title, file) {
   const body = new FormData();
   body.append("title", title || file.name || "Document");

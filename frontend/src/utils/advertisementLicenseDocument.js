@@ -121,7 +121,7 @@ export function buildAdvertisementLicenseHtml(app, t) {
   });
   const terms = normalizeLicenseTerms(manualLicense.terms);
   const dbkuLogoUrl = getManualDocumentAssetUrl(fields.dbkuLogoPath || "/logo-dbku.png");
-  const verificationUrl = license.verification_url || getLicenseVerificationUrl(licenseId);
+  const verificationUrl = getLicenseVerificationUrl(licenseId);
   const verificationQrSvg = buildVerificationQrSvg(verificationUrl);
   const paymentAmount = parseCurrencyAmount(fields.paymentAmount);
   const paymentDisplay = Number.isFinite(paymentAmount) && paymentAmount > 0
@@ -384,10 +384,21 @@ function getManualDocumentAssetUrl(value) {
 }
 
 function getLicenseVerificationUrl(licenseId) {
-  const origin =
+  const runtimeOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin
       : "";
+  const configuredOrigin = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
+  let origin = runtimeOrigin;
+
+  try {
+    const runtimeHost = new URL(runtimeOrigin).hostname.toLowerCase();
+    if (["localhost", "127.0.0.1", "0.0.0.0"].includes(runtimeHost)) {
+      origin = configuredOrigin || runtimeOrigin;
+    }
+  } catch {
+    origin = configuredOrigin || runtimeOrigin;
+  }
 
   return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
 }

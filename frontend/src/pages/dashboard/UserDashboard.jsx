@@ -1006,8 +1006,7 @@ function LicenseQrPanel({ app, t }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
   const licenseId = license.license_id || getLicenseId(app);
-  const licenseFileUrl = getPaymentDocumentSource(license.license_file);
-  const verificationUrl = licenseFileUrl || license.verification_url || getLicenseVerificationUrl(licenseId);
+  const verificationUrl = getLicenseVerificationUrl(licenseId);
 
   return (
     <section className="rounded-md border border-slate-200 bg-slate-50">
@@ -2215,10 +2214,21 @@ function getSentOfficialReceiptFile(app) {
 }
 
 function getLicenseVerificationUrl(licenseId) {
-  const origin =
+  const runtimeOrigin =
     typeof window !== "undefined" && window.location?.origin
       ? window.location.origin
       : "";
+  const configuredOrigin = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
+  let origin = runtimeOrigin;
+
+  try {
+    const runtimeHost = new URL(runtimeOrigin).hostname.toLowerCase();
+    if (["localhost", "127.0.0.1", "0.0.0.0"].includes(runtimeHost)) {
+      origin = configuredOrigin || runtimeOrigin;
+    }
+  } catch {
+    origin = configuredOrigin || runtimeOrigin;
+  }
 
   return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
 }

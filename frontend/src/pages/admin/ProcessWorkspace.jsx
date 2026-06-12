@@ -1113,13 +1113,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       );
       const savedLicense = selectedRecord.form_data?.license || {};
       const licenseId = savedLicense.license_id || getLicenseId(selectedRecord);
-      const licenseFileUrl = getPaymentDocumentSource(uploaded);
       const nextLicense = {
         ...savedLicense,
         creation_mode: "upload",
         license_id: licenseId,
         license_file: uploaded,
-        verification_url: licenseFileUrl || savedLicense.verification_url || getLicenseVerificationUrl(licenseId),
+        verification_url: getLicenseVerificationUrl(licenseId),
         uploaded_by: userDepartment,
         uploaded_at: new Date().toISOString(),
       };
@@ -4255,7 +4254,18 @@ function escapeHtml(value) {
 }
 
 function getPublicOrigin() {
-  return PUBLIC_FRONTEND_URL || getRuntimeOrigin();
+  const runtimeOrigin = getRuntimeOrigin();
+
+  try {
+    const runtimeHost = new URL(runtimeOrigin).hostname.toLowerCase();
+    if (!["localhost", "127.0.0.1", "0.0.0.0"].includes(runtimeHost)) {
+      return runtimeOrigin;
+    }
+  } catch {
+    // Use the configured public frontend URL below.
+  }
+
+  return PUBLIC_FRONTEND_URL || runtimeOrigin;
 }
 
 function getRuntimeOrigin() {
@@ -6770,7 +6780,6 @@ const configs = {
             addCalendarYears(issueDate, validityYears)
           );
           const licenseId = getLicenseId(app);
-          const licenseFileUrl = getPaymentDocumentSource(savedLicense.license_file);
           return {
             status: "license_issued",
             form_data: mergeFormData(app, {
@@ -6785,7 +6794,7 @@ const configs = {
                 issue_date: issueDate.toISOString(),
                 expiry_date: expiry.toISOString(),
                 validity_years: validityYears,
-                verification_url: licenseFileUrl || savedLicense.verification_url || getLicenseVerificationUrl(licenseId),
+                verification_url: getLicenseVerificationUrl(licenseId),
                 issued_at: new Date().toISOString(),
                 renewal_reminders: [
                   { months_before_expiry: 3, status: "Scheduled" },
@@ -9347,7 +9356,7 @@ function PaymentQrPanel({ app, t }) {
   const licenseFileUrl = getPaymentDocumentSource(license.license_file);
   const licenseReady = Boolean(licenseFileUrl) || (normalizeStatus(app?.status) === "license_issued" && license.status === "Active");
   const licenseId = license.license_id || getLicenseId(app);
-  const verificationUrl = licenseFileUrl || license.verification_url || getLicenseVerificationUrl(licenseId);
+  const verificationUrl = getLicenseVerificationUrl(licenseId);
 
   return (
     <section className="self-start rounded-md border border-slate-200 bg-slate-50">
@@ -12673,7 +12682,7 @@ function addCalendarYears(value, years) {
 function getLicenseVerificationUrl(licenseId) {
   const origin = getPublicOrigin();
 
-  return `${origin}/license/verify/${licenseId}`;
+  return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
 }
 
 function LicenseUrlInfo({ label, value }) {

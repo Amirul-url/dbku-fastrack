@@ -293,6 +293,65 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         return queryset.prefetch_related("supporting_documents")
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path=r"license-verification/(?P<license_id>[^/.]+)",
+        permission_classes=[permissions.AllowAny],
+        authentication_classes=[],
+    )
+    def license_verification(self, request, license_id=None):
+        application, document = self.get_public_license_document(license_id)
+
+        return Response(
+            {
+                "license_id": str(license_id or ""),
+                "reference_no": application.reference_no,
+                "status": application.status,
+                "document_url": (
+                    f"/applications/license-verification/"
+                    f"{license_id}/document/"
+                ),
+                "document_name": document.file.name.rsplit("/", 1)[-1],
+            }
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path=r"license-verification/(?P<license_id>[^/.]+)/document",
+        permission_classes=[permissions.AllowAny],
+        authentication_classes=[],
+    )
+    def license_verification_document(self, request, license_id=None):
+        _application, document = self.get_public_license_document(license_id)
+        return self.file_response(document)
+
+    def get_public_license_document(self, license_id):
+        normalized_id = str(license_id or "").strip().upper()
+
+        for application in Application.objects.exclude(form_data={}):
+            form_data = application.form_data or {}
+            license_data = form_data.get("license") or {}
+            stored_license_id = str(license_data.get("license_id") or "").strip().upper()
+
+            if stored_license_id != normalized_id:
+                continue
+
+            license_file = license_data.get("license_file") or {}
+            document_id = license_file.get("document_id") or license_file.get("id")
+            if not document_id:
+                raise Http404("Advertisement license document not found.")
+
+            document = get_object_or_404(
+                SupportingDocument,
+                id=document_id,
+                application=application,
+            )
+            return application, document
+
+        raise Http404("Advertisement license not found.")
+
     def get_list_values(self, key):
         values = []
 
