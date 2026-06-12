@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import { useLanguage } from "../../context/LanguageContext";
@@ -1111,10 +1112,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         file
       );
       const savedLicense = selectedRecord.form_data?.license || {};
+      const licenseId = savedLicense.license_id || getLicenseId(selectedRecord);
+      const licenseFileUrl = getPaymentDocumentSource(uploaded);
       const nextLicense = {
         ...savedLicense,
         creation_mode: "upload",
+        license_id: licenseId,
         license_file: uploaded,
+        verification_url: licenseFileUrl || savedLicense.verification_url || getLicenseVerificationUrl(licenseId),
         uploaded_by: userDepartment,
         uploaded_at: new Date().toISOString(),
       };
@@ -1154,6 +1159,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const nextLicense = {
         ...savedLicense,
         license_file: null,
+        verification_url: "",
       };
 
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -6742,6 +6748,7 @@ const configs = {
             addCalendarYears(issueDate, validityYears)
           );
           const licenseId = getLicenseId(app);
+          const licenseFileUrl = getPaymentDocumentSource(savedLicense.license_file);
           return {
             status: "license_issued",
             form_data: mergeFormData(app, {
@@ -6756,7 +6763,7 @@ const configs = {
                 issue_date: issueDate.toISOString(),
                 expiry_date: expiry.toISOString(),
                 validity_years: validityYears,
-                verification_url: getLicenseVerificationUrl(licenseId),
+                verification_url: licenseFileUrl || savedLicense.verification_url || getLicenseVerificationUrl(licenseId),
                 issued_at: new Date().toISOString(),
                 renewal_reminders: [
                   { months_before_expiry: 3, status: "Scheduled" },
@@ -9177,7 +9184,7 @@ function PaymentDetails({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 px-3 py-3 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 px-3 py-3">
         <PaymentDocumentSlot
           label={t("workspace.payment.approvalLetter", "Approval Letter")}
           file={letterFile}
@@ -9230,20 +9237,62 @@ function PaymentDetails({
   ) : null;
 
   return (
-    <div className="space-y-4 text-sm">
-      {isReceiptVerification ? (
-        <>
-          {receiptSection}
-          {documentSection}
-          {receiptEditorSection}
-        </>
-      ) : (
-        <>
-          {documentSection}
-          {receiptSection}
-        </>
-      )}
+    <div className="grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
+      <PaymentQrPanel app={app} t={t} />
+
+      <div className="space-y-4">
+        {isReceiptVerification ? (
+          <>
+            {receiptSection}
+            {documentSection}
+            {receiptEditorSection}
+          </>
+        ) : (
+          <>
+            {documentSection}
+            {receiptSection}
+          </>
+        )}
+      </div>
     </div>
+  );
+}
+
+function PaymentQrPanel({ app, t }) {
+  const license = app?.form_data?.license || {};
+  const licenseFileUrl = getPaymentDocumentSource(license.license_file);
+  const licenseReady = Boolean(licenseFileUrl) || (normalizeStatus(app?.status) === "license_issued" && license.status === "Active");
+  const licenseId = license.license_id || getLicenseId(app);
+  const verificationUrl = licenseFileUrl || license.verification_url || getLicenseVerificationUrl(licenseId);
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-4 text-center">
+        {licenseReady ? (
+          <>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <QRCodeSVG
+                value={verificationUrl}
+                size={260}
+                level="M"
+                includeMargin
+                role="img"
+                aria-label="License verification QR"
+              />
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {licenseId}
+            </p>
+          </>
+        ) : (
+          <div className="flex h-full min-h-[300px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
+            <p className="max-w-xs text-sm font-medium text-slate-500">
+              {t("applicant.qrWillDisplayHere", "QR e-license will be displayed here.")}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -12299,57 +12348,61 @@ function LicenseDetails({
     userDepartment === "PT(IKL)" && status === "payment_verified";
 
   return (
-    <div className="space-y-4 text-sm">
-      <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              {t("workspace.license.documentTitle", "Advertisement License")}
-            </p>
-            <p className="mt-1 text-[14px] leading-5 text-slate-600">
-              {t("workspace.license.uploadDesc", "Upload the advertisement license file that will be issued with the QR verification link.")}
-            </p>
+    <div className="grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
+      <PaymentQrPanel app={app} t={t} />
+
+      <div className="space-y-4">
+        <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                {t("workspace.license.documentTitle", "Advertisement License")}
+              </p>
+              <p className="mt-1 text-[14px] leading-5 text-slate-600">
+                {t("workspace.license.uploadDesc", "Upload the advertisement license file that will be issued with the QR verification link.")}
+              </p>
+            </div>
+            {licenseFile && (
+              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                {t("workspace.payment.methodReady", "Ready")}
+              </span>
+            )}
           </div>
-          {licenseFile && (
-            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-              {t("workspace.payment.methodReady", "Ready")}
-            </span>
-          )}
-        </div>
 
-        <div className="p-3">
-          <PaymentDocumentSlot
-            label={t("workspace.license.documentTitle", "Advertisement License")}
-            file={licenseFile}
-            t={t}
-            canUpload={canUploadLicenseDocument}
-            saving={saving}
-            onFileChange={(file) => onLicenseDocumentUpload?.(file)}
-            onDelete={() => onLicenseDocumentDelete?.(licenseFile)}
-          />
-        </div>
-      </section>
-
-      {Object.keys(renewal).length > 0 && (
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-            Renewal workflow
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {[3, 2, 1].map((months) => (
-              <Info
-                key={months}
-                label={`${months}-month reminder`}
-                value={formatWorkflowStatus(reminders[String(months)]?.status || "Not detected")}
-              />
-            ))}
-            <Info
-              label="Cancellation"
-              value={formatWorkflowStatus(cancellation.status || "Not triggered")}
+          <div className="p-3">
+            <PaymentDocumentSlot
+              label={t("workspace.license.documentTitle", "Advertisement License")}
+              file={licenseFile}
+              t={t}
+              canUpload={canUploadLicenseDocument}
+              saving={saving}
+              onFileChange={(file) => onLicenseDocumentUpload?.(file)}
+              onDelete={() => onLicenseDocumentDelete?.(licenseFile)}
             />
           </div>
-        </div>
-      )}
+        </section>
+
+        {Object.keys(renewal).length > 0 && (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+              Renewal workflow
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {[3, 2, 1].map((months) => (
+                <Info
+                  key={months}
+                  label={`${months}-month reminder`}
+                  value={formatWorkflowStatus(reminders[String(months)]?.status || "Not detected")}
+                />
+              ))}
+              <Info
+                label="Cancellation"
+                value={formatWorkflowStatus(cancellation.status || "Not triggered")}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

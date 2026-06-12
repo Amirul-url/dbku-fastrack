@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
@@ -58,6 +58,7 @@ function UserDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { language, t } = useLanguage();
+  const tRef = useRef(t);
   const queryTab = searchParams.get("tab");
   const querySelectedId = searchParams.get("id") || "";
   const activeSection = VALID_SECTIONS.includes(queryTab)
@@ -86,6 +87,10 @@ function UserDashboard() {
   const [licenseFilterMonth, setLicenseFilterMonth] = useState("all");
   const [licenseFilterYear, setLicenseFilterYear] = useState("all");
   const [recordSeen, setRecordSeen] = useState(() => getApplicantRecordSeen(getStoredUser()));
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -116,10 +121,10 @@ function UserDashboard() {
       return data;
     } catch (err) {
       console.error("Failed to load application details:", err);
-      setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
+      setMessage({ type: "error", text: tRef.current("applicant.detailsLoadFailed") });
       return null;
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1001,7 +1006,8 @@ function LicenseQrPanel({ app, t }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
   const licenseId = license.license_id || getLicenseId(app);
-  const verificationUrl = license.verification_url || getLicenseVerificationUrl(licenseId);
+  const licenseFileUrl = getPaymentDocumentSource(license.license_file);
+  const verificationUrl = licenseFileUrl || license.verification_url || getLicenseVerificationUrl(licenseId);
 
   return (
     <section className="rounded-md border border-slate-200 bg-slate-50">

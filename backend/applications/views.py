@@ -327,6 +327,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_status_key = str(old_status or "").strip().lower()
         new_status_key = str(application.status or "").strip().lower()
         remark_changed = str(application.latest_remark or "").strip() != str(old_remark or "").strip()
+        request_form_data = self.request.data.get("form_data") or {}
+        request_form_keys = set(request_form_data.keys()) if isinstance(request_form_data, dict) else set()
+        applicant_payment_submitted = (
+            self.request.user.role not in STAFF_ROLES
+            and old_status_key in {"invoice_generated", "payment_submitted"}
+            and new_status_key == "payment_submitted"
+            and request_form_keys
+            and request_form_keys.issubset({"payment"})
+        )
         if self.request.user.role not in STAFF_ROLES:
             if old_status_key in APPLICANT_CORRECTION_STATUSES and new_status_key in APPLICANT_RESUBMIT_STATUSES:
                 notify_applicant_application_resubmitted(application)
@@ -368,6 +377,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             force=(
                 self.request.user.role in STAFF_ROLES
                 or (old_status_key == "draft" and new_status_key == "submitted")
+                or applicant_payment_submitted
             ),
         )
         if (
