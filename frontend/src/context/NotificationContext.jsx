@@ -531,6 +531,9 @@ function getNotificationUrl(role, app, category, user = null) {
       return app?.id ? `/admin/e-licenses/payment?id=${app.id}` : "/admin/e-licenses/payment";
     }
     if (category === "license") {
+      if (department === "PT(IKL)") {
+        return app?.id ? `/admin/e-licenses/payment?id=${app.id}` : "/admin/e-licenses/payment";
+      }
       return app?.id ? `/admin/e-licenses/license?id=${app.id}` : "/admin/e-licenses/license";
     }
   }

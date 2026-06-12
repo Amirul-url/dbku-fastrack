@@ -694,10 +694,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
+  const showPaymentReceiptDecision =
+    config.key === "payment" &&
+    userDepartment === "PT(IKL)" &&
+    normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
+    workspaceActions.some((action) => action.requiresSubmittedReceipt);
   const showWorkspaceCommentField =
     config.showComment &&
     canSubmitWorkspaceAction &&
     !isApprovalSupportWorkspace &&
+    (!showPaymentReceiptDecision || decision === "Reject Receipt") &&
     (
       config.key !== "payment" ||
       workspaceActions.some((action) =>
@@ -709,17 +715,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showDetailsBeforeComment =
     config.key === "payment" &&
     workspaceActions.some((action) => action.requiresSubmittedReceipt);
-  const showPaymentReceiptDecision =
-    config.key === "payment" &&
-    userDepartment === "PT(IKL)" &&
-    normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
-    workspaceActions.some((action) => action.requiresSubmittedReceipt);
   const paymentReceiptDecisionOptions = showPaymentReceiptDecision
     ? workspaceActions.filter((action) => action.requiresSubmittedReceipt)
     : [];
   const selectedPaymentReceiptAction = showPaymentReceiptDecision
     ? paymentReceiptDecisionOptions.find((action) => action.label === decision)
     : null;
+  const selectedPaymentReceiptActionReady = Boolean(
+    selectedPaymentReceiptAction &&
+    (!selectedPaymentReceiptAction.requiresPaymentDocuments || hasUploadedPaymentDocuments(selectedRecord)) &&
+    (!selectedPaymentReceiptAction.requiresOfficialReceipt ||
+      getPaymentDocumentSource(selectedRecord?.form_data?.approval_letter?.official_receipt_file)) &&
+    (!selectedPaymentReceiptAction.requiresLicenseDocument ||
+      getPaymentDocumentSource(selectedRecord?.form_data?.license?.license_file))
+  );
   const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
@@ -1920,14 +1929,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   function openSelectedTask(app) {
     if (!app?.id) return;
 
-    if (
-      config.key === "payment" &&
-      ["payment_verified", "license_issued", "license_revoked"].includes(normalizeStatus(app.status))
-    ) {
-      navigate(`/admin/e-licenses/license?id=${app.id}`);
-      return;
-    }
-
     setSelectedId(String(app.id));
     const params = new URLSearchParams(location.search);
     params.set("id", app.id);
@@ -2441,7 +2442,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <select
                         value={decision}
                         onChange={(event) => {
-                          setDecision(event.target.value);
+                          const nextDecision = event.target.value;
+                          setDecision(nextDecision);
+                          if (nextDecision !== "Reject Receipt") setComment("");
                           if (commentError) setCommentError("");
                         }}
                         className="form-input form-input-sm max-w-xs"
@@ -2660,12 +2663,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             checkDecisionRemark: false,
                           });
                         }}
-                        disabled={saving || !selectedPaymentReceiptAction}
-                        variant={selectedPaymentReceiptAction?.variant || "primary"}
-                        icon="send"
+                        disabled={saving || !selectedPaymentReceiptActionReady}
+                        variant="primary"
+                        icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "qr_code_2"}
                         className="min-w-40"
                       >
-                        {saving ? t("workspace.saving") : t("common.submit", "Submit")}
+                        {saving
+                          ? t("workspace.saving")
+                          : selectedPaymentReceiptAction?.label === "Reject Receipt"
+                            ? t("common.submit", "Submit")
+                            : t("workspace.action.issueLicense", "Issue License")}
                       </Button>
                     ) : showApprovalDecisionButtons ? (
                       <>
@@ -4495,6 +4502,8 @@ function isPaymentTaskForDepartment(app, department) {
       "invoice_generated",
       "payment_submitted",
       "payment_verified",
+      "license_issued",
+      "license_revoked",
     ].includes(status);
   }
 
@@ -4692,7 +4701,10 @@ function getActionUnavailableMessage(config, app, department) {
 function getPaymentActionUnavailableMessage(app, department) {
   const status = normalizeStatus(app?.status);
 
-  if (department === "PT(IKL)" && ["approved", "bill_pending_ku", "payment_submitted"].includes(status)) {
+  if (
+    department === "PT(IKL)" &&
+    ["approved", "bill_pending_ku", "payment_submitted", "license_issued", "license_revoked"].includes(status)
+  ) {
     return "";
   }
 
@@ -4728,7 +4740,7 @@ function getPaymentActionUnavailableMessage(app, department) {
     return "Billing and receipt actions are handled by PT(IKL).";
   }
 
-  return "Payment actions are available to PT(IKL) only.";
+  return "";
 }
 
 function getLicenseActionUnavailableMessage(app, department) {
@@ -6361,6 +6373,8 @@ function getWorkspaceStatusScope(config, department) {
         "invoice_generated",
         "payment_submitted",
         "payment_verified",
+        "license_issued",
+        "license_revoked",
       ];
     }
 
@@ -6616,7 +6630,7 @@ const configs = {
   payment: {
     key: "payment",
     allowedDepartments: ["PT(IKL)"],
-    statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified"],
+    statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified", "license_issued", "license_revoked"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.payment.listEyebrow",
     listTitle: "Approval Letter, Bill & Receipt",
@@ -6680,7 +6694,7 @@ const configs = {
         label: "Verify Receipt",
         labelKey: "workspace.action.verifyPayment",
         icon: "verified",
-        success: "Payment verified.",
+        success: "Payment verified and e-license issued.",
         successKey: "workspace.message.paymentVerified",
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
@@ -6689,27 +6703,68 @@ const configs = {
         requiresLicenseDocument: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
-        buildPayload: (app, data) => ({
-          status: "payment_verified",
-          form_data: mergeFormData(app, {
-            approval_letter: {
-              ...(app.form_data?.approval_letter || {}),
-            },
-            payment: {
-              ...(app.form_data?.payment || {}),
-              status: "Payment Verified",
-              verification_result: "Valid",
-              verification_notes: data.comment,
-              verified_at: new Date().toISOString(),
-            },
-          }),
-        }),
+        buildPayload: (app, data) => {
+          const now = new Date();
+          const timestamp = now.toISOString();
+          const savedApprovalLetter = app.form_data?.approval_letter || {};
+          const savedOfficialReceipt = savedApprovalLetter.official_receipt_file || {};
+          const savedLicense = app.form_data?.license || {};
+          const validityYears = Number(savedLicense.validity_years) || 1;
+          const issueDate = parseDateOrFallback(savedLicense.issue_date, now);
+          const expiryDate = parseDateOrFallback(
+            savedLicense.expiry_date,
+            addCalendarYears(issueDate, validityYears)
+          );
+          const licenseId = savedLicense.license_id || getLicenseId(app);
+
+          return {
+            status: "license_issued",
+            latest_remark: "",
+            form_data: mergeFormData(app, {
+              approval_letter: {
+                ...savedApprovalLetter,
+                official_receipt_file: {
+                  ...savedOfficialReceipt,
+                  status: "Sent to Applicant",
+                  sent_at: timestamp,
+                },
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                status: "Payment Verified",
+                verification_result: "Valid",
+                verification_notes: data.comment,
+                verified_at: timestamp,
+              },
+              license: {
+                ...savedLicense,
+                creation_mode: "upload",
+                license_id: licenseId,
+                status: "Active",
+                holder: getApplicantName(app),
+                type: getApplicationType(app),
+                location: getApplicationLocation(app),
+                issue_date: issueDate.toISOString(),
+                expiry_date: expiryDate.toISOString(),
+                validity_years: validityYears,
+                verification_url: getLicenseVerificationUrl(licenseId),
+                issued_at: timestamp,
+                renewal_reminders: [
+                  { months_before_expiry: 3, status: "Scheduled" },
+                  { months_before_expiry: 2, status: "Scheduled" },
+                  { months_before_expiry: 1, status: "Scheduled" },
+                ],
+              },
+            }),
+          };
+        },
       },
       {
         label: "Reject Receipt",
         labelKey: "workspace.action.rejectReceipt",
         icon: "report",
         variant: "danger",
+        requiresComment: true,
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
         isAvailable: (app, department) =>
@@ -6718,6 +6773,7 @@ const configs = {
         successKey: "workspace.message.receiptRejected",
         buildPayload: (app, data) => ({
           status: "invoice_generated",
+          latest_remark: data.comment,
           form_data: mergeFormData(app, {
             payment: {
               ...(app.form_data?.payment || {}),
@@ -6725,6 +6781,47 @@ const configs = {
               verification_result: "Invalid/Fake",
               verification_notes: data.comment,
               rejected_at: new Date().toISOString(),
+            },
+          }),
+        }),
+      },
+      {
+        label: "Revoke License",
+        labelKey: "workspace.action.revokeLicense",
+        icon: "block",
+        variant: "danger",
+        success: "License revoked.",
+        successKey: "workspace.message.licenseRevoked",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_issued",
+        buildPayload: (app) => ({
+          status: "license_revoked",
+          form_data: mergeFormData(app, {
+            license: {
+              ...(app.form_data?.license || {}),
+              status: "Revoked",
+              revoked_at: new Date().toISOString(),
+            },
+          }),
+        }),
+      },
+      {
+        label: "Restore License",
+        labelKey: "workspace.action.restoreLicense",
+        icon: "restart_alt",
+        success: "License restored.",
+        successKey: "workspace.message.licenseRestored",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_revoked",
+        buildPayload: (app) => ({
+          status: "license_issued",
+          form_data: mergeFormData(app, {
+            license: {
+              ...(app.form_data?.license || {}),
+              status: "Active",
+              reinstated_at: new Date().toISOString(),
+              revoked_at: "",
+              revocation_reason: "",
             },
           }),
         }),
@@ -9190,7 +9287,10 @@ function PaymentDetails({
     }
   }
 
-  const officialReceiptUploadSection = showVerificationUploads ? (
+  const showOfficialReceiptSection = showVerificationUploads || Boolean(officialReceiptFile);
+  const showLicenseDocumentSection = showVerificationUploads || Boolean(licenseFile);
+
+  const officialReceiptUploadSection = showOfficialReceiptSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <div>
@@ -9208,7 +9308,8 @@ function PaymentDetails({
           label={t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}
           file={officialReceiptFile}
           t={t}
-          canUpload
+          canUpload={showVerificationUploads}
+          required={showVerificationUploads}
           saving={saving}
           onFileChange={(file) => onPaymentDocumentUpload?.("official_receipt", file)}
           onDelete={() => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile)}
@@ -9217,7 +9318,7 @@ function PaymentDetails({
     </section>
   ) : null;
 
-  const licenseUploadSection = showVerificationUploads ? (
+  const licenseUploadSection = showLicenseDocumentSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <div>
@@ -9225,7 +9326,7 @@ function PaymentDetails({
             {t("workspace.license.documentTitle", "Advertisement License")}
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            {t("workspace.license.uploadDesc", "Upload the advertisement license file that will be issued with the QR verification link.")}
+            {t("workspace.license.uploadDesc", "Upload the advertisement license file to the applicant.")}
           </p>
         </div>
       </div>
@@ -9235,7 +9336,8 @@ function PaymentDetails({
           label={t("workspace.license.documentTitle", "Advertisement License")}
           file={licenseFile}
           t={t}
-          canUpload
+          canUpload={showVerificationUploads}
+          required={showVerificationUploads}
           saving={saving}
           onFileChange={(file) => onLicenseDocumentUpload?.(file)}
           onDelete={() => onLicenseDocumentDelete?.(licenseFile)}
@@ -9268,6 +9370,7 @@ function PaymentDetails({
           file={letterFile}
           t={t}
           canUpload={canUploadDocuments}
+          required={canUploadDocuments}
           saving={saving}
           onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
           onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
@@ -9277,6 +9380,7 @@ function PaymentDetails({
           file={billFile}
           t={t}
           canUpload={canUploadDocuments}
+          required={canUploadDocuments}
           saving={saving}
           onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
           onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
@@ -9333,7 +9437,7 @@ function PaymentDetails({
               {documentSection}
               {receiptSection}
             </div>
-            {showVerificationUploads && (
+            {(showOfficialReceiptSection || showLicenseDocumentSection) && (
               <div className="grid gap-4 xl:grid-cols-2">
                 {officialReceiptUploadSection}
                 {licenseUploadSection}
@@ -9344,6 +9448,12 @@ function PaymentDetails({
           <>
             {documentSection}
             {receiptSection}
+            {(showOfficialReceiptSection || showLicenseDocumentSection) && (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {officialReceiptUploadSection}
+                {licenseUploadSection}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -9380,7 +9490,10 @@ function PaymentQrPanel({ app, t }) {
         ) : (
           <div className="flex min-h-[260px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
             <p className="max-w-xs text-sm font-medium text-slate-500">
-              {t("applicant.qrWillDisplayHere", "QR e-license will be displayed here.")}
+              {t(
+                "workspace.license.qrPendingUpload",
+                "QR e-license will be displayed here after upload Advertisement License."
+              )}
             </p>
           </div>
         )}
@@ -9389,7 +9502,7 @@ function PaymentQrPanel({ app, t }) {
   );
 }
 
-function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange, onDelete }) {
+function PaymentDocumentSlot({ label, file, t, canUpload, required = false, saving, onFileChange, onDelete }) {
   const fileSource = getPaymentDocumentSource(file);
 
   return (
@@ -9397,6 +9510,7 @@ function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange, 
       <div className="min-w-0">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
           {label}
+          {required && <span className="ml-1 text-red-600">*</span>}
         </p>
         <p className="mt-1 truncate text-sm font-semibold text-slate-950">
           {file?.name || t("workspace.info.notUploaded", "Not uploaded")}
@@ -9430,6 +9544,8 @@ function PaymentDocumentSlot({ label, file, t, canUpload, saving, onFileChange, 
               <input
                 type="file"
                 accept="image/*,.pdf"
+                required={required && !fileSource}
+                aria-required={required}
                 className="hidden"
                 disabled={saving}
                 onChange={(event) => {
@@ -10829,10 +10945,12 @@ function hasManualPaymentDocuments(app) {
 
 function hasSentManualOfficialReceipt(app) {
   const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
+  const status = normalizeStatus(app?.status);
   return Boolean(
     manualReceipt.sent_at ||
     manualReceipt.status === "Sent to Applicant" ||
-    (normalizeStatus(app?.status) === "payment_verified" && manualReceipt.saved_at)
+    (["payment_verified", "license_issued", "license_revoked"].includes(status) &&
+      manualReceipt.saved_at)
   );
 }
 
@@ -10840,10 +10958,11 @@ function getSentOfficialReceiptFile(app) {
   const file = app?.form_data?.approval_letter?.official_receipt_file || null;
   if (!getPaymentDocumentSource(file)) return null;
 
+  const status = normalizeStatus(app?.status);
   if (
     file.sent_at ||
     file.status === "Sent to Applicant" ||
-    normalizeStatus(app?.status) === "payment_verified"
+    ["payment_verified", "license_issued", "license_revoked"].includes(status)
   ) {
     return file;
   }
@@ -12460,7 +12579,7 @@ function LicenseDetails({
                 {t("workspace.license.documentTitle", "Advertisement License")}
               </p>
               <p className="mt-1 text-[14px] leading-5 text-slate-600">
-                {t("workspace.license.uploadDesc", "Upload the advertisement license file that will be issued with the QR verification link.")}
+                {t("workspace.license.uploadDesc", "Upload the advertisement license file to the applicant.")}
               </p>
             </div>
             {licenseFile && (

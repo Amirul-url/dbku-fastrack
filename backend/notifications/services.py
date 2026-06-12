@@ -85,7 +85,12 @@ STATUS_MESSAGES = {
     ),
     "license_issued": (
         "QR e-license generated",
-        "Your QR e-license for application {reference} has been generated successfully.",
+        "Your QR e-license for application {reference} has been issued and is ready to download.",
+        "",
+    ),
+    "license_revoked": (
+        "Advertisement license revoked",
+        "Your advertisement license for application {reference} has been revoked.",
         "",
     ),
     "technical_review": (
@@ -140,6 +145,7 @@ STATUS_UI = {
     "payment_submitted": ("payment", "warning"),
     "payment_verified": ("payment", "success"),
     "license_issued": ("license", "success"),
+    "license_revoked": ("license", "error"),
     "ku_ikl_review": ("screening", "warning"),
     "technical_review": ("technical", "warning"),
     "technical_site_visit": ("technical", "warning"),
@@ -159,6 +165,7 @@ APPLICANT_NOTIFICATION_STATUSES = {
     "rejected",
     "invoice_generated",
     "license_issued",
+    "license_revoked",
 }
 
 ADMIN_NOTIFICATION_STATUSES = {
@@ -1188,6 +1195,13 @@ def build_status_messages(application):
         title = f"Application {application.reference_no} approved by MPHLG"
         admin_body = f"Application {application.reference_no} has been approved by MPHLG."
         subject = build_notification_subject(title, application.reference_no)
+    elif status_key == "invoice_generated" and is_payment_receipt_rejected(application):
+        title = "Payment receipt rejected"
+        applicant_body = (
+            f"Your payment receipt for application {application.reference_no} was rejected. "
+            "Please review the remark and upload a new proof of payment."
+        )
+        subject = build_notification_subject(title, application.reference_no)
 
     applicant_metadata = build_web_metadata(
         application=application,
@@ -1511,7 +1525,9 @@ def get_notification_status_label(application):
 
 def get_message_remark(application):
     status_key = str(application.status or "").strip().lower()
-    if status_key not in REMARK_REPEAT_STATUSES:
+    if status_key not in REMARK_REPEAT_STATUSES and not (
+        status_key == "invoice_generated" and is_payment_receipt_rejected(application)
+    ):
         return ""
 
     return get_latest_remark(application)
@@ -1774,6 +1790,11 @@ def get_pending_technical_departments(application):
         for department in selected_departments
         if not isinstance(reviews.get(department), dict) or not reviews.get(department)
     }
+
+
+def is_payment_receipt_rejected(application):
+    payment = get_form_section(application, "payment")
+    return normalize_status_value(payment.get("status")) == "receipt rejected"
 
 
 def format_selected_technical_departments(application):

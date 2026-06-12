@@ -1371,12 +1371,8 @@ function getAdminTaskWorkspacePath(application, unit) {
   const status = normalizeStatus(application?.status);
 
   if (unit?.department === "PT(IKL)") {
-    if (["approved", "payment_submitted"].includes(status)) {
+    if (["approved", "payment_submitted", "payment_verified", "license_issued", "license_revoked"].includes(status)) {
       return "/admin/e-licenses/payment";
-    }
-
-    if (status === "payment_verified") {
-      return "/admin/e-licenses/license";
     }
   }
 

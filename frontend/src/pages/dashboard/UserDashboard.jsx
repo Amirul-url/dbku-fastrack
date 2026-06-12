@@ -858,9 +858,6 @@ function LicenseSection({
           <h3 className="text-sm font-semibold text-slate-950">
             {t("applicant.licenseDownloadTitle")}
           </h3>
-          <p className="mt-1 text-sm text-slate-500">
-            {canViewLicense(app) ? t("applicant.licenseDownloadDesc") : t("applicant.qrLicensePending")}
-          </p>
         </div>
 
         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
@@ -1006,14 +1003,16 @@ function LicenseQrPanel({ app, t }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
   const licenseId = license.license_id || getLicenseId(app);
+  const displayReference = getApplicationReference(app);
   const verificationUrl = getLicenseVerificationUrl(licenseId);
+  const qrContainerRef = useRef(null);
 
   return (
     <section className="rounded-md border border-slate-200 bg-slate-50">
       <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-4 text-center">
         {licenseReady ? (
           <>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <QRCodeSVG
                 value={verificationUrl}
                 size={260}
@@ -1024,30 +1023,12 @@ function LicenseQrPanel({ app, t }) {
               />
             </div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {licenseId}
+              {displayReference}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  license.license_file
-                    ? openApplicantPaymentDocument(license.license_file, t)
-                    : openAdvertisementLicenseDocument(app, t)
-                }
-                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <span className="material-symbols-outlined text-[16px]">
-                  visibility
-                </span>
-                {t("common.view", "View")}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  license.license_file
-                    ? downloadApplicantPaymentDocument(license.license_file, t("workspace.license.documentTitle", "Advertisement License"), t)
-                    : downloadApplicantAdvertisementLicenseDocument(app, t)
-                }
+                onClick={() => downloadApplicantQrCode(qrContainerRef.current, displayReference)}
                 className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 <span className="material-symbols-outlined text-[16px]">
@@ -1060,7 +1041,7 @@ function LicenseQrPanel({ app, t }) {
         ) : (
           <div className="flex h-full min-h-[300px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
             <p className="max-w-xs text-sm font-medium text-slate-500">
-              {t("applicant.qrWillDisplayHere", "QR e-license will be displayed here.")}
+              {t("applicant.qrLicensePending")}
             </p>
           </div>
         )}
@@ -1071,6 +1052,7 @@ function LicenseQrPanel({ app, t }) {
 
 function ApplicantPaymentDocuments({ app, t }) {
   const approvalLetter = app?.form_data?.approval_letter || {};
+  const license = app?.form_data?.license || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
   const officialReceiptFile = getSentOfficialReceiptFile(app);
   const showOfficialReceipt = Boolean(
@@ -1099,6 +1081,16 @@ function ApplicantPaymentDocuments({ app, t }) {
             file: officialReceiptFile,
             manual: manualReceipt,
             type: "receipt",
+          },
+        ]
+      : []),
+    ...(canViewLicense(app)
+      ? [
+          {
+            label: t("workspace.license.documentTitle", "Advertisement License"),
+            file: license.license_file,
+            available: true,
+            type: "advertisement_license",
           },
         ]
       : []),
@@ -2202,10 +2194,11 @@ function getSentOfficialReceiptFile(app) {
   const file = app?.form_data?.approval_letter?.official_receipt_file || null;
   if (!getPaymentDocumentSource(file)) return null;
 
+  const status = normalizeStatus(app?.status);
   if (
     file.sent_at ||
     file.status === "Sent to Applicant" ||
-    normalizeStatus(app?.status) === "payment_verified"
+    ["payment_verified", "license_issued", "license_revoked"].includes(status)
   ) {
     return file;
   }
@@ -2915,6 +2908,49 @@ function getManualDocumentAssetUrl(value) {
   if (/^(data:|blob:|https?:)/i.test(source)) return source;
 
   return getPublicAssetUrl(source);
+}
+
+function getQrSvgBlob(qrContainer) {
+  const svg = qrContainer?.querySelector("svg");
+  if (!svg) return null;
+
+  const clone = svg.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  return new Blob([new XMLSerializer().serializeToString(clone)], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+}
+
+async function downloadApplicantQrCode(qrContainer, licenseId) {
+  const blob = getQrSvgBlob(qrContainer);
+  if (!blob) return;
+
+  const sourceUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = 720;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!pngBlob) return;
+
+    const downloadUrl = URL.createObjectURL(pngBlob);
+    triggerDownload(downloadUrl, `${licenseId || "e-license"}-qr.png`);
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+  } catch (err) {
+    console.error("Failed to download QR code:", err);
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
 }
 
 function triggerDownload(url, filename) {

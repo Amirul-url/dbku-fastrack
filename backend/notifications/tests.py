@@ -966,6 +966,60 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.user, self.admin)
         self.assertIn("License issuance", delivery.metadata["title_en"])
 
+    def test_rejected_payment_receipt_notifies_applicant_to_reupload_all_channels(self):
+        NotificationDelivery.objects.all().delete()
+        self.application.status = "invoice_generated"
+        self.application.latest_remark = "Receipt image is unclear."
+        self.application.form_data = {
+            **self.application.form_data,
+            "payment": {
+                "status": "Receipt Rejected",
+                "verification_result": "Invalid/Fake",
+                "verification_notes": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["status", "latest_remark", "form_data"])
+
+        notify_application_status_change(self.application, "payment_submitted")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="applicant",
+            metadata__event_status="invoice_generated",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertIn("upload a new proof of payment", deliveries.get(channel="email").message)
+        self.assertIn("Receipt image is unclear", deliveries.get(channel="web").message)
+
+    def test_license_issued_notifies_applicant_ready_to_download_all_channels(self):
+        self.notify_status("license_issued", old_status="payment_submitted")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="applicant",
+            metadata__event_status="license_issued",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertIn("ready to download", deliveries.get(channel="email").message)
+
+    def test_license_revoked_notifies_applicant_all_channels(self):
+        self.notify_status("license_revoked", old_status="license_issued")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="applicant",
+            metadata__event_status="license_revoked",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertIn("has been revoked", deliveries.get(channel="email").message)
+
+    def test_license_restored_notifies_applicant_ready_to_download_all_channels(self):
+        self.notify_status("license_issued", old_status="license_revoked")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="applicant",
+            metadata__event_status="license_issued",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertIn("ready to download", deliveries.get(channel="whatsapp").message)
+
     def test_final_approval_notifies_pt_ikl_for_billing(self):
         memo_html = "<p>TP final approval memo for PT(IKL)</p>"
         self.application.form_data = {
