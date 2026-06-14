@@ -31,22 +31,30 @@ function UserViewStepControls({ applicationId, currentStep, language, className 
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const returnTab = queryParams.get("returnTab") || "";
-  const backToListPath = returnTab === "status"
-    ? "/user/dashboard?tab=status"
-    : "/user/dashboard";
-  const backToListLabel = returnTab === "status"
-    ? "backToApplicationStatus"
-    : "backToDashboard";
+  const backToListConfig = {
+    applications: {
+      label: "backToApplications",
+      path: "/user/dashboard?tab=applications",
+    },
+    status: {
+      label: "backToApplicationStatus",
+      path: "/user/dashboard?tab=status",
+    },
+  };
+  const backToList = backToListConfig[returnTab] || {
+    label: "backToDashboard",
+    path: "/user/dashboard",
+  };
   const previousStep = currentStep - 1;
   const nextStep = currentStep + 1;
 
   return (
     <div className={`flex flex-wrap justify-end gap-2 ${className}`}>
       <Link
-        to={backToListPath}
+        to={backToList.path}
         className="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
       >
-        {stepText(language, backToListLabel)}
+        {stepText(language, backToList.label)}
       </Link>
 
       {previousStep >= 1 ? (

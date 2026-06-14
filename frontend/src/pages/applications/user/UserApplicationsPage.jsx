@@ -77,7 +77,12 @@ function UserApplicationsPage() {
   }, [applications]);
 
   function openApplication(app) {
-    navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?id=${app.id}`);
+    const params = new URLSearchParams({
+      id: String(app.id),
+      returnTab: "applications",
+    });
+
+    navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?${params.toString()}`);
   }
 
   return (

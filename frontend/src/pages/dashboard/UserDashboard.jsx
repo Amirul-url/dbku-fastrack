@@ -252,6 +252,17 @@ function UserDashboard() {
     navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?${params.toString()}`);
   }
 
+  function openSubmittedApplicationSteps(app) {
+    if (!app?.id) return;
+
+    const params = new URLSearchParams({
+      id: String(app.id),
+      returnTab: "status",
+    });
+
+    navigate(`/applications/${app.id}/edit?${params.toString()}`);
+  }
+
   function markApplicationSeen(tab, app) {
     if (!app?.id) return;
 
@@ -483,6 +494,7 @@ function UserDashboard() {
             paymentReceipt={paymentReceipt}
             saving={saving}
             t={t}
+            onViewApplicationSteps={openSubmittedApplicationSteps}
             onReceiptChange={handlePaymentReceiptChange}
             onReceiptRemove={handlePaymentReceiptRemove}
             onReceiptView={viewPaymentReceipt}
@@ -738,6 +750,7 @@ function LicenseSection({
   paymentReceipt,
   saving,
   t,
+  onViewApplicationSteps,
   onReceiptChange,
   onReceiptRemove,
   onReceiptView,
@@ -774,7 +787,11 @@ function LicenseSection({
           <LicenseQrPanel app={app} t={t} />
 
           <div className="space-y-4">
-            <ApplicantPaymentDocuments app={app} t={t} />
+            <ApplicantPaymentDocuments
+              app={app}
+              t={t}
+              onViewApplicationSteps={onViewApplicationSteps}
+            />
 
             <section className="rounded-md border border-slate-200 bg-slate-50">
               <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -925,9 +942,10 @@ function LicenseQrPanel({ app, t }) {
             <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <QRCodeSVG
                 value={verificationUrl}
-                size={260}
+                size={360}
                 level="M"
                 includeMargin
+                className="h-auto max-w-full"
                 role="img"
                 aria-label="License verification QR"
               />
@@ -960,7 +978,7 @@ function LicenseQrPanel({ app, t }) {
   );
 }
 
-function ApplicantPaymentDocuments({ app, t }) {
+function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
@@ -972,6 +990,12 @@ function ApplicantPaymentDocuments({ app, t }) {
     (normalizeStatus(app?.status) === "payment_verified" && manualReceipt.saved_at)
   );
   const documents = [
+    {
+      label: t("applicant.submittedApplicationForm", "Submitted Application Form"),
+      name: t("applicant.submittedApplicationSteps", "Application Steps 1-5"),
+      available: true,
+      type: "submitted_application",
+    },
     {
       label: t("workspace.payment.approvalLetter", "Approval Letter"),
       file: approvalLetter.letter_file,
@@ -1018,7 +1042,7 @@ function ApplicantPaymentDocuments({ app, t }) {
           {t("workspace.payment.documents", "Approval Letter and Bill")}
         </h4>
         <p className="mt-1 text-sm text-slate-500">
-          {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
+          {t("applicant.paymentDocumentsDesc", "View the submitted application and download documents from ALiS.")}
         </p>
       </div>
 
@@ -1037,13 +1061,20 @@ function ApplicantPaymentDocuments({ app, t }) {
                   {item.file.name}
                 </p>
               )}
+              {item.name && (
+                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                  {item.name}
+                </p>
+              )}
             </div>
             {(item.available || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() =>
-                    item.type === "advertisement_license"
+                    item.type === "submitted_application"
+                      ? onViewApplicationSteps?.(app)
+                      : item.type === "advertisement_license"
                       ? item.file
                         ? openApplicantPaymentDocument(item.file, t)
                         : openAdvertisementLicenseDocument(app, t)
@@ -1058,24 +1089,26 @@ function ApplicantPaymentDocuments({ app, t }) {
                   </span>
                   {t("common.view", "View")}
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    item.type === "advertisement_license"
-                      ? item.file
+                {item.type !== "submitted_application" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      item.type === "advertisement_license"
+                        ? item.file
+                          ? downloadApplicantPaymentDocument(item.file, item.label, t)
+                          : downloadApplicantAdvertisementLicenseDocument(app, t)
+                        : item.file
                         ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                        : downloadApplicantAdvertisementLicenseDocument(app, t)
-                      : item.file
-                      ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                      : downloadApplicantManualPaymentDocument(app, item.type, t)
-                  }
-                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  <span className="material-symbols-outlined text-[16px]">
-                    download
-                  </span>
-                  {t("common.download", "Download")}
-                </button>
+                        : downloadApplicantManualPaymentDocument(app, item.type, t)
+                    }
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      download
+                    </span>
+                    {t("common.download", "Download")}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1196,15 +1229,13 @@ function LicenseListSection({
             className: "w-[8%]",
             cellClassName: "w-[8%] text-sm",
             render: (app) => (
-              <Button
+              <button
                 type="button"
-                variant="secondary"
-                icon="open_in_new"
-                className="min-h-8 px-3 py-1 text-sm"
                 onClick={() => onOpen(app)}
+                className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50"
               >
-                {t("common.open", "Open")}
-              </Button>
+                {t("common.view", "View")}
+              </button>
             ),
           },
         ]}
