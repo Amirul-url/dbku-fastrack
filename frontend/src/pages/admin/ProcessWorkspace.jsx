@@ -127,6 +127,7 @@ const KU_IKL_TECHNICAL_TRACKING_STATUSES = new Set([
   "technical_review",
   "technical_site_visit",
   "technical_amendment",
+  "technical_review_completed",
 ]);
 const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
 const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
@@ -148,6 +149,7 @@ const INTERNAL_WORK_TRACKING_DEPARTMENTS = new Set([
   "PT(IKL)",
   "KU(IKL)",
   "IKL (TECHNICAL)",
+  ...TECHNICAL_DEPARTMENTS,
   "KB(LES)",
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   ...MPHLG_REVIEW_DEPARTMENTS,
@@ -2158,10 +2160,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   render: (app) => {
                     const canOpenRow =
                       !isELicenseWorkspace || canOpenWorkspaceRow(config, app, userDepartment);
+                    const showNewBadge =
+                      isApprovalWorkspace &&
+                      canOpenWorkspaceRow(config, app, userDepartment) &&
+                      !isApprovalHistoryRecord(app);
+                    const referenceContent = (
+                      <span className="inline-flex items-center gap-2">
+                        <span>{getApplicationReference(app)}</span>
+                        {showNewBadge && (
+                          <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase leading-none text-white">
+                            {t("common.new", "New")}
+                          </span>
+                        )}
+                      </span>
+                    );
 
                     return isApprovalViewOnlyWorkspace || !canOpenRow ? (
                       <span className="font-semibold text-slate-900">
-                        {getApplicationReference(app)}
+                        {referenceContent}
                       </span>
                     ) : (
                       <button
@@ -2173,7 +2189,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         }
                         className="font-semibold text-emerald-700 hover:underline"
                       >
-                      {getApplicationReference(app)}
+                        {referenceContent}
                       </button>
                     );
                   },

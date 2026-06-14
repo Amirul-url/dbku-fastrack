@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "../../layout/AppShell";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
@@ -24,6 +24,7 @@ const filters = [
   { value: "decision", labelKey: "notifications.filter.decision", fallback: "Decision" },
   { value: "progress", labelKey: "notifications.filter.progress", fallback: "Progress" },
 ];
+const NOTIFICATIONS_PER_PAGE = 5;
 
 const typeStyles = {
   success: {
@@ -656,6 +657,7 @@ function NotificationsPage() {
   } = useNotifications();
   const { language, t } = useLanguage();
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [selectedNotificationId, setSelectedNotificationId] = useState("");
   const storedUser = getStoredUser();
   const Layout = isSuperAdminUser(storedUser)
@@ -693,6 +695,20 @@ function NotificationsPage() {
     }, {});
   }, [activeFilters, notifications, unreadCount]);
 
+  const pageCount = Math.max(1, Math.ceil(filtered.length / NOTIFICATIONS_PER_PAGE));
+  const paginatedNotifications = useMemo(() => {
+    const start = (page - 1) * NOTIFICATIONS_PER_PAGE;
+    return filtered.slice(start, start + NOTIFICATIONS_PER_PAGE);
+  }, [filtered, page]);
+  const pageStart = filtered.length === 0 ? 0 : (page - 1) * NOTIFICATIONS_PER_PAGE + 1;
+  const pageEnd = Math.min(page * NOTIFICATIONS_PER_PAGE, filtered.length);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
+
   const activeFilterLabel =
     activeFilters.find((item) => item.value === filter) || activeFilters[0];
   const selectedNotification =
@@ -707,6 +723,7 @@ function NotificationsPage() {
 
   function changeFilter(nextFilter) {
     setFilter(nextFilter);
+    setPage(1);
     setSelectedNotificationId("");
   }
 
@@ -808,59 +825,85 @@ function NotificationsPage() {
                 onBack={() => setSelectedNotificationId("")}
               />
             ) : (
-              <div className="min-h-[450px] divide-y divide-slate-200">
-                {filtered.map((item) => {
-                  const style = typeStyles[item.type] || typeStyles.info;
+              <>
+                <div className="min-h-[450px] divide-y divide-slate-200">
+                  {paginatedNotifications.map((item) => {
+                    const style = typeStyles[item.type] || typeStyles.info;
 
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => openMemo(item)}
-                      className={`group flex w-full gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-slate-50 ${
-                        item.read
-                          ? "border-l-transparent bg-white"
-                          : "border-l-emerald-600 bg-emerald-50/40"
-                      }`}
-                    >
-                      <span className={`material-symbols-outlined mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[20px] ${style.className}`}>
-                        {style.icon}
-                      </span>
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => openMemo(item)}
+                        className={`group flex w-full gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-slate-50 ${
+                          item.read
+                            ? "border-l-transparent bg-white"
+                            : "border-l-emerald-600 bg-emerald-50/40"
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-[20px] ${style.className}`}>
+                          {style.icon}
+                        </span>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex min-w-0 items-start justify-between gap-3">
-                          <div className="flex min-w-0 items-center gap-2">
-                            {!item.read && (
-                              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-600" />
-                            )}
-                            <h3
-                              className={`truncate text-sm ${
-                                item.read
-                                  ? "font-semibold text-slate-800"
-                                  : "font-bold text-slate-950"
-                              }`}
-                            >
-                              {getLocalized(item, "title", language)}
-                            </h3>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2">
+                              {!item.read && (
+                                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-600" />
+                              )}
+                              <h3
+                                className={`truncate text-sm ${
+                                  item.read
+                                    ? "font-semibold text-slate-800"
+                                    : "font-bold text-slate-950"
+                                }`}
+                              >
+                                {getLocalized(item, "title", language)}
+                              </h3>
+                            </div>
+                            <time className="shrink-0 text-xs text-slate-500">
+                              {formatLocalizedDateTime(item.timestamp, language)}
+                            </time>
                           </div>
-                          <time className="shrink-0 text-xs text-slate-500">
-                            {formatLocalizedDateTime(item.timestamp, language)}
-                          </time>
-                        </div>
 
-                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
-                          {getLocalized(item, "message", language)}
-                        </p>
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-600">
+                            {getLocalized(item, "message", language)}
+                          </p>
 
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                          <span className="font-semibold text-slate-600">{item.reference}</span>
-                          <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                            <span className="font-semibold text-slate-600">{item.reference}</span>
+                            <StatusPill value={t(`status.${item.status}`, item.statusLabel)} />
+                          </div>
                         </div>
-                      </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {pageStart}-{pageEnd} {t("common.of", "of")} {filtered.length}
+                  </span>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      disabled={page <= 1}
+                      className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {t("common.previous", "Previous")}
                     </button>
-                  );
-                })}
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                      disabled={page >= pageCount}
+                      className="inline-flex min-h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {t("common.next", "Next")}
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -31,7 +31,6 @@ const KU_IKL_TASK_STATUSES = new Set([
   "technical_review_completed",
 ]);
 const IKL_TECHNICAL_TASK_STATUSES = new Set([
-  "technical_review",
   "technical_site_visit",
   "technical_amendment",
 ]);
@@ -93,6 +92,7 @@ function buildAdminNav(taskCounts = {}, user = null) {
         path: "/dashboard/admin?view=approval",
         view: "approval",
         icon: "check_circle",
+        badge: taskCounts.approval || 0,
       },
     ];
   }
@@ -114,6 +114,7 @@ function buildAdminNav(taskCounts = {}, user = null) {
       fallback: "Awaiting Approval",
       path: "/dashboard/admin?view=approval",
       view: "approval",
+      badge: taskCounts.approval || 0,
     },
   ].filter(Boolean);
   const dashboardBadge = dashboardChildren.reduce(
@@ -930,7 +931,7 @@ function isAwaitingApprovalTask(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
   if (department === "PT(IKL)") {
-    return ["license_issued", "license_revoked"].includes(status);
+    return false;
   }
 
   if (!APPROVAL_TASK_STATUSES.has(status) || hasApplicationSection(application, "approval")) {
