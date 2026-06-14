@@ -1861,6 +1861,20 @@ function getApplicantActivityCopy(activity, t) {
     };
   }
 
+  if (
+    normalizedTitle === "application reviewed" ||
+    normalizedTitle.startsWith("application reviewed by") ||
+    rawDescription.toLowerCase().includes("reviewed by")
+  ) {
+    return {
+      title: t("applicant.activityReviewedTitle", "Application status updated"),
+      description: t(
+        "applicant.activityReviewedDesc",
+        "Your application progress was updated in ALiS."
+      ),
+    };
+  }
+
   if (normalizedTitle.startsWith("application rejected by") || normalizedTitle === "application rejected") {
     return {
       title: t("applicant.activityRejectedTitle", "Application rejected"),
@@ -1919,10 +1933,26 @@ function getApplicantActivityCopy(activity, t) {
     };
   }
 
+  if (containsInternalWorkflowTerm(rawTitle) || containsInternalWorkflowTerm(rawDescription)) {
+    return {
+      title: t("applicant.activityReviewedTitle", "Application status updated"),
+      description: t(
+        "applicant.activityReviewedDesc",
+        "Your application progress was updated in ALiS."
+      ),
+    };
+  }
+
   return {
     title: rawTitle || t("applicant.activityGenericTitle", "Application activity"),
     description: isGenericApplicantDescription ? "" : rawDescription,
   };
+}
+
+function containsInternalWorkflowTerm(value) {
+  return /\b(?:PT|KU|KB)\s*\([^)]+\)|\bTP\s*\(RES\)(?:\/PGH)?|\bMPHLG\b|\bSUT\b|\bIKL\s*\(TECH(?:NICAL)?\)/i.test(
+    String(value || "")
+  );
 }
 
 function removeDuplicateSaveActivities(activities) {
