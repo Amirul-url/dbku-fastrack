@@ -7,6 +7,7 @@ import { apiRequest, fetchApplicationList, getStoredUser } from "../../services/
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
 import {
   Alert,
+  Button,
   DataTable,
   Icon,
   Panel,
@@ -67,6 +68,8 @@ const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
   "bill_pending_ku",
   "rejected",
 ]);
+const RECENT_ACTIVITY_PAGE_SIZE = 5;
+const TASK_TABLE_PAGE_SIZE = 5;
 const units = [
   {
     code: "PT(IKL)",
@@ -228,6 +231,7 @@ function AdminHomeDashboard({ user }) {
   const { t } = useLanguage();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
+  const [activityPage, setActivityPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -272,8 +276,15 @@ function AdminHomeDashboard({ user }) {
   }, [fetchApplications]);
 
   const activities = useMemo(() => {
-    return buildAdminRecentActivities(applications, userDepartment, t).slice(0, 5);
+    return buildAdminRecentActivities(applications, userDepartment, t);
   }, [applications, t, userDepartment]);
+  const totalActivityPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
+  const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
+  const visibleActivities = activities.slice(
+    currentActivityPage * RECENT_ACTIVITY_PAGE_SIZE,
+    (currentActivityPage + 1) * RECENT_ACTIVITY_PAGE_SIZE
+  );
+  const showActivityPagination = activities.length > RECENT_ACTIVITY_PAGE_SIZE;
 
   return (
     <AdminDashboardLayout>
@@ -297,7 +308,7 @@ function AdminHomeDashboard({ user }) {
               {t("admin.dashboard.noRecentActivities", "No recent activities yet.")}
             </p>
           ) : (
-            activities.map((activity) => (
+            visibleActivities.map((activity) => (
               <div
                 key={`${activity.id}-${activity.createdAt}`}
                 className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_160px]"
@@ -326,6 +337,34 @@ function AdminHomeDashboard({ user }) {
             ))
           )}
         </div>
+
+        {!loading && showActivityPagination && (
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-500">
+              {t("applicant.recentActivitiesPage", "Page")} {currentActivityPage + 1} {t("common.of", "of")} {totalActivityPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setActivityPage(Math.max(currentActivityPage - 1, 0))}
+                disabled={currentActivityPage === 0}
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                {t("common.previous", "Previous")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setActivityPage(Math.min(currentActivityPage + 1, totalActivityPages - 1))}
+                disabled={currentActivityPage >= totalActivityPages - 1}
+              >
+                {t("common.next", "Next")}
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
     </AdminDashboardLayout>
   );
@@ -1091,7 +1130,8 @@ function ClaimableTaskView({
         description={t("admin.dashboard.queueDescription")}
         className="mt-5"
       >
-        <DataTable
+        <PaginatedTaskTable
+          t={t}
           loading={loading}
           emptyText={t("admin.dashboard.noTask")}
           rows={rows}
@@ -1161,6 +1201,49 @@ function ClaimableTaskView({
         />
       </Panel>
     </>
+  );
+}
+
+function PaginatedTaskTable({ rows, t, ...props }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(rows.length / TASK_TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visibleRows = rows.slice(
+    currentPage * TASK_TABLE_PAGE_SIZE,
+    (currentPage + 1) * TASK_TABLE_PAGE_SIZE
+  );
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white">
+      <DataTable {...props} rows={visibleRows} />
+      {!props.loading && (
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage(Math.max(currentPage - 1, 0))}
+              disabled={currentPage === 0}
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              {t("common.previous", "Previous")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage(Math.min(currentPage + 1, totalPages - 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              {t("common.next", "Next")}
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

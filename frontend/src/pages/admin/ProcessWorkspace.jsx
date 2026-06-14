@@ -74,6 +74,7 @@ const TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES = [
 const SQFT_TO_SQM = 0.092903;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
+const WORKSPACE_TABLE_PAGE_SIZE = 5;
 const TECHNICAL_LED_SUBTYPES = new Set([
   "open_space_led_billboard",
   "building_led_billboard",
@@ -2148,7 +2149,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               </div>
             )}
 
-            <DataTable
+            <PaginatedWorkspaceTable
+              t={t}
               loading={loading}
               rows={filtered}
               emptyText={t("workspace.empty")}
@@ -2872,6 +2874,49 @@ function KbLesMemoModal({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PaginatedWorkspaceTable({ rows, t, ...props }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(rows.length / WORKSPACE_TABLE_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visibleRows = rows.slice(
+    currentPage * WORKSPACE_TABLE_PAGE_SIZE,
+    (currentPage + 1) * WORKSPACE_TABLE_PAGE_SIZE
+  );
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white">
+      <DataTable {...props} rows={visibleRows} />
+      {!props.loading && (
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage(Math.max(currentPage - 1, 0))}
+              disabled={currentPage === 0}
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              {t("common.previous", "Previous")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPage(Math.min(currentPage + 1, totalPages - 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              {t("common.next", "Next")}
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
