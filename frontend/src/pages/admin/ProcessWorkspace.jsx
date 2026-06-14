@@ -123,6 +123,11 @@ const TECHNICAL_REVIEW_STATUSES = new Set([
   ...TECHNICAL_DEPARTMENT_TASK_STATUSES,
   "technical_review_completed",
 ]);
+const KU_IKL_TECHNICAL_TRACKING_STATUSES = new Set([
+  "technical_review",
+  "technical_site_visit",
+  "technical_amendment",
+]);
 const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
 const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
 const SUT_APPROVAL_DEPARTMENTS = ["SUT"];
@@ -139,6 +144,15 @@ const APPROVAL_REPORT_VIEW_DEPARTMENTS = [
   ...TECHNICAL_DEPARTMENTS,
   ...APPROVAL_TECHNICAL_REPORT_DEPARTMENTS,
 ];
+const INTERNAL_WORK_TRACKING_DEPARTMENTS = new Set([
+  "PT(IKL)",
+  "KU(IKL)",
+  "IKL (TECHNICAL)",
+  "KB(LES)",
+  ...APPROVAL_SUPPORT_DEPARTMENTS,
+  ...MPHLG_REVIEW_DEPARTMENTS,
+  ...SUT_APPROVAL_DEPARTMENTS,
+]);
 const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
 const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
 const TECHNICAL_FEE_OPTIONS = [
@@ -490,7 +504,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           !hasTechnicalDepartmentReview(app, userDepartment));
       const isInApprovalScope =
         !isApprovalWorkspace ||
-        isApprovalTaskForDepartment(app, userDepartment);
+        isApprovalTrackingRecordForDepartment(app, userDepartment);
 
       return isInStatusScope && isInDepartmentScope && isInApprovalScope;
     });
@@ -2206,17 +2220,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           const canActOnRow = canOpenWorkspaceRow(config, app, userDepartment);
 
                           return (
-                            <Button
+                            <button
                               type="button"
-                              variant="secondary"
-                              icon={canActOnRow ? "open_in_new" : "visibility"}
-                              className="min-h-8 px-3 py-1 text-xs"
+                              className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
                               onClick={() => openSelectedTask(app)}
                             >
-                              {canActOnRow
-                                ? t("common.open", "Open")
-                                : t("common.view", "View")}
-                            </Button>
+                              {t("common.view", "View")}
+                            </button>
                           );
                         },
                       },
@@ -4554,7 +4564,7 @@ function canOpenWorkspaceRow(config, app, department) {
 function canViewWorkspaceRow(config, app, department) {
   if (canOpenWorkspaceRow(config, app, department)) return true;
   if (config?.key === "payment") return isPaymentTaskForDepartment(app, department);
-  return config?.key === "approval" && isApprovalTaskForDepartment(app, department);
+  return config?.key === "approval" && isApprovalTrackingRecordForDepartment(app, department);
 }
 
 function isPaymentTaskForDepartment(app, department) {
@@ -4592,6 +4602,52 @@ function isApprovalTaskForDepartment(app, department) {
   }
 
   return false;
+}
+
+function isApprovalTrackingRecordForDepartment(app, department) {
+  if (isApprovalTaskForDepartment(app, department)) return true;
+
+  return (
+    INTERNAL_WORK_TRACKING_DEPARTMENTS.has(department) &&
+    isKuIklTechnicalTrackingRecord(app)
+  );
+}
+
+function isKuIklTechnicalTrackingRecord(app) {
+  if (!KU_IKL_TECHNICAL_TRACKING_STATUSES.has(normalizeStatus(app?.status))) {
+    return false;
+  }
+
+  return (
+    getTechnicalReferralSource(app) === "KU(IKL)" ||
+    hasTechnicalReferralFromKu(app)
+  );
+}
+
+function getTechnicalReferralSource(app) {
+  return normalizeDepartmentCode(
+    app?.technical_referral?.source ||
+      app?.form_data?.technical_referral?.source ||
+      ""
+  );
+}
+
+function hasTechnicalReferralFromKu(app) {
+  const result = String(
+    app?.auto_screening?.result ||
+      app?.form_data?.auto_screening?.result ||
+      ""
+  ).toLowerCase();
+  const selectedBy = normalizeDepartmentCode(
+    app?.technical_department_selection?.selected_by ||
+      app?.form_data?.technical_department_selection?.selected_by ||
+      ""
+  );
+
+  return (
+    result.includes("ku(ikl) confirm - send to technical") ||
+    selectedBy === "KU(IKL)"
+  );
 }
 
 function isApprovalWorkflowRecord(app) {

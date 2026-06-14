@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
 import { useLanguage } from "../../context/LanguageContext";
@@ -9,7 +9,6 @@ import {
   Alert,
   DataTable,
   Icon,
-  LinkButton,
   Panel,
   StatusPill,
 } from "../../components/ui/SystemUI";
@@ -68,12 +67,6 @@ const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
   "bill_pending_ku",
   "rejected",
 ]);
-const KU_IKL_FORWARD_RECORD_STATUSES = new Set([
-  "technical_review",
-  "technical_site_visit",
-  "technical_amendment",
-]);
-
 const units = [
   {
     code: "PT(IKL)",
@@ -1051,10 +1044,8 @@ function ClaimableTaskView({
   onSelectUnit,
   unitTasks,
 }) {
-  const rows = getUnitQueueRows(selected);
-  const rowsHaveActions = rows.some((application) =>
-    isUnitActionableApplication(application, selected)
-  );
+  const rows = [...(selected?.tasks || [])].sort(sortApplicationsByUpdatedDate);
+  const rowsHaveActions = rows.length > 0;
 
   return (
     <>
@@ -1156,14 +1147,12 @@ function ClaimableTaskView({
                     className: "w-[8%] whitespace-nowrap",
                     render: (application) =>
                       isUnitActionableApplication(application, selected) ? (
-                        <LinkButton
+                        <Link
                           to={`${getAdminTaskWorkspacePath(application, selected)}?id=${application.id}&from=personal`}
-                          icon="open_in_new"
-                          variant="secondary"
-                          className="min-h-8 px-3 py-1 text-xs"
+                          className="inline-flex min-h-8 items-center justify-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
                         >
-                          {t("common.open")}
-                        </LinkButton>
+                          {t("common.view", "View")}
+                        </Link>
                       ) : null,
                   },
                 ]
@@ -1258,99 +1247,10 @@ function isUnitHistoryApplication(application, unit, activeDepartment = "") {
   return true;
 }
 
-function getUnitQueueRows(unit) {
-  const rows = [...(unit?.tasks || [])];
-  const seen = new Set(rows.map((application) => application.id));
-
-  (unit?.records || [])
-    .filter((application) => shouldKeepCompletedRecordInQueue(application, unit))
-    .forEach((application) => {
-      if (seen.has(application.id)) return;
-      seen.add(application.id);
-      rows.push(application);
-    });
-
-  return rows.sort((a, b) => {
-    const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
-    const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
-    return bTime - aTime;
-  });
-}
-
-function shouldKeepCompletedRecordInQueue(application, unit) {
-  const department = unit?.department || "";
-  if (!department) return false;
-  const status = normalizeStatus(application.status);
-
-  if (
-    department === "KU(IKL)" &&
-    KU_IKL_FORWARD_RECORD_STATUSES.has(status)
-  ) {
-    return hasDepartmentActivity(application, department, [
-      "sent to technical review",
-      "technical review",
-    ]);
-  }
-
-  if (department === "IKL (TECHNICAL)") {
-    if (
-      hasDepartmentActivity(application, department, [
-        "technical review completed",
-      ])
-    ) {
-      return true;
-    }
-  }
-
-  if (
-    EXTERNAL_TECHNICAL_DEPARTMENTS.has(department)
-  ) {
-    return hasTechnicalDepartmentReview(application, department);
-  }
-
-  if (status === "rejected") {
-    const correctionSource = normalizeDepartmentCode(
-      application.form_data?.correction_request?.source ||
-        application.form_data?.correction_request?.reviewer ||
-        ""
-    );
-
-    if (correctionSource === department) return true;
-  }
-
-  return hasDepartmentActivity(application, department);
-}
-
-function hasDepartmentActivity(application, department, titleKeywords = []) {
-  const activityLog = Array.isArray(application.activity_log)
-    ? application.activity_log
-    : Array.isArray(application.form_data?.activity_log)
-    ? application.form_data.activity_log
-    : [];
-  const departmentText = String(department || "").toLowerCase();
-  const keywords = titleKeywords.map((keyword) =>
-    String(keyword || "").toLowerCase()
-  );
-
-  return activityLog.some((activity) => {
-    const title = String(activity?.title || "").toLowerCase();
-    const description = String(activity?.description || "").toLowerCase();
-    const actorDepartment = String(
-      activity?.actor_department ||
-        activity?.department ||
-        activity?.unit ||
-        ""
-    ).toLowerCase();
-    const hasKeyword =
-      keywords.length === 0 ||
-      keywords.some((keyword) => title.includes(keyword));
-    const hasDepartment =
-      actorDepartment === departmentText ||
-      title.includes(departmentText) ||
-      description.includes(departmentText);
-
-    return hasKeyword && hasDepartment;
-  });
+function sortApplicationsByUpdatedDate(a, b) {
+  const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+  const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+  return bTime - aTime;
 }
 
 function getProcessIconTitle(unit) {
