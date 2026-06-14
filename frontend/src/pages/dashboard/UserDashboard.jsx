@@ -1159,6 +1159,7 @@ function LicenseListSection({
         loadingText={t("common.loading")}
         emptyText={t("applicant.noApplicationSubmitted")}
         rows={applications}
+        alwaysShowPagination
         columns={[
           {
             key: "reference",
@@ -1384,7 +1385,7 @@ function StatusFilterSelect({ value, options, t, onChange }) {
   );
 }
 
-function PaginatedDataTable({ rows, t, ...props }) {
+function PaginatedDataTable({ rows, t, alwaysShowPagination = false, ...props }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
@@ -1392,7 +1393,7 @@ function PaginatedDataTable({ rows, t, ...props }) {
     currentPage * TABLE_PAGE_SIZE,
     (currentPage + 1) * TABLE_PAGE_SIZE
   );
-  const showPagination = rows.length > TABLE_PAGE_SIZE;
+  const showPagination = alwaysShowPagination || rows.length > TABLE_PAGE_SIZE;
 
   useEffect(() => {
     setPage((current) => {
@@ -1452,6 +1453,7 @@ function ApplicationTable({
       loadingText={t("common.loading")}
       emptyText={emptyText || t("applicant.noApplicationsYet")}
       rows={applications}
+      alwaysShowPagination
       columns={[
         {
           key: "reference",

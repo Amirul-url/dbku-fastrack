@@ -905,7 +905,8 @@ def apply_managed_account_data(user, data, require_password=False):
     user.last_name = last_name
     user.role = role
     user.department = str(data.get("department", user.department or "")).strip().upper()
-    user.mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
+    mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
+    user.mykad_number = "" if role == "superadmin" and mykad_number == username else mykad_number
     user.mobile_number = clean_mobile_number(data.get("mobile_number", user.mobile_number or ""))
     user.is_active = bool(data.get("is_active", True))
 

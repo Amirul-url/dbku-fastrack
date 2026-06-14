@@ -84,7 +84,7 @@ const screenText = {
     exportCsv: "Export CSV",
     searchUser: "Search name, IC Number, email, or mobile number",
     searchAdmin: "Search name, NRIC, email, mobile number, or department",
-    searchSuperadmin: "Search name, NRIC, email, mobile number, or department",
+    searchSuperadmin: "Search name, username, NRIC, email, or mobile number",
     searchSupervisor: "Search name, NRIC, email, mobile number, or department",
     allDepartments: "All departments",
     filter: "Filter",
@@ -93,6 +93,7 @@ const screenText = {
     name: "Name",
     loginId: "IC Number",
     nric: "NRIC",
+    usernameOrNric: "Username / NRIC",
     email: "Email",
     mobileNumber: "Mobile Number",
     department: "Department",
@@ -118,6 +119,7 @@ const screenText = {
     fullName: "Full Name",
     enterFullName: "Enter full name",
     enterNric: "Enter NRIC",
+    enterUsernameOrNric: "Enter username or NRIC",
     enterEmail: "Enter email",
     enterMobile: "Enter mobile number",
     selectDepartment: "-- Select department --",
@@ -227,7 +229,7 @@ const screenText = {
     exportCsv: "Eksport CSV",
     searchUser: "Cari nama, nombor IC, emel, atau nombor telefon",
     searchAdmin: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
-    searchSuperadmin: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
+    searchSuperadmin: "Cari nama, nama pengguna, NRIC, emel, atau nombor telefon",
     searchSupervisor: "Cari nama, NRIC, emel, nombor telefon, atau jabatan",
     allDepartments: "Semua jabatan",
     filter: "Tapis",
@@ -236,6 +238,7 @@ const screenText = {
     name: "Nama",
     loginId: "Nombor IC",
     nric: "NRIC",
+    usernameOrNric: "Nama Pengguna / NRIC",
     email: "Emel",
     mobileNumber: "Nombor Telefon",
     department: "Jabatan",
@@ -261,6 +264,7 @@ const screenText = {
     fullName: "Nama Penuh",
     enterFullName: "Masukkan nama penuh",
     enterNric: "Masukkan NRIC",
+    enterUsernameOrNric: "Masukkan nama pengguna atau NRIC",
     enterEmail: "Masukkan emel",
     enterMobile: "Masukkan nombor telefon",
     selectDepartment: "-- Pilih jabatan --",
@@ -796,7 +800,7 @@ function SuperAdminAccountManagement({ view }) {
         full_name: normalizeNameValue(form.full_name),
         email: cleanEmailValue(form.email),
         department: isSuperadminView ? "" : form.department,
-        mykad_number: form.username,
+        mykad_number: form.role === "superadmin" ? "" : form.username,
         mobile_number: cleanMobileNumberValue(form.mobile_number),
       };
       const path = editingAccount
@@ -852,7 +856,7 @@ function SuperAdminAccountManagement({ view }) {
       ? ["Full Name", "NRIC", "Email", "Mobile Number", "Department", "Role", "Password", "Confirm Password"]
       : ["Name", "IC Number", "Email", "Mobile Number", "Last Login"];
     const staffHeader = isSuperadminView
-      ? ["Full Name", "NRIC", "Email", "Mobile Number", "Role", "Password", "Confirm Password"]
+      ? ["Full Name", "Username / NRIC", "Email", "Mobile Number", "Role", "Password", "Confirm Password"]
       : header;
     const rows = [
       staffHeader,
@@ -945,7 +949,7 @@ function SuperAdminAccountManagement({ view }) {
           method: "POST",
           body: JSON.stringify({
             username: importedUsername,
-            mykad_number: importedUsername,
+            mykad_number: isSuperadminView ? "" : importedUsername,
             full_name: normalizeNameValue(row.name || row.full_name),
             email: cleanEmailValue(normalizeImportedEmail(row.email)),
             department: isSuperadminView
@@ -1096,7 +1100,9 @@ function SuperAdminAccountManagement({ view }) {
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.name}</th>
-                <th className="border-b border-slate-200 px-4 py-3">{isStaffAccountView ? labels.nric : labels.loginId}</th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {isSuperadminView ? labels.usernameOrNric : isStaffAccountView ? labels.nric : labels.loginId}
+                </th>
                 <th className="border-b border-slate-200 px-4 py-3">{labels.email}</th>
                 {isStaffAccountView ? (
                   <>
@@ -1302,6 +1308,7 @@ function AccountModal({
   onSubmit,
 }) {
   const inputClassName = "h-11 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100";
+  const isSuperadminRole = String(form.role || "").toLowerCase() === "superadmin";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
@@ -1330,11 +1337,11 @@ function AccountModal({
               required
             />
           </FormField>
-          <FormField label={labels.nric}>
+          <FormField label={isSuperadminRole ? labels.usernameOrNric : labels.nric}>
             <input
               value={form.username}
               onChange={(event) => onChange({ username: event.target.value })}
-              placeholder={labels.enterNric}
+              placeholder={isSuperadminRole ? labels.enterUsernameOrNric : labels.enterNric}
               className={inputClassName}
               required
             />
@@ -1974,13 +1981,13 @@ function getMissingCsvHeaders(headers, view) {
 
   return requiredHeaders
     .filter((header) => !headers.includes(header))
-    .map((header) => toCsvHeaderLabel(header));
+    .map((header) => toCsvHeaderLabel(header, view));
 }
 
-function toCsvHeaderLabel(header) {
+function toCsvHeaderLabel(header, view = "") {
   const labels = {
     full_name: "Full Name",
-    nric: "NRIC",
+    nric: view === "superadmins" ? "Username / NRIC" : "NRIC",
     email: "Email",
     mobile_number: "Mobile Number",
     department: "Department",
