@@ -42,6 +42,7 @@ import {
   getLicenseId,
   getProjectName,
   normalizeStatus,
+  WORKFLOW_STATUS,
 } from "../../utils/workflow";
 import {
   DEFAULT_ADVERTISEMENT_LICENSE_TERMS,
@@ -75,6 +76,7 @@ const SQFT_TO_SQM = 0.092903;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
 const WORKSPACE_TABLE_PAGE_SIZE = 5;
+const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
 const TECHNICAL_LED_SUBTYPES = new Set([
   "open_space_led_billboard",
   "building_led_billboard",
@@ -548,7 +550,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (q && !haystack.includes(q)) return false;
       if (monthFilter && updatedMonth !== monthFilter) return false;
       if (yearFilter && updatedYear !== yearFilter) return false;
-      if (statusFilter && displayStatus !== statusFilter) return false;
+      if (statusFilter && normalizeStatus(app.status) !== statusFilter) return false;
 
       return true;
     });
@@ -580,14 +582,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [statusScopedApplications]);
 
   const statusOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        statusScopedApplications
-          .map((app) => getWorkspaceStatusLabel(app, config, t, userDepartment))
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b));
-  }, [config, statusScopedApplications, t, userDepartment]);
+    return WORKFLOW_STATUS_FILTER_OPTIONS.map((status) => ({
+      value: status,
+      label: t(`status.${status}`, formatWorkflowStatus(status)),
+    }));
+  }, [t]);
 
   function resetQueueFilters() {
     setKeyword("");
@@ -2130,8 +2129,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   >
                     <option value="">{t("common.allStatuses")}</option>
                     {statusOptions.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
+                      <option key={item.value} value={item.value}>
+                        {item.label}
                       </option>
                     ))}
                   </select>
@@ -6601,9 +6600,7 @@ function isStepOneComplete(step1, app) {
     step1.tel_no,
     step1.locality_address,
     step1.area_required,
-    step1.total_scheme_value,
     step1.amount_fund_approved,
-    step1.amount_fund_available,
     step1.project_justification,
     step1.site_selection_reason,
   ];

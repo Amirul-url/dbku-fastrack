@@ -461,6 +461,8 @@ function normalizeSiteImageItem(image, applicationId, stepData = {}, fallbackNam
     document_id: documentId,
     name: name || "site-image",
     preview,
+    size: image.size || image.attachment?.size || image.file?.size || "",
+    type: image.type || image.attachment?.type || "",
     file: image.file instanceof File ? image.file : null,
     attachment: image.attachment || image,
   };
@@ -559,8 +561,6 @@ function SittingApplicationPage({
   const [contactPerson, setContactPerson] = useState("");
   const [telNo, setTelNo] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
-  const [totalSchemeValue, setTotalSchemeValue] = useState("");
-  const [amountFundAvailable, setAmountFundAvailable] = useState("");
   const [projectJustification, setProjectJustification] = useState("");
   const [siteSelectionReason, setSiteSelectionReason] = useState("");
   const [applicationTypeOptions, setApplicationTypeOptions] = useState(["open_space"]);
@@ -641,8 +641,6 @@ function SittingApplicationPage({
     setContactPerson(step1.contact_person || "");
     setTelNo(step1.tel_no || "");
     setLocalityAddress(step1.locality_address || step1.map_address || "");
-    setTotalSchemeValue(step1.total_scheme_value || "");
-    setAmountFundAvailable(step1.amount_fund_available || "");
     setProjectJustification(step1.project_justification || "");
     setSiteSelectionReason(step1.site_selection_reason || "");
     setApplicationTypeOptions([savedType]);
@@ -741,7 +739,7 @@ function SittingApplicationPage({
       current_step: currentStep,
       form_data: {
         step_1: {
-          status: "Prepare Case",
+          status: "Draft",
           application_type: selectedTypes.join(","),
           application_type_label: applicationTypeDisplay,
           application_type_options: selectedTypes,
@@ -765,11 +763,9 @@ function SittingApplicationPage({
           locality_address: selectedProjectAddress,
           area_required: primaryAdvertisementRow?.areaRequired || "",
           area_unit: "",
-          total_scheme_value: totalSchemeValue,
           source_of_fund: "",
           fund_availability: "",
           malaysia_plan: "",
-          amount_fund_available: amountFundAvailable,
           amount_fund_approved: calculatedPayable,
 
           map_address: selectedProjectAddress,
@@ -839,6 +835,8 @@ function SittingApplicationPage({
       document_id: "",
       name: file.name,
       preview: URL.createObjectURL(file),
+      size: file.size,
+      type: file.type,
       file,
       attachment: null,
     }));
@@ -942,8 +940,6 @@ function SittingApplicationPage({
       !contactPerson.trim() ||
       !telNo.trim() ||
       !String(mapData.address || localityAddress).trim() ||
-      !totalSchemeValue.trim() ||
-      !amountFundAvailable.trim() ||
       !projectJustification.trim() ||
       !siteSelectionReason.trim() ||
       normalizeApplicationTypeOptions(applicationTypeOptions).length === 0 ||
@@ -1014,7 +1010,7 @@ function SittingApplicationPage({
       Boolean(applicationId) &&
       (!applicationRecord || !canEditApplicationForm(applicationRecord)));
   const summaryStep1 = {
-    status: "Prepare Case",
+    status: "Draft",
     application_type: applicationTypeOptions.join(","),
     application_type_options: applicationTypeOptions,
     application_subtype: applicationSubtype,
@@ -1236,21 +1232,6 @@ function SittingApplicationPage({
                   );
                 })}
 
-                <Field label={tx("totalSchemeValue")} required guideline={tx("totalSchemeValueGuideline")}>
-                  <input
-                    className="spa-input max-w-md"
-                    value={totalSchemeValue}
-                    onChange={(e) => setTotalSchemeValue(e.target.value)}
-                  />
-                </Field>
-
-                <Field label={tx("fundAvailableNow")} required guideline={tx("fundAvailableNowGuideline")}>
-                  <input
-                    className="spa-input max-w-md"
-                    value={amountFundAvailable}
-                    onChange={(e) => setAmountFundAvailable(e.target.value)}
-                  />
-                </Field>
               </div>
 
               <SimpleWysiwygEditor
@@ -1868,6 +1849,56 @@ function setMapInteractivity(map, enabled) {
 
 function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, language = "en" }) {
   const tx = (key) => stepText(language, key);
+  const maxSiteImageBytes = 15 * 1024 * 1024;
+  const acceptedSiteImageTypes = new Set([
+    "image/png",
+    "image/jpeg",
+    "application/pdf",
+  ]);
+
+  function isAcceptedSiteImageFile(file) {
+    const extension = String(file?.name || "").toLowerCase().split(".").pop();
+
+    return (
+      acceptedSiteImageTypes.has(file?.type) ||
+      ["png", "jpg", "jpeg", "pdf"].includes(extension)
+    );
+  }
+
+  function isPdfSiteImage(image) {
+    const name = String(image?.name || image?.preview || "").toLowerCase();
+    const type = String(image?.type || image?.file?.type || image?.attachment?.type || "").toLowerCase();
+
+    return type === "application/pdf" || name.endsWith(".pdf");
+  }
+
+  function getSiteImageFormat(image) {
+    const type = String(image?.type || image?.file?.type || image?.attachment?.type || "").toLowerCase();
+    const name = String(image?.name || image?.preview || "").toLowerCase();
+    const extension = name.includes(".") ? name.split(".").pop() : "";
+
+    if (type === "application/pdf" || extension === "pdf") return "PDF";
+    if (type === "image/png" || extension === "png") return "PNG";
+    if (type === "image/jpeg" || extension === "jpg" || extension === "jpeg") return "JPG";
+
+    return extension ? extension.toUpperCase() : "FILE";
+  }
+
+  function formatFileSize(bytes) {
+    const size = Number(bytes || 0);
+    if (!Number.isFinite(size) || size <= 0) return "";
+
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function getSiteImageMeta(image) {
+    return [getSiteImageFormat(image), formatFileSize(image?.size || image?.file?.size || image?.attachment?.size)]
+      .filter(Boolean)
+      .join(" · ");
+  }
 
   function isInlinePreview(preview) {
     return (
@@ -1889,7 +1920,16 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
   }
 
   function handleFileChange(e) {
-    onAdd?.(e.target.files);
+    const files = Array.from(e.target.files || []);
+    const validFiles = files.filter((file) => {
+      return isAcceptedSiteImageFile(file) && file.size <= maxSiteImageBytes;
+    });
+
+    if (validFiles.length !== files.length) {
+      alert(tx("siteImageInvalidFile"));
+    }
+
+    onAdd?.(validFiles);
     e.target.value = "";
   }
 
@@ -1924,7 +1964,9 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
       if (previewWindow) {
         previewWindow.document.open();
         previewWindow.document.write(
-          `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${objectUrl}" alt="${escapeHtml(imageName)}"></body></html>`
+          isPdfSiteImage(image)
+            ? `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;height:100vh;background:#0f172a}iframe{width:100vw;height:100vh;border:0;background:white}</style></head><body><iframe src="${objectUrl}" title="${escapeHtml(imageName)}"></iframe></body></html>`
+            : `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${objectUrl}" alt="${escapeHtml(imageName)}"></body></html>`
         );
         previewWindow.document.close();
       } else {
@@ -1977,12 +2019,18 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
             {tx("clickUploadSiteImage")}
             <input
               type="file"
-              accept="image/*"
+              accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
               multiple
               onChange={handleFileChange}
               className="hidden"
             />
           </label>
+        )}
+
+        {!readOnly && (
+          <p className="text-xs font-medium text-slate-500">
+            {tx("imageOnly")}
+          </p>
         )}
 
         {images.length === 0 ? (
@@ -1996,15 +2044,20 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
             {images.map((image, index) => (
               <div
                 key={image.key || `${image.name}-${index}`}
-                className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="material-symbols-outlined text-xl text-slate-500">
                     image
                   </span>
-                  <span className="truncate text-sm font-medium text-slate-700">
-                    {image.name || `site-image-${index + 1}`}
-                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-700">
+                      {image.name || `site-image-${index + 1}`}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {getSiteImageMeta(image)}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">

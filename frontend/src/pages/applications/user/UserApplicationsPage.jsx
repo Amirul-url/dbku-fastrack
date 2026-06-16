@@ -22,7 +22,15 @@ import {
   getApplicationType,
   getProjectName,
   normalizeStatus,
+  WORKFLOW_STATUS,
 } from "../../../utils/workflow";
+
+const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
+const HIDDEN_APPLICANT_STATUS_FILTERS = new Set([
+  WORKFLOW_STATUS.TECHNICAL_AMENDMENT,
+  WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS,
+]);
+const APPLICANT_STATUS_FILTER_OPTIONS = getApplicantStatusFilterOptions();
 
 function UserApplicationsPage() {
   const navigate = useNavigate();
@@ -118,11 +126,11 @@ function UserApplicationsPage() {
               className="form-input"
             >
               <option value="ALL">{t("common.allStatuses")}</option>
-              <option value="draft">{t("status.draft")}</option>
-              <option value="under_review">{t("status.under_review")}</option>
-              <option value="approved">{t("status.approved")}</option>
-              <option value="invoice_generated">{t("status.invoice_generated")}</option>
-              <option value="license_issued">{t("status.license_issued")}</option>
+              {APPLICANT_STATUS_FILTER_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {translatedStatus(t, status)}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
@@ -203,8 +211,30 @@ function UserApplicationsPage() {
 }
 
 function translatedStatus(t, status) {
+  const normalized = normalizeStatus(status);
+  const applicantStatusLabels = {
+    invoice_generated: t("applicant.statusReadyForPayment", "Ready for Payment"),
+  };
+
+  if (applicantStatusLabels[normalized]) {
+    return applicantStatusLabels[normalized];
+  }
+
   const displayStatus = getApplicantDisplayStatus(status);
   return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
+}
+
+function getApplicantStatusFilterOptions() {
+  const seen = new Set();
+
+  return WORKFLOW_STATUS_FILTER_OPTIONS
+    .map((status) => getApplicantDisplayStatus(status))
+    .filter((status) => {
+      if (HIDDEN_APPLICANT_STATUS_FILTERS.has(status)) return false;
+      if (!status || seen.has(status)) return false;
+      seen.add(status);
+      return true;
+    });
 }
 
 function getApplicationRemark(app) {

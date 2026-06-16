@@ -21,9 +21,11 @@ import {
   getApplicationType,
   getProjectName,
   normalizeStatus,
+  WORKFLOW_STATUS,
 } from "../../../utils/workflow";
 
 const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
 
 function normalizeDepartmentCode(value) {
   const department = String(value || "")
@@ -174,12 +176,12 @@ function AdminApplicationsPage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className="form-input"
             >
-              <option value="ALL">All statuses</option>
-              <option value="submitted">Submitted</option>
-              <option value="auto_screened">S2 Verification</option>
-              <option value="technical_review_completed">Technical Completed</option>
-              <option value="approved">Approved</option>
-              <option value="license_issued">License Issued</option>
+              <option value="ALL">All</option>
+              {WORKFLOW_STATUS_FILTER_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {formatWorkflowStatus(status)}
+                </option>
+              ))}
             </select>
           </Field>
         </div>

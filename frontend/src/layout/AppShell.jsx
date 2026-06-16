@@ -407,7 +407,7 @@ function AppShell({ children, role = "admin" }) {
           current_step: 1,
           form_data: {
             step_1: {
-              status: "Prepare Case",
+              status: "Draft",
               application_type: "Application for Site (New Site)",
               application_type_label: "Application for Site (New Site)",
             },

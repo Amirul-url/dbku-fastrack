@@ -3,7 +3,12 @@ import { jsPDF } from "jspdf";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
-import { apiRequest } from "../../../../services/api";
+import {
+  apiRequest,
+  fetchAuthenticatedBlob,
+  getApplicationDocumentUrl,
+  normalizeFileUrl,
+} from "../../../../services/api";
 import {
   canEditApplicationForm,
   getApplicantSaveDraftReturnLabelKey,
@@ -498,30 +503,27 @@ function PrintFormPage({
                     <PrintLine
                       no="7."
                       label={tx("siteImage")}
-                      value={getSiteImageNames(step1)}
+                      value={
+                        <AttachmentLinkList
+                          attachments={getSiteImageAttachments(step1)}
+                          applicationId={applicationId}
+                          fallbackText={getSiteImageNames(step1)}
+                          noAttachmentText={tx("noAttachment")}
+                        />
+                      }
                     />
                     <PrintAdvertisementRows
                       step1={step1}
                       language={language}
                       tx={tx}
                     />
-                    <PrintLine
-                      no="8."
-                      label={tx("totalSchemeValue")}
-                      value={formatRM(step1.total_scheme_value)}
-                    />
-                    <PrintLine
-                      no="9."
-                      label={tx("fundAvailableNow")}
-                      value={formatRM(step1.amount_fund_available)}
-                    />
                     <PrintBlock
-                      no="10."
+                      no="8."
                       label={tx("projectJustification")}
                       value={stripHtml(step1.project_justification)}
                     />
                     <PrintBlock
-                      no="11."
+                      no="9."
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
@@ -569,8 +571,21 @@ function PrintFormPage({
                   isActive={activePrintPage === 3}
                 >
                   <PrintSection title={tx("step3Print")}>
-                    <DocumentSummary title={tx("requiredSupportingDocuments")} rows={requiredDocuments} language={language} noAttachmentText={tx("noAttachment")} />
-                    <DocumentSummary title={tx("otherSupportingDocuments")} rows={otherDocuments} language={language} noAttachmentText={tx("noAttachment")} other />
+                    <DocumentSummary
+                      title={tx("requiredSupportingDocuments")}
+                      rows={requiredDocuments}
+                      language={language}
+                      noAttachmentText={tx("noAttachment")}
+                      applicationId={applicationId}
+                    />
+                    <DocumentSummary
+                      title={tx("otherSupportingDocuments")}
+                      rows={otherDocuments}
+                      language={language}
+                      noAttachmentText={tx("noAttachment")}
+                      applicationId={applicationId}
+                      other
+                    />
                   </PrintSection>
                 </PrintPage>
               </div>
@@ -716,31 +731,14 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
     y,
   });
 
-  y = drawPdfFieldRows(
-    pdf,
-    [
-      {
-        no: "8.",
-        label: tx("totalSchemeValue"),
-        value: formatRM(step1.total_scheme_value),
-      },
-      {
-        no: "9.",
-        label: tx("fundAvailableNow"),
-        value: formatRM(step1.amount_fund_available),
-      },
-    ],
-    y + 1
-  );
-
   y = drawPdfBlock(pdf, {
-    no: "10.",
+    no: "8.",
     label: tx("projectJustification"),
     value: stripHtml(step1.project_justification),
-    y,
+    y: y + 1,
   });
   drawPdfBlock(pdf, {
-    no: "11.",
+    no: "9.",
     label: tx("siteSelectionReason"),
     value: stripHtml(step1.site_selection_reason),
     y,
@@ -940,7 +938,7 @@ function drawPdfBlock(pdf, { no, label, value, y }) {
 
 function drawPdfAdvertisementRows(pdf, { rows, tx, y }) {
   const columns = [
-    { key: "index", title: "#", width: 8, align: "center" },
+    { key: "index", title: "No.", width: 8, align: "center" },
     { key: "displayType", title: tx("displayType"), width: 28 },
     { key: "advertisementType", title: tx("advertisementType"), width: 46 },
     { key: "size", title: tx("advertisementSizeFt"), width: 38 },
@@ -996,13 +994,13 @@ function drawPdfDocumentSummary(pdf, {
 
   const columns = other
     ? [
-        { key: "index", title: "#", width: 8, align: "center" },
+        { key: "index", title: "No.", width: 8, align: "center" },
         { key: "description", title: stepText(language, "description"), width: 102 },
         { key: "format", title: stepText(language, "format"), width: 30 },
         { key: "attachment", title: stepText(language, "attachment"), width: 42 },
       ]
     : [
-        { key: "index", title: "#", width: 8, align: "center" },
+        { key: "index", title: "No.", width: 8, align: "center" },
         { key: "title", title: stepText(language, "title"), width: 36 },
         { key: "description", title: stepText(language, "description"), width: 74 },
         { key: "format", title: stepText(language, "format"), width: 28 },
@@ -1078,7 +1076,7 @@ function drawPdfTableHeader(pdf, columns, y) {
     pdf.setFillColor(242, 242, 242);
     pdf.setDrawColor(150, 150, 150);
     pdf.rect(x, y, column.width, headerHeight, "FD");
-    pdf.text(column.title, x + 1.5, y + 5.5);
+    pdf.text(column.title, x + column.width / 2, y + 5.5, { align: "center" });
     x += column.width;
   });
 
@@ -1294,7 +1292,7 @@ function PrintAdvertisementRows({ step1, language, tx }) {
       >
         <thead>
           <tr>
-            <PrintTableHead style={{ width: "9mm" }}>#</PrintTableHead>
+            <PrintTableHead style={{ width: "9mm" }}>No.</PrintTableHead>
             <PrintTableHead style={{ width: "28mm" }}>
               {tx("displayType")}
             </PrintTableHead>
@@ -1462,6 +1460,7 @@ function DocumentSummary({
   rows,
   language = "en",
   noAttachmentText = "No attachment",
+  applicationId = "",
   other = false,
 }) {
   return (
@@ -1482,7 +1481,7 @@ function DocumentSummary({
         >
           <thead>
             <tr>
-              <PrintTableHead style={{ width: "9mm" }}>#</PrintTableHead>
+              <PrintTableHead style={{ width: "9mm" }}>No.</PrintTableHead>
               <PrintTableHead style={{ width: other ? "82mm" : "42mm" }}>
                 {other ? stepText(language, "description") : stepText(language, "title")}
               </PrintTableHead>
@@ -1544,7 +1543,11 @@ function DocumentSummary({
                   {!other && <PrintTableCell>{description || "-"}</PrintTableCell>}
                   <PrintTableCell>{row.format || "-"}</PrintTableCell>
                   <PrintTableCell>
-                    {formatAttachment(row.attachment, noAttachmentText)}
+                    <AttachmentLinkList
+                      attachments={row.attachment}
+                      applicationId={applicationId}
+                      noAttachmentText={noAttachmentText}
+                    />
                   </PrintTableCell>
                 </tr>
               );
@@ -1556,6 +1559,124 @@ function DocumentSummary({
   );
 }
 
+function AttachmentLinkList({
+  attachments,
+  applicationId = "",
+  fallbackText = "",
+  noAttachmentText = "No attachment",
+}) {
+  const attachmentList = Array.isArray(attachments)
+    ? attachments.filter(Boolean)
+    : attachments
+      ? [attachments]
+      : [];
+
+  if (attachmentList.length === 0) {
+    return fallbackText || noAttachmentText;
+  }
+
+  return (
+    <span>
+      {attachmentList.map((attachment, index) => {
+        const label = formatAttachment(attachment, noAttachmentText);
+        const href = getAttachmentHref(attachment, applicationId);
+        const key =
+          getAttachmentDocumentId(attachment) ||
+          getAttachmentName(attachment) ||
+          `${label}-${index}`;
+
+        return (
+          <span key={key}>
+            {href ? (
+              <button
+                type="button"
+                onClick={() => openAttachmentPreview(href, label)}
+                style={{
+                  background: "transparent",
+                  border: 0,
+                  color: "#005baa",
+                  cursor: "pointer",
+                  font: "inherit",
+                  padding: 0,
+                  textAlign: "left",
+                  textDecoration: "underline",
+                  textUnderlineOffset: "1px",
+                }}
+              >
+                {label}
+              </button>
+            ) : (
+              label
+            )}
+            {index < attachmentList.length - 1 && <br />}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+async function openAttachmentPreview(url, title = "Attachment") {
+  if (!url) return;
+
+  const previewWindow = window.open("about:blank", "_blank");
+  const safeTitle = escapeHtml(title);
+
+  if (!previewWindow) {
+    return;
+  }
+
+  previewWindow.document.write(
+    `<!doctype html><html><head><title>${safeTitle}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:Arial,sans-serif;color:#334155}p{font-size:14px}</style></head><body><p>Opening attachment...</p></body></html>`
+  );
+  previewWindow.document.close();
+
+  try {
+    const blob =
+      url.startsWith("blob:") || url.startsWith("data:")
+        ? await fetch(url).then((response) => response.blob())
+        : await fetchAuthenticatedBlob(url);
+    const objectUrl = URL.createObjectURL(blob);
+    const isImage = isImagePreviewAttachment(blob, title);
+
+    previewWindow.document.open();
+    previewWindow.document.write(
+      isImage
+        ? `<!doctype html><html><head><title>${safeTitle}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${objectUrl}" alt="${safeTitle}"></body></html>`
+        : `<!doctype html><html><head><title>${safeTitle}</title><style>body{margin:0;height:100vh;background:#0f172a}iframe{width:100vw;height:100vh;border:0;background:white}</style></head><body><iframe src="${objectUrl}" title="${safeTitle}"></iframe></body></html>`
+    );
+    previewWindow.document.close();
+    previewWindow.addEventListener(
+      "beforeunload",
+      () => URL.revokeObjectURL(objectUrl),
+      { once: true }
+    );
+  } catch (error) {
+    console.error("Failed to open attachment:", error);
+    previewWindow.document.body.innerHTML =
+      '<p style="font-family: Arial, sans-serif; padding: 16px;">Failed to open attachment.</p>';
+  }
+}
+
+function isImagePreviewAttachment(blob, title = "") {
+  const type = String(blob?.type || "").toLowerCase();
+  const fileName = String(title || "").toLowerCase();
+
+  return (
+    type.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileName)
+  );
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function PrintTableHead({ children, style = {} }) {
   return (
     <th
@@ -1564,8 +1685,8 @@ function PrintTableHead({ children, style = {} }) {
         background: "#f2f2f2",
         fontWeight: 700,
         padding: "1.4mm",
-        textAlign: "left",
-        verticalAlign: "top",
+        textAlign: "center",
+        verticalAlign: "middle",
         ...style,
       }}
     >
@@ -1650,10 +1771,7 @@ function formatRM(value) {
     return value;
   }
 
-  return `RM ${numberValue.toLocaleString("en-MY", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return `RM${numberValue.toFixed(2)}`;
 }
 
 function formatCoordinates(latitude, longitude) {
@@ -1692,6 +1810,10 @@ function formatPhone(countryCode, phoneNumber) {
 
 function getAttachmentName(attachment) {
   if (!attachment) return "";
+  if (typeof attachment === "string") {
+    return attachment.split("?")[0].split("/").pop() || attachment;
+  }
+
   return (
     attachment.name ||
     attachment.file?.split("/")?.pop() ||
@@ -1699,6 +1821,61 @@ function getAttachmentName(attachment) {
     attachment.file_url?.split("/")?.pop() ||
     ""
   );
+}
+
+function getAttachmentDocumentId(attachment) {
+  if (!attachment || typeof attachment === "string") return "";
+  return attachment.document_id || attachment.id || attachment.attachment?.document_id || "";
+}
+
+function getAttachmentHref(attachment, applicationId = "") {
+  if (!attachment) return "";
+
+  if (typeof attachment === "string") {
+    return normalizeFileUrl(attachment);
+  }
+
+  const directUrl = normalizeFileUrl(
+    attachment.file_url ||
+      attachment.file ||
+      attachment.dataUrl ||
+      attachment.url ||
+      ""
+  );
+
+  if (directUrl) return directUrl;
+
+  const documentId = getAttachmentDocumentId(attachment);
+
+  if (applicationId && documentId) {
+    return getApplicationDocumentUrl(applicationId, documentId);
+  }
+
+  return "";
+}
+
+function getSiteImageAttachments(step1 = {}) {
+  const siteImages = Array.isArray(step1.site_images)
+    ? step1.site_images.filter(Boolean)
+    : [];
+
+  if (siteImages.length > 0) return siteImages;
+  if (step1.site_image) return [step1.site_image];
+  if (
+    step1.site_image_name ||
+    step1.site_image_url ||
+    step1.site_image_document_id
+  ) {
+    return [
+      {
+        name: step1.site_image_name || "",
+        url: step1.site_image_url || "",
+        document_id: step1.site_image_document_id || "",
+      },
+    ];
+  }
+
+  return [];
 }
 
 function getSiteImageNames(step1 = {}) {

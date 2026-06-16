@@ -23,7 +23,7 @@ import UserViewStepControls from "./UserViewStepControls";
 import ApplicationSummary from "./ApplicationSummary";
 
 const OTHER_DOCUMENT_NAME = "Other Relevant Supporting Documents (If Any)";
-const SUPPORTING_DOCUMENT_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const SUPPORTING_DOCUMENT_MAX_FILE_SIZE = 15 * 1024 * 1024;
 
 const requiredDocumentTemplates = [
   {

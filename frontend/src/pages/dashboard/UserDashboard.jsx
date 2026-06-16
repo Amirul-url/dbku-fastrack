@@ -39,6 +39,7 @@ import {
   getProjectName,
   needsApplicantCorrection,
   normalizeStatus,
+  WORKFLOW_STATUS,
 } from "../../utils/workflow";
 import {
   buildAdvertisementLicenseHtml,
@@ -53,6 +54,11 @@ import {
 const VALID_SECTIONS = ["applications", "status"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TABLE_PAGE_SIZE = 5;
+const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
+const HIDDEN_APPLICANT_STATUS_FILTERS = new Set([
+  WORKFLOW_STATUS.TECHNICAL_AMENDMENT,
+  WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS,
+]);
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -1374,7 +1380,7 @@ function StatusFilterSelect({ value, options, t, onChange }) {
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
       >
-        <option value="all">{t("common.allStatuses", "All Statuses")}</option>
+        <option value="all">{t("common.allStatuses", "All")}</option>
         {options.map((item) => (
           <option key={item.value} value={item.value}>
             {item.label}
@@ -1726,7 +1732,7 @@ function filterDashboardApplications(applications, filters) {
 
   return applications.filter((app) => {
     const appliedDate = getApplicationAppliedDate(app);
-    const normalizedStatus = normalizeStatus(app.status);
+    const displayStatus = getApplicantDisplayStatus(app.status);
     const matchesKeyword = !keyword || [
       getApplicationReference(app),
       getProjectName(app, language),
@@ -1737,7 +1743,7 @@ function filterDashboardApplications(applications, filters) {
       .join(" ")
       .toLowerCase()
       .includes(keyword);
-    const matchesStatus = status === "all" || normalizedStatus === status;
+    const matchesStatus = status === "all" || displayStatus === status;
     const matchesMonth =
       month === "all" ||
       (appliedDate && String(appliedDate.getMonth() + 1) === month);
@@ -1750,14 +1756,20 @@ function filterDashboardApplications(applications, filters) {
 }
 
 function getStatusFilterOptions(applications, t) {
-  return Array.from(
-    new Set(applications.map((app) => normalizeStatus(app.status)).filter(Boolean))
-  )
+  const seen = new Set();
+
+  return WORKFLOW_STATUS_FILTER_OPTIONS
+    .map((status) => getApplicantDisplayStatus(status))
+    .filter((status) => {
+      if (HIDDEN_APPLICANT_STATUS_FILTERS.has(status)) return false;
+      if (!status || seen.has(status)) return false;
+      seen.add(status);
+      return true;
+    })
     .map((status) => ({
       value: status,
       label: translatedStatus(t, status),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    }));
 }
 
 function buildOverviewStatusSummary(applications, t) {

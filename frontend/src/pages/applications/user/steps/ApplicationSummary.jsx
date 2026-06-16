@@ -9,7 +9,7 @@ function ApplicationSummary({ application = null, step1 = {}, language = "en" })
   const tx = (key) => stepText(language, key);
   const hasReference = application?.reference_no || application?.id;
   const reference = hasReference ? getApplicationReference(application) : "-";
-  const statusText = applicationStatusLabel(language, step1.status || "Prepare Case");
+  const statusText = applicationStatusLabel(language, step1.status || "Draft");
   const applicationTypeText = getMainApplicationTypeLabel(language, step1);
   const displayTypeText = getDisplayTypeSummary(language, step1);
   const advertisementTypeText = getAdvertisementTypeSummary(language, step1);

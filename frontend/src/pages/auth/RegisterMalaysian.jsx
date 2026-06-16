@@ -181,6 +181,9 @@ const stateCityOptions = {
   "W.P. Putrajaya": ["Putrajaya"],
 };
 const stateOptions = Object.keys(stateCityOptions);
+const cityOptions = Array.from(
+  new Set(Object.values(stateCityOptions).flat())
+).sort((a, b) => a.localeCompare(b));
 
 function RequiredLabel({ children }) {
   return (
@@ -301,10 +304,17 @@ function RegisterMalaysian() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [recaptchaToken, setRecaptchaToken] = useState("");
   const [recaptchaError, setRecaptchaError] = useState("");
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
   const recaptchaRef = useRef(null);
   const recaptchaWidgetId = useRef(null);
   const recaptchaLanguage = language === "ms" ? "ms" : "en";
-  const cityOptions = form.state ? stateCityOptions[form.state] || [] : [];
+  const citySearchTerm = form.city.trim().toLowerCase();
+  const citySuggestions =
+    citySearchTerm.length >= 2
+      ? cityOptions
+          .filter((city) => city.toLowerCase().includes(citySearchTerm))
+          .slice(0, 8)
+      : [];
 
   useEffect(() => {
     if (!recaptchaSiteKey || !recaptchaRef.current) return undefined;
@@ -467,7 +477,7 @@ function RegisterMalaysian() {
     setForm((prev) => ({
       ...prev,
       state: value,
-      city: "",
+      city: value && stateCityOptions[value]?.includes(prev.city) ? prev.city : "",
     }));
     setFieldErrors((prev) => {
       if (!prev.state && !prev.city) return prev;
@@ -477,6 +487,38 @@ function RegisterMalaysian() {
       return next;
     });
     setError("");
+  };
+
+  const handleCityChange = (value) => {
+    const normalizedValue = value.trim().toLowerCase();
+    const matches = Object.entries(stateCityOptions)
+      .flatMap(([state, cities]) =>
+        cities
+          .filter((city) => city.toLowerCase() === normalizedValue)
+          .map((city) => ({ city, state }))
+      );
+    const matchedCity = matches[0]?.city;
+    const nextState = matches.length === 1 ? matches[0].state : form.state;
+
+    setForm((prev) => ({
+      ...prev,
+      city: matchedCity || value,
+      state: nextState,
+    }));
+    setShowCitySuggestions(Boolean(value.trim()) && !matchedCity);
+    setFieldErrors((prev) => {
+      if (!prev.city && !prev.state) return prev;
+      const next = { ...prev };
+      delete next.city;
+      if (nextState) delete next.state;
+      return next;
+    });
+    setError("");
+  };
+
+  const selectCitySuggestion = (city) => {
+    handleCityChange(city);
+    setShowCitySuggestions(false);
   };
 
   const getRegistrationServerError = (message) => {
@@ -740,7 +782,7 @@ function RegisterMalaysian() {
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <section className="overflow-visible rounded-lg border border-slate-200 bg-white shadow-sm">
             <div className="px-6 py-6">
               <div className="flex items-center gap-3 mb-6">
                 <span className="material-symbols-outlined text-[#006d32]">
@@ -862,6 +904,43 @@ function RegisterMalaysian() {
 
                 <div>
                   <RequiredLabel>
+                    {t("auth.city")}
+                  </RequiredLabel>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      autoComplete="off"
+                      aria-invalid={Boolean(fieldErrors.city)}
+                      aria-describedby={fieldErrors.city ? "city-error" : undefined}
+                      placeholder={t("auth.selectCity")}
+                      value={form.city}
+                      onChange={(e) => handleCityChange(e.target.value)}
+                      onFocus={() => setShowCitySuggestions(Boolean(form.city.trim()))}
+                      onBlur={() => setShowCitySuggestions(false)}
+                      className={getInputClass("city", "w-full")}
+                    />
+                    {showCitySuggestions && citySuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        {citySuggestions.map((city) => (
+                          <button
+                            key={city}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => selectCitySuggestion(city)}
+                            className="block w-full px-3 py-2 text-left text-sm text-slate-900 hover:bg-slate-50"
+                          >
+                            {city}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <FieldError id="city-error" message={fieldErrors.city} />
+                </div>
+
+                <div>
+                  <RequiredLabel>
                     {t("auth.state")}
                   </RequiredLabel>
                   <select
@@ -880,31 +959,6 @@ function RegisterMalaysian() {
                     ))}
                   </select>
                   <FieldError id="state-error" message={fieldErrors.state} />
-                </div>
-
-                <div>
-                  <RequiredLabel>
-                    {t("auth.city")}
-                  </RequiredLabel>
-                  <select
-                    required
-                    disabled={!form.state}
-                    aria-invalid={Boolean(fieldErrors.city)}
-                    aria-describedby={fieldErrors.city ? "city-error" : undefined}
-                    value={form.city}
-                    onChange={(e) => updateField("city", e.target.value)}
-                    className={`${getInputClass("city", "w-full")} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
-                  >
-                    <option value="">
-                      {form.state ? t("auth.selectCity") : t("auth.selectStateFirst")}
-                    </option>
-                    {cityOptions.map((city) => (
-                      <option key={city} value={city}>
-                        {city}
-                      </option>
-                    ))}
-                  </select>
-                  <FieldError id="city-error" message={fieldErrors.city} />
                 </div>
               </div>
             </div>

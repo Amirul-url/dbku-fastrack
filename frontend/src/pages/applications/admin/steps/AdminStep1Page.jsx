@@ -40,10 +40,8 @@ function AdminStep1Page() {
   const [localityAddress, setLocalityAddress] = useState("");
   const [areaRequired, setAreaRequired] = useState("");
   const [areaUnit, setAreaUnit] = useState("Sq. M");
-  const [totalSchemeValue, setTotalSchemeValue] = useState("");
   const [sourceOfFund, setSourceOfFund] = useState("");
   const [fundAvailability, setFundAvailability] = useState("");
-  const [amountFundAvailable, setAmountFundAvailable] = useState("");
   const [amountFundApproved, setAmountFundApproved] = useState("");
 
   const [siteImageName, setSiteImageName] = useState("");
@@ -73,10 +71,8 @@ function AdminStep1Page() {
       setLocalityAddress(step1.locality_address || step1.map_address || "");
       setAreaRequired(step1.area_required || "");
       setAreaUnit(step1.area_unit || "Sq. M");
-      setTotalSchemeValue(step1.total_scheme_value || "");
       setSourceOfFund(step1.source_of_fund || "");
       setFundAvailability(step1.fund_availability || "");
-      setAmountFundAvailable(step1.amount_fund_available || "");
       setAmountFundApproved(step1.amount_fund_approved || "");
 
       const siteImageDocument =
@@ -121,7 +117,7 @@ function AdminStep1Page() {
       current_step: 1,
       form_data: {
         step_1: {
-          status: "Prepare Case",
+          status: "Draft",
           application_type: "Application for Site (New Site)",
           application_type_label: "Application for Site (New Site)",
           division: "",
@@ -130,10 +126,8 @@ function AdminStep1Page() {
           locality_address: localityAddress,
           area_required: areaRequired,
           area_unit: areaUnit,
-          total_scheme_value: totalSchemeValue,
           source_of_fund: sourceOfFund,
           fund_availability: fundAvailability,
-          amount_fund_available: amountFundAvailable,
           amount_fund_approved: amountFundApproved,
 
           map_address: mapData.address,
@@ -354,25 +348,9 @@ function AdminStep1Page() {
                   />
                 </Field>
 
-                <Field label={tx("totalSchemeValue")} guideline={tx("totalSchemeValueGuideline")}>
-                  <input
-                    className="spa-input"
-                    value={totalSchemeValue}
-                    onChange={(e) => setTotalSchemeValue(e.target.value)}
-                    placeholder={tx("totalSchemeValuePlaceholder")}
-                  />
-                </Field>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label={tx("fundAvailableNowTitle")} guideline={tx("fundAvailableNowGuideline")}>
-                  <input
-                    className="spa-input"
-                    value={amountFundAvailable}
-                    onChange={(e) => setAmountFundAvailable(e.target.value)}
-                  />
-                </Field>
-
                 <Field label={tx("fundApprovedMalaysiaPlan")} required guideline={tx("fundApprovedMalaysiaPlanGuideline")}>
                   <input
                     className="spa-input"
@@ -1095,7 +1073,7 @@ function ApplicationReference({ language = "en" }) {
 
         <p>{tx("status")}</p>
         <p className="font-semibold text-[#006d32]">
-          {applicationStatusLabel(language, "Prepare Case")}
+          {applicationStatusLabel(language, "Draft")}
         </p>
 
         <p>{tx("applicationType")}</p>
