@@ -709,13 +709,13 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
   const columns = [
     {
       key: "reference",
-      label: t("applications.reference", "Reference"),
+      label: t("common.reference", "Reference"),
       className: "w-[170px]",
       render: (row) => <span className="font-semibold text-slate-900">{row.reference}</span>,
     },
     {
       key: "project",
-      label: t("applications.project", "Project"),
+      label: t("common.project", "Project"),
       render: (row) => <span className="whitespace-pre-line">{row.project}</span>,
     },
     {
@@ -725,7 +725,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
     },
     {
       key: "status",
-      label: t("applications.status", "Status"),
+      label: t("common.status", "Status"),
       className: "w-[160px]",
       render: (row) => (
         <span className={row.statusClassName}>
@@ -828,6 +828,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
           columns={columns}
           emptyText={t("admin.dashboard.noStatisticRecords", "No applications found for this statistic.")}
           loading={loading}
+          loadingText={t("common.loading", "Loading...")}
           rows={visibleRows}
         />
         {!loading && (
@@ -870,7 +871,7 @@ function MphlgDashboard({ user }) {
     <AdminDashboardLayout>
       <div className="mb-5">
         <h1 className="text-2xl font-semibold text-slate-950">
-          {t("mphlg.dashboard.title", `${department} Dashboard`)}
+          {t("mphlg.dashboard.title", `${department} Dashboard`).replace("{department}", department)}
         </h1>
       </div>
 
