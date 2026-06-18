@@ -194,8 +194,8 @@ export function needsApplicantCorrection(app) {
 
 export function getApplicantApplicationRoute(app) {
   const routes = {
-    1: "edit",
-    2: "submitting-person",
+    1: "submitting-person",
+    2: "edit",
     3: "supporting-document",
     4: "declaration",
     5: "print-form",

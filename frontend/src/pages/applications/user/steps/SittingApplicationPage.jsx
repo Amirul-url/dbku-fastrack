@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
@@ -1103,7 +1103,7 @@ function SittingApplicationPage({
     }
 
     try {
-      const payload = await buildStepOnePayload(projectName, 2);
+      const payload = await buildStepOnePayload(projectName, 3);
       const data = await saveApplication(payload);
       const savedData = await uploadPendingSiteImages(data, payload);
       if (!isAdminReview) {
@@ -1112,12 +1112,12 @@ function SittingApplicationPage({
 
       navigate(
         isAdminReview
-          ? `/admin/applications/${savedData.id}/step-2?id=${savedData.id}`
-          : `/applications/${savedData.id}/submitting-person?id=${savedData.id}`
+          ? `/admin/applications/${savedData.id}/step-3?id=${savedData.id}`
+          : `/applications/${savedData.id}/supporting-document?id=${savedData.id}`
       );
     } catch (err) {
       console.error("Save failed:", err);
-      alert(tx("failedSaveStep1"));
+      alert(tx("failedSaveStep2"));
     }
   }
 
@@ -1134,7 +1134,7 @@ function SittingApplicationPage({
     try {
       const payload = await buildStepOnePayload(
         projectName || tx("draftSittingApplication"),
-        1
+        2
       );
       const data = await saveApplication(payload);
 
@@ -1173,13 +1173,13 @@ function SittingApplicationPage({
   return (
     <Layout>
       <div className="flex gap-4">
-        {StepNav && <StepNav active={1} />}
+        {StepNav && <StepNav active={2} />}
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                1
+                2
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 {tx("sittingApplication")}
@@ -1189,13 +1189,13 @@ function SittingApplicationPage({
             {isAdminView ? (
               <AdminViewStepControls
                 applicationId={applicationId}
-                currentStep={1}
+                currentStep={2}
                 language={language}
               />
             ) : isReadOnly ? (
               <UserViewStepControls
                 applicationId={applicationId}
-                currentStep={1}
+                currentStep={2}
                 language={language}
               />
             ) : (
@@ -1207,6 +1207,17 @@ function SittingApplicationPage({
                 >
                   {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
+
+                <Link
+                  to={
+                    isAdminReview
+                      ? `/admin/applications/${applicationId}/step-1?id=${applicationId}`
+                      : `/applications/${applicationId}/submitting-person?id=${applicationId}`
+                  }
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                >
+                  {tx("previous")}
+                </Link>
 
                 {!isReadOnly && (
                   <button
@@ -1390,14 +1401,14 @@ function SittingApplicationPage({
               {isAdminView ? (
                 <AdminViewStepControls
                   applicationId={applicationId}
-                  currentStep={1}
+                  currentStep={2}
                   language={language}
                   className="pt-2"
                 />
               ) : isReadOnly ? (
                 <UserViewStepControls
                   applicationId={applicationId}
-                  currentStep={1}
+                  currentStep={2}
                   language={language}
                   className="pt-2"
                 />
@@ -1410,6 +1421,17 @@ function SittingApplicationPage({
                   >
                     {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
+
+                  <Link
+                    to={
+                      isAdminReview
+                        ? `/admin/applications/${applicationId}/step-1?id=${applicationId}`
+                        : `/applications/${applicationId}/submitting-person?id=${applicationId}`
+                    }
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                  >
+                    {tx("previous")}
+                  </Link>
 
                   {!isReadOnly && (
                     <button

@@ -433,7 +433,7 @@ function SupportingDocumentPage({
                   to={
                     isAdminReview
                       ? adminStepPath(2)
-                      : `/applications/${applicationId}/submitting-person?id=${applicationId}`
+                      : `/applications/${applicationId}/edit?id=${applicationId}`
                   }
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
@@ -512,7 +512,7 @@ function SupportingDocumentPage({
                     to={
                       isAdminReview
                         ? adminStepPath(2)
-                        : `/applications/${applicationId}/submitting-person?id=${applicationId}`
+                        : `/applications/${applicationId}/edit?id=${applicationId}`
                     }
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >

@@ -8,12 +8,12 @@ function getSteps(applicationId, t) {
   return [
     {
       no: 1,
-      label: t("steps.sittingApplication"),
+      label: t("steps.submittingPerson"),
       path: `${base}/step-1`,
     },
     {
       no: 2,
-      label: t("steps.submittingPerson"),
+      label: t("steps.sittingApplication"),
       path: `${base}/step-2`,
     },
     {

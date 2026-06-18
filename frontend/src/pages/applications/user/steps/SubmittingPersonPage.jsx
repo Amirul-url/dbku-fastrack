@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
 import { apiRequest } from "../../../../services/api";
 import {
@@ -181,8 +181,6 @@ function SubmittingPersonPage({
   const StepNav = StepNavComponent;
   const isAdminView = mode === "admin-view";
   const isAdminReview = mode === "admin" || isAdminView;
-  const adminStepPath = (step) =>
-    `/admin/applications/${applicationId}${isAdminView ? "/view" : ""}/step-${step}?id=${applicationId}`;
 
   const [orgType, setOrgType] = useState("");
   const [registrationNo, setRegistrationNo] = useState("");
@@ -334,6 +332,20 @@ function SubmittingPersonPage({
     };
   }
 
+  function buildNewApplicationDefaults() {
+    return {
+      application_type: "sitting_application",
+      title: tx("draftSittingApplication"),
+      form_data: {
+        step_1: {
+          status: "Draft",
+          application_type: "Application for Site (New Site)",
+          application_type_label: "Application for Site (New Site)",
+        },
+      },
+    };
+  }
+
   async function saveStep3({ goNext = false } = {}) {
     if (isReadOnly) return;
 
@@ -360,37 +372,39 @@ function SubmittingPersonPage({
       return false;
     }
 
-    if (!applicationId || isNaN(applicationId)) {
-      alert(tx("missingApplication"));
-      return false;
-    }
-
     try {
-      const savedApplication = await apiRequest(`/applications/${applicationId}/`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          current_step: goNext ? 3 : 2,
-          form_data: {
-            step_3: buildStep3Payload(),
-          },
-        }),
-      });
+      const newApplicationDefaults = !applicationId ? buildNewApplicationDefaults() : {};
+      const savedApplication = await apiRequest(
+        applicationId ? `/applications/${applicationId}/` : "/applications/",
+        {
+          method: applicationId ? "PATCH" : "POST",
+          body: JSON.stringify({
+            ...newApplicationDefaults,
+            current_step: goNext ? 2 : 1,
+            form_data: {
+              ...(newApplicationDefaults.form_data || {}),
+              step_3: buildStep3Payload(),
+            },
+          }),
+        }
+      );
       if (!isAdminReview) {
         markApplicantRecordSeen("status", savedApplication);
       }
 
       if (goNext) {
+        const savedApplicationId = savedApplication?.id || applicationId;
         navigate(
           isAdminReview
-            ? adminStepPath(3)
-            : `/applications/${applicationId}/supporting-document?id=${applicationId}`
+            ? `/admin/applications/${savedApplicationId}/step-2?id=${savedApplicationId}`
+            : `/applications/${savedApplicationId}/edit?id=${savedApplicationId}`
         );
       }
 
-      return true;
+      return savedApplication;
     } catch (err) {
       console.error("Step 3 save failed:", err);
-      alert(err.message || tx("failedSaveStep2"));
+      alert(err.message || tx("failedSaveStep1"));
       return false;
     }
   }
@@ -405,7 +419,7 @@ function SubmittingPersonPage({
       navigate(
         isAdminReview
           ? "/admin/applications"
-          : getApplicantSaveDraftReturnPath(applicationRecord)
+          : getApplicantSaveDraftReturnPath(applicationRecord || saved)
       );
     }
   }
@@ -419,13 +433,13 @@ function SubmittingPersonPage({
   return (
     <Layout>
       <div className="flex gap-4">
-        {StepNav && <StepNav active={2} />}
+        {StepNav && <StepNav active={1} />}
 
         <main className="flex-1 min-w-0">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="bg-[#18b36b] text-white text-sm font-bold px-3 py-1">
-                2
+                1
               </span>
               <h1 className="text-lg font-semibold text-[#1a1c1c]">
                 {tx("detailsSubmittingPerson")}
@@ -435,13 +449,13 @@ function SubmittingPersonPage({
             {isAdminView ? (
               <AdminViewStepControls
                 applicationId={applicationId}
-                currentStep={2}
+                currentStep={1}
                 language={language}
               />
             ) : isReadOnly ? (
               <UserViewStepControls
                 applicationId={applicationId}
-                currentStep={2}
+                currentStep={1}
                 language={language}
               />
             ) : (
@@ -451,19 +465,8 @@ function SubmittingPersonPage({
                   onClick={handleSaveDraftAndBack}
                   className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                 >
-                  {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
+                  {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord || { status: "draft" }))}
                 </button>
-
-                <Link
-                  to={
-                    isAdminReview
-                      ? adminStepPath(1)
-                      : `/applications/${applicationId}/edit?id=${applicationId}`
-                  }
-                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-                >
-                  {tx("previous")}
-                </Link>
 
                 {!isReadOnly && (
                   <button
@@ -727,14 +730,14 @@ function SubmittingPersonPage({
               {isAdminView ? (
                 <AdminViewStepControls
                   applicationId={applicationId}
-                  currentStep={2}
+                  currentStep={1}
                   language={language}
                   className="pt-2"
                 />
               ) : isReadOnly ? (
                 <UserViewStepControls
                   applicationId={applicationId}
-                  currentStep={2}
+                  currentStep={1}
                   language={language}
                   className="pt-2"
                 />
@@ -745,19 +748,8 @@ function SubmittingPersonPage({
                     onClick={handleSaveDraftAndBack}
                     className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
                   >
-                    {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
+                    {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord || { status: "draft" }))}
                   </button>
-
-                  <Link
-                    to={
-                      isAdminReview
-                        ? adminStepPath(1)
-                        : `/applications/${applicationId}/edit?id=${applicationId}`
-                    }
-                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
-                  >
-                    {tx("previous")}
-                  </Link>
 
                   {!isReadOnly && (
                     <button

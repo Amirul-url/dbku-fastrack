@@ -2,8 +2,8 @@ import { Link, useLocation } from "react-router-dom";
 import { stepText } from "./ApplicationStepText";
 
 const STEP_ROUTES = {
-  1: "edit",
-  2: "submitting-person",
+  1: "submitting-person",
+  2: "edit",
   3: "supporting-document",
   4: "declaration",
   5: "print-form",

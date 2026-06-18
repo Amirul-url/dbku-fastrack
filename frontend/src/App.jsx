@@ -539,7 +539,7 @@ function App() {
           path="/admin/applications/:applicationId/view/step-1"
           element={
             <AdminRoute>
-              <SittingApplicationPage
+              <SubmittingPersonPage
                 LayoutComponent={AdminDashboardLayout}
                 mode="admin-view"
               />
@@ -551,7 +551,7 @@ function App() {
           path="/admin/applications/:applicationId/view/step-2"
           element={
             <AdminRoute>
-              <SubmittingPersonPage
+              <SittingApplicationPage
                 LayoutComponent={AdminDashboardLayout}
                 mode="admin-view"
               />
@@ -600,7 +600,7 @@ function App() {
           path="/admin/applications/:applicationId/step-1"
           element={
             <AdminRoute>
-              <SittingApplicationPage
+              <SubmittingPersonPage
                 LayoutComponent={AdminDashboardLayout}
                 mode="admin"
               />
@@ -612,7 +612,7 @@ function App() {
           path="/admin/applications/:applicationId/step-2"
           element={
             <AdminRoute>
-              <SubmittingPersonPage
+              <SittingApplicationPage
                 LayoutComponent={AdminDashboardLayout}
                 mode="admin"
               />
@@ -715,7 +715,7 @@ function App() {
           path="/applications/new"
           element={
             <UserRoute>
-              <SittingApplicationPage />
+              <SubmittingPersonPage />
             </UserRoute>
           }
         />
