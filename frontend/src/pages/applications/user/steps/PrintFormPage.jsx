@@ -482,20 +482,54 @@ function PrintFormPage({
                   isActive={activePrintPage === 1}
                 >
                   <PrintSection title={tx("step1Print")}>
-                    <PrintLine
+                    <PrintSubheading>{tx("organisation")}</PrintSubheading>
+                    <PrintLine label={tx("organisationType")} value={formatPrintUpper(organisationTypeLabel(language, step3.org_type))} />
+                    <PrintLine label={tx("registrationNumber")} value={formatPrintUpper(step3.registration_no)} />
+                    <PrintLine label={tx("organisationName")} value={formatPrintUpper(step3.org_name)} />
+                    <PrintLine label={tx("postalAddress")} value={formatPrintUpper(step3.postal_address)} />
+                    <PrintLine label={tx("address2")} value={formatPrintUpper(step3.address_2)} />
+                    <PrintLine label={tx("postcode")} value={formatPrintUpper(step3.postcode)} />
+                    <PrintLine label={tx("state")} value={formatPrintUpper(step3.state)} />
+                    <PrintLine label={tx("city")} value={formatPrintUpper(step3.city)} />
+                    <PrintLine label={tx("countryCode")} value={formatPrintUpper(step3.org_country_code)} />
+                    <PrintLine label={tx("telephoneNo")} value={formatPhone(step3.org_country_code, step3.telephone_no)} />
+
+                    <PrintSubheading>{tx("submittingPerson")}</PrintSubheading>
+                    <PrintLine label={tx("honoraryTitle")} value={formatPrintUpper(step3.honorary_title)} />
+                    <PrintLine label={tx("designation")} value={formatPrintUpper(step3.designation)} />
+                    <PrintLine label={tx("fullName")} value={formatPrintUpper(step3.full_name)} />
+                    <PrintLine label={tx("countryCode")} value={formatPrintUpper(step3.mobile_country_code)} />
+                    <PrintLine label={tx("mobileNo")} value={formatPhone(step3.mobile_country_code, step3.mobile_no)} />
+                    <PrintLine label={tx("identityCardNo")} value={formatPrintUpper(step3.identity_card_no)} />
+                    <PrintLine label={tx("countryCode")} value={formatPrintUpper(step3.office_country_code)} />
+                    <PrintLine label={tx("officeNo")} value={formatPhone(step3.office_country_code, step3.office_no)} />
+                    <PrintLine label={tx("email")} value={step3.email} />
+                    <PrintLine label={tx("countryCode")} value={formatPrintUpper(step3.fax_country_code)} />
+                    <PrintLine label={tx("faxNo")} value={formatPhone(step3.fax_country_code, step3.fax_no)} />
+                  </PrintSection>
+                </PrintPage>
+
+                <PrintPage
+                  title={tx("generatedFormTitle")}
+                  pageNumber={2}
+                  totalPages={PRINT_FORM_TOTAL_PAGES}
+                  isActive={activePrintPage === 2}
+                >
+                  <PrintSection title={tx("step2Print")}>
+                    <PrintApplicationProjectTable
                       no="1."
-                      label={tx("typeOfApplication")}
-                      value={getApplicationType({ form_data: { step_1: step1 } }, language)}
+                      step1={step1}
+                      language={language}
+                      tx={tx}
                     />
-                    <PrintLine no="2." label={tx("nameOfProject")} value={step1.project_name} />
-                    <PrintLine no="3." label={tx("localityAddress")} value={step1.locality_address} />
+                    <PrintLine no="2." label={tx("localityAddress")} value={step1.locality_address} />
                     <PrintLine
-                      no="4."
+                      no="3."
                       label={`${tx("latitude")} / ${tx("longitude")}`}
                       value={formatCoordinates(step1.latitude, step1.longitude)}
                     />
                     <PrintLine
-                      no="5."
+                      no="4."
                       label={tx("siteImage")}
                       value={
                         <AttachmentLinkList
@@ -507,6 +541,7 @@ function PrintFormPage({
                       }
                     />
                     <PrintAdvertisementRows
+                      no="5."
                       step1={step1}
                       language={language}
                       tx={tx}
@@ -521,40 +556,6 @@ function PrintFormPage({
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
-                  </PrintSection>
-                </PrintPage>
-
-                <PrintPage
-                  title={tx("generatedFormTitle")}
-                  pageNumber={2}
-                  totalPages={PRINT_FORM_TOTAL_PAGES}
-                  isActive={activePrintPage === 2}
-                >
-                  <PrintSection title={tx("step2Print")}>
-                    <PrintSubheading>{tx("organisation")}</PrintSubheading>
-                    <PrintLine label={tx("organisationType")} value={organisationTypeLabel(language, step3.org_type)} />
-                    <PrintLine label={tx("registrationNumber")} value={step3.registration_no} />
-                    <PrintLine label={tx("organisationName")} value={step3.org_name} />
-                    <PrintLine label={tx("postalAddress")} value={step3.postal_address} />
-                    <PrintLine label={tx("address2")} value={step3.address_2} />
-                    <PrintLine label={tx("postcode")} value={step3.postcode} />
-                    <PrintLine label={tx("state")} value={step3.state} />
-                    <PrintLine label={tx("city")} value={step3.city} />
-                    <PrintLine label={tx("countryCode")} value={step3.org_country_code} />
-                    <PrintLine label={tx("telephoneNo")} value={formatPhone(step3.org_country_code, step3.telephone_no)} />
-
-                    <PrintSubheading>{tx("submittingPerson")}</PrintSubheading>
-                    <PrintLine label={tx("honoraryTitle")} value={step3.honorary_title} />
-                    <PrintLine label={tx("designation")} value={step3.designation} />
-                    <PrintLine label={tx("fullName")} value={step3.full_name} />
-                    <PrintLine label={tx("countryCode")} value={step3.mobile_country_code} />
-                    <PrintLine label={tx("mobileNo")} value={formatPhone(step3.mobile_country_code, step3.mobile_no)} />
-                    <PrintLine label={tx("identityCardNo")} value={step3.identity_card_no} />
-                    <PrintLine label={tx("countryCode")} value={step3.office_country_code} />
-                    <PrintLine label={tx("officeNo")} value={formatPhone(step3.office_country_code, step3.office_no)} />
-                    <PrintLine label={tx("email")} value={step3.email} />
-                    <PrintLine label={tx("countryCode")} value={step3.fax_country_code} />
-                    <PrintLine label={tx("faxNo")} value={formatPhone(step3.fax_country_code, step3.fax_no)} />
                   </PrintSection>
                 </PrintPage>
 
@@ -669,9 +670,9 @@ function buildPrintFormPdf({
   });
 
   pdf.setProperties({ title });
-  drawPdfPageOne(pdf, { title, step1, tx, language });
+  drawPdfPageOne(pdf, { title, step3, tx, language });
   pdf.addPage("a4", "portrait");
-  drawPdfPageTwo(pdf, { title, step3, tx, language });
+  drawPdfPageTwo(pdf, { title, step1, tx, language });
   pdf.addPage("a4", "portrait");
   drawPdfPageThree(pdf, {
     title,
@@ -685,35 +686,98 @@ function buildPrintFormPdf({
   return pdf;
 }
 
-function drawPdfPageOne(pdf, { title, step1, tx, language }) {
+function drawPdfPageOne(pdf, { title, step3, tx, language }) {
   let y = drawPdfHeader(pdf, title);
 
   y = drawPdfSectionTitle(pdf, tx("step1Print"), y);
+  y = drawPdfSubheading(pdf, tx("organisation"), y);
   y = drawPdfFieldRows(
     pdf,
     [
       {
-        no: "1.",
-        label: tx("typeOfApplication"),
-        value: getApplicationType({ form_data: { step_1: step1 } }, language),
+        label: tx("organisationType"),
+        value: formatPrintUpper(organisationTypeLabel(language, step3.org_type)),
       },
-      { no: "2.", label: tx("nameOfProject"), value: step1.project_name },
-      { no: "3.", label: tx("localityAddress"), value: step1.locality_address },
+      { label: tx("registrationNumber"), value: formatPrintUpper(step3.registration_no) },
+      { label: tx("organisationName"), value: formatPrintUpper(step3.org_name) },
+      { label: tx("postalAddress"), value: formatPrintUpper(step3.postal_address) },
+      { label: tx("address2"), value: formatPrintUpper(step3.address_2) },
+      { label: tx("postcode"), value: formatPrintUpper(step3.postcode) },
+      { label: tx("state"), value: formatPrintUpper(step3.state) },
+      { label: tx("city"), value: formatPrintUpper(step3.city) },
+      { label: tx("countryCode"), value: formatPrintUpper(step3.org_country_code) },
       {
-        no: "4.",
+        label: tx("telephoneNo"),
+        value: formatPhone(step3.org_country_code, step3.telephone_no),
+      },
+    ],
+    y
+  );
+
+  y = drawPdfSubheading(pdf, tx("submittingPerson"), y + 1);
+  drawPdfFieldRows(
+    pdf,
+    [
+      { label: tx("honoraryTitle"), value: formatPrintUpper(step3.honorary_title) },
+      { label: tx("designation"), value: formatPrintUpper(step3.designation) },
+      { label: tx("fullName"), value: formatPrintUpper(step3.full_name) },
+      { label: tx("countryCode"), value: formatPrintUpper(step3.mobile_country_code) },
+      {
+        label: tx("mobileNo"),
+        value: formatPhone(step3.mobile_country_code, step3.mobile_no),
+      },
+      { label: tx("identityCardNo"), value: formatPrintUpper(step3.identity_card_no) },
+      { label: tx("countryCode"), value: formatPrintUpper(step3.office_country_code) },
+      {
+        label: tx("officeNo"),
+        value: formatPhone(step3.office_country_code, step3.office_no),
+      },
+      { label: tx("email"), value: step3.email },
+      { label: tx("countryCode"), value: formatPrintUpper(step3.fax_country_code) },
+      {
+        label: tx("faxNo"),
+        value: formatPhone(step3.fax_country_code, step3.fax_no),
+      },
+    ],
+    y,
+  );
+
+  drawPdfFooter(pdf, 1, PRINT_FORM_TOTAL_PAGES);
+}
+
+function drawPdfPageTwo(pdf, { title, step1, tx, language }) {
+  let y = drawPdfHeader(pdf, title);
+
+  y = drawPdfSectionTitle(pdf, tx("step2Print"), y);
+  y = drawPdfApplicationProjectTable(pdf, {
+    no: "1.",
+    rows: getPrintApplicationProjectRows(step1, language),
+    tx,
+    y,
+  });
+  y = drawPdfFieldRows(
+    pdf,
+    [
+      { no: "2.", label: tx("localityAddress"), value: step1.locality_address },
+      {
+        no: "3.",
         label: `${tx("latitude")} / ${tx("longitude")}`,
         value: formatCoordinates(step1.latitude, step1.longitude),
       },
       {
-        no: "5.",
+        no: "4.",
         label: tx("siteImage"),
-        value: getSiteImageNames(step1),
+        value: getPdfAttachmentText(
+          getSiteImageAttachments(step1),
+          getSiteImageNames(step1) || tx("noAttachment")
+        ),
       },
     ],
     y
   );
 
   y = drawPdfAdvertisementRows(pdf, {
+    no: "5.",
     rows: getPrintAdvertisementRows(step1, language),
     tx,
     y,
@@ -732,70 +796,12 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
     y,
   });
 
-  drawPdfFooter(pdf, 1, PRINT_FORM_TOTAL_PAGES);
-}
-
-function drawPdfPageTwo(pdf, { title, step3, tx, language }) {
-  let y = drawPdfHeader(pdf, title);
-
-  y = drawPdfSectionTitle(pdf, tx("step2Print"), y);
-  y = drawPdfSubheading(pdf, tx("organisation"), y);
-  y = drawPdfFieldRows(
-    pdf,
-    [
-      {
-        label: tx("organisationType"),
-        value: organisationTypeLabel(language, step3.org_type),
-      },
-      { label: tx("registrationNumber"), value: step3.registration_no },
-      { label: tx("organisationName"), value: step3.org_name },
-      { label: tx("postalAddress"), value: step3.postal_address },
-      { label: tx("address2"), value: step3.address_2 },
-      { label: tx("postcode"), value: step3.postcode },
-      { label: tx("state"), value: step3.state },
-      { label: tx("city"), value: step3.city },
-      { label: tx("countryCode"), value: step3.org_country_code },
-      {
-        label: tx("telephoneNo"),
-        value: formatPhone(step3.org_country_code, step3.telephone_no),
-      },
-    ],
-    y
-  );
-
-  y = drawPdfSubheading(pdf, tx("submittingPerson"), y + 1);
-  drawPdfFieldRows(
-    pdf,
-    [
-      { label: tx("honoraryTitle"), value: step3.honorary_title },
-      { label: tx("designation"), value: step3.designation },
-      { label: tx("fullName"), value: step3.full_name },
-      { label: tx("countryCode"), value: step3.mobile_country_code },
-      {
-        label: tx("mobileNo"),
-        value: formatPhone(step3.mobile_country_code, step3.mobile_no),
-      },
-      { label: tx("identityCardNo"), value: step3.identity_card_no },
-      { label: tx("countryCode"), value: step3.office_country_code },
-      {
-        label: tx("officeNo"),
-        value: formatPhone(step3.office_country_code, step3.office_no),
-      },
-      { label: tx("email"), value: step3.email },
-      { label: tx("countryCode"), value: step3.fax_country_code },
-      {
-        label: tx("faxNo"),
-        value: formatPhone(step3.fax_country_code, step3.fax_no),
-      },
-    ],
-    y
-  );
-
   drawPdfFooter(pdf, 2, PRINT_FORM_TOTAL_PAGES);
 }
 
 function drawPdfPageThree(pdf, {
   title,
+  applicationId,
   language,
   noAttachmentText,
   requiredDocuments,
@@ -807,6 +813,7 @@ function drawPdfPageThree(pdf, {
   y = drawPdfSectionTitle(pdf, tx("step3Print"), y);
   y = drawPdfDocumentSummary(pdf, {
     title: tx("requiredSupportingDocuments"),
+    applicationId,
     rows: requiredDocuments,
     language,
     noAttachmentText,
@@ -815,6 +822,7 @@ function drawPdfPageThree(pdf, {
   });
   drawPdfDocumentSummary(pdf, {
     title: tx("otherSupportingDocuments"),
+    applicationId,
     rows: otherDocuments,
     language,
     noAttachmentText,
@@ -924,19 +932,31 @@ function drawPdfBlock(pdf, { no, label, value, y }) {
   return y + boxHeight + 4;
 }
 
-function drawPdfAdvertisementRows(pdf, { rows, tx, y }) {
+function drawPdfAdvertisementRows(pdf, { no = "", rows, tx, y }) {
   const columns = [
-    { key: "index", title: "No.", width: 8, align: "center" },
-    { key: "displayType", title: tx("displayType"), width: 28 },
-    { key: "advertisementType", title: tx("advertisementType"), width: 46 },
-    { key: "size", title: tx("advertisementSizeFt"), width: 38 },
-    { key: "area", title: tx("areaRequired"), width: 32 },
-    { key: "payable", title: tx("malaysiaPlanRm"), width: 30 },
+    { key: "index", title: "No.", width: 10, align: "center" },
+    { key: "displayType", title: tx("displayType"), width: 25 },
+    { key: "advertisementType", title: tx("advertisementType"), width: 39 },
+    {
+      key: "size",
+      title: [tx("advertisementSizeFt").replace(/\s*\([^)]*\)\s*$/, ""), "(W x H)"],
+      width: 42,
+    },
+    {
+      key: "area",
+      title: [tx("areaRequired").replace(/\s*\([^)]*\)\s*$/, ""), "(Sq. m)"],
+      width: 34,
+    },
+    {
+      key: "payable",
+      title: [tx("malaysiaPlanRm").replace(/,\s*RM\s*$/i, ""), "(RM)"],
+      width: 32,
+    },
   ];
 
   resetPdfTextStyle(pdf);
   pdf.setFont("helvetica", "bold");
-  pdf.text(tx("advertisementType"), PDF_PAGE.marginX, y + 3);
+  pdf.text(`${no ? `${no} ` : ""}${tx("advertisementType")}`, PDF_PAGE.marginX, y + 3);
   y += 6;
   y = drawPdfTableHeader(pdf, columns, y);
 
@@ -958,6 +978,29 @@ function drawPdfAdvertisementRows(pdf, { rows, tx, y }) {
 
   resetPdfTextStyle(pdf);
   return y + 2;
+}
+
+function drawPdfApplicationProjectTable(pdf, { no = "", rows, tx, y }) {
+  const columns = [
+    { key: "index", title: "No.", width: 9, align: "center" },
+    { key: "category", title: tx("applicationCategory"), width: 30 },
+    { key: "displayType", title: tx("displayType"), width: 30 },
+    { key: "advertisementType", title: tx("advertisementType"), width: 44 },
+    { key: "title", title: tx("title"), width: 69 },
+  ];
+
+  resetPdfTextStyle(pdf);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(`${no ? `${no} ` : ""}${tx("applicationProjectList")}`, PDF_PAGE.marginX, y + 3);
+  y += 6;
+  y = drawPdfTableHeader(pdf, columns, y);
+
+  rows.forEach((row) => {
+    y = drawPdfTableRow(pdf, columns, row, y);
+  });
+
+  resetPdfTextStyle(pdf);
+  return y + 3;
 }
 
 function drawPdfDocumentSummary(pdf, {
@@ -982,15 +1025,15 @@ function drawPdfDocumentSummary(pdf, {
 
   const columns = other
     ? [
-        { key: "index", title: "No.", width: 8, align: "center" },
-        { key: "description", title: stepText(language, "description"), width: 102 },
+        { key: "index", title: "No.", width: 10, align: "center" },
+        { key: "description", title: stepText(language, "description"), width: 100 },
         { key: "format", title: stepText(language, "format"), width: 30 },
         { key: "attachment", title: stepText(language, "attachment"), width: 42 },
       ]
     : [
-        { key: "index", title: "No.", width: 8, align: "center" },
-        { key: "title", title: stepText(language, "title"), width: 36 },
-        { key: "description", title: stepText(language, "description"), width: 74 },
+        { key: "index", title: "No.", width: 10, align: "center" },
+        { key: "title", title: stepText(language, "title"), width: 35 },
+        { key: "description", title: stepText(language, "description"), width: 73 },
         { key: "format", title: stepText(language, "format"), width: 28 },
         { key: "attachment", title: stepText(language, "attachment"), width: 36 },
       ];
@@ -1024,7 +1067,10 @@ function drawPdfDocumentSummary(pdf, {
         : documentTitle(language, row.title),
       description: description || "-",
       format: row.format || "-",
-      attachment: formatAttachment(row.attachment, noAttachmentText),
+      attachment: getPdfAttachmentText(
+        row.attachment,
+        noAttachmentText
+      ),
     };
     y = drawPdfTableRow(pdf, columns, values, y);
   });
@@ -1054,17 +1100,25 @@ function drawPdfMergedDocumentRow(pdf, columns, values, y) {
 }
 
 function drawPdfTableHeader(pdf, columns, y) {
-  const headerHeight = 8;
-  let x = PDF_PAGE.marginX;
-
-  pdf.setFontSize(10);
+  pdf.setFontSize(9);
   pdf.setFont("helvetica", "bold");
 
-  columns.forEach((column) => {
+  const headerLines = columns.map((column) => {
+    if (Array.isArray(column.title)) return column.title;
+    if (column.title === "No.") return ["No."];
+    return splitPdfText(pdf, column.title, column.width - 3);
+  });
+  const headerHeight =
+    Math.max(...headerLines.map((lines) => lines.length)) * 4.2 + 4;
+  let x = PDF_PAGE.marginX;
+
+  columns.forEach((column, columnIndex) => {
     pdf.setFillColor(242, 242, 242);
     pdf.setDrawColor(150, 150, 150);
     pdf.rect(x, y, column.width, headerHeight, "FD");
-    pdf.text(column.title, x + column.width / 2, y + 5.5, { align: "center" });
+    pdf.text(headerLines[columnIndex], x + column.width / 2, y + 4.2, {
+      align: "center",
+    });
     x += column.width;
   });
 
@@ -1112,6 +1166,10 @@ function splitPdfText(pdf, value, width) {
 
 function printableValue(value) {
   return String(value || "-").trim() || "-";
+}
+
+function formatPrintUpper(value) {
+  return String(value || "").toLocaleUpperCase("en-MY");
 }
 
 function PrintPage({ title, pageNumber, totalPages, isActive = true, children }) {
@@ -1225,6 +1283,7 @@ function PrintLine({ no, label, value }) {
           lineHeight: 1.35,
           minHeight: "7mm",
           paddingBottom: "1.4mm",
+          whiteSpace: "pre-wrap",
           wordBreak: "normal",
         }}
       >
@@ -1260,7 +1319,61 @@ function PrintBlock({ no, label, value }) {
   );
 }
 
-function PrintAdvertisementRows({ step1, language, tx }) {
+function PrintApplicationProjectTable({ no = "", step1, language, tx }) {
+  const rows = getPrintApplicationProjectRows(step1, language);
+
+  return (
+    <div
+      className="print-avoid-break"
+      style={{
+        fontSize: "11pt",
+        margin: "1.5mm 0 3mm",
+        width: "100%",
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: "1mm" }}>
+        {no && <span>{no} </span>}
+        {tx("applicationProjectList")}
+      </div>
+      <table
+        style={{
+          borderCollapse: "collapse",
+          tableLayout: "fixed",
+          width: "100%",
+        }}
+      >
+        <thead>
+          <tr>
+            <PrintTableHead style={{ width: "9mm" }}>No.</PrintTableHead>
+            <PrintTableHead style={{ width: "30mm" }}>
+              {tx("applicationCategory")}
+            </PrintTableHead>
+            <PrintTableHead style={{ width: "30mm" }}>
+              {tx("displayType")}
+            </PrintTableHead>
+            <PrintTableHead style={{ width: "44mm" }}>
+              {tx("advertisementType")}
+            </PrintTableHead>
+            <PrintTableHead>{tx("title")}</PrintTableHead>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`application-project-${row.index}`}>
+              <PrintTableCell center>{row.index}</PrintTableCell>
+              <PrintTableCell>{row.category}</PrintTableCell>
+              <PrintTableCell>{row.displayType}</PrintTableCell>
+              <PrintTableCell>{row.advertisementType}</PrintTableCell>
+              <PrintTableCell>{row.title}</PrintTableCell>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PrintAdvertisementRows({ no = "", step1, language, tx }) {
   const rows = getPrintAdvertisementRows(step1, language);
 
   return (
@@ -1269,6 +1382,7 @@ function PrintAdvertisementRows({ step1, language, tx }) {
       style={{ fontSize: "11pt", margin: "2mm 0", width: "100%" }}
     >
       <div style={{ fontWeight: 700, marginBottom: "1mm" }}>
+        {no && <span>{no} </span>}
         {tx("advertisementType")}
       </div>
       <table
@@ -1313,12 +1427,71 @@ function PrintAdvertisementRows({ step1, language, tx }) {
   );
 }
 
+function getPrintApplicationProjectRows(step1 = {}, language = "en") {
+  const advertisementRows = getPrintAdvertisementRows(step1, language);
+  const projectItems = getNumberedPrintItems(step1.project_name);
+
+  if (advertisementRows.length === 0 && projectItems.length === 0) {
+    return [
+      {
+        index: "1",
+        category: "-",
+        displayType: "-",
+        advertisementType: "-",
+        title: "-",
+      },
+    ];
+  }
+
+  const rowCount = Math.max(advertisementRows.length, projectItems.length, 1);
+
+  return Array.from({ length: rowCount }, (_, index) => {
+    const advertisementRow = advertisementRows[index] || {};
+    return {
+      index: String(index + 1),
+      category: advertisementRow.applicationTypeLabel || "-",
+      displayType: advertisementRow.displayTypeLabel || "-",
+      advertisementType: advertisementRow.advertisementTypeLabel || "-",
+      title:
+        buildPrintProjectTitle(language, advertisementRow) ||
+        stripListNumber(projectItems[index] || "") ||
+        "-",
+    };
+  });
+}
+
+function getNumberedPrintItems(value) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+
+  const numberedItems = text
+    .replace(/\s+(?=\d+\.\s+)/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (numberedItems.length > 1 || /^\d+\.\s+/.test(text)) {
+    return numberedItems;
+  }
+
+  return text
+    .split(/\s*,\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function stripListNumber(value) {
+  return String(value || "").replace(/^\d+\.\s*/, "").trim();
+}
+
 function getPrintAdvertisementRows(step1 = {}, language = "en") {
   const selectedType = getPrimaryStepApplicationType(step1);
   const rows = Array.isArray(step1.advertisement_rows) && step1.advertisement_rows.length
     ? step1.advertisement_rows
     : [
         {
+          applicationType: selectedType,
+          application_type: selectedType,
           displayType: step1.advertisement_display_type,
           display_type: step1.advertisement_display_type,
           subtype: step1.application_subtype,
@@ -1336,6 +1509,7 @@ function getPrintAdvertisementRows(step1 = {}, language = "en") {
       ];
 
   return rows.map((row) => {
+    const rowType = getPrintRowApplicationType(row, selectedType);
     const displayType = getAdvertisementDisplayType(row);
     const subtype = String(row?.subtype || row?.application_subtype || "").trim();
     const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
@@ -1347,6 +1521,9 @@ function getPrintAdvertisementRows(step1 = {}, language = "en") {
     const heightFt = row?.heightFt || row?.height_ft || "";
 
     return {
+      applicationType: rowType,
+      application_type: rowType,
+      applicationTypeLabel: applicationTypeLabel(language, rowType),
       displayTypeLabel: getAdvertisementDisplayTypeLabel(language, displayType),
       advertisementTypeLabel:
         translatedAdType ||
@@ -1355,7 +1532,7 @@ function getPrintAdvertisementRows(step1 = {}, language = "en") {
             form_data: {
               step_1: {
                 ...step1,
-                application_type_options: [selectedType],
+                application_type_options: [rowType],
                 advertisement_rows: [row],
                 application_subtype: subtype,
                 advertisement_type_custom_label: customLabel,
@@ -1384,6 +1561,23 @@ function getPrimaryStepApplicationType(step1 = {}) {
   return options.includes("building") ? "building" : "open_space";
 }
 
+function getPrintRowApplicationType(row = {}, fallbackType = "open_space") {
+  const rowType = String(row.applicationType || row.application_type || "")
+    .trim()
+    .toLowerCase();
+  if (rowType === "building" || rowType === "open_space") return rowType;
+
+  const subtype = String(row.subtype || row.application_subtype || "")
+    .trim()
+    .toLowerCase();
+  if (subtype.startsWith("building_")) return "building";
+  if (subtype.startsWith("open_space_") || subtype === "free_standing_billboard") {
+    return "open_space";
+  }
+
+  return fallbackType === "building" ? "building" : "open_space";
+}
+
 function getAdvertisementDisplayType(row = {}) {
   const displayType = row.displayType || row.display_type || "";
   if (displayType === "led" || displayType === "non_led") return displayType;
@@ -1396,6 +1590,52 @@ function getAdvertisementDisplayTypeLabel(language, displayType) {
   if (displayType === "led") return stepText(language, "displayTypeLed");
   if (displayType === "non_led") return stepText(language, "displayTypeNonLed");
   return "-";
+}
+
+function buildPrintProjectTitle(language, row = {}) {
+  const category = String(row.applicationTypeLabel || "").trim();
+  const displayType = String(row.displayTypeLabel || "").trim();
+  const advertisementType = String(row.advertisementTypeLabel || "").trim();
+
+  if (
+    !category ||
+    !displayType ||
+    !advertisementType ||
+    [category, displayType, advertisementType].some((item) => item === "-")
+  ) {
+    return "";
+  }
+
+  const isBuilding =
+    String(row.applicationType || row.application_type || "")
+      .trim()
+      .toLowerCase() === "building" ||
+    category === stepText(language, "applicationTypeBuilding");
+  const action = stepText(
+    language,
+    isBuilding ? "projectActionInstallation" : "projectActionConstruction"
+  );
+  const location = stepText(
+    language,
+    isBuilding ? "projectLocationBuilding" : "projectLocationOpenSpace"
+  );
+  const actionText = formatPrintProjectText(action);
+  const displayText = formatPrintProjectText(displayType);
+  const advertisementText = formatPrintProjectText(advertisementType);
+  const locationText = formatPrintProjectText(location);
+
+  if (language === "ms") {
+    return `${actionText} ${advertisementText} ${displayText} DI ${locationText}`;
+  }
+
+  return `${actionText} OF ${displayText} ${advertisementText} AT ${locationText}`;
+}
+
+function formatPrintProjectText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("en-MY");
 }
 
 function getLetteredDocumentTitle(language, row) {
@@ -1843,6 +2083,24 @@ function getAttachmentHref(attachment, applicationId = "") {
   }
 
   return "";
+}
+
+function getPdfAttachmentText(attachments, noAttachmentText = "") {
+  const attachmentList = Array.isArray(attachments)
+    ? attachments.filter(Boolean)
+    : attachments
+      ? [attachments]
+      : [];
+
+  if (attachmentList.length === 0) {
+    return noAttachmentText || "-";
+  }
+
+  const labels = attachmentList.map((attachment) =>
+    formatAttachment(attachment, noAttachmentText)
+  );
+
+  return labels.join(", ");
 }
 
 function getSiteImageAttachments(step1 = {}) {
