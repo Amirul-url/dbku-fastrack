@@ -488,20 +488,14 @@ function PrintFormPage({
                       value={getApplicationType({ form_data: { step_1: step1 } }, language)}
                     />
                     <PrintLine no="2." label={tx("nameOfProject")} value={step1.project_name} />
-                    <PrintLine no="3." label={tx("applicant")} value={step1.applicant} />
+                    <PrintLine no="3." label={tx("localityAddress")} value={step1.locality_address} />
                     <PrintLine
                       no="4."
-                      label={`${tx("contactPerson")} / ${tx("telNo")}`}
-                      value={`${step1.contact_person || "-"} / ${step1.tel_no || "-"}`}
-                    />
-                    <PrintLine no="5." label={tx("localityAddress")} value={step1.locality_address} />
-                    <PrintLine
-                      no="6."
                       label={`${tx("latitude")} / ${tx("longitude")}`}
                       value={formatCoordinates(step1.latitude, step1.longitude)}
                     />
                     <PrintLine
-                      no="7."
+                      no="5."
                       label={tx("siteImage")}
                       value={
                         <AttachmentLinkList
@@ -518,12 +512,12 @@ function PrintFormPage({
                       tx={tx}
                     />
                     <PrintBlock
-                      no="8."
+                      no="6."
                       label={tx("projectJustification")}
                       value={stripHtml(step1.project_justification)}
                     />
                     <PrintBlock
-                      no="9."
+                      no="7."
                       label={tx("siteSelectionReason")}
                       value={stripHtml(step1.site_selection_reason)}
                     />
@@ -704,20 +698,14 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
         value: getApplicationType({ form_data: { step_1: step1 } }, language),
       },
       { no: "2.", label: tx("nameOfProject"), value: step1.project_name },
-      { no: "3.", label: tx("applicant"), value: step1.applicant },
+      { no: "3.", label: tx("localityAddress"), value: step1.locality_address },
       {
         no: "4.",
-        label: `${tx("contactPerson")} / ${tx("telNo")}`,
-        value: `${step1.contact_person || "-"} / ${step1.tel_no || "-"}`,
-      },
-      { no: "5.", label: tx("localityAddress"), value: step1.locality_address },
-      {
-        no: "6.",
         label: `${tx("latitude")} / ${tx("longitude")}`,
         value: formatCoordinates(step1.latitude, step1.longitude),
       },
       {
-        no: "7.",
+        no: "5.",
         label: tx("siteImage"),
         value: getSiteImageNames(step1),
       },
@@ -732,13 +720,13 @@ function drawPdfPageOne(pdf, { title, step1, tx, language }) {
   });
 
   y = drawPdfBlock(pdf, {
-    no: "8.",
+    no: "6.",
     label: tx("projectJustification"),
     value: stripHtml(step1.project_justification),
     y: y + 1,
   });
   drawPdfBlock(pdf, {
-    no: "9.",
+    no: "7.",
     label: tx("siteSelectionReason"),
     value: stripHtml(step1.site_selection_reason),
     y,

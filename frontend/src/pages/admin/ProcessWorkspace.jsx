@@ -6595,9 +6595,6 @@ function hasCoordinates(step1) {
 function isStepOneComplete(step1, app) {
   const requiredFields = [
     step1.project_name || app.title,
-    step1.applicant,
-    step1.contact_person,
-    step1.tel_no,
     step1.locality_address,
     step1.area_required,
     step1.amount_fund_approved,

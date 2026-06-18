@@ -557,9 +557,6 @@ function SittingApplicationPage({
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
   const [projectName, setProjectName] = useState("");
-  const [applicant, setApplicant] = useState("");
-  const [contactPerson, setContactPerson] = useState("");
-  const [telNo, setTelNo] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
   const [projectJustification, setProjectJustification] = useState("");
   const [siteSelectionReason, setSiteSelectionReason] = useState("");
@@ -637,9 +634,6 @@ function SittingApplicationPage({
 
     setApplicationRecord(data);
     setProjectName(step1.project_name || "");
-    setApplicant(step1.applicant || "");
-    setContactPerson(step1.contact_person || "");
-    setTelNo(step1.tel_no || "");
     setLocalityAddress(step1.locality_address || step1.map_address || "");
     setProjectJustification(step1.project_justification || "");
     setSiteSelectionReason(step1.site_selection_reason || "");
@@ -755,9 +749,6 @@ function SittingApplicationPage({
           division: "",
           project_category: applicationTypeDisplay,
           project_name: projectName,
-          applicant,
-          contact_person: contactPerson,
-          tel_no: telNo,
           width_ft: primaryAdvertisementRow?.widthFt || "",
           height_ft: primaryAdvertisementRow?.heightFt || "",
           locality_address: selectedProjectAddress,
@@ -936,9 +927,6 @@ function SittingApplicationPage({
 
     if (
       !projectName.trim() ||
-      !applicant.trim() ||
-      !contactPerson.trim() ||
-      !telNo.trim() ||
       !String(mapData.address || localityAddress).trim() ||
       !projectJustification.trim() ||
       !siteSelectionReason.trim() ||
@@ -1106,32 +1094,6 @@ function SittingApplicationPage({
                   onChange={(e) => setProjectName(e.target.value)}
                 />
               </Field>
-
-              <Field label={tx("applicant")} required>
-                <input
-                  className="spa-input"
-                  value={applicant}
-                  onChange={(e) => setApplicant(e.target.value)}
-                />
-              </Field>
-
-              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-3">
-                <Field label={tx("contactPerson")} required>
-                  <input
-                    className="spa-input"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
-                  />
-                </Field>
-
-                <Field label={tx("telNo")} required>
-                  <input
-                    className="spa-input"
-                    value={telNo}
-                    onChange={(e) => setTelNo(e.target.value)}
-                  />
-                </Field>
-              </div>
 
               <LocationMap
                 value={mapData}
