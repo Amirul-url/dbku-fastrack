@@ -549,10 +549,6 @@ function OverviewSection({ applications, language, loading, t }) {
     () => buildOverviewStatusSummary(applications, t),
     [applications, t]
   );
-  const resubmissionInsights = useMemo(
-    () => buildResubmissionInsights(applications, t, language),
-    [applications, language, t]
-  );
   const recentActivities = useMemo(
     () => buildRecentActivities(applications, t, language),
     [applications, language, t]
@@ -563,11 +559,6 @@ function OverviewSection({ applications, language, loading, t }) {
       <div className="rounded-md border border-emerald-200 bg-white p-5">
         <OverviewStatusCards items={statusSummary} loading={loading} />
       </div>
-      <ResubmissionMonitor
-        insights={resubmissionInsights}
-        loading={loading}
-        t={t}
-      />
       <RecentActivities activities={recentActivities} loading={loading} t={t} />
     </section>
   );
@@ -575,7 +566,7 @@ function OverviewSection({ applications, language, loading, t }) {
 
 function OverviewStatusCards({ items, loading }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {items.map((item) => (
         <OverviewStatusCard
           key={item.key}
@@ -586,92 +577,6 @@ function OverviewStatusCards({ items, loading }) {
           compact={item.compact}
         />
       ))}
-    </div>
-  );
-}
-
-function ResubmissionMonitor({ insights, loading, t }) {
-  const visibleEntries = insights.entries.slice(0, 5);
-
-  return (
-    <div className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-5 py-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-950">
-              {t("applicant.resubmissionMonitorTitle", "Resubmission Monitor")}
-            </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              {t(
-                "applicant.resubmissionMonitorDesc",
-                "Tracks rejected applications that were sent back to ALiS for review."
-              )}
-            </p>
-          </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-md bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-            <span className="material-symbols-outlined text-[16px]">replay</span>
-            {loading
-              ? "..."
-              : formatActivityText(
-                  t("applicant.resubmittedThisMonthCount", "{count} this month"),
-                  { count: insights.thisMonth }
-                )}
-          </span>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="px-5 py-6 text-sm text-slate-500">
-          {t("common.loading")}
-        </div>
-      ) : visibleEntries.length === 0 ? (
-        <div className="px-5 py-6 text-sm text-slate-500">
-          {t(
-            "applicant.noResubmissionMonitorItems",
-            "No resubmitted applications yet."
-          )}
-        </div>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {visibleEntries.map((entry) => (
-            <div
-              key={`${entry.applicationId}-${entry.resubmittedAt}`}
-              className="grid gap-3 px-5 py-4 text-sm md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
-            >
-              <div className="min-w-0">
-                <p className="font-semibold text-emerald-700">{entry.reference}</p>
-                <p className="mt-1 whitespace-pre-line text-slate-700">
-                  {entry.project}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {t("applicant.lastRejected", "Last Rejected")}
-                </p>
-                <p className="mt-1 text-slate-700">
-                  {entry.rejectedAt ? formatCompactDateTime(entry.rejectedAt) : "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {t("applicant.resubmittedAt", "Resubmitted")}
-                </p>
-                <p className="mt-1 text-slate-700">
-                  {formatCompactDateTime(entry.resubmittedAt)}
-                </p>
-              </div>
-              <div className="md:text-right">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {t("common.status")}
-                </p>
-                <div className="mt-1">
-                  <StatusPill value={entry.status} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1880,7 +1785,6 @@ function buildOverviewStatusSummary(applications, t) {
   const pending = applications.filter((app) => isPendingApplication(app)).length;
   const rejected = applications.filter((app) => isRejectedApplication(app)).length;
   const approved = applications.filter((app) => isApprovedApplication(app)).length;
-  const resubmittedThisMonth = buildResubmissionInsights(applications, t).thisMonth;
 
   return [
     {
@@ -1911,90 +1815,13 @@ function buildOverviewStatusSummary(applications, t) {
       icon: "check_circle",
       tone: "emerald",
     },
-    {
-      key: "resubmitted",
-      label: t("applicant.resubmittedThisMonth", "Resubmitted This Month"),
-      value: resubmittedThisMonth,
-      icon: "replay",
-      tone: "slate",
-    },
   ];
-}
-
-function buildResubmissionInsights(applications, t, language = "en") {
-  const now = new Date();
-  const entries = applications
-    .flatMap((app) => {
-      const activityLog = getApplicationActivityLog(app);
-      const resubmissions = activityLog
-        .filter(isResubmissionActivity)
-        .map((activity) => ({
-          activity,
-          createdAt: activity.created_at || app.updated_at,
-        }))
-        .filter((item) => item.createdAt);
-
-      if (resubmissions.length === 0) return [];
-
-      const rejectedActivities = activityLog
-        .filter(isRejectedActivity)
-        .map((activity) => activity.created_at || app.updated_at)
-        .filter(Boolean);
-
-      return resubmissions.map(({ activity, createdAt }) => ({
-        applicationId: app.id,
-        reference: getApplicationReference(app),
-        project: getProjectName(app, language),
-        rejectedAt: getLatestDateBefore(rejectedActivities, createdAt),
-        resubmittedAt: createdAt,
-        status: translatedStatus(t, getApplicantFilterStatus(app)),
-        rawDescription: activity.description || "",
-      }));
-    })
-    .sort(
-      (a, b) =>
-        new Date(b.resubmittedAt).getTime() - new Date(a.resubmittedAt).getTime()
-    );
-
-  return {
-    thisMonth: entries.filter((entry) => isSameMonth(entry.resubmittedAt, now)).length,
-    total: entries.length,
-    entries,
-  };
 }
 
 function getApplicationActivityLog(app) {
   if (Array.isArray(app?.activity_log)) return app.activity_log;
   if (Array.isArray(app?.form_data?.activity_log)) return app.form_data.activity_log;
   return [];
-}
-
-function isResubmissionActivity(activity) {
-  return String(activity?.title || "").trim().toLowerCase() === "application resubmitted";
-}
-
-function isRejectedActivity(activity) {
-  const title = String(activity?.title || "").trim().toLowerCase();
-  return title === "application rejected" || title.startsWith("application rejected by");
-}
-
-function getLatestDateBefore(dates, beforeDate) {
-  const beforeTime = new Date(beforeDate).getTime();
-  const latestTime = dates
-    .map((date) => new Date(date).getTime())
-    .filter((time) => Number.isFinite(time) && time <= beforeTime)
-    .sort((a, b) => b - a)[0];
-
-  return latestTime ? new Date(latestTime).toISOString() : "";
-}
-
-function isSameMonth(value, date) {
-  const parsed = new Date(value);
-  return (
-    Number.isFinite(parsed.getTime()) &&
-    parsed.getFullYear() === date.getFullYear() &&
-    parsed.getMonth() === date.getMonth()
-  );
 }
 
 function buildRecentActivities(applications, t, language = "en") {

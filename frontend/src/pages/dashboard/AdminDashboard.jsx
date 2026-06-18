@@ -225,7 +225,7 @@ function AdminDashboard() {
 }
 
 function AdminHomeDashboard({ user }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
@@ -275,6 +275,9 @@ function AdminHomeDashboard({ user }) {
   const activities = useMemo(() => {
     return buildAdminRecentActivities(applications, userDepartment, t);
   }, [applications, t, userDepartment]);
+  const resubmissionInsights = useMemo(() => {
+    return buildInternalResubmissionInsights(applications, t, language);
+  }, [applications, language, t]);
   const totalActivityPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
   const visibleActivities = activities.slice(
@@ -286,6 +289,12 @@ function AdminHomeDashboard({ user }) {
   return (
     <AdminDashboardLayout>
       <Alert message={error} />
+
+      <InternalResubmissionMonitor
+        insights={resubmissionInsights}
+        loading={loading}
+        t={t}
+      />
 
       <section className="rounded-md border border-slate-200 bg-white">
         <div className="border-b border-slate-200 px-4 py-3">
@@ -364,6 +373,129 @@ function AdminHomeDashboard({ user }) {
         )}
       </section>
     </AdminDashboardLayout>
+  );
+}
+
+function InternalResubmissionMonitor({ insights, loading, t }) {
+  const visibleEntries = insights.entries.slice(0, 5);
+  const maxCount = Math.max(
+    1,
+    ...insights.months.map((month) => Math.max(month.rejected, month.resubmitted))
+  );
+
+  return (
+    <section className="mb-5 rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">
+              {t("admin.dashboard.resubmissionMonitorTitle", "Resubmission Monitor")}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {t(
+                "admin.dashboard.resubmissionMonitorDesc",
+                "Internal DBKU record of rejected applications and applicant resubmissions."
+              )}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="rounded-md bg-red-50 px-3 py-2 text-red-700">
+              <p className="font-semibold">{t("status.rejected", "Rejected")}</p>
+              <p className="mt-1 text-lg font-bold">{loading ? "..." : insights.totalRejected}</p>
+            </div>
+            <div className="rounded-md bg-blue-50 px-3 py-2 text-blue-700">
+              <p className="font-semibold">{t("admin.dashboard.resubmitted", "Resubmitted")}</p>
+              <p className="mt-1 text-lg font-bold">{loading ? "..." : insights.totalResubmitted}</p>
+            </div>
+            <div className="rounded-md bg-slate-100 px-3 py-2 text-slate-700">
+              <p className="font-semibold">{t("admin.dashboard.activeRejected", "Active Rejected")}</p>
+              <p className="mt-1 text-lg font-bold">{loading ? "..." : insights.activeRejected}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="px-4 py-4 text-sm text-slate-500">{t("common.loading", "Loading...")}</p>
+      ) : insights.entries.length === 0 ? (
+        <p className="px-4 py-4 text-sm text-slate-500">
+          {t("admin.dashboard.noResubmissionLogs", "No rejection or resubmission records yet.")}
+        </p>
+      ) : (
+        <div className="grid gap-5 px-4 py-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex gap-4 text-xs font-semibold text-slate-600">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
+                  {t("status.rejected", "Rejected")}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-blue-500" />
+                  {t("admin.dashboard.resubmitted", "Resubmitted")}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                {t("admin.dashboard.lastSixMonths", "Last 6 months")}
+              </p>
+            </div>
+            <div className="mt-4 grid min-h-[170px] grid-cols-6 items-end gap-3 border-b border-l border-slate-200 px-2 pb-2">
+              {insights.months.map((month) => (
+                <div key={month.key} className="flex min-w-0 flex-col items-center gap-2">
+                  <div className="flex h-28 w-full items-end justify-center gap-1">
+                    <div
+                      className="w-4 rounded-t bg-red-500"
+                      title={`${month.label} ${t("status.rejected", "Rejected")}: ${month.rejected}`}
+                      style={{ height: month.rejected ? `${Math.max(6, (month.rejected / maxCount) * 112)}px` : "0px" }}
+                    />
+                    <div
+                      className="w-4 rounded-t bg-blue-500"
+                      title={`${month.label} ${t("admin.dashboard.resubmitted", "Resubmitted")}: ${month.resubmitted}`}
+                      style={{ height: month.resubmitted ? `${Math.max(6, (month.resubmitted / maxCount) * 112)}px` : "0px" }}
+                    />
+                  </div>
+                  <p className="truncate text-xs font-semibold text-slate-500">{month.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-950">
+                {t("admin.dashboard.resubmissionLog", "Recent Log")}
+              </p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {visibleEntries.map((entry) => (
+                <div key={`${entry.applicationId}-${entry.type}-${entry.eventDate}`} className="px-4 py-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.type === "rejected" ? "bg-red-500" : "bg-blue-500"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-slate-900">{entry.reference}</p>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${entry.type === "rejected" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>
+                          {entry.eventLabel}
+                        </span>
+                      </div>
+                      <p className="mt-1 line-clamp-2 whitespace-pre-line text-slate-600">
+                        {entry.project}
+                      </p>
+                      {entry.remark && (
+                        <p className="mt-1 line-clamp-2 text-slate-500">{entry.remark}</p>
+                      )}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatCompactDateTime(entry.eventDate)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -448,6 +580,138 @@ function getApplicationActivityLog(application) {
     : [];
 
   return activityLog;
+}
+
+function buildInternalResubmissionInsights(applications, t, language = "en") {
+  const now = new Date();
+  const rejectedEntries = applications.flatMap((application) => {
+    const activityLog = getApplicationActivityLog(application);
+    const rejectedActivities = activityLog
+      .filter(isRejectedActivity)
+      .map((activity) => ({
+        activity,
+        createdAt: activity.created_at || application.updated_at || application.created_at,
+      }))
+      .filter((item) => item.createdAt);
+
+    if (rejectedActivities.length > 0) {
+      return rejectedActivities.map(({ activity, createdAt }) => ({
+        type: "rejected",
+        applicationId: application.id,
+        reference: getApplicationReference(application),
+        project: getProjectName(application),
+        eventDate: createdAt,
+        eventLabel: t("status.rejected", "Rejected"),
+        remark: getApplicationRemark(application) || activity.description || "",
+        sortDate: createdAt,
+      }));
+    }
+
+    if (!isRejectedApplication(application)) return [];
+
+    const eventDate = application.updated_at || application.created_at;
+    return [{
+      type: "rejected",
+      applicationId: application.id,
+      reference: getApplicationReference(application),
+      project: getProjectName(application),
+      eventDate,
+      eventLabel: t("status.rejected", "Rejected"),
+      remark: getApplicationRemark(application),
+      sortDate: eventDate,
+    }];
+  });
+
+  const resubmittedEntries = applications.flatMap((application) => {
+    return getApplicationActivityLog(application)
+      .filter(isResubmissionActivity)
+      .map((activity) => {
+        const eventDate = activity.created_at || application.updated_at || application.created_at;
+        return {
+          type: "resubmitted",
+          applicationId: application.id,
+          reference: getApplicationReference(application),
+          project: getProjectName(application),
+          eventDate,
+          eventLabel: t("admin.dashboard.resubmitted", "Resubmitted"),
+          remark: activity.description || "",
+          sortDate: eventDate,
+        };
+      })
+      .filter((entry) => entry.eventDate);
+  });
+  const entries = [...rejectedEntries, ...resubmittedEntries].sort(
+    (a, b) => new Date(b.sortDate || 0).getTime() - new Date(a.sortDate || 0).getTime()
+  );
+
+  return {
+    totalRejected: rejectedEntries.length,
+    totalResubmitted: resubmittedEntries.length,
+    activeRejected: applications.filter(isRejectedApplication).length,
+    months: buildResubmissionMonthlyBuckets(entries, now, language),
+    entries,
+  };
+}
+
+function buildResubmissionMonthlyBuckets(entries, now, language = "en") {
+  const locale = language === "ms" ? "ms-MY" : "en-MY";
+  const formatter = new Intl.DateTimeFormat(locale, { month: "short" });
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    return {
+      key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+      label: formatter.format(date),
+      rejected: 0,
+      resubmitted: 0,
+    };
+  });
+  const monthMap = new Map(months.map((month) => [month.key, month]));
+
+  entries.forEach((entry) => {
+    const date = new Date(entry.eventDate || entry.sortDate);
+    if (!Number.isFinite(date.getTime())) return;
+
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = monthMap.get(key);
+    if (!bucket) return;
+
+    if (entry.type === "rejected") {
+      bucket.rejected += 1;
+    } else if (entry.type === "resubmitted") {
+      bucket.resubmitted += 1;
+    }
+  });
+
+  return months;
+}
+
+function isRejectedActivity(activity) {
+  const title = String(activity?.title || "").trim().toLowerCase();
+  return title === "application rejected" || title.startsWith("application rejected by");
+}
+
+function isResubmissionActivity(activity) {
+  return String(activity?.title || "").trim().toLowerCase() === "application resubmitted";
+}
+
+function isRejectedApplication(application) {
+  return ["incomplete", "rejected"].includes(normalizeStatus(application?.status));
+}
+
+function getApplicationRemark(application) {
+  if (!isRejectedApplication(application)) return "";
+
+  const formData = application?.form_data || {};
+  return cleanRemark(
+    formData.correction_request?.remarks ||
+      application?.latest_remark ||
+      formData.auto_screening?.remarks
+  );
+}
+
+function cleanRemark(value) {
+  const remark = String(value || "").trim();
+  return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
 function isImportantAdminActivity(activity, userDepartment, application = null) {
