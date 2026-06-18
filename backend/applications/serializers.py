@@ -75,6 +75,17 @@ def get_application_applicant_name(application):
     return name or ""
 
 
+def get_application_registered_applicant_name(application):
+    user = getattr(application, "applicant", None)
+    if not user:
+        return ""
+
+    name = " ".join(
+        part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
+    ).strip()
+    return name or ""
+
+
 class SupportingDocumentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
     size = serializers.SerializerMethodField()
@@ -112,6 +123,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     applicant_full_name = serializers.SerializerMethodField()
+    applicant_registered_name = serializers.SerializerMethodField()
     application_type_label = serializers.SerializerMethodField()
     auto_screening = serializers.SerializerMethodField()
     technical_review = serializers.SerializerMethodField()
@@ -134,6 +146,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "applicant",
             "applicant_username",
             "applicant_full_name",
+            "applicant_registered_name",
             "application_type",
             "application_type_label",
             "project_location",
@@ -162,12 +175,16 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "applicant",
             "applicant_username",
             "applicant_full_name",
+            "applicant_registered_name",
             "created_at",
             "updated_at",
         ]
 
     def get_applicant_full_name(self, obj):
         return get_application_applicant_name(obj)
+
+    def get_applicant_registered_name(self, obj):
+        return get_application_registered_applicant_name(obj)
 
     def get_application_type_label(self, obj):
         step1 = (obj.form_data or {}).get("step_1") or {}
@@ -226,6 +243,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     applicant_full_name = serializers.SerializerMethodField()
+    applicant_registered_name = serializers.SerializerMethodField()
 
     supporting_documents = SupportingDocumentSerializer(
         many=True,
@@ -240,6 +258,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant",
             "applicant_username",
             "applicant_full_name",
+            "applicant_registered_name",
             "application_type",
             "project_location",
             "title",
@@ -257,6 +276,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant",
             "applicant_username",
             "applicant_full_name",
+            "applicant_registered_name",
             "project_location",
             "supporting_documents",
             "created_at",
@@ -265,6 +285,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 
     def get_applicant_full_name(self, obj):
         return get_application_applicant_name(obj)
+
+    def get_applicant_registered_name(self, obj):
+        return get_application_registered_applicant_name(obj)
 
     def create(self, validated_data):
         instance = Application(**validated_data)

@@ -537,6 +537,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const displayStatus = getWorkspaceStatusLabel(app, config, t, userDepartment);
       const haystack = [
         getApplicationReference(app),
+        getRegisteredApplicantName(app),
         getApplicantName(app),
         getProjectName(app),
         getApplicationLocation(app),
@@ -2167,10 +2168,26 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     );
                   },
                 },
+                ...(isSimpleApprovalWorkspace
+                  ? [
+                      {
+                        key: "applicant",
+                        label: t("workspace.license.applicantName", "Applicant Name"),
+                        className: "w-[16%] min-w-[12rem]",
+                        render: (app) => (
+                          <span className="font-medium text-slate-700">
+                            {getRegisteredApplicantName(app) || "-"}
+                          </span>
+                        ),
+                      },
+                    ]
+                  : []),
                 {
                   key: "project",
                   label: t("common.project"),
-                  className: "w-[52%] min-w-[18rem]",
+                  className: isSimpleApprovalWorkspace
+                    ? "w-[36%] min-w-[18rem]"
+                    : "w-[52%] min-w-[18rem]",
                   render: (app) => (
                     <span className="block max-w-[42rem] whitespace-pre-line leading-5">
                       {getProjectName(app, language)}
@@ -4254,6 +4271,10 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => reject(reader.error || new Error("Unable to read file."));
     reader.readAsDataURL(file);
   });
+}
+
+function getRegisteredApplicantName(app) {
+  return String(app?.applicant_registered_name || app?.applicant_full_name || getApplicantName(app) || "").trim();
 }
 
 function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {

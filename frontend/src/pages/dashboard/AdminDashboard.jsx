@@ -232,6 +232,7 @@ function AdminDashboard() {
 
 function AdminHomeDashboard({ user }) {
   const { language, t } = useLanguage();
+  const location = useLocation();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
@@ -262,6 +263,14 @@ function AdminHomeDashboard({ user }) {
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const resubmissionView = params.get("resubmission");
+    if (Object.values(RESUBMISSION_DRILLDOWN_TYPES).includes(resubmissionView)) {
+      setResubmissionDrilldown(resubmissionView);
+    }
+  }, [location.search]);
 
   useEffect(() => {
     window.addEventListener("fastrack:applications-changed", fetchApplications);
@@ -739,6 +748,19 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       className: "w-[180px]",
       render: (row) => formatCompactDateTime(row.date),
     },
+    {
+      key: "action",
+      label: t("common.action", "Action"),
+      className: "w-[110px] whitespace-nowrap",
+      render: (row) => (
+        <Link
+          className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+          to={getResubmissionApplicationViewPath(row.applicationId, type)}
+        >
+          {t("common.view", "View")}
+        </Link>
+      ),
+    },
   ];
 
   useEffect(() => {
@@ -1050,6 +1072,7 @@ function buildResubmissionDrilldownRows(type, insights, t) {
     .filter((entry) => entry.type === type)
     .map((entry) => ({
       id: `${entry.applicationId}-${entry.type}-${entry.eventDate}`,
+      applicationId: entry.applicationId,
       reference: entry.reference,
       project: entry.project,
       remark: entry.remark || "",
@@ -1058,6 +1081,11 @@ function buildResubmissionDrilldownRows(type, insights, t) {
       date: entry.eventDate || entry.sortDate,
     }))
     .sort(sortRowsByDateDesc);
+}
+
+function getResubmissionApplicationViewPath(applicationId, type) {
+  const returnTo = encodeURIComponent(`/dashboard/admin?view=dashboard&resubmission=${type}`);
+  return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=action-panel&returnTo=${returnTo}`;
 }
 
 function filterResubmissionDrilldownRows(rows, filters) {

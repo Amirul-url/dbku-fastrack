@@ -65,6 +65,8 @@ class ApplicationReferenceTests(TestCase):
             username="020215130135",
             password="testpass123",
             role="applicant",
+            first_name="REGISTERED",
+            last_name="NAME",
         )
         staff = User.objects.create_user(
             username="pt-ikl",
@@ -104,6 +106,7 @@ class ApplicationReferenceTests(TestCase):
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertEqual(data[0]["applicant_username"], "020215130135")
         self.assertEqual(data[0]["applicant_full_name"], "ALI AHMAD")
+        self.assertEqual(data[0]["applicant_registered_name"], "REGISTERED NAME")
         self.assertEqual(data[0]["auto_screening"]["result"], "PT(IKL) Send to KU(IKL)")
         self.assertEqual(data[0]["technical_review"]["decision"], "Supported")
         self.assertEqual(
