@@ -39,7 +39,6 @@ import {
   getProjectName,
   needsApplicantCorrection,
   normalizeStatus,
-  WORKFLOW_STATUS,
 } from "../../utils/workflow";
 import {
   buildAdvertisementLicenseHtml,
@@ -54,11 +53,13 @@ import {
 const VALID_SECTIONS = ["applications", "status"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TABLE_PAGE_SIZE = 5;
-const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
-const HIDDEN_APPLICANT_STATUS_FILTERS = new Set([
-  WORKFLOW_STATUS.TECHNICAL_AMENDMENT,
-  WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS,
-]);
+const APPLICANT_STATUS_FILTER_OPTIONS = [
+  "Draft",
+  "Submitted",
+  "Under Review",
+  "Rejected",
+  "Approved",
+];
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -1195,7 +1196,7 @@ function LicenseListSection({
             label: t("common.status"),
             className: "w-[12%]",
             cellClassName: "w-[12%] text-sm",
-            render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+            render: (app) => <StatusPill value={translatedStatus(t, getApplicantFilterStatus(app))} />,
           },
           {
             key: "payment",
@@ -1496,7 +1497,7 @@ function ApplicationTable({
           label: t("common.status"),
           className: "w-[12%]",
           cellClassName: "w-[12%] text-sm",
-          render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+          render: (app) => <StatusPill value={translatedStatus(t, getApplicantFilterStatus(app))} />,
         },
         {
           key: "remarks",
@@ -1732,7 +1733,7 @@ function filterDashboardApplications(applications, filters) {
 
   return applications.filter((app) => {
     const appliedDate = getApplicationAppliedDate(app);
-    const displayStatus = getApplicantDisplayStatus(app.status);
+    const displayStatus = getApplicantFilterStatus(app);
     const matchesKeyword = !keyword || [
       getApplicationReference(app),
       getProjectName(app, language),
@@ -1755,18 +1756,34 @@ function filterDashboardApplications(applications, filters) {
   });
 }
 
-function getStatusFilterOptions(applications, t) {
-  const seen = new Set();
+function getApplicantFilterStatus(app) {
+  const status = normalizeStatus(app?.status);
 
-  return WORKFLOW_STATUS_FILTER_OPTIONS
-    .map((status) => getApplicantDisplayStatus(status))
-    .filter((status) => {
-      if (HIDDEN_APPLICANT_STATUS_FILTERS.has(status)) return false;
-      if (!status || seen.has(status)) return false;
-      seen.add(status);
-      return true;
-    })
-    .map((status) => ({
+  if (status === "draft") {
+    return "Draft";
+  }
+
+  if (isApprovedApplication(app)) {
+    return "Approved";
+  }
+
+  if (isRejectedApplication(app)) {
+    return "Rejected";
+  }
+
+  if (status === "submitted") {
+    return "Submitted";
+  }
+
+  if (status && status !== "draft") {
+    return "Under Review";
+  }
+
+  return "";
+}
+
+function getStatusFilterOptions(applications, t) {
+  return APPLICANT_STATUS_FILTER_OPTIONS.map((status) => ({
       value: status,
       label: translatedStatus(t, status),
     }));

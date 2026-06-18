@@ -507,7 +507,10 @@ def register_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    if settings.RECAPTCHA_REQUIRED or settings.RECAPTCHA_SECRET_KEY:
+    if (
+        getattr(settings, "REGISTRATION_RECAPTCHA_ENABLED", False)
+        and (settings.RECAPTCHA_REQUIRED or settings.RECAPTCHA_SECRET_KEY)
+    ):
         recaptcha_token = str(data.get("recaptcha_token", "")).strip()
         recaptcha_valid, recaptcha_error = verify_recaptcha(
             recaptcha_token,

@@ -138,6 +138,9 @@ const stateCityOptions = {
   "W.P. Putrajaya": ["Putrajaya"],
 };
 const stateOptions = Object.keys(stateCityOptions);
+const allCityOptions = Array.from(
+  new Set(Object.values(stateCityOptions).flat())
+).sort((a, b) => a.localeCompare(b));
 
 function normalizeStateCity(state, city) {
   if (stateCityOptions[state]) {
@@ -224,7 +227,14 @@ function SubmittingPersonPage({
   const [faxCountryCode, setFaxCountryCode] = useState("");
   const [faxNo, setFaxNo] = useState("");
   const [applicationRecord, setApplicationRecord] = useState(null);
-  const cityOptions = stateValue ? stateCityOptions[stateValue] || [] : [];
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+  const citySearchTerm = city.trim().toLowerCase();
+  const citySuggestions =
+    citySearchTerm.length >= 2
+      ? allCityOptions
+          .filter((cityOption) => cityOption.toLowerCase().includes(citySearchTerm))
+          .slice(0, 8)
+      : [];
 
   useEffect(() => {
     if (applicationId) {
@@ -269,7 +279,29 @@ function SubmittingPersonPage({
 
   function handleStateChange(value) {
     setStateValue(value);
-    setCity("");
+    setCity(value && stateCityOptions[value]?.includes(city) ? city : "");
+  }
+
+  function handleCityChange(value) {
+    const normalizedValue = value.trim().toLowerCase();
+    const matches = Object.entries(stateCityOptions)
+      .flatMap(([state, cities]) =>
+        cities
+          .filter((cityOption) => cityOption.toLowerCase() === normalizedValue)
+          .map((cityOption) => ({ city: cityOption, state }))
+      );
+    const matchedCity = matches[0]?.city;
+
+    setCity(matchedCity || value);
+    if (matches.length === 1) {
+      setStateValue(matches[0].state);
+    }
+    setShowCitySuggestions(Boolean(value.trim()) && !matchedCity);
+  }
+
+  function selectCitySuggestion(cityOption) {
+    handleCityChange(cityOption);
+    setShowCitySuggestions(false);
   }
 
   function buildStep3Payload() {
@@ -446,7 +478,7 @@ function SubmittingPersonPage({
             )}
           </div>
 
-          <section className="bg-white border border-slate-200 rounded-sm overflow-hidden">
+          <section className="bg-white border border-slate-200 rounded-sm overflow-visible">
             <ApplicationSummary
               application={applicationRecord}
               step1={applicationRecord?.form_data?.step_1 || {}}
@@ -454,7 +486,7 @@ function SubmittingPersonPage({
             />
 
             <fieldset disabled={isReadOnly} className="p-5 space-y-4">
-              <FormSection title={tx("organisation")}>
+              <FormSection title={tx("organisation")} allowOverflow>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label={tx("organisationType")} required>
                     <select
@@ -509,34 +541,44 @@ function SubmittingPersonPage({
                       />
                     </Field>
 
+                    <Field label={tx("city")} required>
+                      <div className="relative">
+                        <input
+                          className="spa-input"
+                          value={city}
+                          autoComplete="off"
+                          onChange={(e) => handleCityChange(e.target.value)}
+                          onFocus={() => setShowCitySuggestions(Boolean(city.trim()))}
+                          onBlur={() => setShowCitySuggestions(false)}
+                        />
+                        {showCitySuggestions && citySuggestions.length > 0 && (
+                          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-48 overflow-y-auto rounded border border-slate-200 bg-white shadow-lg">
+                            {citySuggestions.map((cityOption) => (
+                              <button
+                                key={cityOption}
+                                type="button"
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => selectCitySuggestion(cityOption)}
+                                className="block w-full px-3 py-2 text-left text-sm text-slate-900 hover:bg-slate-50"
+                              >
+                                {cityOption}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Field>
+
                     <Field label={tx("state")} required>
                       <select
                         className="spa-input"
                         value={stateValue}
                         onChange={(e) => handleStateChange(e.target.value)}
                       >
-                        <option value="">{tx("selectState")}</option>
+                        <option value="">{tx("selectState").replaceAll("-", "").trim()}</option>
                         {stateOptions.map((state) => (
                           <option key={state} value={state}>
                             {state}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-
-                    <Field label={tx("city")} required>
-                      <select
-                        className="spa-input"
-                        value={city}
-                        disabled={!stateValue}
-                        onChange={(e) => setCity(e.target.value)}
-                      >
-                        <option value="">
-                          {stateValue ? tx("selectCity") : tx("selectStateFirst")}
-                        </option>
-                        {cityOptions.map((cityOption) => (
-                          <option key={cityOption} value={cityOption}>
-                            {cityOption}
                           </option>
                         ))}
                       </select>
@@ -736,9 +778,13 @@ function SubmittingPersonPage({
   );
 }
 
-function FormSection({ title, children }) {
+function FormSection({ title, children, allowOverflow = false }) {
   return (
-    <section className="border border-slate-200 rounded-sm overflow-hidden">
+    <section
+      className={`border border-slate-200 rounded-sm ${
+        allowOverflow ? "overflow-visible" : "overflow-hidden"
+      }`}
+    >
       <div className="bg-[#f7f7f7] border-b px-3 py-2">
         <h2 className="text-xs font-bold text-slate-700">{title}</h2>
       </div>

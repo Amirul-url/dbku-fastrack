@@ -22,15 +22,15 @@ import {
   getApplicationType,
   getProjectName,
   normalizeStatus,
-  WORKFLOW_STATUS,
 } from "../../../utils/workflow";
 
-const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
-const HIDDEN_APPLICANT_STATUS_FILTERS = new Set([
-  WORKFLOW_STATUS.TECHNICAL_AMENDMENT,
-  WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS,
-]);
-const APPLICANT_STATUS_FILTER_OPTIONS = getApplicantStatusFilterOptions();
+const APPLICANT_STATUS_FILTER_OPTIONS = [
+  "Draft",
+  "Submitted",
+  "Under Review",
+  "Rejected",
+  "Approved",
+];
 
 function UserApplicationsPage() {
   const navigate = useNavigate();
@@ -70,7 +70,7 @@ function UserApplicationsPage() {
         .join(" ")
         .toLowerCase();
 
-      const status = getApplicantDisplayStatus(app.status);
+      const status = getApplicantFilterStatus(app);
       return (!q || haystack.includes(q)) && (statusFilter === "ALL" || status === statusFilter);
     });
   }, [applications, keyword, language, statusFilter, t]);
@@ -167,7 +167,7 @@ function UserApplicationsPage() {
               key: "status",
               label: t("common.status"),
               className: "w-[12%]",
-              render: (app) => <StatusPill value={translatedStatus(t, app.status)} />,
+              render: (app) => <StatusPill value={translatedStatus(t, getApplicantFilterStatus(app))} />,
             },
             {
               key: "remarks",
@@ -224,17 +224,30 @@ function translatedStatus(t, status) {
   return t(`status.${displayStatus}`, formatWorkflowStatus(displayStatus));
 }
 
-function getApplicantStatusFilterOptions() {
-  const seen = new Set();
+function getApplicantFilterStatus(app) {
+  const status = normalizeStatus(app?.status);
 
-  return WORKFLOW_STATUS_FILTER_OPTIONS
-    .map((status) => getApplicantDisplayStatus(status))
-    .filter((status) => {
-      if (HIDDEN_APPLICANT_STATUS_FILTERS.has(status)) return false;
-      if (!status || seen.has(status)) return false;
-      seen.add(status);
-      return true;
-    });
+  if (status === "draft") {
+    return "Draft";
+  }
+
+  if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
+    return "Approved";
+  }
+
+  if (["incomplete", "rejected"].includes(status)) {
+    return "Rejected";
+  }
+
+  if (status === "submitted") {
+    return "Submitted";
+  }
+
+  if (status && status !== "draft") {
+    return "Under Review";
+  }
+
+  return "";
 }
 
 function getApplicationRemark(app) {

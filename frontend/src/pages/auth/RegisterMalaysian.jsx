@@ -23,6 +23,8 @@ const initialForm = {
 };
 
 const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
+const SHOW_REGISTER_PASSWORD_STRENGTH = false;
+const ENABLE_REGISTER_CAPTCHA = false;
 const ADDRESS_MAX_LENGTH = 150;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MYKAD_PATTERN = /^\d{12}$/;
@@ -184,6 +186,23 @@ const stateOptions = Object.keys(stateCityOptions);
 const cityOptions = Array.from(
   new Set(Object.values(stateCityOptions).flat())
 ).sort((a, b) => a.localeCompare(b));
+const REGISTER_FIELD_ERROR_ORDER = [
+  "fullName",
+  "gender",
+  "dateOfBirth",
+  "nationality",
+  "mykadNumber",
+  "mobileNumber",
+  "email",
+  "addressLine1",
+  "addressLine2",
+  "postcode",
+  "city",
+  "state",
+  "password",
+  "confirmPassword",
+  "captcha",
+];
 
 function RequiredLabel({ children }) {
   return (
@@ -317,6 +336,7 @@ function RegisterMalaysian() {
       : [];
 
   useEffect(() => {
+    if (!ENABLE_REGISTER_CAPTCHA) return undefined;
     if (!recaptchaSiteKey || !recaptchaRef.current) return undefined;
 
     let cancelled = false;
@@ -460,8 +480,12 @@ function RegisterMalaysian() {
     } else if (form.password !== form.confirmPassword) {
       errors.confirmPassword = t("auth.validation.passwordMismatch");
     }
-    if (recaptchaSiteKey && !recaptchaToken) errors.captcha = t("auth.validation.recaptcha");
-    if (!recaptchaSiteKey && !form.captchaChecked) errors.captcha = t("auth.validation.captcha");
+    if (ENABLE_REGISTER_CAPTCHA && recaptchaSiteKey && !recaptchaToken) {
+      errors.captcha = t("auth.validation.recaptcha");
+    }
+    if (ENABLE_REGISTER_CAPTCHA && !recaptchaSiteKey && !form.captchaChecked) {
+      errors.captcha = t("auth.validation.captcha");
+    }
 
     return errors;
   };
@@ -472,6 +496,48 @@ function RegisterMalaysian() {
         ? "border-red-400 focus:ring-red-100"
         : "border-slate-200 focus:ring-[#07c25f]"
     }`;
+
+  const scrollToFirstError = (errors) => {
+    const firstField = REGISTER_FIELD_ERROR_ORDER.find((field) => errors[field]);
+
+    if (!firstField) {
+      return;
+    }
+
+    const scrollToField = (attempt = 0) => {
+      const field = document.querySelector(`[aria-describedby="${firstField}-error"]`);
+      const errorMessage = document.getElementById(`${firstField}-error`);
+      const target = field?.closest("[data-register-field]") || field || errorMessage;
+
+      if (!target) {
+        if (attempt < 5) {
+          window.setTimeout(() => scrollToField(attempt + 1), 80);
+        }
+        return;
+      }
+
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+      if (typeof field?.focus === "function") {
+        field.focus({ preventScroll: true });
+      }
+    };
+
+    window.requestAnimationFrame(() => scrollToField());
+  };
+
+  const scrollToRegistrationSummary = () => {
+    window.requestAnimationFrame(() => {
+      const summary = document.getElementById("registration-error-summary");
+
+      if (summary) {
+        summary.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  };
 
   const handleStateChange = (value) => {
     setForm((prev) => ({
@@ -581,16 +647,14 @@ function RegisterMalaysian() {
     if (Object.keys(validationErrors).length > 0) {
       setFieldErrors(validationErrors);
       setError(t("auth.validation.summary"));
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToRegistrationSummary();
       return;
     }
 
     try {
       setLoading(true);
 
-      await apiRequest("/auth/register/", {
-        method: "POST",
-        body: JSON.stringify({
+      const registrationPayload = {
           account_type: "applicant",
           nationality_type: "malaysian",
           role: "applicant",
@@ -614,10 +678,17 @@ function RegisterMalaysian() {
           gender: form.gender,
           date_of_birth: form.dateOfBirth,
           nationality: form.nationality.trim(),
-          recaptcha_token: recaptchaToken,
           password: form.password,
           password2: form.confirmPassword,
-        }),
+      };
+
+      if (ENABLE_REGISTER_CAPTCHA) {
+        registrationPayload.recaptcha_token = recaptchaToken;
+      }
+
+      await apiRequest("/auth/register/", {
+        method: "POST",
+        body: JSON.stringify(registrationPayload),
       });
 
       navigate("/login/malaysian", {
@@ -628,11 +699,11 @@ function RegisterMalaysian() {
       const serverError = getRegistrationServerError(err.message);
       setError(serverError.message);
       setFieldErrors(serverError.fieldErrors);
-      if (recaptchaSiteKey && window.grecaptcha && recaptchaWidgetId.current !== null) {
+      if (ENABLE_REGISTER_CAPTCHA && recaptchaSiteKey && window.grecaptcha && recaptchaWidgetId.current !== null) {
         window.grecaptcha.reset(recaptchaWidgetId.current);
         setRecaptchaToken("");
       }
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollToFirstError(serverError.fieldErrors);
     } finally {
       setLoading(false);
     }
@@ -671,8 +742,13 @@ function RegisterMalaysian() {
         </div>
 
         {error && (
-          <div className="mx-12 mb-6 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-            {error}
+          <div className="mx-auto mb-6 max-w-[1440px] px-12">
+            <div
+              id="registration-error-summary"
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+            >
+              {error}
+            </div>
           </div>
         )}
 
@@ -691,7 +767,7 @@ function RegisterMalaysian() {
               </div>
 
               <div className="grid grid-cols-4 gap-4">
-                <div className="col-span-2">
+                <div className="col-span-2" data-register-field="mykadNumber">
                   <RequiredLabel>
                     {t("auth.fullNameMyKad")}
                   </RequiredLabel>
@@ -708,7 +784,7 @@ function RegisterMalaysian() {
                   <FieldError id="fullName-error" message={fieldErrors.fullName} />
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-2" data-register-field="mobileNumber">
                   <RequiredLabel>
                     {t("auth.gender")}
                   </RequiredLabel>
@@ -727,7 +803,7 @@ function RegisterMalaysian() {
                   <FieldError id="gender-error" message={fieldErrors.gender} />
                 </div>
 
-                <div className="col-span-2">
+                <div className="col-span-2" data-register-field="email">
                   <RequiredLabel>
                     {t("auth.dateOfBirth")}
                   </RequiredLabel>
@@ -913,7 +989,6 @@ function RegisterMalaysian() {
                       autoComplete="off"
                       aria-invalid={Boolean(fieldErrors.city)}
                       aria-describedby={fieldErrors.city ? "city-error" : undefined}
-                      placeholder={t("auth.selectCity")}
                       value={form.city}
                       onChange={(e) => handleCityChange(e.target.value)}
                       onFocus={() => setShowCitySuggestions(Boolean(form.city.trim()))}
@@ -1026,101 +1101,105 @@ function RegisterMalaysian() {
                   <FieldError id="confirmPassword-error" message={fieldErrors.confirmPassword} />
                 </div>
 
-                <div className="col-span-4">
-                  <PasswordStrengthMeter password={form.password} t={t} />
-                </div>
+                {SHOW_REGISTER_PASSWORD_STRENGTH && (
+                  <div className="col-span-4">
+                    <PasswordStrengthMeter password={form.password} t={t} />
+                  </div>
+                )}
 
-                <div className="col-span-4">
-                  <RequiredLabel>
-                    {t("auth.captchaVerification")}
-                  </RequiredLabel>
-                  {recaptchaSiteKey ? (
-                    <div
-                      className={`inline-block h-[78px] w-[304px] overflow-hidden rounded-md bg-white shadow-sm [&_textarea]:!hidden ${
-                        fieldErrors.captcha ? "ring-2 ring-red-100" : ""
-                      }`}
-                    >
-                      <div ref={recaptchaRef} />
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        updateField("captchaChecked", !form.captchaChecked);
-                        setFieldErrors((prev) => {
-                          if (!prev.captcha) return prev;
-                          const next = { ...prev };
-                          delete next.captcha;
-                          return next;
-                        });
-                      }}
-                      className={`flex h-[68px] w-[278px] items-center justify-between rounded-md border bg-white px-4 text-left shadow-sm transition ${
-                        form.captchaChecked
-                          ? "border-[#006d32] ring-2 ring-[#006d32]/15"
-                          : "border-slate-300 hover:border-slate-400"
-                      }`}
-                      aria-pressed={form.captchaChecked}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span
-                          className={`flex h-5 w-5 items-center justify-center rounded border-2 ${
-                            form.captchaChecked
-                              ? "border-[#006d32] bg-[#006d32] text-white"
-                              : "border-slate-300 bg-white"
-                          }`}
-                        >
-                          {form.captchaChecked && (
-                            <svg
-                              aria-hidden="true"
-                              className="h-3 w-3"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="m5 12 4 4L19 6" />
-                            </svg>
-                          )}
+                {ENABLE_REGISTER_CAPTCHA && (
+                  <div className="col-span-4">
+                    <RequiredLabel>
+                      {t("auth.captchaVerification")}
+                    </RequiredLabel>
+                    {recaptchaSiteKey ? (
+                      <div
+                        className={`inline-block h-[78px] w-[304px] overflow-hidden rounded-md bg-white shadow-sm [&_textarea]:!hidden ${
+                          fieldErrors.captcha ? "ring-2 ring-red-100" : ""
+                        }`}
+                      >
+                        <div ref={recaptchaRef} />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateField("captchaChecked", !form.captchaChecked);
+                          setFieldErrors((prev) => {
+                            if (!prev.captcha) return prev;
+                            const next = { ...prev };
+                            delete next.captcha;
+                            return next;
+                          });
+                        }}
+                        className={`flex h-[68px] w-[278px] items-center justify-between rounded-md border bg-white px-4 text-left shadow-sm transition ${
+                          form.captchaChecked
+                            ? "border-[#006d32] ring-2 ring-[#006d32]/15"
+                            : "border-slate-300 hover:border-slate-400"
+                        }`}
+                        aria-pressed={form.captchaChecked}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span
+                            className={`flex h-5 w-5 items-center justify-center rounded border-2 ${
+                              form.captchaChecked
+                                ? "border-[#006d32] bg-[#006d32] text-white"
+                                : "border-slate-300 bg-white"
+                            }`}
+                          >
+                            {form.captchaChecked && (
+                              <svg
+                                aria-hidden="true"
+                                className="h-3 w-3"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="m5 12 4 4L19 6" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="text-sm font-semibold text-slate-900">
+                            {t("auth.notRobot")}
+                          </span>
                         </span>
-                        <span className="text-sm font-semibold text-slate-900">
-                          {t("auth.notRobot")}
+                        <span className="flex flex-col items-center text-slate-500">
+                          <svg
+                            aria-hidden="true"
+                            className="h-6 w-6 text-blue-500"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M21 12a9 9 0 0 1-15.2 6.5" />
+                            <path d="M3 12A9 9 0 0 1 18.2 5.5" />
+                            <path d="M21 4v6h-6" />
+                            <path d="M3 20v-6h6" />
+                          </svg>
+                          <span className="mt-0.5 text-[9px] font-semibold">
+                            {t("auth.verification")}
+                          </span>
+                          <span className="text-[8px]">{t("auth.privacyTerms")}</span>
                         </span>
-                      </span>
-                      <span className="flex flex-col items-center text-slate-500">
-                        <svg
-                          aria-hidden="true"
-                          className="h-6 w-6 text-blue-500"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 12a9 9 0 0 1-15.2 6.5" />
-                          <path d="M3 12A9 9 0 0 1 18.2 5.5" />
-                          <path d="M21 4v6h-6" />
-                          <path d="M3 20v-6h6" />
-                        </svg>
-                        <span className="mt-0.5 text-[9px] font-semibold">
-                          {t("auth.verification")}
-                        </span>
-                        <span className="text-[8px]">{t("auth.privacyTerms")}</span>
-                      </span>
-                    </button>
-                  )}
-                  {recaptchaError && (
-                    <p className="mt-2 text-sm font-medium text-red-600">{recaptchaError}</p>
-                  )}
-                  <FieldError id="captcha-error" message={fieldErrors.captcha} />
-                  {!recaptchaSiteKey && (
-                    <p className="mt-2 text-xs text-slate-500">
-                      {t("auth.localCaptchaPreview")}
-                    </p>
-                  )}
-                </div>
+                      </button>
+                    )}
+                    {recaptchaError && (
+                      <p className="mt-2 text-sm font-medium text-red-600">{recaptchaError}</p>
+                    )}
+                    <FieldError id="captcha-error" message={fieldErrors.captcha} />
+                    {!recaptchaSiteKey && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        {t("auth.localCaptchaPreview")}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </section>

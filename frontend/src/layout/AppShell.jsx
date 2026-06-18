@@ -213,6 +213,7 @@ function AppShell({ children, role = "admin" }) {
   const { t } = useLanguage();
   const [user, setUser] = useState(getStoredUser);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
     readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false)
   );
@@ -427,7 +428,11 @@ function AppShell({ children, role = "admin" }) {
 
   return (
     <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-200 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
           <img src={logo} alt="ALiS Logo" className="h-9 w-auto object-contain" />
           <div className="min-w-0">
@@ -679,10 +684,19 @@ function AppShell({ children, role = "admin" }) {
         </nav>
       </aside>
 
-      <div className="pl-72">
+      <div className={`transition-[padding] duration-200 ${sidebarOpen ? "pl-72" : "pl-0"}`}>
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-4 px-7">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen((current) => !current)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                aria-label={t("common.toggleSidebar", "Toggle sidebar")}
+                title={t("common.toggleSidebar", "Toggle sidebar")}
+              >
+                <Icon name="menu" className="text-[22px]" />
+              </button>
               <p className="truncate text-sm font-semibold text-slate-950">
                 {t("profile.welcome")}, {userDisplayName}
               </p>
