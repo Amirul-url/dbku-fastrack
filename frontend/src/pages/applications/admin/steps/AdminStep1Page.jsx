@@ -88,8 +88,8 @@ function AdminStep1Page() {
       );
       setSiteImageName(
         savedSiteImage?.name ||
-          savedSiteImage?.file?.split("/")?.pop() ||
           step1.site_image_name ||
+          savedSiteImage?.file?.split("/")?.pop() ||
           ""
       );
       setSiteImagePreview(savedSiteImageUrl);

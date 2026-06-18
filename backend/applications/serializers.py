@@ -74,6 +74,7 @@ def get_application_applicant_name(application):
 
 class SupportingDocumentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
+    size = serializers.SerializerMethodField()
 
     class Meta:
         model = SupportingDocument
@@ -82,9 +83,10 @@ class SupportingDocumentSerializer(serializers.ModelSerializer):
             "title",
             "file",
             "file_url",
+            "size",
             "uploaded_at",
         ]
-        read_only_fields = ["id", "file_url", "uploaded_at"]
+        read_only_fields = ["id", "file_url", "size", "uploaded_at"]
 
     def get_file_url(self, obj):
         request = self.context.get("request")
@@ -93,6 +95,12 @@ class SupportingDocumentSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.file.url)
 
         return obj.file.url
+
+    def get_size(self, obj):
+        try:
+            return obj.file.size if obj.file else 0
+        except (OSError, ValueError):
+            return 0
 
 
 class ApplicationListSerializer(serializers.ModelSerializer):

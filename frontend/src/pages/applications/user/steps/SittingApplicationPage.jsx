@@ -253,6 +253,65 @@ function getAdvertisementRowsSubtypeLabel(
   );
 }
 
+function formatProjectText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("en-MY");
+}
+
+function formatAddressText(value) {
+  return String(value || "").toLocaleUpperCase("en-MY");
+}
+
+function buildProjectNameLine(language, selectedType, row) {
+  const displayType =
+    row?.displayType ||
+    row?.display_type ||
+    getApplicationDisplayTypeFromSubtype(row?.subtype);
+  const normalizedSubtype = normalizeApplicationSubtype(row?.subtype, selectedType);
+  const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
+  const displayLabel = getDisplayTypeLabel(language, displayType);
+  const advertisementLabel = getApplicationSubtypeLabel(
+    language,
+    selectedType,
+    normalizedSubtype,
+    customLabel
+  );
+
+  if (!displayLabel || !advertisementLabel) return "";
+
+  const isMalay = language === "ms";
+  const action = stepText(
+    language,
+    selectedType === "building" ? "projectActionInstallation" : "projectActionConstruction"
+  );
+  const location = stepText(
+    language,
+    selectedType === "building" ? "projectLocationBuilding" : "projectLocationOpenSpace"
+  );
+  const actionText = formatProjectText(action);
+  const locationText = formatProjectText(location);
+  const displayText = formatProjectText(displayLabel);
+  const advertisementText = formatProjectText(advertisementLabel);
+
+  if (isMalay) {
+    return `${actionText} ${advertisementText} ${displayText} DI ${locationText}`;
+  }
+
+  return `${actionText} OF ${displayText} ${advertisementText} AT ${locationText}`;
+}
+
+function buildProjectName(language, selectedType, rows) {
+  const projectLines = (Array.isArray(rows) ? rows : [])
+    .map((row) => buildProjectNameLine(language, selectedType, row))
+    .filter(Boolean);
+
+  return projectLines
+    .map((line, index) => `${index + 1}. ${line}`)
+    .join("\n");
+}
+
 function normalizeCustomAdvertisementTypes(value) {
   const normalized = {
     open_space: {
@@ -395,7 +454,29 @@ function formatCalculatedArea(value) {
 
 function formatCalculatedAmount(value) {
   const rounded = Math.round((Number(value) || 0) * 100) / 100;
-  return rounded.toFixed(2);
+  return rounded.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatCalculatedCurrency(value) {
+  const amount = toCurrencyCents(value) / 100;
+  const prefix = amount < 0 ? "-RM" : "RM";
+  return `${prefix}${formatCalculatedAmount(Math.abs(amount))}`;
+}
+
+function toCurrencyCents(value) {
+  return Math.round((Number(value) || 0) * 100);
+}
+
+function roundToOfficialFiveSen(value) {
+  const cents = toCurrencyCents(value);
+  const roundedCents = Math.round(cents / 5) * 5;
+  return {
+    roundedAmount: roundedCents / 100,
+    adjustment: (roundedCents - cents) / 100,
+  };
 }
 
 function formatFlexibleDecimal(value, maxDecimals = 10) {
@@ -434,6 +515,31 @@ function getSiteImageName(image, fallback = "") {
   );
 }
 
+function getSavedSiteImageNamesByDocumentId(stepData = {}) {
+  const namesByDocumentId = new Map();
+  const savedImages = [
+    ...(Array.isArray(stepData.site_images) ? stepData.site_images : []),
+    stepData.site_image,
+  ].filter(Boolean);
+
+  savedImages.forEach((image) => {
+    const documentId = String(getSiteImageDocumentId(image) || "");
+    const name = String(image?.name || "").trim();
+
+    if (documentId && name) {
+      namesByDocumentId.set(documentId, name);
+    }
+  });
+
+  const primaryDocumentId = String(stepData.site_image_document_id || "");
+  const primaryName = String(stepData.site_image_name || "").trim();
+  if (primaryDocumentId && primaryName) {
+    namesByDocumentId.set(primaryDocumentId, primaryName);
+  }
+
+  return namesByDocumentId;
+}
+
 function getSiteImageDownloadUrl(applicationId, image, stepData = {}) {
   const documentId = getSiteImageDocumentId(image);
   if (documentId) return getApplicationDocumentUrl(applicationId, documentId);
@@ -466,6 +572,11 @@ function normalizeSiteImageItem(image, applicationId, stepData = {}, fallbackNam
     file: image.file instanceof File ? image.file : null,
     attachment: image.attachment || image,
   };
+}
+
+function isStoredSiteImagePresent(image, supportingDocumentIds) {
+  const documentId = getSiteImageDocumentId(image);
+  return !documentId || supportingDocumentIds.has(String(documentId));
 }
 
 function uniqueSiteImages(images) {
@@ -512,7 +623,8 @@ function calculateIklFeeBreakdown(areaRequired, subtype = "") {
     : firstAreaSqm * schedule.firstAreaRate;
   const additionalAreaFee = additionalAreaSqm * schedule.additionalAreaRate;
   const feeTotal = firstAreaFee + additionalAreaFee;
-  const totalPayable = feeTotal + IKL_FIXED_DEPOSIT + IKL_PROCESSING_FEE;
+  const subtotalPayable = feeTotal + IKL_FIXED_DEPOSIT + IKL_PROCESSING_FEE;
+  const roundedPayable = roundToOfficialFiveSen(subtotalPayable);
 
   return {
     scheduleNumber: schedule.number,
@@ -529,7 +641,9 @@ function calculateIklFeeBreakdown(areaRequired, subtype = "") {
     feeTotal,
     deposit: IKL_FIXED_DEPOSIT,
     processingFee: IKL_PROCESSING_FEE,
-    totalPayable,
+    roundingAdjustment: roundedPayable.adjustment,
+    subtotalPayable,
+    totalPayable: roundedPayable.roundedAmount,
   };
 }
 
@@ -556,7 +670,6 @@ function SittingApplicationPage({
 
   const applicationId = applicationIdRaw ? Number(applicationIdRaw) : null;
 
-  const [projectName, setProjectName] = useState("");
   const [localityAddress, setLocalityAddress] = useState("");
   const [projectJustification, setProjectJustification] = useState("");
   const [siteSelectionReason, setSiteSelectionReason] = useState("");
@@ -582,6 +695,12 @@ function SittingApplicationPage({
     latitude: 1.586684,
     longitude: 110.334028,
   });
+  const selectedApplicationType = getPrimaryApplicationType(applicationTypeOptions);
+  const projectName = buildProjectName(
+    language,
+    selectedApplicationType,
+    advertisementRows
+  );
 
   useLayoutEffect(() => {
     if (prefetchedApplication && String(prefetchedApplication.id) === String(applicationId)) {
@@ -633,8 +752,7 @@ function SittingApplicationPage({
       primaryAdvertisementRow?.customLabel || step1.advertisement_type_custom_label || "";
 
     setApplicationRecord(data);
-    setProjectName(step1.project_name || "");
-    setLocalityAddress(step1.locality_address || step1.map_address || "");
+    setLocalityAddress(formatAddressText(step1.locality_address || step1.map_address || ""));
     setProjectJustification(step1.project_justification || "");
     setSiteSelectionReason(step1.site_selection_reason || "");
     setApplicationTypeOptions([savedType]);
@@ -651,15 +769,20 @@ function SittingApplicationPage({
     const supportingDocumentIds = new Set(
       supportingDocuments.map((document) => String(document.id))
     );
-    const savedSiteImages = Array.isArray(step1.site_images)
+    const savedSiteImages = (Array.isArray(step1.site_images)
       ? step1.site_images
-      : [];
+      : []
+    ).filter((image) => isStoredSiteImagePresent(image, supportingDocumentIds));
+    const savedSiteImageNamesByDocumentId = getSavedSiteImageNamesByDocumentId(step1);
     const documentSiteImages = supportingDocuments
       .filter((document) => document.title === "Site Image")
       .map((document) => ({
         ...document,
         document_id: document.id,
-        name: getSiteImageName(document, document.title),
+        name:
+          savedSiteImageNamesByDocumentId.get(String(document.id)) ||
+          getSiteImageName(document, document.title),
+        size: document.size || 0,
         url: getApplicationDocumentUrl(applicationId, document.id),
       }));
     const legacyDocumentId = getSiteImageDocumentId(step1.site_image);
@@ -678,7 +801,7 @@ function SittingApplicationPage({
     setSiteImages(nextSiteImages);
 
     setMapData({
-      address: step1.map_address || step1.locality_address || "",
+      address: formatAddressText(step1.map_address || step1.locality_address || ""),
       latitude: Number(step1.latitude || 1.586684),
       longitude: Number(step1.longitude || 110.334028),
     });
@@ -721,7 +844,7 @@ function SittingApplicationPage({
     );
     const technicalDepartments = getApplicationTypeDepartments(selectedTypes);
     const calculatedPayable = getAdvertisementRowsTotalPayable(calculatedAdvertisementRows);
-    const selectedProjectAddress = mapData.address || localityAddress;
+    const selectedProjectAddress = formatAddressText(mapData.address || localityAddress);
     const savedSiteImageAttachments = siteImages
       .filter((image) => !image.file && image.attachment)
       .map((image) => image.attachment);
@@ -791,9 +914,13 @@ function SittingApplicationPage({
   }
 
   function handleMapDataChange(nextMapData) {
-    setMapData(nextMapData);
+    const normalizedMapData = {
+      ...nextMapData,
+      address: formatAddressText(nextMapData?.address || ""),
+    };
+    setMapData(normalizedMapData);
     if (nextMapData?.address !== undefined) {
-      setLocalityAddress(nextMapData.address || "");
+      setLocalityAddress(normalizedMapData.address);
     }
   }
 
@@ -837,10 +964,49 @@ function SittingApplicationPage({
 
   async function handleSiteImageRemove(imageToRemove) {
     const documentId = getSiteImageDocumentId(imageToRemove);
+    const nextImages = siteImages.filter((image) => image.key !== imageToRemove.key);
+
+    async function syncSavedSiteImagesAfterRemoval() {
+      if (!applicationId) return;
+
+      const remainingAttachments = nextImages
+        .filter((image) => !(image.file instanceof File))
+        .map((image) => image.attachment || image)
+        .filter((image) => String(getSiteImageDocumentId(image) || "") !== String(documentId));
+      const primaryAttachment = remainingAttachments[0] || null;
+
+      await apiRequest(`/applications/${applicationId}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: {
+            step_1: {
+              site_image_name: primaryAttachment?.name || "",
+              site_image: primaryAttachment,
+              site_images: remainingAttachments,
+              site_image_document_id: getSiteImageDocumentId(primaryAttachment),
+              site_image_url: primaryAttachment?.url || primaryAttachment?.file_url || "",
+              site_image_preview: "",
+            },
+          },
+        }),
+      });
+    }
 
     if (documentId && applicationId) {
       try {
         await deleteApplicationDocument(applicationId, documentId);
+      } catch (error) {
+        if (error?.status === 404) {
+          console.warn("Site image document was already removed:", error);
+        } else {
+          console.error("Failed to delete site image:", error);
+          alert(tx("failedDeleteFile"));
+          return;
+        }
+      }
+
+      try {
+        await syncSavedSiteImagesAfterRemoval();
       } catch (error) {
         console.error("Failed to delete site image:", error);
         alert(tx("failedDeleteFile"));
@@ -852,9 +1018,7 @@ function SittingApplicationPage({
       URL.revokeObjectURL(imageToRemove.preview);
     }
 
-    setSiteImages((current) =>
-      current.filter((image) => image.key !== imageToRemove.key)
-    );
+    setSiteImages(nextImages);
   }
 
   async function uploadPendingSiteImages(application, payload) {
@@ -1088,10 +1252,11 @@ function SittingApplicationPage({
                 </FormSection>
 
               <Field label={tx("nameOfProject")} required>
-                <input
-                  className="spa-input"
+                <textarea
+                  className="spa-input min-h-16 resize-none uppercase"
                   value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
+                  rows={Math.max(2, projectName.split("\n").length)}
+                  readOnly
                 />
               </Field>
 
@@ -1295,7 +1460,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   useEffect(() => {
     const nextLng = Number(value?.longitude || defaultLng);
     const nextLat = Number(value?.latitude || defaultLat);
-    const nextAddress = value?.address ?? address;
+    const nextAddress = formatAddressText(value?.address ?? address);
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLng(nextLng);
@@ -1365,7 +1530,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
 
   function pushChange(nextAddress, nextLat, nextLng) {
     onChange?.({
-      address: nextAddress,
+      address: formatAddressText(nextAddress),
       latitude: nextLat,
       longitude: nextLng,
     });
@@ -1411,7 +1576,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
           "Malaysia",
         ].filter(Boolean);
 
-        const nextAddress = parts.join(", ") || data.display_name;
+        const nextAddress = formatAddressText(parts.join(", ") || data.display_name);
 
         setAddress(nextAddress);
         pushChange(nextAddress, nextLat, nextLng);
@@ -1452,8 +1617,8 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
     const data = await response.json();
     return (data?.features || []).map((feature) => ({
       id: feature.id,
-      text: feature.text || feature.place_name?.split(",")[0] || "",
-      place_name: feature.place_name || "",
+      text: formatAddressText(feature.text || feature.place_name?.split(",")[0] || ""),
+      place_name: formatAddressText(feature.place_name || ""),
       center: feature.geometry?.coordinates || feature.center,
     }));
   }
@@ -1504,8 +1669,8 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
 
       return {
         id: item.place_id,
-        text: shortLabel,
-        place_name: fullLabel || item.display_name,
+        text: formatAddressText(shortLabel),
+        place_name: formatAddressText(fullLabel || item.display_name),
         center: [parseFloat(item.lon), parseFloat(item.lat)],
       };
     });
@@ -1569,7 +1734,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   function handleAddressChange(event) {
     if (readOnly) return;
 
-    const nextAddress = event.target.value;
+    const nextAddress = formatAddressText(event.target.value);
     setAddress(nextAddress);
     pushChange(nextAddress, lat, lng);
 
@@ -1584,7 +1749,8 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
 
     const [selectedLng, selectedLat] = place.center;
 
-    setAddress(place.place_name);
+    const nextAddress = formatAddressText(place.place_name);
+    setAddress(nextAddress);
     setSuggestions([]);
 
     const fixedLng = Number(selectedLng.toFixed(6));
@@ -1600,7 +1766,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
       duration: 500,
     });
 
-    pushChange(place.place_name, fixedLat, fixedLng);
+    pushChange(nextAddress, fixedLat, fixedLng);
   }
 
   function apply2D() {
@@ -2136,29 +2302,33 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
               label={tx(`calculationFirstArea${breakdown.scheduleNumber}`)}
               value={
                 breakdown.usesFixedFirstAreaFee
-                  ? `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m = RM${formatCalculatedAmount(breakdown.firstAreaFixedFee)}`
-                  : `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x RM${formatCalculatedAmount(breakdown.firstAreaRate)} = RM${formatCalculatedAmount(breakdown.firstAreaFee)}`
+                  ? `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m = ${formatCalculatedCurrency(breakdown.firstAreaFixedFee)}`
+                  : `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x ${formatCalculatedCurrency(breakdown.firstAreaRate)} = ${formatCalculatedCurrency(breakdown.firstAreaFee)}`
               }
             />
             <CalculationRow
               label={tx("calculationAdditionalArea")}
-              value={`${formatWholeNumber(breakdown.additionalAreaSqm)} Sq. m x RM${formatCalculatedAmount(breakdown.additionalAreaRate)} = RM${formatCalculatedAmount(breakdown.additionalAreaFee)}`}
+              value={`${formatWholeNumber(breakdown.additionalAreaSqm)} Sq. m x ${formatCalculatedCurrency(breakdown.additionalAreaRate)} = ${formatCalculatedCurrency(breakdown.additionalAreaFee)}`}
             />
             <CalculationRow
               label={tx("calculationFeeTotal")}
-              value={`RM${formatCalculatedAmount(breakdown.feeTotal)}`}
+              value={formatCalculatedCurrency(breakdown.feeTotal)}
             />
             <CalculationRow
               label={tx("calculationDeposit")}
-              value={`RM${formatCalculatedAmount(breakdown.deposit)}`}
+              value={formatCalculatedCurrency(breakdown.deposit)}
             />
             <CalculationRow
               label={tx("calculationProcessingFee")}
-              value={`RM${formatCalculatedAmount(breakdown.processingFee)}`}
+              value={formatCalculatedCurrency(breakdown.processingFee)}
+            />
+            <CalculationRow
+              label={tx("calculationRoundingAdjustment")}
+              value={formatCalculatedCurrency(breakdown.roundingAdjustment)}
             />
             <CalculationRow
               label={tx("calculationTotalPayable")}
-              value={`RM${formatCalculatedAmount(breakdown.totalPayable)}`}
+              value={formatCalculatedCurrency(breakdown.totalPayable)}
               strong
             />
           </div>

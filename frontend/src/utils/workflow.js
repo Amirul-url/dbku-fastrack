@@ -512,11 +512,11 @@ function getLocalizedApplicationTypeLabel(value, language = "en") {
   const labelMap = {
     open_space: {
       en: "Open Space",
-      ms: "Kawasan Lapang",
+      ms: "Ruang Terbuka",
     },
     kawasan_lapang: {
       en: "Open Space",
-      ms: "Kawasan Lapang",
+      ms: "Ruang Terbuka",
     },
     building: {
       en: "Building",

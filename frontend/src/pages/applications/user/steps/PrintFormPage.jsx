@@ -1753,13 +1753,16 @@ function isMphlgApplicantCorrection(applicationRecord) {
 function formatRM(value) {
   if (!value) return "-";
 
-  const numberValue = Number(String(value).replace(/[^0-9.]/g, ""));
+  const numberValue = Number(String(value).replace(/[^0-9.-]/g, ""));
 
   if (Number.isNaN(numberValue)) {
     return value;
   }
 
-  return `RM${numberValue.toFixed(2)}`;
+  return `RM${numberValue.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatCoordinates(latitude, longitude) {

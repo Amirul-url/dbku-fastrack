@@ -6060,7 +6060,7 @@ function getApplicationTypeOptionLabel(type, language = "en") {
   const labels = {
     open_space: {
       en: "Open Space",
-      ms: "Kawasan Lapang",
+      ms: "Ruang Terbuka",
     },
     building: {
       en: "Building",
@@ -8458,12 +8458,36 @@ function getApplicantSitePhotos(app) {
   const documents = Array.isArray(app?.supporting_documents)
     ? app.supporting_documents
     : [];
+  const savedPhotoNamesByDocumentId = new Map();
+  const savedPhotos = [
+    ...(Array.isArray(step1.site_images) ? step1.site_images : []),
+    step1.site_image,
+  ].filter(Boolean);
+
+  savedPhotos.forEach((photo) => {
+    const documentId = String(photo?.document_id || photo?.id || "");
+    const name = String(photo?.name || "").trim();
+    if (documentId && name) {
+      savedPhotoNamesByDocumentId.set(documentId, name);
+    }
+  });
+
+  const primaryDocumentId = String(step1.site_image_document_id || "");
+  const primaryName = String(step1.site_image_name || "").trim();
+  if (primaryDocumentId && primaryName) {
+    savedPhotoNamesByDocumentId.set(primaryDocumentId, primaryName);
+  }
+
   const documentPhotos = documents
     .filter((document) => document.title === "Site Image")
     .map((document) => ({
       ...document,
       document_id: document.id,
-      name: getFileNameFromUrl(document.file_url || document.file) || document.title,
+      name:
+        savedPhotoNamesByDocumentId.get(String(document.id)) ||
+        getFileNameFromUrl(document.file_url || document.file) ||
+        document.title,
+      size: document.size || 0,
       url: document.file_url || document.file || "",
       file_url: document.file_url || document.file || "",
     }));

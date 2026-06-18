@@ -606,7 +606,7 @@ export async function uploadApplicationDocument(applicationId, title, file) {
     document_id: document.id,
     title: document.title,
     name: file.name,
-    size: file.size,
+    size: file.size || document.size || 0,
     type: file.type,
     lastModified: file.lastModified,
     url:
