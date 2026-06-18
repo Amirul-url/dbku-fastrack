@@ -719,16 +719,9 @@ function OtherSupportingTable({
                   </TableCell>
 
                   <TableCell>
-                    <input
-                      type="text"
-                      value={row.format || ""}
-                      onChange={(event) =>
-                        onUpdate(index, "format", event.target.value)
-                      }
-                      readOnly={readOnly}
-                      placeholder="PDF"
-                      className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#18b36b] focus:ring-1 focus:ring-[#18b36b]"
-                    />
+                    <span className="font-semibold text-slate-700">
+                      {row.format || "PDF"}
+                    </span>
                   </TableCell>
 
                   <TableCell>

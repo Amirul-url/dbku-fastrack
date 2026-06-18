@@ -376,14 +376,14 @@ function buildDeclarationParagraphs(language, values) {
 
   if (language === "ms") {
     return [
-      `Saya, ${name} (No. Kad Pengenalan: ${icNumber}) yang beralamat di ${address}, sebagai wakil yang diberi kuasa bagi ${companyName}, dengan alamat perniagaan di ${companyAddress}, dengan ini mengaku bahawa segala maklumat yang dikemukakan dalam Permohonan Penempatan (Siting Application) ini adalah benar, lengkap dan tepat.`,
+      `Saya, ${name} (No. Kad Pengenalan: ${icNumber}) yang beralamat di ${address}, sebagai wakil yang diberi kuasa bagi ${companyName}, dengan alamat perniagaan di ${companyAddress}, dengan ini mengaku bahawa segala maklumat yang dikemukakan dalam borang permohonan ini adalah benar, lengkap dan tepat.`,
       "Saya memahami bahawa sekiranya sebarang maklumat palsu atau mengelirukan diberikan, tindakan boleh diambil terhadap saya dan/atau syarikat mengikut undang-undang serta peraturan yang berkuat kuasa di Malaysia.",
       "Saya membuat pengakuan ini dengan penuh kepercayaan bahawa perkara yang dinyatakan adalah benar dan tepat.",
     ];
   }
 
   return [
-    `I, ${name} (NRIC No.: ${icNumber}) of ${address}, being the authorised representative of ${companyName}, with business address at ${companyAddress}, hereby declare on behalf of the company that all information provided in this Siting Application is true, complete and accurate.`,
+    `I, ${name} (NRIC No.: ${icNumber}) of ${address}, being the authorised representative of ${companyName}, with business address at ${companyAddress}, hereby declare on behalf of the company that all information provided in this application form is true, complete and accurate.`,
     "I understand that if any false or misleading information is given, action may be taken against me and/or the company under the relevant laws and regulations in Malaysia.",
     "I make this declaration conscientiously believing it to be true and correct.",
   ];

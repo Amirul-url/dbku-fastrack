@@ -142,11 +142,23 @@ const allCityOptions = Array.from(
   new Set(Object.values(stateCityOptions).flat())
 ).sort((a, b) => a.localeCompare(b));
 
+function toUpperText(value) {
+  return String(value || "").toLocaleUpperCase("en-MY");
+}
+
+function getCityOption(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+
+  return allCityOptions.find((cityOption) => cityOption.toLowerCase() === normalized) || "";
+}
+
 function normalizeStateCity(state, city) {
   if (stateCityOptions[state]) {
+    const matchedCity = getCityOption(city);
+
     return {
       state,
-      city: stateCityOptions[state].includes(city) ? city : "",
+      city: matchedCity && stateCityOptions[state].includes(matchedCity) ? matchedCity : "",
     };
   }
 
@@ -248,36 +260,38 @@ function SubmittingPersonPage({
 
       setApplicationRecord(data);
       setOrgType(step3.org_type || "");
-      setRegistrationNo(step3.registration_no || "");
-      setOrgName(step3.org_name || "");
-      setPostalAddress(step3.postal_address || "");
-      setPostcode(step3.postcode || "");
-      setAddress2(step3.address_2 || "");
+      setRegistrationNo(toUpperText(step3.registration_no));
+      setOrgName(toUpperText(step3.org_name));
+      setPostalAddress(toUpperText(step3.postal_address));
+      setPostcode(toUpperText(step3.postcode));
+      setAddress2(toUpperText(step3.address_2));
       const normalizedLocation = normalizeStateCity(step3.state || "", step3.city || "");
       setStateValue(normalizedLocation.state);
-      setCity(normalizedLocation.city);
+      setCity(toUpperText(normalizedLocation.city));
       setOrgCountryCode(step3.org_country_code || "");
-      setTelephoneNo(step3.telephone_no || "");
+      setTelephoneNo(toUpperText(step3.telephone_no));
 
       setHonoraryTitle(step3.honorary_title || "");
-      setDesignation(step3.designation || "");
-      setFullName(step3.full_name || "");
+      setDesignation(toUpperText(step3.designation));
+      setFullName(toUpperText(step3.full_name));
       setMobileCountryCode(step3.mobile_country_code || "");
-      setMobileNo(step3.mobile_no || "");
-      setIdentityCardNo(step3.identity_card_no || "");
+      setMobileNo(toUpperText(step3.mobile_no));
+      setIdentityCardNo(toUpperText(step3.identity_card_no));
       setOfficeCountryCode(step3.office_country_code || "");
-      setOfficeNo(step3.office_no || "");
+      setOfficeNo(toUpperText(step3.office_no));
       setEmail(step3.email || "");
       setFaxCountryCode(step3.fax_country_code || "");
-      setFaxNo(step3.fax_no || "");
+      setFaxNo(toUpperText(step3.fax_no));
     } catch (err) {
       console.error("Load Step 3 failed:", err);
     }
   }
 
   function handleStateChange(value) {
+    const selectedCity = getCityOption(city);
+
     setStateValue(value);
-    setCity(value && stateCityOptions[value]?.includes(city) ? city : "");
+    setCity(value && stateCityOptions[value]?.includes(selectedCity) ? toUpperText(selectedCity) : "");
   }
 
   function handleCityChange(value) {
@@ -290,7 +304,7 @@ function SubmittingPersonPage({
       );
     const matchedCity = matches[0]?.city;
 
-    setCity(matchedCity || value);
+    setCity(toUpperText(matchedCity || value));
     if (matches.length === 1) {
       setStateValue(matches[0].state);
     }
@@ -493,61 +507,61 @@ function SubmittingPersonPage({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label={tx("organisationType")} required>
                     <select
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={orgType}
                       onChange={(e) => setOrgType(e.target.value)}
                     >
-                      <option value="">{tx("pleaseSelect")}</option>
-                      <option value="Company">{tx("company")}</option>
-                      <option value="Individual">{tx("individual")}</option>
+                      <option value="">{toUpperText(tx("pleaseSelect"))}</option>
+                      <option value="Company">{toUpperText(tx("company"))}</option>
+                      <option value="Individual">{toUpperText(tx("individual"))}</option>
                     </select>
                   </Field>
 
                   <Field label={tx("registrationNumber")}>
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={registrationNo}
-                      onChange={(e) => setRegistrationNo(e.target.value)}
+                      onChange={(e) => setRegistrationNo(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <Field label={tx("name")} required className="md:col-span-2">
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
+                      onChange={(e) => setOrgName(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <Field label={tx("postalAddress")} required className="md:col-span-2">
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={postalAddress}
-                      onChange={(e) => setPostalAddress(e.target.value)}
+                      onChange={(e) => setPostalAddress(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <Field label={tx("address2")} required className="md:col-span-2">
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={address2}
-                      onChange={(e) => setAddress2(e.target.value)}
+                      onChange={(e) => setAddress2(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
                     <Field label={tx("postcode")} required>
                       <input
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={postcode}
-                        onChange={(e) => setPostcode(e.target.value)}
+                        onChange={(e) => setPostcode(toUpperText(e.target.value))}
                       />
                     </Field>
 
                     <Field label={tx("city")} required>
                       <div className="relative">
                         <input
-                          className="spa-input"
+                          className="spa-input uppercase"
                           value={city}
                           autoComplete="off"
                           onChange={(e) => handleCityChange(e.target.value)}
@@ -562,9 +576,9 @@ function SubmittingPersonPage({
                                 type="button"
                                 onMouseDown={(event) => event.preventDefault()}
                                 onClick={() => selectCitySuggestion(cityOption)}
-                                className="block w-full px-3 py-2 text-left text-sm text-slate-900 hover:bg-slate-50"
+                                className="block w-full px-3 py-2 text-left text-sm uppercase text-slate-900 hover:bg-slate-50"
                               >
-                                {cityOption}
+                                {toUpperText(cityOption)}
                               </button>
                             ))}
                           </div>
@@ -574,14 +588,14 @@ function SubmittingPersonPage({
 
                     <Field label={tx("state")} required>
                       <select
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={stateValue}
                         onChange={(e) => handleStateChange(e.target.value)}
                       >
-                        <option value="">{tx("selectState").replaceAll("-", "").trim()}</option>
+                        <option value="">{toUpperText(tx("selectState").replaceAll("-", "").trim())}</option>
                         {stateOptions.map((state) => (
                           <option key={state} value={state}>
-                            {state}
+                            {toUpperText(state)}
                           </option>
                         ))}
                       </select>
@@ -591,20 +605,20 @@ function SubmittingPersonPage({
                   <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2">
                     <Field label={tx("countryCode")} required>
                       <select
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={orgCountryCode}
                         onChange={(e) => setOrgCountryCode(e.target.value)}
                       >
-                        <option value="">{tx("select")}</option>
-                        <option value="+60 Malaysia">+60 Malaysia</option>
+                        <option value="">{toUpperText(tx("select"))}</option>
+                        <option value="+60 Malaysia">+60 MALAYSIA</option>
                       </select>
                     </Field>
 
                     <Field label={tx("telephoneNo")} required>
                       <input
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={telephoneNo}
-                        onChange={(e) => setTelephoneNo(e.target.value)}
+                        onChange={(e) => setTelephoneNo(toUpperText(e.target.value))}
                       />
                     </Field>
                   </div>
@@ -615,14 +629,14 @@ function SubmittingPersonPage({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label={tx("honoraryTitle")}>
                     <select
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={honoraryTitle}
                       onChange={(e) => setHonoraryTitle(e.target.value)}
                     >
-                      <option value="">{tx("selectTitle")}</option>
+                      <option value="">{toUpperText(tx("selectTitle"))}</option>
                       {TITLE_OPTIONS.map((title) => (
                         <option key={title} value={title}>
-                          {title}
+                          {toUpperText(title)}
                         </option>
                       ))}
                     </select>
@@ -630,66 +644,66 @@ function SubmittingPersonPage({
 
                   <Field label={tx("designation")} required>
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={designation}
-                      onChange={(e) => setDesignation(e.target.value)}
+                      onChange={(e) => setDesignation(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <Field label={tx("fullName")} required>
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
+                      onChange={(e) => setFullName(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label={tx("countryCode")} required>
                       <select
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={mobileCountryCode}
                         onChange={(e) => setMobileCountryCode(e.target.value)}
                       >
-                        <option value="">{tx("select")}</option>
-                        <option value="+60 Malaysia">+60 Malaysia</option>
+                        <option value="">{toUpperText(tx("select"))}</option>
+                        <option value="+60 Malaysia">+60 MALAYSIA</option>
                       </select>
                     </Field>
 
                     <Field label={tx("mobileNo")} required>
                       <input
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={mobileNo}
-                        onChange={(e) => setMobileNo(e.target.value)}
+                        onChange={(e) => setMobileNo(toUpperText(e.target.value))}
                       />
                     </Field>
                   </div>
 
                   <Field label={tx("identityCardNo")} required>
                     <input
-                      className="spa-input"
+                      className="spa-input uppercase"
                       value={identityCardNo}
-                      onChange={(e) => setIdentityCardNo(e.target.value)}
+                      onChange={(e) => setIdentityCardNo(toUpperText(e.target.value))}
                     />
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label={tx("countryCode")} required>
                       <select
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={officeCountryCode}
                         onChange={(e) => setOfficeCountryCode(e.target.value)}
                       >
-                        <option value="">{tx("select")}</option>
-                        <option value="+60 Malaysia">+60 Malaysia</option>
+                        <option value="">{toUpperText(tx("select"))}</option>
+                        <option value="+60 Malaysia">+60 MALAYSIA</option>
                       </select>
                     </Field>
 
                     <Field label={tx("officeNo")} required>
                       <input
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={officeNo}
-                        onChange={(e) => setOfficeNo(e.target.value)}
+                        onChange={(e) => setOfficeNo(toUpperText(e.target.value))}
                       />
                     </Field>
                   </div>
@@ -706,21 +720,21 @@ function SubmittingPersonPage({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label={tx("countryCode")}>
                       <select
-                        className="spa-input"
+                        className="spa-input uppercase"
                         value={faxCountryCode}
                         onChange={(e) => setFaxCountryCode(e.target.value)}
                       >
-                        <option value="">{tx("select")}</option>
-                        <option value="+60 Malaysia">+60 Malaysia</option>
+                        <option value="">{toUpperText(tx("select"))}</option>
+                        <option value="+60 Malaysia">+60 MALAYSIA</option>
                       </select>
                     </Field>
 
                     <Field label={tx("faxNo")}>
                       <input
-                        className="spa-input"
+                        className="spa-input uppercase"
                         placeholder={tx("faxPlaceholder")}
                         value={faxNo}
-                        onChange={(e) => setFaxNo(e.target.value)}
+                        onChange={(e) => setFaxNo(toUpperText(e.target.value))}
                       />
                     </Field>
                   </div>
