@@ -1241,7 +1241,9 @@ function LicenseListSection({
                 onClick={() => onOpen(app)}
                 className="min-h-8 rounded-md border border-slate-300 px-3 py-1 text-sm font-semibold leading-5 text-slate-700 hover:bg-slate-50"
               >
-                {t("common.view", "View")}
+                {needsApplicantCorrection(app)
+                  ? t("common.edit", "Edit")
+                  : t("common.view", "View")}
               </button>
             ),
           },

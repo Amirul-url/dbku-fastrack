@@ -67,6 +67,12 @@ const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
 ]);
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TASK_TABLE_PAGE_SIZE = 5;
+const RESUBMISSION_DRILLDOWN_PAGE_SIZE = 5;
+const RESUBMISSION_MONTH_ALL = "all";
+const RESUBMISSION_DRILLDOWN_TYPES = {
+  rejected: "rejected",
+  resubmitted: "resubmitted",
+};
 const units = [
   {
     code: "PT(IKL)",
@@ -229,6 +235,11 @@ function AdminHomeDashboard({ user }) {
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
+  const [resubmissionDrilldown, setResubmissionDrilldown] = useState(null);
+  const [resubmissionFilters, setResubmissionFilters] = useState(() => ({
+    month: RESUBMISSION_MONTH_ALL,
+    year: String(new Date().getFullYear()),
+  }));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -276,8 +287,18 @@ function AdminHomeDashboard({ user }) {
     return buildAdminRecentActivities(applications, userDepartment, t);
   }, [applications, t, userDepartment]);
   const resubmissionInsights = useMemo(() => {
-    return buildInternalResubmissionInsights(applications, t, language);
-  }, [applications, language, t]);
+    return buildInternalResubmissionInsights(applications, t, language, resubmissionFilters);
+  }, [applications, language, resubmissionFilters, t]);
+  const resubmissionYearOptions = useMemo(() => {
+    return buildResubmissionYearOptions(resubmissionInsights.entries, resubmissionFilters.year);
+  }, [resubmissionFilters.year, resubmissionInsights.entries]);
+  const resubmissionDrilldownRows = useMemo(() => {
+    return buildResubmissionDrilldownRows(
+      resubmissionDrilldown,
+      resubmissionInsights,
+      t
+    );
+  }, [resubmissionDrilldown, resubmissionInsights, t]);
   const totalActivityPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
   const visibleActivities = activities.slice(
@@ -286,102 +307,169 @@ function AdminHomeDashboard({ user }) {
   );
   const showActivityPagination = activities.length > RECENT_ACTIVITY_PAGE_SIZE;
 
+  if (resubmissionDrilldown) {
+    return (
+      <AdminDashboardLayout>
+        <Alert message={error} />
+        <ResubmissionDrilldownPanel
+          language={language}
+          loading={loading}
+          onClose={() => setResubmissionDrilldown(null)}
+          rows={resubmissionDrilldownRows}
+          type={resubmissionDrilldown}
+          t={t}
+        />
+      </AdminDashboardLayout>
+    );
+  }
+
   return (
     <AdminDashboardLayout>
       <Alert message={error} />
 
-      <InternalResubmissionMonitor
+      <InternalResubmissionGraph
+        filters={resubmissionFilters}
         insights={resubmissionInsights}
+        language={language}
         loading={loading}
+        onDrilldownSelect={setResubmissionDrilldown}
+        onFilterChange={setResubmissionFilters}
+        selectedDrilldown={resubmissionDrilldown}
         t={t}
+        yearOptions={resubmissionYearOptions}
       />
 
-      <section className="rounded-md border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-950">
-            {t("admin.dashboard.recentActivitiesTitle", "Recent Activities")}
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
-          </p>
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {loading ? (
-            <p className="px-4 py-4 text-sm text-slate-500">{t("common.loading", "Loading...")}</p>
-          ) : activities.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-slate-500">
-              {t("admin.dashboard.noRecentActivities", "No recent activities yet.")}
-            </p>
-          ) : (
-            visibleActivities.map((activity) => (
-              <div
-                key={`${activity.id}-${activity.createdAt}`}
-                className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_160px]"
-              >
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-emerald-700">
-                      history
-                    </span>
-                    <p className="truncate text-sm font-semibold text-slate-950">
-                      {activity.title}
-                    </p>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-600">
-                    <span className="font-semibold text-slate-700">{activity.reference}</span>
-                    {activity.project ? ` - ${activity.project}` : ""}
-                  </p>
-                  {activity.description && (
-                    <p className="mt-1 text-xs text-slate-500">{activity.description}</p>
-                  )}
-                </div>
-                <p className="text-sm text-slate-500 sm:text-right">
-                  {formatCompactDateTime(activity.createdAt)}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-
-        {!loading && showActivityPagination && (
-          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-500">
-              {t("applicant.recentActivitiesPage", "Page")} {currentActivityPage + 1} {t("common.of", "of")} {totalActivityPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setActivityPage(Math.max(currentActivityPage - 1, 0))}
-                disabled={currentActivityPage === 0}
-              >
-                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-                {t("common.previous", "Previous")}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setActivityPage(Math.min(currentActivityPage + 1, totalActivityPages - 1))}
-                disabled={currentActivityPage >= totalActivityPages - 1}
-              >
-                {t("common.next", "Next")}
-                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-              </Button>
-            </div>
-          </div>
-        )}
-      </section>
+      <RecentActivitiesPanel
+        activities={activities}
+        currentPage={currentActivityPage}
+        loading={loading}
+        onPageChange={setActivityPage}
+        showPagination={showActivityPagination}
+        t={t}
+        totalPages={totalActivityPages}
+        visibleActivities={visibleActivities}
+      />
     </AdminDashboardLayout>
   );
 }
 
-function InternalResubmissionMonitor({ insights, loading, t }) {
-  const visibleEntries = insights.entries.slice(0, 5);
+function RecentActivitiesPanel({
+  activities,
+  currentPage,
+  loading,
+  onPageChange,
+  showPagination,
+  t,
+  totalPages,
+  visibleActivities,
+}) {
+  return (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-slate-950">
+          {t("admin.dashboard.recentActivitiesTitle", "Recent Activities")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
+        </p>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {loading ? (
+          <p className="px-4 py-4 text-sm text-slate-500">{t("common.loading", "Loading...")}</p>
+        ) : activities.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-slate-500">
+            {t("admin.dashboard.noRecentActivities", "No recent activities yet.")}
+          </p>
+        ) : (
+          visibleActivities.map((activity) => (
+            <div
+              key={`${activity.id}-${activity.createdAt}`}
+              className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_160px]"
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px] text-emerald-700">
+                    history
+                  </span>
+                  <p className="truncate text-sm font-semibold text-slate-950">
+                    {activity.title}
+                  </p>
+                </div>
+                <p className="mt-1 text-sm font-semibold text-slate-700">
+                  {activity.reference}
+                </p>
+                {activity.project && (
+                  <p className="mt-1 whitespace-pre-line text-sm text-slate-600">
+                    {formatActivityProjectText(activity.project)}
+                  </p>
+                )}
+                {activity.description && (
+                  <p className="mt-1 text-xs text-slate-500">{activity.description}</p>
+                )}
+              </div>
+              <p className="text-sm text-slate-500 sm:text-right">
+                {formatCompactDateTime(activity.createdAt)}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+
+      {!loading && showPagination && (
+        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">
+            {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onPageChange(Math.max(currentPage - 1, 0))}
+              disabled={currentPage === 0}
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              {t("common.previous", "Previous")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onPageChange(Math.min(currentPage + 1, totalPages - 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              {t("common.next", "Next")}
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InternalResubmissionGraph({
+  filters,
+  insights,
+  language,
+  loading,
+  onDrilldownSelect,
+  onFilterChange,
+  selectedDrilldown,
+  t,
+  yearOptions,
+}) {
   const maxCount = Math.max(
     1,
-    ...insights.months.map((month) => Math.max(month.rejected, month.resubmitted))
+    ...insights.buckets.map((bucket) => Math.max(bucket.rejected, bucket.resubmitted))
   );
+  const monthOptions = getResubmissionMonthOptions(language);
+  const xAxisLabel =
+    filters.month === RESUBMISSION_MONTH_ALL
+      ? t("admin.dashboard.xAxisMonth", "Month")
+      : t("admin.dashboard.xAxisDay", "Day");
+  const yAxisLabel = t("admin.dashboard.yAxisApplications", "No. of applications");
+  const yAxisTicks = Array.from(new Set([maxCount, Math.ceil(maxCount / 2), 0]));
+  const barMaxHeight = 176;
 
   return (
     <section className="mb-5 rounded-md border border-slate-200 bg-white">
@@ -389,7 +477,7 @@ function InternalResubmissionMonitor({ insights, loading, t }) {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-950">
-              {t("admin.dashboard.resubmissionMonitorTitle", "Resubmission Monitor")}
+              {t("admin.dashboard.resubmissionStatisticsTitle", "Resubmission Statistics")}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {t(
@@ -397,20 +485,6 @@ function InternalResubmissionMonitor({ insights, loading, t }) {
                 "Internal DBKU record of rejected applications and applicant resubmissions."
               )}
             </p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="rounded-md bg-red-50 px-3 py-2 text-red-700">
-              <p className="font-semibold">{t("status.rejected", "Rejected")}</p>
-              <p className="mt-1 text-lg font-bold">{loading ? "..." : insights.totalRejected}</p>
-            </div>
-            <div className="rounded-md bg-blue-50 px-3 py-2 text-blue-700">
-              <p className="font-semibold">{t("admin.dashboard.resubmitted", "Resubmitted")}</p>
-              <p className="mt-1 text-lg font-bold">{loading ? "..." : insights.totalResubmitted}</p>
-            </div>
-            <div className="rounded-md bg-slate-100 px-3 py-2 text-slate-700">
-              <p className="font-semibold">{t("admin.dashboard.activeRejected", "Active Rejected")}</p>
-              <p className="mt-1 text-lg font-bold">{loading ? "..." : insights.activeRejected}</p>
-            </div>
           </div>
         </div>
       </div>
@@ -422,79 +496,368 @@ function InternalResubmissionMonitor({ insights, loading, t }) {
           {t("admin.dashboard.noResubmissionLogs", "No rejection or resubmission records yet.")}
         </p>
       ) : (
-        <div className="grid gap-5 px-4 py-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex gap-4 text-xs font-semibold text-slate-600">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-red-500" />
-                  {t("status.rejected", "Rejected")}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-blue-500" />
-                  {t("admin.dashboard.resubmitted", "Resubmitted")}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                {t("admin.dashboard.lastSixMonths", "Last 6 months")}
-              </p>
+        <div className="px-4 py-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <ResubmissionSummaryCard
+                active={selectedDrilldown === RESUBMISSION_DRILLDOWN_TYPES.rejected}
+                count={loading ? "..." : insights.totalRejected}
+                label={t("status.rejected", "Rejected")}
+                onClick={() => onDrilldownSelect(RESUBMISSION_DRILLDOWN_TYPES.rejected)}
+                tone="red"
+              />
+              <ResubmissionSummaryCard
+                active={selectedDrilldown === RESUBMISSION_DRILLDOWN_TYPES.resubmitted}
+                count={loading ? "..." : insights.totalResubmitted}
+                label={t("admin.dashboard.resubmitted", "Resubmitted")}
+                onClick={() => onDrilldownSelect(RESUBMISSION_DRILLDOWN_TYPES.resubmitted)}
+                tone="blue"
+              />
             </div>
-            <div className="mt-4 grid min-h-[170px] grid-cols-6 items-end gap-3 border-b border-l border-slate-200 px-2 pb-2">
-              {insights.months.map((month) => (
-                <div key={month.key} className="flex min-w-0 flex-col items-center gap-2">
-                  <div className="flex h-28 w-full items-end justify-center gap-1">
-                    <div
-                      className="w-4 rounded-t bg-red-500"
-                      title={`${month.label} ${t("status.rejected", "Rejected")}: ${month.rejected}`}
-                      style={{ height: month.rejected ? `${Math.max(6, (month.rejected / maxCount) * 112)}px` : "0px" }}
-                    />
-                    <div
-                      className="w-4 rounded-t bg-blue-500"
-                      title={`${month.label} ${t("admin.dashboard.resubmitted", "Resubmitted")}: ${month.resubmitted}`}
-                      style={{ height: month.resubmitted ? `${Math.max(6, (month.resubmitted / maxCount) * 112)}px` : "0px" }}
-                    />
-                  </div>
-                  <p className="truncate text-xs font-semibold text-slate-500">{month.label}</p>
-                </div>
-              ))}
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex min-w-[130px] flex-col gap-1 text-xs font-semibold text-slate-600">
+                <span>{t("common.year", "Year")}</span>
+                <select
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+                  value={filters.year}
+                  onChange={(event) =>
+                    onFilterChange((current) => ({ ...current, year: event.target.value }))
+                  }
+                >
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex min-w-[180px] flex-col gap-1 text-xs font-semibold text-slate-600">
+                <span>{t("common.month", "Month")}</span>
+                <select
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+                  value={filters.month}
+                  onChange={(event) =>
+                    onFilterChange((current) => ({ ...current, month: event.target.value }))
+                  }
+                >
+                  <option value={RESUBMISSION_MONTH_ALL}>{t("common.all", "All")}</option>
+                  {monthOptions.map((month) => (
+                    <option key={month.value} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
 
-          <div className="rounded-md border border-slate-200">
-            <div className="border-b border-slate-200 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-950">
-                {t("admin.dashboard.resubmissionLog", "Recent Log")}
-              </p>
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50/40 px-4 py-4">
+            <div className="mb-3 text-xs font-semibold text-slate-500">
+              <p>{yAxisLabel}</p>
             </div>
-            <div className="divide-y divide-slate-100">
-              {visibleEntries.map((entry) => (
-                <div key={`${entry.applicationId}-${entry.type}-${entry.eventDate}`} className="px-4 py-3 text-sm">
-                  <div className="flex items-start gap-3">
-                    <span className={`mt-1 h-2.5 w-2.5 rounded-full ${entry.type === "rejected" ? "bg-red-500" : "bg-blue-500"}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-slate-900">{entry.reference}</p>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${entry.type === "rejected" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>
-                          {entry.eventLabel}
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 whitespace-pre-line text-slate-600">
-                        {entry.project}
-                      </p>
-                      {entry.remark && (
-                        <p className="mt-1 line-clamp-2 text-slate-500">{entry.remark}</p>
-                      )}
-                      <p className="mt-1 text-xs text-slate-500">
-                        {formatCompactDateTime(entry.eventDate)}
-                      </p>
+
+            <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-3">
+              <div
+                className="mt-7 flex flex-col justify-between text-right text-xs font-semibold text-slate-400"
+                style={{ height: `${barMaxHeight}px` }}
+              >
+                {yAxisTicks.map((tick) => (
+                  <span key={tick}>{tick}</span>
+                ))}
+              </div>
+              <div className="min-w-0 overflow-x-auto">
+                <div className="min-w-[720px]">
+                  <div className="relative border-b border-l border-slate-300 pl-4 pt-7">
+                    <div
+                      className="pointer-events-none absolute inset-x-0 left-4 top-7 flex flex-col justify-between"
+                      style={{ height: `${barMaxHeight}px` }}
+                    >
+                      {yAxisTicks.map((tick) => (
+                        <span key={tick} className="border-t border-slate-200" />
+                      ))}
+                    </div>
+                    <div
+                      className="relative grid items-end gap-4 pr-4"
+                      style={{
+                        gridTemplateColumns: `repeat(${insights.buckets.length}, minmax(42px, 1fr))`,
+                        height: `${barMaxHeight}px`,
+                      }}
+                    >
+                      {insights.buckets.map((bucket) => (
+                        <div key={bucket.key} className="flex min-w-0 items-end justify-center gap-2">
+                          <ChartBar
+                            colorClassName="bg-red-500"
+                            height={bucket.rejected ? Math.max(12, (bucket.rejected / maxCount) * barMaxHeight) : 0}
+                            label={`${bucket.label} ${t("status.rejected", "Rejected")}: ${bucket.rejected}`}
+                            value={bucket.rejected}
+                          />
+                          <ChartBar
+                            colorClassName="bg-blue-500"
+                            height={bucket.resubmitted ? Math.max(12, (bucket.resubmitted / maxCount) * barMaxHeight) : 0}
+                            label={`${bucket.label} ${t("admin.dashboard.resubmitted", "Resubmitted")}: ${bucket.resubmitted}`}
+                            value={bucket.resubmitted}
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
+                  <div
+                    className="mt-2 grid gap-4 pl-4 pr-4"
+                    style={{
+                      gridTemplateColumns: `repeat(${insights.buckets.length}, minmax(42px, 1fr))`,
+                    }}
+                  >
+                    {insights.buckets.map((bucket) => (
+                      <p key={bucket.key} className="truncate text-center text-sm font-semibold text-slate-600">
+                        {bucket.label}
+                      </p>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              </div>
             </div>
+            <p className="mt-3 pl-[54px] text-center text-xs font-semibold text-slate-500">
+              {xAxisLabel}
+            </p>
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function ChartBar({ colorClassName, height, label, value }) {
+  return (
+    <div className="relative flex h-full w-7 items-end justify-center">
+      {value > 0 && (
+        <span
+          className="absolute text-xs font-semibold text-slate-600"
+          style={{ bottom: `${height + 4}px` }}
+        >
+          {value}
+        </span>
+      )}
+      <div
+        className={`w-full rounded-t-md shadow-sm ${colorClassName}`}
+        title={label}
+        style={{ height: `${height}px` }}
+      />
+    </div>
+  );
+}
+
+function ResubmissionSummaryCard({ active, count, label, onClick, tone }) {
+  const toneClassNames = {
+    red: {
+      card: "bg-red-50 text-red-700 hover:bg-red-100",
+      marker: "bg-red-500",
+    },
+    blue: {
+      card: "bg-blue-50 text-blue-700 hover:bg-blue-100",
+      marker: "bg-blue-500",
+    },
+    slate: {
+      card: "bg-slate-100 text-slate-700 hover:bg-slate-200",
+      marker: "bg-slate-500",
+    },
+  };
+  const toneClassName = toneClassNames[tone] || toneClassNames.slate;
+
+  return (
+    <button
+      type="button"
+      className={[
+        "rounded-md px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2",
+        toneClassName.card,
+        active ? "ring-2 ring-emerald-600 ring-offset-2" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={onClick}
+    >
+      <p className="inline-flex items-center gap-1.5 font-semibold">
+        <span className={`h-2.5 w-2.5 rounded-sm ${toneClassName.marker}`} />
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-bold">{count}</p>
+    </button>
+  );
+}
+
+function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type }) {
+  const [filters, setFilters] = useState(() => ({
+    month: RESUBMISSION_MONTH_ALL,
+    search: "",
+    year: String(new Date().getFullYear()),
+  }));
+  const [page, setPage] = useState(0);
+  const title = getResubmissionDrilldownTitle(type, t);
+  const description = getResubmissionDrilldownDescription(type, t);
+  const monthOptions = getResubmissionMonthOptions(language);
+  const yearOptions = useMemo(() => {
+    return buildDrilldownYearOptions(rows, filters.year);
+  }, [filters.year, rows]);
+  const filteredRows = useMemo(() => {
+    return filterResubmissionDrilldownRows(rows, filters);
+  }, [filters, rows]);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / RESUBMISSION_DRILLDOWN_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visibleRows = filteredRows.slice(
+    currentPage * RESUBMISSION_DRILLDOWN_PAGE_SIZE,
+    (currentPage + 1) * RESUBMISSION_DRILLDOWN_PAGE_SIZE
+  );
+  const columns = [
+    {
+      key: "reference",
+      label: t("applications.reference", "Reference"),
+      className: "w-[170px]",
+      render: (row) => <span className="font-semibold text-slate-900">{row.reference}</span>,
+    },
+    {
+      key: "project",
+      label: t("applications.project", "Project"),
+      render: (row) => <span className="whitespace-pre-line">{row.project}</span>,
+    },
+    {
+      key: "remark",
+      label: t("common.remarks", "Remarks"),
+      render: (row) => row.remark || "-",
+    },
+    {
+      key: "status",
+      label: t("applications.status", "Status"),
+      className: "w-[160px]",
+      render: (row) => (
+        <span className={row.statusClassName}>
+          {row.statusLabel}
+        </span>
+      ),
+    },
+    {
+      key: "date",
+      label: t("common.date", "Date"),
+      className: "w-[180px]",
+      render: (row) => formatCompactDateTime(row.date),
+    },
+  ];
+
+  useEffect(() => {
+    setPage(0);
+  }, [filters.month, filters.search, filters.year, type]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, totalPages - 1));
+  }, [totalPages]);
+
+  return (
+    <section className="mb-5 rounded-md border border-slate-200 bg-white">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        <Button type="button" variant="secondary" onClick={onClose}>
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          {t("common.back", "Back")}
+        </Button>
+      </div>
+
+      <div className="p-4">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_190px_auto] lg:items-end">
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            <span>{t("common.search", "Search")}</span>
+            <input
+              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+              placeholder={t("admin.dashboard.searchStatisticRecords", "Search reference, project, or remarks")}
+              type="search"
+              value={filters.search}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, search: event.target.value }))
+              }
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            <span>{t("common.year", "Year")}</span>
+            <select
+              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+              value={filters.year}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, year: event.target.value }))
+              }
+            >
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            <span>{t("common.month", "Month")}</span>
+            <select
+              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+              value={filters.month}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, month: event.target.value }))
+              }
+            >
+              <option value={RESUBMISSION_MONTH_ALL}>{t("common.all", "All")}</option>
+              {monthOptions.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() =>
+              setFilters({
+                month: RESUBMISSION_MONTH_ALL,
+                search: "",
+                year: String(new Date().getFullYear()),
+              })
+            }
+          >
+            <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+            {t("common.reset", "Reset")}
+          </Button>
+        </div>
+        <DataTable
+          columns={columns}
+          emptyText={t("admin.dashboard.noStatisticRecords", "No applications found for this statistic.")}
+          loading={loading}
+          rows={visibleRows}
+        />
+        {!loading && (
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-500">
+              {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setPage(Math.max(currentPage - 1, 0))}
+                disabled={currentPage === 0}
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                {t("common.previous", "Previous")}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setPage(Math.min(currentPage + 1, totalPages - 1))}
+                disabled={currentPage >= totalPages - 1}
+              >
+                {t("common.next", "Next")}
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -582,7 +945,7 @@ function getApplicationActivityLog(application) {
   return activityLog;
 }
 
-function buildInternalResubmissionInsights(applications, t, language = "en") {
+function buildInternalResubmissionInsights(applications, t, language = "en", filters = {}) {
   const now = new Date();
   const rejectedEntries = applications.flatMap((application) => {
     const activityLog = getApplicationActivityLog(application);
@@ -602,7 +965,8 @@ function buildInternalResubmissionInsights(applications, t, language = "en") {
         project: getProjectName(application),
         eventDate: createdAt,
         eventLabel: t("status.rejected", "Rejected"),
-        remark: getApplicationRemark(application) || activity.description || "",
+        remark: getActivityRemark(activity) || (isRejectedApplication(application) ? getApplicationRemark(application) : ""),
+        description: activity.description || "",
         sortDate: createdAt,
       }));
     }
@@ -618,15 +982,26 @@ function buildInternalResubmissionInsights(applications, t, language = "en") {
       eventDate,
       eventLabel: t("status.rejected", "Rejected"),
       remark: getApplicationRemark(application),
+      description: "",
       sortDate: eventDate,
     }];
   });
 
   const resubmittedEntries = applications.flatMap((application) => {
-    return getApplicationActivityLog(application)
-      .filter(isResubmissionActivity)
+    const activityLog = getApplicationActivityLog(application);
+    const explicitResubmissions = activityLog.filter(isResubmissionActivity);
+    const inferredResubmissions =
+      explicitResubmissions.length > 0
+        ? []
+        : activityLog.filter((activity) => isSubmissionAfterRejection(activity, activityLog));
+
+    return [...explicitResubmissions, ...inferredResubmissions]
       .map((activity) => {
         const eventDate = activity.created_at || application.updated_at || application.created_at;
+        const description = t(
+          "admin.dashboard.resubmittedLogDesc",
+          "Applicant resubmitted the application to ALiS for review."
+        );
         return {
           type: "resubmitted",
           applicationId: application.id,
@@ -634,30 +1009,125 @@ function buildInternalResubmissionInsights(applications, t, language = "en") {
           project: getProjectName(application),
           eventDate,
           eventLabel: t("admin.dashboard.resubmitted", "Resubmitted"),
-          remark: activity.description || "",
+          remark: "",
+          description,
           sortDate: eventDate,
         };
       })
       .filter((entry) => entry.eventDate);
   });
-  const entries = [...rejectedEntries, ...resubmittedEntries].sort(
+  const entries = dedupeInternalResubmissionEntries([...rejectedEntries, ...resubmittedEntries]).sort(
     (a, b) => new Date(b.sortDate || 0).getTime() - new Date(a.sortDate || 0).getTime()
   );
+  const filteredEntries = filterResubmissionEntriesForChart(entries, filters, now);
 
   return {
-    totalRejected: rejectedEntries.length,
-    totalResubmitted: resubmittedEntries.length,
-    activeRejected: applications.filter(isRejectedApplication).length,
-    months: buildResubmissionMonthlyBuckets(entries, now, language),
+    totalRejected: filteredEntries.filter((entry) => entry.type === "rejected").length,
+    totalResubmitted: filteredEntries.filter((entry) => entry.type === "resubmitted").length,
+    buckets: buildResubmissionChartBuckets(entries, now, language, filters),
     entries,
+    filteredEntries,
   };
 }
 
-function buildResubmissionMonthlyBuckets(entries, now, language = "en") {
+function buildResubmissionDrilldownRows(type, insights, t) {
+  if (!type) return [];
+
+  const statusConfig = {
+    [RESUBMISSION_DRILLDOWN_TYPES.rejected]: {
+      label: t("status.rejected", "Rejected"),
+      className: "inline-flex rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700",
+    },
+    [RESUBMISSION_DRILLDOWN_TYPES.resubmitted]: {
+      label: t("admin.dashboard.resubmitted", "Resubmitted"),
+      className: "inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700",
+    },
+  };
+  const config = statusConfig[type] || statusConfig[RESUBMISSION_DRILLDOWN_TYPES.rejected];
+
+  return insights.entries
+    .filter((entry) => entry.type === type)
+    .map((entry) => ({
+      id: `${entry.applicationId}-${entry.type}-${entry.eventDate}`,
+      reference: entry.reference,
+      project: entry.project,
+      remark: entry.remark || "",
+      statusLabel: config.label,
+      statusClassName: config.className,
+      date: entry.eventDate || entry.sortDate,
+    }))
+    .sort(sortRowsByDateDesc);
+}
+
+function filterResubmissionDrilldownRows(rows, filters) {
+  const search = String(filters.search || "").trim().toLowerCase();
+  const year = Number(filters.year);
+  const month = filters.month || RESUBMISSION_MONTH_ALL;
+
+  return rows.filter((row) => {
+    const date = new Date(row.date || 0);
+    if (!Number.isFinite(date.getTime())) return false;
+    if (Number.isFinite(year) && date.getFullYear() !== year) return false;
+    if (month !== RESUBMISSION_MONTH_ALL && date.getMonth() !== Number(month)) return false;
+
+    if (!search) return true;
+    const searchableText = [
+      row.reference,
+      row.project,
+      row.remark,
+      row.statusLabel,
+    ]
+      .join(" ")
+      .toLowerCase();
+    return searchableText.includes(search);
+  });
+}
+
+function buildDrilldownYearOptions(rows, selectedYear = "") {
+  const years = new Set([String(new Date().getFullYear())]);
+  if (selectedYear) years.add(String(selectedYear));
+
+  rows.forEach((row) => {
+    const date = new Date(row.date || 0);
+    if (!Number.isFinite(date.getTime())) return;
+    years.add(String(date.getFullYear()));
+  });
+
+  return Array.from(years).sort((a, b) => Number(b) - Number(a));
+}
+
+function sortRowsByDateDesc(a, b) {
+  return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+}
+
+function getResubmissionDrilldownTitle(type, t) {
+  if (type === RESUBMISSION_DRILLDOWN_TYPES.resubmitted) {
+    return t("admin.dashboard.resubmittedApplicationsTitle", "Resubmitted Applications");
+  }
+  return t("admin.dashboard.rejectedApplicationsTitle", "Rejected Applications");
+}
+
+function getResubmissionDrilldownDescription(type, t) {
+  if (type === RESUBMISSION_DRILLDOWN_TYPES.resubmitted) {
+    return t("admin.dashboard.resubmittedApplicationsDesc", "Applications resubmitted by applicants for review.");
+  }
+  return t("admin.dashboard.rejectedApplicationsDesc", "Rejected application records with remarks.");
+}
+
+function buildResubmissionChartBuckets(entries, now, language = "en", filters = {}) {
+  if (filters.month && filters.month !== RESUBMISSION_MONTH_ALL) {
+    return buildResubmissionDailyBuckets(entries, now, filters);
+  }
+
+  return buildResubmissionMonthlyBuckets(entries, now, language, filters);
+}
+
+function buildResubmissionMonthlyBuckets(entries, now, language = "en", filters = {}) {
   const locale = language === "ms" ? "ms-MY" : "en-MY";
   const formatter = new Intl.DateTimeFormat(locale, { month: "short" });
-  const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+  const year = getFilterYear(filters, now);
+  const months = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(year, index, 1);
     return {
       key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
       label: formatter.format(date),
@@ -685,6 +1155,101 @@ function buildResubmissionMonthlyBuckets(entries, now, language = "en") {
   return months;
 }
 
+function buildResubmissionDailyBuckets(entries, now, filters = {}) {
+  const year = getFilterYear(filters, now);
+  const monthIndex = Number(filters.month);
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = index + 1;
+    return {
+      key: `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      label: String(day),
+      rejected: 0,
+      resubmitted: 0,
+    };
+  });
+  const dayMap = new Map(days.map((day) => [day.key, day]));
+
+  entries.forEach((entry) => {
+    const date = new Date(entry.eventDate || entry.sortDate);
+    if (!Number.isFinite(date.getTime())) return;
+    if (date.getFullYear() !== year || date.getMonth() !== monthIndex) return;
+
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const bucket = dayMap.get(key);
+    if (!bucket) return;
+
+    if (entry.type === "rejected") {
+      bucket.rejected += 1;
+    } else if (entry.type === "resubmitted") {
+      bucket.resubmitted += 1;
+    }
+  });
+
+  return days;
+}
+
+function filterResubmissionEntriesForChart(entries, filters = {}, now = new Date()) {
+  const year = getFilterYear(filters, now);
+  const monthFilter = filters.month || RESUBMISSION_MONTH_ALL;
+
+  return entries.filter((entry) => {
+    const date = new Date(entry.eventDate || entry.sortDate);
+    if (!Number.isFinite(date.getTime())) return false;
+    if (date.getFullYear() !== year) return false;
+    if (monthFilter === RESUBMISSION_MONTH_ALL) return true;
+    return date.getMonth() === Number(monthFilter);
+  });
+}
+
+function buildResubmissionYearOptions(entries, selectedYear = "") {
+  const years = new Set([String(new Date().getFullYear())]);
+  if (selectedYear) years.add(String(selectedYear));
+
+  entries.forEach((entry) => {
+    const date = new Date(entry.eventDate || entry.sortDate);
+    if (!Number.isFinite(date.getTime())) return;
+    years.add(String(date.getFullYear()));
+  });
+
+  return Array.from(years).sort((a, b) => Number(b) - Number(a));
+}
+
+function getFilterYear(filters = {}, now = new Date()) {
+  const year = Number(filters.year);
+  return Number.isFinite(year) ? year : now.getFullYear();
+}
+
+function getResubmissionMonthOptions(language = "en") {
+  const locale = language === "ms" ? "ms-MY" : "en-MY";
+  const formatter = new Intl.DateTimeFormat(locale, { month: "long" });
+
+  return Array.from({ length: 12 }, (_, index) => ({
+    value: String(index),
+    label: formatter.format(new Date(2026, index, 1)),
+  }));
+}
+
+function dedupeInternalResubmissionEntries(entries) {
+  const seen = new Set();
+
+  return entries.filter((entry) => {
+    const eventTime = new Date(entry.eventDate || entry.sortDate || 0).getTime();
+    const eventMinute = Number.isFinite(eventTime)
+      ? Math.floor(eventTime / 60000)
+      : String(entry.eventDate || entry.sortDate || "");
+    const key = [
+      entry.applicationId,
+      entry.type,
+      eventMinute,
+    ].join(":");
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function isRejectedActivity(activity) {
   const title = String(activity?.title || "").trim().toLowerCase();
   return title === "application rejected" || title.startsWith("application rejected by");
@@ -692,6 +1257,38 @@ function isRejectedActivity(activity) {
 
 function isResubmissionActivity(activity) {
   return String(activity?.title || "").trim().toLowerCase() === "application resubmitted";
+}
+
+function isSubmissionActivity(activity) {
+  return String(activity?.title || "").trim().toLowerCase() === "application submitted";
+}
+
+function isSubmissionAfterRejection(activity, activityLog) {
+  if (!isSubmissionActivity(activity)) return false;
+
+  const submittedTime = new Date(activity?.created_at || 0).getTime();
+  if (!Number.isFinite(submittedTime)) return false;
+
+  return activityLog.some((entry) => {
+    if (!isRejectedActivity(entry)) return false;
+
+    const rejectedTime = new Date(entry?.created_at || 0).getTime();
+    return Number.isFinite(rejectedTime) && rejectedTime < submittedTime;
+  });
+}
+
+function getActivityRemark(activity) {
+  const explicitRemark =
+    activity?.remark ||
+    activity?.remarks ||
+    activity?.metadata?.remark ||
+    activity?.metadata?.remarks;
+  const cleanedExplicitRemark = cleanRemark(explicitRemark);
+  if (cleanedExplicitRemark) return cleanedExplicitRemark;
+
+  const description = String(activity?.description || "");
+  const remarkMatch = description.match(/\bRemark:\s*(.+)$/i);
+  return cleanRemark(remarkMatch?.[1] || "");
 }
 
 function isRejectedApplication(application) {
@@ -712,6 +1309,12 @@ function getApplicationRemark(application) {
 function cleanRemark(value) {
   const remark = String(value || "").trim();
   return ["", "-", "[]"].includes(remark) ? "" : remark;
+}
+
+function formatActivityProjectText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+(\d+\.\s+)/g, "\n$1");
 }
 
 function isImportantAdminActivity(activity, userDepartment, application = null) {

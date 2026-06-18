@@ -179,6 +179,8 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         application.refresh_from_db()
         self.assertEqual(application.status, "submitted")
+        activity_log = application.form_data.get("activity_log", [])
+        self.assertEqual(activity_log[0]["title"], "Application resubmitted")
         deliveries = NotificationDelivery.objects.filter(
             application=application,
             recipient_role="applicant",
@@ -485,6 +487,7 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(activity_log[0]["actor_role"], "admin")
         self.assertEqual(activity_log[0]["actor_department"], "KU(IKL)")
         self.assertIn("reviewed and rejected by KU(IKL)", activity_log[0]["description"])
+        self.assertIn("Remark: Please revise the application.", activity_log[0]["description"])
         deliveries = NotificationDelivery.objects.filter(
             application=application,
             recipient_role="applicant",

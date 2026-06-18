@@ -100,8 +100,9 @@ def timezone_now_iso():
     return timezone.now().isoformat()
 
 
-def get_applicant_activity_message(application, request_data):
+def get_applicant_activity_message(application, request_data, old_status=""):
     requested_status = str(request_data.get("status", application.status) or "").strip().lower()
+    old_status_key = str(old_status or "").strip().lower()
     form_data = request_data.get("form_data") or {}
     form_keys = set(form_data.keys()) if isinstance(form_data, dict) else set()
     step_11 = form_data.get("step_11") if isinstance(form_data, dict) else {}
@@ -112,13 +113,13 @@ def get_applicant_activity_message(application, request_data):
             "You submitted your payment receipt. ALiS will verify it before issuing the e-license.",
         )
 
-    if isinstance(step_11, dict) and step_11.get("submitted"):
-        if requested_status == "mphlg_processing":
-            return (
-                "Application resubmitted",
-                "You sent your updated application back for review.",
-            )
+    if old_status_key in APPLICANT_CORRECTION_STATUSES and requested_status in APPLICANT_RESUBMIT_STATUSES:
+        return (
+            "Application resubmitted",
+            "You sent your updated application back for review.",
+        )
 
+    if isinstance(step_11, dict) and step_11.get("submitted"):
         return (
             "Application submitted",
             "You sent your application to ALiS for review.",
@@ -171,9 +172,14 @@ def get_staff_workflow_activity_message(application, old_status, new_status, act
 
     if new_status_key == "rejected":
         actor_label = department or "ALiS"
+        remark = str(getattr(application, "latest_remark", "") or "").strip()
+        description = f"{reference} was reviewed and rejected by {actor_label}."
+        if remark:
+            description = f"{description} Remark: {remark}"
+
         return (
             f"Application rejected by {actor_label}",
-            f"{reference} was reviewed and rejected by {actor_label}.",
+            description,
         )
 
     if old_status_key == "submitted" and new_status_key == "ku_ikl_review":
@@ -405,6 +411,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             activity_title, activity_description = get_applicant_activity_message(
                 application,
                 self.request.data,
+                old_status,
             )
             append_application_activity(
                 application,
