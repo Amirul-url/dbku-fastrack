@@ -250,7 +250,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.TECHNICAL_REVIEW_COMPLETED]: "Technical Completed",
     [WORKFLOW_STATUS.MANAGEMENT_REVIEW]: "Management Recommendation",
     [WORKFLOW_STATUS.MPHLG_PROCESSING]: "MPHLG Processing",
-    [WORKFLOW_STATUS.MPHLG_DECISION_RECEIVED]: "Pending SUT Approval",
+    [WORKFLOW_STATUS.MPHLG_DECISION_RECEIVED]: "MPHLG Decision Received",
     [WORKFLOW_STATUS.APPROVED]: "Approved",
     [WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS]: "Approved with Conditions",
     [WORKFLOW_STATUS.REJECTED]: "Rejected",

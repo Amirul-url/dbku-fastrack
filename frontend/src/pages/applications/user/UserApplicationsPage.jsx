@@ -19,7 +19,6 @@ import {
   getApplicantApplicationRoute,
   getApplicantDisplayStatus,
   getApplicationReference,
-  getApplicationType,
   getProjectName,
   normalizeStatus,
 } from "../../../utils/workflow";
@@ -63,7 +62,6 @@ function UserApplicationsPage() {
       const haystack = [
         getApplicationReference(app),
         getProjectName(app, language),
-        getApplicationType(app, language),
         getApplicationRemark(app),
         translatedStatus(t, app.status),
       ]
@@ -155,14 +153,13 @@ function UserApplicationsPage() {
             {
               key: "project",
               label: t("common.project"),
-              className: "w-[28%]",
+              className: "w-[38%]",
               render: (app) => (
-                <span className="block max-w-[34rem] whitespace-normal leading-5">
+                <span className="block max-w-[42rem] whitespace-pre-line leading-5">
                   {getProjectName(app, language)}
                 </span>
               ),
             },
-            { key: "type", label: t("common.type"), className: "w-[10%]", render: (app) => getApplicationType(app, language) },
             {
               key: "status",
               label: t("common.status"),

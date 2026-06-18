@@ -17,7 +17,7 @@ function normalizeDepartmentCode(value) {
     .replace(/-/g, " ")
     .replace(/\s+/g, " ");
 
-  return department === "SETIAUSAHA TETAP" ? "SUT" : department;
+  return department === "SETIAUSAHA TETAP" ? "" : department;
 }
 
 function isApprovalWorkflowUser() {
@@ -33,8 +33,7 @@ function isApprovalWorkflowUser() {
       department === "PGH" ||
       department === "TP(RES)/PGH" ||
       department === "TP/PGH" ||
-      department === "MPHLG" ||
-      department === "SUT"
+      department === "MPHLG"
     );
   } catch {
     return false;

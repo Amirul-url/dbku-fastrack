@@ -17,8 +17,6 @@ import {
   formatCompactDateTime,
   formatWorkflowStatus,
   getApplicationReference,
-  getApplicationType,
-  getPrimaryApplicationType,
   getProjectName,
   normalizeStatus,
 } from "../../utils/workflow";
@@ -38,7 +36,6 @@ const APPROVAL_WORKFLOW_DEPARTMENTS = new Set([
   "KB(LES)",
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   "MPHLG",
-  "SUT",
 ]);
 const IKL_HISTORY_STATUSES = [
   "submitted",
@@ -525,10 +522,6 @@ function isApprovalActivityForDepartment(activity, userDepartment, application =
     return text.includes("mphlg");
   }
 
-  if (userDepartment === "SUT") {
-    return text.includes("sut");
-  }
-
   return isRelevantRecentActivity(application, userDepartment);
 }
 
@@ -553,7 +546,6 @@ function getActivityDepartment(activity) {
     "TP(RES)/PGH",
     "TP/PGH",
     "MPHLG",
-    "SUT",
     ...EXTERNAL_TECHNICAL_DEPARTMENTS,
   ];
 
@@ -764,10 +756,6 @@ function isRelevantRecentActivity(application, userDepartment) {
 
   if (userDepartment === "MPHLG") {
     return status === "mphlg_processing";
-  }
-
-  if (userDepartment === "SUT") {
-    return status === "mphlg_decision_received";
   }
 
   const assignedUnit = getAssignedUnit(userDepartment);
@@ -1149,17 +1137,12 @@ function ClaimableTaskView({
             {
               key: "project",
               label: t("common.project"),
-              className: "w-[39%] min-w-[18rem]",
-              render: getProjectName,
-            },
-            {
-              key: "type",
-              label: t("common.type"),
-              className: "w-[13%] whitespace-nowrap",
-              render: (application) =>
-                selected.department === "IKL (TECHNICAL)"
-                  ? getPrimaryApplicationType(application, language)
-                  : getApplicationType(application, language),
+              className: "w-[52%] min-w-[18rem]",
+              render: (application) => (
+                <span className="block max-w-[42rem] whitespace-pre-line leading-5">
+                  {getProjectName(application, language)}
+                </span>
+              ),
             },
             {
               key: "status",
@@ -1267,7 +1250,7 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
-  if (department === "SETIAUSAHA TETAP") return "SUT";
+  if (department === "SETIAUSAHA TETAP") return "";
   return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
 
@@ -1286,7 +1269,7 @@ function isApprovalWorkflowUser(user) {
 }
 
 function isMphlgUser(user) {
-  return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
+  return normalizeDepartmentCode(user?.department) === "MPHLG";
 }
 
 function getAssignedUnit(department) {

@@ -39,7 +39,6 @@ const COMPLETED_VIEW_DEPARTMENTS = new Set([
   "TP(RES)/PGH",
   "TP/PGH",
   "MPHLG",
-  "SUT",
 ]);
 const APPROVED_WORKFLOW_STATUSES = new Set([
   "approved",
@@ -350,10 +349,6 @@ function isCompletedApprovalForDepartment(app, department) {
     return hasMphlgDecision(app);
   }
 
-  if (department === "SUT") {
-    return hasSutDecision(app);
-  }
-
   return isFinalApprovalCompleted(app, department);
 }
 
@@ -442,16 +437,6 @@ function hasMphlgDecision(app) {
   );
 }
 
-function hasSutDecision(app) {
-  const sutApproval = getApplicationSection(app, "sut_approval");
-  const status = String(sutApproval.status || "").trim().toLowerCase();
-
-  return (
-    hasDecisionSection(sutApproval, ["approved_at"]) &&
-    !status.includes("pending")
-  );
-}
-
 function hasDecisionSection(section, dateKeys = []) {
   if (!section || typeof section !== "object") return false;
 
@@ -493,10 +478,6 @@ function getDepartmentDecision(app, department) {
 
   if (department === "MPHLG") {
     return getSectionDecision(getApplicationSection(app, "mphlg_gateway")) || formatWorkflowStatus(app.status);
-  }
-
-  if (department === "SUT") {
-    return getSectionDecision(getApplicationSection(app, "sut_approval")) || formatWorkflowStatus(app.status);
   }
 
   return getApprovalDecision(app);
@@ -599,10 +580,6 @@ function getCompletionDate(app, department = normalizeDepartmentCode(getStoredUs
     return parseCompletionDate(getApplicationSection(app, "mphlg_gateway"), ["reviewed_at"]);
   }
 
-  if (department === "SUT") {
-    return parseCompletionDate(getApplicationSection(app, "sut_approval"), ["approved_at"]);
-  }
-
   const rawDate = app?.updated_at || app?.created_at;
   const date = new Date(rawDate);
 
@@ -699,7 +676,7 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
-  if (department === "SETIAUSAHA TETAP") return "SUT";
+  if (department === "SETIAUSAHA TETAP") return "";
   return department;
 }
 

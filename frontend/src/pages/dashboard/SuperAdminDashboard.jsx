@@ -28,7 +28,7 @@ const adminDepartments = [
   "ENG",
 ];
 const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
-const mphlgDepartments = ["MPHLG", "SUT"];
+const mphlgDepartments = ["MPHLG"];
 const recentActivityPageSize = 5;
 const adminCsvHeaders = [
   "full_name",

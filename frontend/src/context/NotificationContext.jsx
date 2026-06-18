@@ -38,7 +38,6 @@ const technicalDepartmentOrder = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const technicalDepartments = new Set(technicalDepartmentOrder);
 const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const mphlgReviewDepartments = new Set(["MPHLG"]);
-const sutApprovalDepartments = new Set(["SUT"]);
 const adminTechnicalTaskStatuses = new Set([
   "technical_review",
   "technical_site_visit",
@@ -126,7 +125,7 @@ function normalizeDepartment(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
-  if (department === "SETIAUSAHA TETAP") return "SUT";
+  if (department === "SETIAUSAHA TETAP") return "";
   return department;
 }
 
@@ -398,10 +397,6 @@ function isMphlgApproved(app) {
   return officer === "MPHLG" && (status === "approved" || decision === "approve");
 }
 
-function isSutApprovalPending(app) {
-  return !hasApplicationSection(app, "approval");
-}
-
 function isApprovalSupportPending(app) {
   return isKbLesVerified(app) && !hasManagementSupport(app);
 }
@@ -471,8 +466,7 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   }
 
   if (normalizedStatus === "mphlg_decision_received") {
-    if (!app) return sutApprovalDepartments.has(department);
-    return sutApprovalDepartments.has(department) && isSutApprovalPending(app);
+    return mphlgReviewDepartments.has(department);
   }
 
   if (adminTechnicalTaskStatuses.has(normalizedStatus)) {
@@ -776,10 +770,10 @@ function buildAdminNotifications(app, user) {
         "admin",
         "approval",
         "warning",
-        "Application ready for SUT approval",
-        "Permohonan sedia untuk kelulusan SUT",
-        `${reference} is ready for SUT approval.`,
-        `${reference} sedia untuk kelulusan SUT.`,
+        "MPHLG decision received",
+        "Keputusan MPHLG diterima",
+        `${reference} has an MPHLG decision recorded.`,
+        `Keputusan MPHLG telah direkodkan untuk ${reference}.`,
         user
       )
     );
@@ -996,8 +990,8 @@ function getDeliveryLocalizedCopy(status, reference, remark = "") {
       messageMs: `Permohonan ${safeReference} sedia untuk kelulusan MPHLG.`,
     },
     mphlg_decision_received: {
-      titleMs: "Kelulusan SUT diperlukan",
-      messageMs: `Permohonan ${safeReference} sedia untuk kelulusan SUT.`,
+      titleMs: "Keputusan MPHLG diterima",
+      messageMs: `Keputusan MPHLG telah direkodkan untuk permohonan ${safeReference}.`,
     },
   };
 

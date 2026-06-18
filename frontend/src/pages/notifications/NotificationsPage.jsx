@@ -564,8 +564,8 @@ function getNotificationRecipientLabel(item) {
     return "MPHLG";
   }
 
-  if (status === "mphlg_decision_received" || /SUT/i.test(label)) {
-    return "SUT";
+  if (status === "mphlg_decision_received") {
+    return "MPHLG";
   }
 
   return "-";
@@ -1413,12 +1413,12 @@ function getWorkflowMemoCopy(status, reference, isMalay) {
     },
     mphlg_decision_received: {
       en: {
-        subject: "SUT approval required",
-        lines: [`Application ${reference} is ready for SUT approval.`],
+        subject: "MPHLG decision received",
+        lines: [`Application ${reference} has an MPHLG decision recorded.`],
       },
       ms: {
-        subject: "Kelulusan SUT diperlukan",
-        lines: [`Permohonan ${reference} sedia untuk kelulusan SUT.`],
+        subject: "Keputusan MPHLG diterima",
+        lines: [`Keputusan MPHLG telah direkodkan untuk permohonan ${reference}.`],
       },
     },
   };

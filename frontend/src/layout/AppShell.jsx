@@ -899,7 +899,7 @@ function isApprovalWorkflowUser(user) {
 }
 
 function isMphlgUser(user) {
-  return ["MPHLG", "SUT"].includes(normalizeDepartmentCode(user?.department));
+  return normalizeDepartmentCode(user?.department) === "MPHLG";
 }
 
 function isELicensePaymentTask(application) {
@@ -968,10 +968,6 @@ function isAwaitingApprovalTask(application, department) {
     return status === "mphlg_processing" && !isMphlgReviewComplete(application);
   }
 
-  if (department === "SUT") {
-    return status === "mphlg_decision_received" && !hasApplicationSection(application, "approval");
-  }
-
   return false;
 }
 
@@ -997,7 +993,7 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
-  if (department === "SETIAUSAHA TETAP") return "SUT";
+  if (department === "SETIAUSAHA TETAP") return "";
   return department;
 }
 

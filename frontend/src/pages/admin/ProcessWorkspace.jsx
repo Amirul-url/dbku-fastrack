@@ -37,7 +37,6 @@ import {
   getApplicationLocation,
   getApplicationReference,
   getApplicationType,
-  getPrimaryApplicationType,
   getInvoiceNo,
   getLicenseId,
   getProjectName,
@@ -76,7 +75,6 @@ const SQFT_TO_SQM = 0.092903;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
 const WORKSPACE_TABLE_PAGE_SIZE = 5;
-const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
 const TECHNICAL_LED_SUBTYPES = new Set([
   "open_space_led_billboard",
   "building_led_billboard",
@@ -134,12 +132,10 @@ const KU_IKL_TECHNICAL_TRACKING_STATUSES = new Set([
 ]);
 const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
 const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
-const SUT_APPROVAL_DEPARTMENTS = ["SUT"];
 const APPROVAL_TECHNICAL_REPORT_DEPARTMENTS = [
   "KB(LES)",
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   ...MPHLG_REVIEW_DEPARTMENTS,
-  ...SUT_APPROVAL_DEPARTMENTS,
 ];
 const APPROVAL_REPORT_VIEW_DEPARTMENTS = [
   "PT(IKL)",
@@ -147,6 +143,11 @@ const APPROVAL_REPORT_VIEW_DEPARTMENTS = [
   "IKL (TECHNICAL)",
   ...TECHNICAL_DEPARTMENTS,
   ...APPROVAL_TECHNICAL_REPORT_DEPARTMENTS,
+];
+const APPROVAL_STAGE_FILTER_OPTIONS = ["kb", "kb_support", "support", "mphlg"];
+const APPROVAL_OUTCOME_STATUS_FILTER_OPTIONS = [
+  "approved",
+  "rejected",
 ];
 const INTERNAL_WORK_TRACKING_DEPARTMENTS = new Set([
   "PT(IKL)",
@@ -156,7 +157,6 @@ const INTERNAL_WORK_TRACKING_DEPARTMENTS = new Set([
   "KB(LES)",
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   ...MPHLG_REVIEW_DEPARTMENTS,
-  ...SUT_APPROVAL_DEPARTMENTS,
 ]);
 const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
 const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
@@ -206,7 +206,6 @@ function ProcessWorkspace({ type }) {
 
 function getWorkspaceUserDepartment(user) {
   const identityDepartment = getWorkflowDepartmentFromUserIdentity(user);
-  if (identityDepartment === "SUT") return identityDepartment;
 
   const department = normalizeDepartmentCode(user?.department);
   if (department) return department;
@@ -540,7 +539,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         getApplicationReference(app),
         getApplicantName(app),
         getProjectName(app),
-        getApplicationType(app, language),
         getApplicationLocation(app),
         displayStatus,
       ]
@@ -550,7 +548,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (q && !haystack.includes(q)) return false;
       if (monthFilter && updatedMonth !== monthFilter) return false;
       if (yearFilter && updatedYear !== yearFilter) return false;
-      if (statusFilter && normalizeStatus(app.status) !== statusFilter) return false;
+      if (!matchesWorkspaceStatusFilter(app, statusFilter, config)) return false;
 
       return true;
     });
@@ -582,11 +580,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [statusScopedApplications]);
 
   const statusOptions = useMemo(() => {
-    return WORKFLOW_STATUS_FILTER_OPTIONS.map((status) => ({
-      value: status,
-      label: t(`status.${status}`, formatWorkflowStatus(status)),
-    }));
-  }, [t]);
+    return getWorkspaceStatusFilterOptions(config, userDepartment, t);
+  }, [config, t, userDepartment]);
+
+  useEffect(() => {
+    if (!statusFilter) return;
+    if (statusOptions.some((item) => item.value === statusFilter)) return;
+
+    setStatusFilter("");
+  }, [statusFilter, statusOptions]);
 
   function resetQueueFilters() {
     setKeyword("");
@@ -639,10 +641,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     approvalStageKey === "mphlg" &&
     MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
-  const isSutApprovalWorkspace =
-    isApprovalWorkspace &&
-    approvalStageKey === "sut" &&
-    SUT_APPROVAL_DEPARTMENTS.includes(userDepartment);
   const showApprovalDecisionButtons = false;
   const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
   const isKbLesSupportWorkspace =
@@ -1582,16 +1580,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     );
   }
 
-  function isMphlgApproveToSutAction(action, actionDecision) {
-    return (
-      config.key === "approval" &&
-      userDepartment === "MPHLG" &&
-      getApprovalStageKey(selectedRecord) === "mphlg" &&
-      action?.buildPayload === buildApprovalWorkflowPayload &&
-      actionDecision === "Approve"
-    );
-  }
-
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -1760,21 +1748,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         return false;
       }
 
-      if (isMphlgApproveToSutAction(action, actionDecision) && !overrides.memoHtml) {
-        setError("");
-        setSuccess("");
-        setMemoDraft(createMphlgToSutMemoTemplate(selectedRecord));
-        setPendingMemoSubmission({
-          action,
-          overrides: { ...overrides, decision: actionDecision, checkDecisionRemark: false },
-          titleKey: "workspace.memo.mphlgToSutTitle",
-          title: "Memo to SUT",
-          descriptionKey: "workspace.memo.mphlgToSutDescription",
-          description: "Complete the memo before sending this approval to SUT.",
-        });
-        return false;
-      }
-
       if (
         (
           isKbLesDecisionAction(action, actionDecision) ||
@@ -1782,8 +1755,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           isKuIklApproveToTechnicalAction(action, actionDecision) ||
           isKuIklFinalTechnicalDecisionAction(action, actionDecision) ||
           isIklTechnicalSupportToKuAction(action, actionDecision) ||
-          isMphlgRejectToKuAction(action, actionDecision) ||
-          isMphlgApproveToSutAction(action, actionDecision)
+          isMphlgRejectToKuAction(action, actionDecision)
         ) &&
         !getHtmlPlainText(overrides.memoHtml)
       ) {
@@ -2081,7 +2053,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             className={tableFirstWorkspace ? "" : "xl:col-span-2"}
           >
             {statusScopedApplications.length > 0 && (
-              <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_160px_160px_180px_auto] lg:items-end">
+              <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto] lg:items-end">
                 <Field label={t("common.search")}>
                   <input
                     value={keyword}
@@ -2089,6 +2061,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     className="form-input"
                     placeholder={t("workspace.search.placeholder")}
                   />
+                </Field>
+
+                <Field label={t("common.status")}>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="form-input"
+                  >
+                    <option value="">{t("common.allStatuses")}</option>
+                    {statusOptions.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label={t("common.month")}>
@@ -2116,21 +2103,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     {yearOptions.map((item) => (
                       <option key={item} value={item}>
                         {item}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label={t("common.status")}>
-                  <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value)}
-                    className="form-input"
-                  >
-                    <option value="">{t("common.allStatuses")}</option>
-                    {statusOptions.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
                       </option>
                     ))}
                   </select>
@@ -2198,14 +2170,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 {
                   key: "project",
                   label: t("common.project"),
-                  className: "w-[39%] min-w-[18rem]",
-                  render: getProjectName,
-                },
-                {
-                  key: "type",
-                  label: t("common.type"),
-                  className: "w-[13%]",
-                  render: (app) => getPrimaryApplicationType(app, language),
+                  className: "w-[52%] min-w-[18rem]",
+                  render: (app) => (
+                    <span className="block max-w-[42rem] whitespace-pre-line leading-5">
+                      {getProjectName(app, language)}
+                    </span>
+                  ),
                 },
                 {
                   key: "status",
@@ -2303,7 +2273,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   ? t("workspace.approval.completedAction", "Final approval has been recorded.")
                   : t(
                       "workspace.approval.viewOnlyAction",
-                      "View applications awaiting SUT, KB(LES), or TP(RES)/PGH action."
+                      "View applications awaiting KB(LES), TP(RES)/PGH, or MPHLG action."
                     )
                 : getWorkspaceActionDescription(config, t, userDepartment, selectedRecord)
             }
@@ -2523,9 +2493,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Field
                       label={
                         <>
-                          {isSutApprovalWorkspace
-                            ? t("workspace.comment.approvalRemarks", "Remarks")
-                            : t(config.commentLabelKey, config.commentLabel || "Notes")}
+                          {t(config.commentLabelKey, config.commentLabel || "Notes")}
                           {workspaceActions.some((action) => action.requiresComment) && (
                             <span className="ml-1 text-red-600">*</span>
                           )}
@@ -2543,11 +2511,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         required={workspaceActions.some((action) => action.requiresComment)}
                         aria-required={workspaceActions.some((action) => action.requiresComment)}
                         className={`form-input ${showPaymentReceiptDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                        placeholder={
-                          isSutApprovalWorkspace
-                            ? t("workspace.comment.approvalRemarksPlaceholder", "Enter remarks if needed.")
-                            : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
-                        }
+                        placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
                       />
                       {commentError && (
                         <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
@@ -2734,17 +2698,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       </Button>
                     ) : showApprovalDecisionButtons ? (
                       <>
-                        {!isSutApprovalWorkspace && (
-                          <Button
-                            onClick={() => submitApprovalDecisionButton("Reject")}
-                            disabled={saving}
-                            variant="danger"
-                            icon="cancel"
-                            className="min-w-40"
-                          >
-                            {t("workspace.decision.notApprove", "Not Approve")}
-                          </Button>
-                        )}
+                        <Button
+                          onClick={() => submitApprovalDecisionButton("Reject")}
+                          disabled={saving}
+                          variant="danger"
+                          icon="cancel"
+                          className="min-w-40"
+                        >
+                          {t("workspace.decision.notApprove", "Not Approve")}
+                        </Button>
                         <Button
                           onClick={() => submitApprovalDecisionButton("Approve")}
                           disabled={saving}
@@ -3653,118 +3615,6 @@ function createMphlgToKuAmendmentMemoTemplate(app) {
   `;
 }
 
-function createMphlgToSutMemoTemplate(app) {
-  const forwardedMemoHtml = String(
-    getApplicationSection(app, "mphlg_gateway")?.memo_html || ""
-  ).trim();
-  if (forwardedMemoHtml) return normalizeMphlgToSutForwardedMemoHtml(forwardedMemoHtml);
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const memoDate = new Intl.DateTimeFormat("ms-MY", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(now);
-  const reference = getApplicationReference(app);
-  const applicantName = getApplicantName(app);
-  const applicationType = getApplicationType(app);
-  const projectName = getProjectName(app);
-  const location = getApplicationLocation(app);
-
-  return `
-    <h3 style="text-align:center;"><strong>DEWAN BANDARAYA KUCHING UTARA</strong><br><strong>MEMORANDUM</strong></h3>
-    <figure class="table"><table style="width:100%;border-collapse:collapse;">
-      <tbody>
-        <tr>
-          <td style="width:120px;border:1px solid #bfbfbf;padding:6px;"><strong>Kepada :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">SUT</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Melalui :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Daripada :</strong></td>
-          <td colspan="3" style="border:1px solid #bfbfbf;padding:6px;">MPHLG</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Kami :</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">DBKU/LES/IKL/M/${year}(1)</td>
-          <td style="width:80px;border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
-          <td style="width:160px;border:1px solid #bfbfbf;padding:6px;">${escapeHtml(memoDate)}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Ruj. Tuan :</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(reference)}</td>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Tarikh:</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">&nbsp;</td>
-        </tr>
-      </tbody>
-    </table></figure>
-    <p><strong><u>KELULUSAN MPHLG UNTUK TINDAKAN SUT</u></strong></p>
-    <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
-    <p>Permohonan ${escapeHtml(reference)} telah diluluskan oleh MPHLG dan dikemukakan kepada SUT untuk tindakan kelulusan seterusnya.</p>
-    <figure class="table"><table style="width:100%;border-collapse:collapse;">
-      <tbody>
-        <tr>
-          <td style="width:180px;border:1px solid #bfbfbf;padding:6px;"><strong>Pemohon</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicantName)}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Jenis Permohonan</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(applicationType)}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Projek</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(projectName)}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Lokasi</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
-        </tr>
-        <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Catatan MPHLG</strong></td>
-          <td style="border:1px solid #bfbfbf;padding:6px;">Sila nyatakan catatan kelulusan di sini.</td>
-        </tr>
-      </tbody>
-    </table></figure>
-    <p>Mohon pihak SUT membuat tindakan selanjutnya.</p>
-    <p>Sekian, terima kasih.</p>
-  `;
-}
-
-function normalizeMphlgToSutForwardedMemoHtml(html) {
-  const source = String(html || "").trim();
-  if (!source) return "";
-
-  if (typeof window === "undefined" || !window.DOMParser) {
-    return source
-      .replace(/(<strong>\s*Kepada\s*:\s*<\/strong>\s*<\/td>\s*<td[^>]*>)[^<]*/i, "$1SUT")
-      .replace(/(<strong>\s*Daripada\s*:\s*<\/strong>\s*<\/td>\s*<td[^>]*>)[^<]*/i, "$1MPHLG");
-  }
-
-  const parser = new DOMParser();
-  const document = parser.parseFromString(source, "text/html");
-  document.querySelectorAll("tr").forEach((row) => {
-    const cells = Array.from(row.querySelectorAll("td"));
-    if (cells.length < 2) return;
-
-    const label = cells[0].textContent.replace(/\s+/g, " ").trim().toLowerCase();
-    if (label.startsWith("kepada")) {
-      cells[1].textContent = "SUT";
-    }
-    if (label.startsWith("daripada")) {
-      cells[1].textContent = "MPHLG";
-    }
-  });
-
-  return document.body.innerHTML;
-}
-
 function createTpResToMphlgMemoTemplate(app) {
   const now = new Date();
   const year = now.getFullYear();
@@ -4505,11 +4355,7 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
       return "";
     }
 
-    if (SUT_APPROVAL_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.sutAction", "Record SUT final approval with optional comments.");
-    }
-
-    return t("workspace.approval.viewOnlyAction", "View applications awaiting SUT, KB(LES), or TP(RES)/PGH action.");
+  return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES), TP(RES)/PGH, or MPHLG action.");
   }
 
   if (config?.key === "payment") {
@@ -4573,12 +4419,6 @@ function getWorkspaceDecisionOptions(config, app, department) {
     ];
   }
 
-  if (SUT_APPROVAL_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "sut") {
-    return [
-      { value: "Approve", labelKey: "workspace.decision.approve" },
-    ];
-  }
-
   return config.decisions || [];
 }
 
@@ -4611,10 +4451,8 @@ function getWorkspaceActions(config, app, department) {
     APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && stage === "support";
   const canMphlgApprove =
     MPHLG_REVIEW_DEPARTMENTS.includes(department) && stage === "mphlg";
-  const canSutApprove =
-    SUT_APPROVAL_DEPARTMENTS.includes(department) && stage === "sut";
 
-  return canKbVerify || canSupport || canMphlgApprove || canSutApprove ? config.actions || [] : [];
+  return canKbVerify || canSupport || canMphlgApprove ? config.actions || [] : [];
 }
 
 function canOpenWorkspaceRow(config, app, department) {
@@ -4656,9 +4494,6 @@ function isApprovalTaskForDepartment(app, department) {
   }
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
     return stage === "mphlg" || isMphlgMonitoredRecord(app);
-  }
-  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
-    return stage === "sut" || isSutMonitoredRecord(app);
   }
 
   return false;
@@ -4720,7 +4555,6 @@ function isApprovalWorkflowRecord(app) {
       "kb_les_verification",
       "management_recommendation",
       "mphlg_gateway",
-      "sut_approval",
     ].some((key) => hasApplicationSection(app, key))
   );
 }
@@ -4736,8 +4570,6 @@ function hasApprovalDecisionForDepartment(app, department) {
     if (officer && !APPROVAL_SUPPORT_DEPARTMENTS.includes(officer)) return false;
   } else if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
     section = getApplicationSection(app, "mphlg_gateway");
-  } else if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
-    section = getApplicationSection(app, "sut_approval");
   }
 
   return Boolean(
@@ -4765,7 +4597,7 @@ function isApprovalSupportMonitoredRecord(app) {
 
   return (
     ["approved", "supported", "completed"].includes(recommendationStatus) &&
-    ["mphlg", "sut"].includes(getApprovalStageKey(app))
+    getApprovalStageKey(app) === "mphlg"
   );
 }
 
@@ -4775,19 +4607,7 @@ function isMphlgMonitoredRecord(app) {
 
   return (
     ["approved", "reviewed", "completed"].includes(mphlgStatus) &&
-    getApprovalStageKey(app) === "sut"
-  );
-}
-
-function isSutMonitoredRecord(app) {
-  if (getApprovalStageKey(app) !== "kb_support") return false;
-
-  const sutApproval = getApplicationSection(app, "sut_approval");
-  const sutStatus = String(sutApproval.status || "").trim().toLowerCase();
-
-  return (
-    ["approved", "supported", "completed"].includes(sutStatus) &&
-    getApprovalStageKey(app) === "kb_support"
+    getApprovalStageKey(app) === "completed"
   );
 }
 
@@ -4804,6 +4624,7 @@ function isApprovalHistoryRecord(app) {
       "payment_verified",
       "license_issued",
       "license_revoked",
+      "rejected",
     ].includes(status)
   );
 }
@@ -4870,14 +4691,6 @@ function getActionUnavailableMessage(config, app, department) {
     }
 
     return stage === "mphlg" ? "" : "MPHLG approval is available after TP(RES)/PGH support.";
-  }
-
-  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
-    if (isSutMonitoredRecord(app)) {
-      return "The application is now awaiting the approval department shown in the status.";
-    }
-
-    return stage === "sut" ? "" : "SUT approval is available after MPHLG approval.";
   }
 
   if (["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)", ...TECHNICAL_DEPARTMENTS].includes(department)) {
@@ -4988,7 +4801,6 @@ function isSupervisorWorkflowDepartment(department) {
     "TP(RES)/PGH",
     "TP/PGH",
     "MPHLG",
-    "SUT",
   ].includes(department);
 }
 
@@ -5035,6 +4847,10 @@ function canSupportCancellationNotice(app, department) {
 function getApprovalStageLabel(app, t) {
   const stage = getApprovalStageKey(app);
 
+  if (normalizeStatus(app?.status) === "mphlg_decision_received") {
+    return t("status.mphlg_decision_received", "MPHLG Decision Received");
+  }
+
   if (stage === "kb_support") {
     return t("workspace.approval.stageKbSupport", "Pending KB(LES) Support");
   }
@@ -5045,10 +4861,6 @@ function getApprovalStageLabel(app, t) {
 
   if (stage === "mphlg") {
     return t("workspace.approval.stageMphlg", "Pending MPHLG Approval");
-  }
-
-  if (stage === "sut") {
-    return t("workspace.approval.stageSut", "Pending SUT Approval");
   }
 
   if (stage === "completed") {
@@ -5071,7 +4883,7 @@ function getApprovalStageKey(app) {
   }
 
   if (status === "mphlg_processing") return "mphlg";
-  if (status === "mphlg_decision_received") return "sut";
+  if (status === "mphlg_decision_received") return "mphlg";
   if (hasApplicationSection(app, "approval")) return "completed";
   if (isKbLesVerified(app) && !hasManagementSupport(app)) return "support";
   return "kb";
@@ -5875,41 +5687,6 @@ function buildApprovalWorkflowPayload(app, data) {
     };
   }
 
-  if (SUT_APPROVAL_DEPARTMENTS.includes(department)) {
-    return {
-      status: decision === "Approve" ? "management_review" : normalizeStatus(app.status),
-      current_step: Math.max(Number(app.current_step || 1), 5),
-      latest_remark: data.comment || app.latest_remark || "",
-      form_data: mergeFormData(app, {
-        sut_approval: {
-          ...(app.form_data?.sut_approval || {}),
-          officer: "SUT",
-          status: decision === "Approve" ? "Approved" : app.form_data?.sut_approval?.status || "Pending SUT Approval",
-          decision,
-          remarks: data.comment,
-          approved_at: now,
-        },
-        kb_les_verification: decision === "Approve"
-          ? {
-              ...(app.form_data?.kb_les_verification || {}),
-              status: "Verified",
-              routed_from: "SUT",
-              routed_at: now,
-            }
-          : app.form_data?.kb_les_verification || null,
-        management_recommendation: decision === "Approve"
-          ? {
-              ...(app.form_data?.management_recommendation || {}),
-              status: "Pending KB(LES) Support",
-              routed_from: "SUT",
-              routed_at: now,
-            }
-          : app.form_data?.management_recommendation || null,
-        approval: app.form_data?.approval || null,
-      }),
-    };
-  }
-
   return {
     status: normalizeStatus(app.status),
     form_data: app.form_data || {},
@@ -6521,12 +6298,8 @@ function normalizeDepartmentCode(value) {
     return "IKL (TECHNICAL)";
   }
   if (department === "INP") return "LNP";
-  if (
-    department === "SUT" ||
-    department === "SUT APPROVAL" ||
-    department.includes("SETIAUSAHA TETAP")
-  ) {
-    return "SUT";
+  if (department.includes("SETIAUSAHA TETAP")) {
+    return "";
   }
   return department === "UNIT IKLAN" ? "PT(IKL)" : department;
 }
@@ -6572,6 +6345,132 @@ function getWorkspaceStatusScope(config, department) {
   }
 
   return Array.isArray(config?.statuses) ? config.statuses : [];
+}
+
+function getWorkspaceStatusFilterOptions(config, department, t) {
+  if (config?.key === "approval") {
+    const stageOptions = getApprovalStageFilterOptionsForDepartment(department).map((stage) => ({
+      value: `stage:${stage}`,
+      label: getApprovalStageFilterLabel(stage, t),
+    }));
+    const outcomeOptions = APPROVAL_OUTCOME_STATUS_FILTER_OPTIONS.map((status) => ({
+      value: `status:${status}`,
+      label: t(`status.${status}`, formatWorkflowStatus(status)),
+    }));
+
+    return [...stageOptions, ...outcomeOptions];
+  }
+
+  const scopedStatuses = getWorkspaceStatusScope(config, department);
+  const statuses =
+    scopedStatuses.length > 0
+      ? scopedStatuses
+      : Array.isArray(config?.statuses)
+        ? config.statuses
+        : [];
+
+  const uniqueStatuses = [...new Set(statuses.map(normalizeStatus).filter(Boolean))];
+  const optionsByLabel = new Map();
+
+  uniqueStatuses.forEach((status) => {
+    const label = getWorkspaceStatusFilterLabel(status, config, department, t);
+    const existing = optionsByLabel.get(label);
+
+    if (existing) {
+      existing.statuses.push(status);
+      existing.value = existing.statuses.join("|");
+      return;
+    }
+
+    optionsByLabel.set(label, {
+      value: status,
+      label,
+      statuses: [status],
+    });
+  });
+
+  return [...optionsByLabel.values()].map(({ value, label }) => ({ value, label }));
+}
+
+function getApprovalStageFilterOptionsForDepartment(department) {
+  if (department === "KB(LES)") return ["kb", "kb_support"];
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return ["support"];
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return ["mphlg"];
+
+  return APPROVAL_STAGE_FILTER_OPTIONS;
+}
+
+function matchesWorkspaceStatusFilter(app, value, config) {
+  if (!value) return true;
+
+  if (config?.key === "approval" && String(value).startsWith("stage:")) {
+    return getApprovalStageKey(app) === String(value).replace(/^stage:/, "");
+  }
+
+  if (config?.key === "approval" && String(value).startsWith("status:")) {
+    return normalizeStatus(app.status) === String(value).replace(/^status:/, "");
+  }
+
+  return getStatusFilterValues(value).includes(normalizeStatus(app.status));
+}
+
+function getStatusFilterValues(value) {
+  return String(value || "")
+    .split("|")
+    .map((item) => normalizeStatus(item))
+    .filter(Boolean);
+}
+
+function getApprovalStageFilterLabel(stage, t) {
+  if (stage === "kb_support") {
+    return t("workspace.approval.stageKbSupport", "Pending KB(LES) Support");
+  }
+
+  if (stage === "support") {
+    return t("workspace.approval.stageSupport", "Pending TP(RES)/PGH Final Approval");
+  }
+
+  if (stage === "mphlg") {
+    return t("workspace.approval.stageMphlg", "Pending MPHLG Approval");
+  }
+
+  return t("workspace.approval.stageKbVerification", "Pending KB(LES) Verification");
+}
+
+function getWorkspaceStatusFilterLabel(status, config, department, t) {
+  if (config?.key === "screening") {
+    if (status === "submitted" || status === "ku_ikl_review") {
+      return t("status.ku_ikl_review", "KU(IKL) Review");
+    }
+
+    if (status === "technical_review_completed") {
+      return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
+    }
+
+    if (department === "IKL (TECHNICAL)" && TECHNICAL_REVIEW_STATUSES.has(status)) {
+      return t("status.ikl_technical_review", "IKL(TECH) Review");
+    }
+  }
+
+  if (config?.key === "technical" && TECHNICAL_REVIEW_STATUSES.has(status)) {
+    return getDepartmentReviewStatusLabel(department);
+  }
+
+  if (config?.key === "payment" && status === "bill_pending_ku") {
+    return t("status.bill_pending_ku", "Pending Bill Sending");
+  }
+
+  if (config?.key === "license") {
+    const labelMap = {
+      payment_verified: t("status.payment_verified", "Payment Verified"),
+      license_issued: t("status.license_issued", "E-License Issued"),
+      license_revoked: t("status.license_revoked", "License Revoked"),
+    };
+
+    if (labelMap[status]) return labelMap[status];
+  }
+
+  return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
 function getWorkspaceFetchParams(config, department, includeCompletedFallback = false) {
@@ -6766,16 +6665,19 @@ const configs = {
   },
   approval: {
     key: "approval",
-    eyebrow: "KB(LES), TP/PGH, MPHLG, and SUT",
+    eyebrow: "KB(LES), TP/PGH, and MPHLG",
     eyebrowKey: "workspace.approval.eyebrow",
     statuses: [
       "management_review",
       "mphlg_processing",
       "mphlg_decision_received",
+      "approved",
+      "approved_with_conditions",
+      "rejected",
     ],
     title: "Approval",
     titleKey: "workspace.approval.title",
-    description: "Record KB(LES) verification, TP(RES)/PGH support, MPHLG review, SUT decision, and final approval.",
+    description: "Record KB(LES) verification, TP(RES)/PGH support, MPHLG review, and final approval.",
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",
@@ -6796,7 +6698,6 @@ const configs = {
       { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
       { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "check_circle", tone: "blue" },
       { label: "MPHLG", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
-      { label: "SUT", value: countBy(apps, (app) => getApprovalStageKey(app) === "sut"), icon: "gavel" },
     ],
     actions: [
       {
@@ -7013,7 +6914,7 @@ const configs = {
   },
   license: {
     key: "license",
-    allowedDepartments: ["PT(IKL)", "KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH", "MPHLG", "SUT"],
+    allowedDepartments: ["PT(IKL)", "KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH", "MPHLG"],
     statuses: ["payment_verified", "license_issued", "license_revoked"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.license.listEyebrow",
