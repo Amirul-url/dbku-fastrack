@@ -949,7 +949,7 @@ function drawPdfAdvertisementRows(pdf, { no = "", rows, tx, y }) {
     },
     {
       key: "payable",
-      title: [tx("malaysiaPlanRm").replace(/,\s*RM\s*$/i, ""), "(RM)"],
+      title: [tx("malaysiaPlanRm").replace(/,\s*\(?RM\)?\s*$/i, ""), "(RM)"],
       width: 32,
     },
   ];
@@ -965,7 +965,7 @@ function drawPdfAdvertisementRows(pdf, { no = "", rows, tx, y }) {
       pdf,
       columns,
       {
-        index: String(index + 1),
+        index: formatPrintTableRowLetter(index),
         displayType: row.displayTypeLabel,
         advertisementType: row.advertisementTypeLabel,
         size: row.sizeLabel,
@@ -1413,7 +1413,7 @@ function PrintAdvertisementRows({ no = "", step1, language, tx }) {
         <tbody>
           {rows.map((row, index) => (
             <tr key={`advertisement-${index}`} className="print-avoid-break">
-              <PrintTableCell center>{index + 1}</PrintTableCell>
+              <PrintTableCell center>{formatPrintTableRowLetter(index)}</PrintTableCell>
               <PrintTableCell>{row.displayTypeLabel}</PrintTableCell>
               <PrintTableCell>{row.advertisementTypeLabel}</PrintTableCell>
               <PrintTableCell>{row.sizeLabel}</PrintTableCell>
@@ -1434,7 +1434,7 @@ function getPrintApplicationProjectRows(step1 = {}, language = "en") {
   if (advertisementRows.length === 0 && projectItems.length === 0) {
     return [
       {
-        index: "1",
+        index: formatPrintTableRowLetter(0),
         category: "-",
         displayType: "-",
         advertisementType: "-",
@@ -1448,7 +1448,7 @@ function getPrintApplicationProjectRows(step1 = {}, language = "en") {
   return Array.from({ length: rowCount }, (_, index) => {
     const advertisementRow = advertisementRows[index] || {};
     return {
-      index: String(index + 1),
+      index: formatPrintTableRowLetter(index),
       category: advertisementRow.applicationTypeLabel || "-",
       displayType: advertisementRow.displayTypeLabel || "-",
       advertisementType: advertisementRow.advertisementTypeLabel || "-",
@@ -1458,6 +1458,22 @@ function getPrintApplicationProjectRows(step1 = {}, language = "en") {
         "-",
     };
   });
+}
+
+function formatPrintTableRowLetter(index) {
+  let value = Number(index);
+  if (!Number.isInteger(value) || value < 0) return "";
+
+  let label = "";
+  value += 1;
+
+  while (value > 0) {
+    value -= 1;
+    label = String.fromCharCode(97 + (value % 26)) + label;
+    value = Math.floor(value / 26);
+  }
+
+  return label;
 }
 
 function getNumberedPrintItems(value) {
