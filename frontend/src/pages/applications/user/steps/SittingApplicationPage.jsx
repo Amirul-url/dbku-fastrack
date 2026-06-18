@@ -107,7 +107,12 @@ const IKL_FEE_SCHEDULES = {
 };
 
 function normalizeApplicationTypeOptions(value) {
-  const values = Array.isArray(value) ? value : value ? [value] : [];
+  const values = Array.isArray(value)
+    ? value
+    : String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
   const normalized = values
     .map((item) => String(item || "").trim().toLowerCase())
     .filter((item) => APPLICATION_TYPE_OPTIONS.some((option) => option.value === item));
@@ -117,6 +122,26 @@ function normalizeApplicationTypeOptions(value) {
 
 function getPrimaryApplicationType(value) {
   return normalizeApplicationTypeOptions(value)[0] || "open_space";
+}
+
+function getAdvertisementRowApplicationType(row, fallbackType = "open_space") {
+  return getPrimaryApplicationType(
+    row?.applicationType || row?.application_type || fallbackType
+  );
+}
+
+function getSelectedAdvertisementRowApplicationType(row) {
+  return normalizeApplicationTypeOptions(row?.applicationType || row?.application_type)[0] || "";
+}
+
+function getAdvertisementRowsApplicationTypes(rows, fallbackTypes = ["open_space"]) {
+  const fallbackType = getPrimaryApplicationType(fallbackTypes);
+  const rowTypes = (Array.isArray(rows) ? rows : [])
+    .map((row) => getSelectedAdvertisementRowApplicationType(row))
+    .filter(Boolean);
+  const normalized = normalizeApplicationTypeOptions(rowTypes);
+
+  return normalized.length > 0 ? normalized : [fallbackType];
 }
 
 function getDefaultApplicationSubtype(type) {
@@ -228,13 +253,15 @@ function getAdvertisementRowsDisplayTypeLabel(
 
 function getAdvertisementRowsSubtypeLabel(
   language,
-  type,
+  fallbackType,
   rows,
   fallbackSubtype = "",
   fallbackCustomSubtypeLabel = ""
 ) {
+  const fallbackApplicationType = getPrimaryApplicationType(fallbackType);
   const labels = (Array.isArray(rows) ? rows : [])
     .map((row) => {
+      const type = getAdvertisementRowApplicationType(row, fallbackApplicationType);
       const subtype = normalizeApplicationSubtype(row?.subtype, type);
       const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
 
@@ -247,7 +274,7 @@ function getAdvertisementRowsSubtypeLabel(
 
   return getApplicationSubtypeLabel(
     language,
-    type,
+    fallbackApplicationType,
     fallbackSubtype,
     fallbackCustomSubtypeLabel
   );
@@ -265,16 +292,17 @@ function formatAddressText(value) {
 }
 
 function buildProjectNameLine(language, selectedType, row) {
+  const rowType = getAdvertisementRowApplicationType(row, selectedType);
   const displayType =
     row?.displayType ||
     row?.display_type ||
     getApplicationDisplayTypeFromSubtype(row?.subtype);
-  const normalizedSubtype = normalizeApplicationSubtype(row?.subtype, selectedType);
+  const normalizedSubtype = normalizeApplicationSubtype(row?.subtype, rowType);
   const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
   const displayLabel = getDisplayTypeLabel(language, displayType);
   const advertisementLabel = getApplicationSubtypeLabel(
     language,
-    selectedType,
+    rowType,
     normalizedSubtype,
     customLabel
   );
@@ -284,11 +312,11 @@ function buildProjectNameLine(language, selectedType, row) {
   const isMalay = language === "ms";
   const action = stepText(
     language,
-    selectedType === "building" ? "projectActionInstallation" : "projectActionConstruction"
+    rowType === "building" ? "projectActionInstallation" : "projectActionConstruction"
   );
   const location = stepText(
     language,
-    selectedType === "building" ? "projectLocationBuilding" : "projectLocationOpenSpace"
+    rowType === "building" ? "projectLocationBuilding" : "projectLocationOpenSpace"
   );
   const actionText = formatProjectText(action);
   const locationText = formatProjectText(location);
@@ -338,6 +366,8 @@ function normalizeCustomAdvertisementTypes(value) {
 
 function createEmptyAdvertisementRow() {
   return {
+    applicationType: "",
+    application_type: "",
     displayType: "",
     subtype: "",
     customLabel: "",
@@ -349,9 +379,11 @@ function createEmptyAdvertisementRow() {
 }
 
 function normalizeAdvertisementRows(rows, selectedType, fallbackSubtype = "", fallbackCustomLabel = "") {
+  const fallbackType = getPrimaryApplicationType(selectedType);
   if (Array.isArray(rows) && rows.length > 0) {
     const normalizedRows = rows.map((row) => {
-      const subtype = normalizeApplicationSubtype(row?.subtype, selectedType);
+      const applicationType = getAdvertisementRowApplicationType(row, fallbackType);
+      const subtype = normalizeApplicationSubtype(row?.subtype, applicationType);
       const displayType =
         row?.displayType === "led" || row?.display_type === "led"
           ? "led"
@@ -360,6 +392,8 @@ function normalizeAdvertisementRows(rows, selectedType, fallbackSubtype = "", fa
             : getApplicationDisplayTypeFromSubtype(subtype);
 
       return {
+        applicationType,
+        application_type: applicationType,
         displayType,
         subtype,
         customLabel: String(row?.customLabel || row?.custom_label || "").trim(),
@@ -373,10 +407,12 @@ function normalizeAdvertisementRows(rows, selectedType, fallbackSubtype = "", fa
     return normalizedRows.length > 0 ? normalizedRows : [createEmptyAdvertisementRow()];
   }
 
-  const subtype = normalizeApplicationSubtype(fallbackSubtype, selectedType);
+  const subtype = normalizeApplicationSubtype(fallbackSubtype, fallbackType);
   if (subtype) {
     return [
       {
+        applicationType: fallbackType,
+        application_type: fallbackType,
         displayType: getApplicationDisplayTypeFromSubtype(subtype),
         subtype,
         customLabel: String(fallbackCustomLabel || "").trim(),
@@ -392,14 +428,20 @@ function normalizeAdvertisementRows(rows, selectedType, fallbackSubtype = "", fa
 }
 
 function getPrimaryAdvertisementRow(rows, selectedType) {
-  return (rows || []).find((row) =>
-    row?.displayType &&
-    normalizeApplicationSubtype(row?.subtype, selectedType)
-  ) || null;
+  const fallbackType = getPrimaryApplicationType(selectedType);
+  return (rows || []).find((row) => {
+    const rowType = getAdvertisementRowApplicationType(row, fallbackType);
+
+    return row?.displayType && normalizeApplicationSubtype(row?.subtype, rowType);
+  }) || null;
 }
 
 function withCalculatedAdvertisementRow(row, selectedType) {
-  const subtype = normalizeApplicationSubtype(row?.subtype, selectedType);
+  const selectedApplicationType = getSelectedAdvertisementRowApplicationType(row);
+  const calculationType = selectedApplicationType || selectedType;
+  const subtype = selectedApplicationType
+    ? normalizeApplicationSubtype(row?.subtype, calculationType)
+    : "";
   const widthFt = row?.widthFt || "";
   const heightFt = row?.heightFt || "";
   const areaSqm = calculateAreaSqmFromFt(widthFt, heightFt);
@@ -410,6 +452,8 @@ function withCalculatedAdvertisementRow(row, selectedType) {
 
   return {
     ...row,
+    applicationType: selectedApplicationType,
+    application_type: selectedApplicationType,
     subtype,
     widthFt,
     heightFt,
@@ -428,7 +472,10 @@ function getAdvertisementRowsTotalPayable(rows) {
 }
 
 function getAdvertisementRowDisplayLabel(language, selectedType, row, index) {
-  const typeLabel = getApplicationTypeLabel(language, [selectedType]);
+  const rowType = getSelectedAdvertisementRowApplicationType(row);
+  const typeLabel = rowType
+    ? getApplicationTypeLabel(language, [rowType])
+    : stepText(language, "select");
   const displayTypeLabel = row?.displayType
     ? stepText(
         language,
@@ -437,7 +484,7 @@ function getAdvertisementRowDisplayLabel(language, selectedType, row, index) {
     : stepText(language, "selectDisplayType");
   const adTypeLabel =
     row?.customLabel ||
-    getApplicationSubtypeLabel(language, selectedType, row?.subtype) ||
+    getApplicationSubtypeLabel(language, rowType, row?.subtype) ||
     stepText(language, "selectAdvertisementType");
 
   return `${index + 1}. ${typeLabel}: ${displayTypeLabel} - ${adTypeLabel}`;
@@ -695,7 +742,11 @@ function SittingApplicationPage({
     latitude: 1.586684,
     longitude: 110.334028,
   });
-  const selectedApplicationType = getPrimaryApplicationType(applicationTypeOptions);
+  const selectedApplicationTypes = getAdvertisementRowsApplicationTypes(
+    advertisementRows,
+    applicationTypeOptions
+  );
+  const selectedApplicationType = getPrimaryApplicationType(selectedApplicationTypes);
   const projectName = buildProjectName(
     language,
     selectedApplicationType,
@@ -717,10 +768,18 @@ function SittingApplicationPage({
 
   function applyDraftData(data) {
     const step1 = data.form_data?.step_1 || {};
+    const savedTypeOptions = normalizeApplicationTypeOptions(
+      step1.application_type_options
+    );
+    const savedApplicationTypes = normalizeApplicationTypeOptions(
+      step1.application_type
+    );
     const savedTypes =
-      normalizeApplicationTypeOptions(step1.application_type_options).length > 0
-        ? normalizeApplicationTypeOptions(step1.application_type_options)
-        : ["open_space"];
+      savedTypeOptions.length > 0
+        ? savedTypeOptions
+        : savedApplicationTypes.length > 0
+          ? savedApplicationTypes
+          : ["open_space"];
     const savedType = getPrimaryApplicationType(savedTypes);
     const savedSubtype =
       normalizeApplicationSubtype(step1.application_subtype, savedType);
@@ -743,6 +802,10 @@ function SittingApplicationPage({
     const calculatedAdvertisementRows = savedAdvertisementRows.map((row) =>
       withCalculatedAdvertisementRow(row, savedType)
     );
+    const nextApplicationTypes = getAdvertisementRowsApplicationTypes(
+      calculatedAdvertisementRows,
+      savedTypes
+    );
     const primaryAdvertisementRow = getPrimaryAdvertisementRow(
       calculatedAdvertisementRows,
       savedType
@@ -755,7 +818,7 @@ function SittingApplicationPage({
     setLocalityAddress(formatAddressText(step1.locality_address || step1.map_address || ""));
     setProjectJustification(step1.project_justification || "");
     setSiteSelectionReason(step1.site_selection_reason || "");
-    setApplicationTypeOptions([savedType]);
+    setApplicationTypeOptions(nextApplicationTypes);
     setApplicationSubtype(primarySubtype);
     setAdvertisementRows(calculatedAdvertisementRows);
     setCustomAdvertisementTypes(
@@ -817,17 +880,24 @@ function SittingApplicationPage({
   }
 
   async function buildStepOnePayload(titleValue, currentStep = 1) {
-    const selectedType = getPrimaryApplicationType(applicationTypeOptions);
-    const selectedTypes = [selectedType];
+    const selectedType = getPrimaryApplicationType(selectedApplicationTypes);
     const calculatedAdvertisementRows = advertisementRows.map((row) =>
       withCalculatedAdvertisementRow(row, selectedType)
+    );
+    const selectedTypes = getAdvertisementRowsApplicationTypes(
+      calculatedAdvertisementRows,
+      selectedApplicationTypes
     );
     const primaryAdvertisementRow = getPrimaryAdvertisementRow(
       calculatedAdvertisementRows,
       selectedType
     );
+    const primaryType = getAdvertisementRowApplicationType(
+      primaryAdvertisementRow,
+      selectedType
+    );
     const selectedSubtype =
-      normalizeApplicationSubtype(primaryAdvertisementRow?.subtype, selectedType);
+      normalizeApplicationSubtype(primaryAdvertisementRow?.subtype, primaryType);
     const selectedCustomLabel = primaryAdvertisementRow?.customLabel || "";
     const applicationTypeDisplay = getApplicationTypeLabel(language, selectedTypes);
     const displayTypeDisplay = getAdvertisementRowsDisplayTypeLabel(
@@ -837,7 +907,7 @@ function SittingApplicationPage({
     );
     const advertisementTypeDisplay = getAdvertisementRowsSubtypeLabel(
       language,
-      selectedType,
+      primaryType,
       calculatedAdvertisementRows,
       selectedSubtype,
       selectedCustomLabel
@@ -930,8 +1000,13 @@ function SittingApplicationPage({
       .map((row) => withCalculatedAdvertisementRow(row, selectedType));
     const primaryRow = getPrimaryAdvertisementRow(calculatedRows, selectedType);
     const nextSubtype = primaryRow?.subtype || "";
+    const nextApplicationTypes = getAdvertisementRowsApplicationTypes(
+      calculatedRows,
+      applicationTypeOptions
+    );
 
     setAdvertisementRows(calculatedRows);
+    setApplicationTypeOptions(nextApplicationTypes);
     setApplicationSubtype(nextSubtype);
     setCustomAdvertisementTypeLabel(primaryRow?.customLabel || "");
   }
@@ -1072,29 +1147,38 @@ function SittingApplicationPage({
   async function handleSave() {
     if (isReadOnly) return;
 
-    const selectedType = getPrimaryApplicationType(applicationTypeOptions);
+    const selectedTypes = getAdvertisementRowsApplicationTypes(
+      advertisementRows,
+      applicationTypeOptions
+    );
+    const selectedType = getPrimaryApplicationType(selectedTypes);
     const primaryAdvertisementRow = getPrimaryAdvertisementRow(
       advertisementRows,
       selectedType
     );
     const advertisementRowsComplete =
       advertisementRows.length > 0 &&
-      advertisementRows.every((row) =>
-        row.displayType &&
-        normalizeApplicationSubtype(row.subtype, selectedType) &&
-        (row.customLabel || getApplicationSubtypeLabel(language, selectedType, row.subtype)) &&
-        String(row.widthFt || "").trim() &&
-        String(row.heightFt || "").trim() &&
-        String(row.areaRequired || "").trim() &&
-        String(row.amountFundApproved || "").trim()
-      );
+      advertisementRows.every((row) => {
+        const rowType = getSelectedAdvertisementRowApplicationType(row);
+
+        return (
+          rowType &&
+          row.displayType &&
+          normalizeApplicationSubtype(row.subtype, rowType) &&
+          (row.customLabel || getApplicationSubtypeLabel(language, rowType, row.subtype)) &&
+          String(row.widthFt || "").trim() &&
+          String(row.heightFt || "").trim() &&
+          String(row.areaRequired || "").trim() &&
+          String(row.amountFundApproved || "").trim()
+        );
+      });
 
     if (
       !projectName.trim() ||
       !String(mapData.address || localityAddress).trim() ||
       !projectJustification.trim() ||
       !siteSelectionReason.trim() ||
-      normalizeApplicationTypeOptions(applicationTypeOptions).length === 0 ||
+      normalizeApplicationTypeOptions(selectedTypes).length === 0 ||
       !primaryAdvertisementRow ||
       !advertisementRowsComplete
     ) {
@@ -1163,8 +1247,8 @@ function SittingApplicationPage({
       (!applicationRecord || !canEditApplicationForm(applicationRecord)));
   const summaryStep1 = {
     status: "Draft",
-    application_type: applicationTypeOptions.join(","),
-    application_type_options: applicationTypeOptions,
+    application_type: selectedApplicationTypes.join(","),
+    application_type_options: selectedApplicationTypes,
     application_subtype: applicationSubtype,
     advertisement_type_custom_label: customAdvertisementTypeLabel,
     advertisement_rows: advertisementRows,
@@ -1241,19 +1325,11 @@ function SittingApplicationPage({
 
             <div className="p-4 space-y-3">
               <fieldset disabled={isReadOnly} className="space-y-3">
-                <FormSection title={tx("typeOfApplication")} required>
+                <FormSection title={tx("applicationProjectList")} required>
                   <ApplicationTypeCheckboxes
                     language={language}
-                    value={applicationTypeOptions}
                     advertisementRows={advertisementRows}
                     customAdvertisementTypes={customAdvertisementTypes}
-                    onChange={(nextTypes) => {
-                      const nextType = getPrimaryApplicationType(nextTypes);
-                      setApplicationTypeOptions([nextType]);
-                      setAdvertisementRows([createEmptyAdvertisementRow()]);
-                      setApplicationSubtype("");
-                      setCustomAdvertisementTypeLabel("");
-                    }}
                     onAdvertisementRowsChange={handleAdvertisementRowsChange}
                     onCustomAdvertisementTypesChange={setCustomAdvertisementTypes}
                     advertisementTypeModal={advertisementTypeModal}
@@ -1261,15 +1337,6 @@ function SittingApplicationPage({
                     readOnly={isReadOnly}
                   />
                 </FormSection>
-
-              <Field label={tx("nameOfProject")} required>
-                <textarea
-                  className="spa-input min-h-16 resize-none uppercase"
-                  value={projectName}
-                  rows={Math.max(2, projectName.split("\n").length)}
-                  readOnly
-                />
-              </Field>
 
               <LocationMap
                 value={mapData}
@@ -1291,7 +1358,10 @@ function SittingApplicationPage({
               <fieldset disabled={isReadOnly} className="space-y-3">
               <div className="space-y-4">
                 {advertisementRows.map((row, index) => {
-                  const selectedType = getPrimaryApplicationType(applicationTypeOptions);
+                  const selectedType = getAdvertisementRowApplicationType(
+                    row,
+                    selectedApplicationType
+                  );
                   const rowAreaSqm =
                     calculateAreaSqmFromFt(row.widthFt, row.heightFt) ||
                     parsePositiveNumber(row.areaRequired);
@@ -2346,6 +2416,7 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
             />
             <CalculationRow
               label={tx("calculationRoundingAdjustment")}
+              guideline={tx("calculationRoundingAdjustmentHelp")}
               value={formatCalculatedCurrency(breakdown.roundingAdjustment)}
             />
             <CalculationRow
@@ -2362,14 +2433,17 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
   );
 }
 
-function CalculationRow({ label, value, strong = false }) {
+function CalculationRow({ label, value, strong = false, guideline = "" }) {
   return (
     <div
       className={`grid gap-2 sm:grid-cols-[220px_minmax(0,1fr)] ${
         strong ? "border-t border-slate-200 pt-1 font-bold text-slate-900" : ""
       }`}
     >
-      <span>{label}</span>
+      <span className="relative inline-flex items-center gap-1.5">
+        {label}
+        {guideline && <GuidelineHint text={guideline} />}
+      </span>
       <span className="tabular-nums text-slate-800">{value}</span>
     </div>
   );
@@ -2398,17 +2472,14 @@ function GuidelineHint({ text }) {
 
 function ApplicationTypeCheckboxes({
   language,
-  value,
   advertisementRows,
   customAdvertisementTypes,
-  onChange,
   onAdvertisementRowsChange,
   onCustomAdvertisementTypesChange,
   advertisementTypeModal,
   onAdvertisementTypeModalChange,
   readOnly,
 }) {
-  const selectedType = getPrimaryApplicationType(value);
   const rows = Array.isArray(advertisementRows) && advertisementRows.length > 0
     ? advertisementRows
     : [createEmptyAdvertisementRow()];
@@ -2416,12 +2487,17 @@ function ApplicationTypeCheckboxes({
   const addTypeLabel = stepText(language, "addAdvertisementOption");
   const deleteRowLabel = stepText(language, "deleteAdvertisementRow");
 
-  function selectType(type) {
-    if (readOnly) return;
-    onChange([type]);
+  function getRowType(index) {
+    return getSelectedAdvertisementRowApplicationType(rows[index]);
   }
 
-  function getCustomOptions(displayType, customLabel = "") {
+  function getCustomOptions(rowType, displayType, customLabel = "") {
+    if (!rowType) {
+      return customLabel
+        ? [{ value: customLabel, label: customLabel }]
+        : [];
+    }
+
     if (!displayType) {
       return customLabel
         ? [{ value: customLabel, label: customLabel }]
@@ -2442,7 +2518,7 @@ function ApplicationTypeCheckboxes({
     );
 
     [
-      ...(customAdvertisementTypes?.[selectedType]?.[displayType] || []),
+      ...(customAdvertisementTypes?.[rowType]?.[displayType] || []),
       customLabel,
     ]
       .filter(Boolean)
@@ -2454,8 +2530,8 @@ function ApplicationTypeCheckboxes({
             value,
             label: getApplicationSubtypeLabel(
               language,
-              selectedType,
-              getSubtypeForDisplayType(selectedType, displayType),
+              rowType,
+              getSubtypeForDisplayType(rowType, displayType),
               value
             ),
           });
@@ -2473,6 +2549,15 @@ function ApplicationTypeCheckboxes({
     );
 
     onAdvertisementRowsChange(nextRows);
+  }
+
+  function selectApplicationType(index, nextType) {
+    updateRow(index, {
+      applicationType: nextType,
+      application_type: nextType,
+      subtype: "",
+      customLabel: "",
+    });
   }
 
   function selectDisplayType(index, nextDisplayType) {
@@ -2496,9 +2581,12 @@ function ApplicationTypeCheckboxes({
 
     if (nextValue.startsWith("custom:")) {
       const nextCustomLabel = nextValue.replace("custom:", "");
+      const rowType = getRowType(index);
+      if (!rowType) return;
+
       const displayType = rows[index]?.displayType || "";
       updateRow(index, {
-        subtype: getSubtypeForDisplayType(selectedType, displayType),
+        subtype: getSubtypeForDisplayType(rowType, displayType),
         customLabel: nextCustomLabel,
       });
       return;
@@ -2512,6 +2600,12 @@ function ApplicationTypeCheckboxes({
 
   function addAdvertisementType(index) {
     if (readOnly) return;
+
+    const rowType = getRowType(index);
+    if (!rowType) {
+      alert(stepText(language, "selectApplicationCategoryFirst"));
+      return;
+    }
 
     const displayType = rows[index]?.displayType || "";
     if (!displayType) {
@@ -2536,24 +2630,25 @@ function ApplicationTypeCheckboxes({
     if (readOnly) return;
 
     const rowIndex = advertisementTypeModal?.rowIndex;
+    const rowType = getRowType(rowIndex);
     const displayType = rows[rowIndex]?.displayType || "";
     const normalizedLabel = String(advertisementTypeModal?.value || "").trim();
-    if (rowIndex === null || rowIndex === undefined || !displayType) {
+    if (rowIndex === null || rowIndex === undefined || !rowType || !displayType) {
       closeAdvertisementTypeModal();
       return;
     }
     if (!normalizedLabel) return;
 
     const nextCustomTypes = normalizeCustomAdvertisementTypes(customAdvertisementTypes);
-    const currentItems = nextCustomTypes[selectedType][displayType];
+    const currentItems = nextCustomTypes[rowType][displayType];
 
     if (!currentItems.some((item) => item.toLowerCase() === normalizedLabel.toLowerCase())) {
-      nextCustomTypes[selectedType][displayType] = [...currentItems, normalizedLabel];
+      nextCustomTypes[rowType][displayType] = [...currentItems, normalizedLabel];
       onCustomAdvertisementTypesChange(nextCustomTypes);
     }
 
     updateRow(rowIndex, {
-      subtype: getSubtypeForDisplayType(selectedType, displayType),
+      subtype: getSubtypeForDisplayType(rowType, displayType),
       customLabel: normalizedLabel,
     });
     closeAdvertisementTypeModal();
@@ -2577,47 +2672,46 @@ function ApplicationTypeCheckboxes({
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {APPLICATION_TYPE_OPTIONS.map((option) => (
-          <label
-            key={option.value}
-            className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 text-sm leading-5 ${
-              selectedType === option.value
-                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                : "border-slate-200 bg-white text-slate-700"
-            } ${readOnly ? "cursor-default opacity-80" : "cursor-pointer"}`}
-          >
-            <input
-              type="radio"
-              name="application-type"
-              checked={selectedType === option.value}
-              disabled={readOnly}
-              onChange={() => selectType(option.value)}
-              className="h-4 w-4 accent-emerald-700"
-            />
-            <span className="text-sm leading-5">{stepText(language, option.labelKey)}</span>
-          </label>
-        ))}
-      </div>
-
       <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white">
-        <table className="min-w-[680px] w-full border-collapse text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-bold text-slate-700">
+        <table className="min-w-full table-auto border-collapse text-sm">
+          <colgroup>
+            <col className="w-16" />
+            <col className="w-[140px]" />
+            <col className="w-[170px]" />
+            <col className="w-[240px]" />
+            <col className="w-px" />
+            <col />
+          </colgroup>
+          <thead className="bg-slate-50 text-center text-xs font-bold text-slate-700">
             <tr>
-              <th className="w-16 border-b border-slate-200 px-3 py-2">
+              <th className="border-b border-slate-200 px-3 py-2">
                 {stepText(language, "advertisementNumber")}
               </th>
-              <th className="w-[30%] border-b border-slate-200 px-3 py-2">
+              <th className="border-b border-slate-200 px-3 py-2">
+                {stepText(language, "applicationCategory")}
+              </th>
+              <th className="border-b border-slate-200 px-3 py-2">
                 {stepText(language, "displayType")}
               </th>
               <th className="border-b border-slate-200 px-3 py-2">
                 {stepText(language, "advertisementType")}
               </th>
+              <th className="whitespace-nowrap border-b border-slate-200 px-3 py-2">
+                {stepText(language, "action")}
+              </th>
+              <th className="border-b border-slate-200 px-3 py-2">
+                {stepText(language, "title")}
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => {
-              const customOptions = getCustomOptions(row.displayType, row.customLabel);
+              const rowType = getRowType(index);
+              const customOptions = getCustomOptions(
+                rowType,
+                row.displayType,
+                row.customLabel
+              );
               const selectedAdTypeValue = row.customLabel
                 ? `custom:${row.customLabel}`
                 : row.subtype;
@@ -2626,6 +2720,25 @@ function ApplicationTypeCheckboxes({
                 <tr key={`advertisement-row-${index}`} className="align-top">
                   <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-700">
                     {index + 1}
+                  </td>
+                  <td className="border-t border-slate-100 px-3 py-3">
+                    <select
+                      className="spa-input"
+                      value={rowType}
+                      disabled={readOnly}
+                      onChange={(event) =>
+                        selectApplicationType(index, event.target.value)
+                      }
+                    >
+                      <option value="">
+                        {stepText(language, "select")}
+                      </option>
+                      {APPLICATION_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {stepText(language, option.labelKey)}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="border-t border-slate-100 px-3 py-3">
                     <select
@@ -2645,28 +2758,31 @@ function ApplicationTypeCheckboxes({
                     </select>
                   </td>
                   <td className="border-t border-slate-100 px-3 py-3">
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <select
-                        className="spa-input min-w-0 flex-1"
-                        value={selectedAdTypeValue}
-                        disabled={readOnly}
-                        onChange={(event) => selectAdvertisementType(index, event.target.value)}
-                      >
-                        <option value="">
-                          {stepText(language, "selectAdvertisementType")}
+                    <select
+                      className="spa-input"
+                      style={{ paddingRight: "2rem" }}
+                      value={selectedAdTypeValue}
+                      disabled={readOnly}
+                      onChange={(event) => selectAdvertisementType(index, event.target.value)}
+                    >
+                      <option value="">
+                        {stepText(language, "selectAdvertisementType")}
+                      </option>
+                      {customOptions.map((option) => (
+                        <option
+                          key={option.value}
+                          value={`custom:${option.value}`}
+                        >
+                          {option.label}
                         </option>
-                        {customOptions.map((option) => (
-                          <option
-                            key={option.value}
-                            value={`custom:${option.value}`}
-                          >
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="w-px whitespace-nowrap border-t border-slate-100 px-2 py-3">
+                    <div className="flex flex-nowrap gap-1.5">
                       <button
                         type="button"
-                        className="shrink-0 rounded-sm bg-[#006d32] px-3 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        className="shrink-0 whitespace-nowrap rounded-sm bg-[#006d32] px-2.5 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
                         disabled={readOnly}
                         onClick={() => addAdvertisementType(index)}
                       >
@@ -2674,12 +2790,17 @@ function ApplicationTypeCheckboxes({
                       </button>
                       <button
                         type="button"
-                        className="shrink-0 rounded-sm border border-red-600 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                        className="shrink-0 whitespace-nowrap rounded-sm border border-red-600 bg-white px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
                         disabled={readOnly}
                         onClick={() => deleteRow(index)}
                       >
                         {deleteRowLabel}
                       </button>
+                    </div>
+                  </td>
+                  <td className="border-t border-slate-100 px-3 py-3">
+                    <div className="min-h-10 rounded-sm border border-slate-200 bg-white px-3 py-2 text-xs font-normal uppercase leading-5 text-slate-700">
+                      {buildProjectNameLine(language, rowType, row) || "-"}
                     </div>
                   </td>
                 </tr>
