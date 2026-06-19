@@ -728,11 +728,6 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       render: (row) => <span className="whitespace-pre-line">{row.project}</span>,
     },
     {
-      key: "remark",
-      label: t("common.remarks", "Remarks"),
-      render: (row) => row.remark || "-",
-    },
-    {
       key: "status",
       label: t("common.status", "Status"),
       className: "w-[160px]",
@@ -741,6 +736,11 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
           {row.statusLabel}
         </span>
       ),
+    },
+    {
+      key: "remark",
+      label: t("common.remarks", "Remarks"),
+      render: (row) => row.remark || "-",
     },
     {
       key: "date",

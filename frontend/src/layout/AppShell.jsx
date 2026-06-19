@@ -934,6 +934,7 @@ function isPersonalTaskForDepartment(application, department) {
   if (TECHNICAL_DEPARTMENTS.has(department)) {
     return (
       TECHNICAL_DEPARTMENT_TASK_STATUSES.has(status) &&
+      isTechnicalDepartmentSelected(application, department) &&
       !hasTechnicalDepartmentReview(application, department)
     );
   }
@@ -1046,6 +1047,53 @@ function hasTechnicalDepartmentReview(application, department) {
       review.comment ||
       review.submitted_at
   );
+}
+
+function normalizeTechnicalDepartmentSelection(departments) {
+  const selected = Array.isArray(departments) ? departments : [];
+
+  return [...TECHNICAL_DEPARTMENTS].filter((department) =>
+    selected.some((value) => normalizeDepartmentCode(value) === department)
+  );
+}
+
+function hasTechnicalDepartmentSelection(application) {
+  const selection =
+    application?.technical_department_selection ||
+    application?.form_data?.technical_department_selection;
+
+  return Boolean(
+    selection &&
+      typeof selection === "object" &&
+      Object.prototype.hasOwnProperty.call(selection, "departments")
+  );
+}
+
+function getSelectedTechnicalDepartments(application) {
+  const selection =
+    application?.technical_department_selection ||
+    application?.form_data?.technical_department_selection ||
+    {};
+  const selectedDepartments = normalizeTechnicalDepartmentSelection(selection.departments);
+  if (selectedDepartments.length > 0 || hasTechnicalDepartmentSelection(application)) {
+    return selectedDepartments;
+  }
+
+  const referralDepartments =
+    application?.technical_referral?.participating_departments ||
+    application?.form_data?.technical_referral?.participating_departments;
+  const stepDepartments =
+    application?.form_data?.step_1?.technical_departments ||
+    application?.technical_departments;
+
+  return normalizeTechnicalDepartmentSelection(referralDepartments || stepDepartments);
+}
+
+function isTechnicalDepartmentSelected(application, department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (!TECHNICAL_DEPARTMENTS.has(normalizedDepartment)) return false;
+
+  return getSelectedTechnicalDepartments(application).includes(normalizedDepartment);
 }
 
 function ApplicationStepLinks({

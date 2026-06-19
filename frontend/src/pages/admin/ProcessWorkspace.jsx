@@ -702,7 +702,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const canSendSavedApprovalMemoToMphlg = false;
   const actionUnavailableMessage = canSendSavedApprovalMemoToMphlg
     ? ""
-    : getActionUnavailableMessage(config, selectedRecord, userDepartment);
+    : getActionUnavailableMessage(config, selectedRecord, userDepartment, t);
+  const showActionUnavailableNotice =
+    Boolean(actionUnavailableMessage) && !canSubmitWorkspaceAction;
   const showSavedApprovalDecisionMemo =
     isApprovalWorkspace && Boolean(savedApprovalDecisionHtml) && !isApprovalSupportWorkspace;
   const showApprovalSupportReadOnly =
@@ -2340,6 +2342,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </div>
               )}
 
+              {showActionUnavailableNotice && (
+                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold leading-5 text-amber-900 shadow-sm">
+                  {actionUnavailableMessage}
+                </p>
+              )}
+
               {showWorkspaceVerificationReport && !hideMphlgActionChrome && (
                 <>
                   <div className="flex justify-end">
@@ -2644,12 +2652,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         paymentReceiptDecision={decision}
                       />
                     )
-                  )}
-
-                  {actionUnavailableMessage && (
-                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                      {actionUnavailableMessage}
-                    </p>
                   )}
 
                   <div className={actionGridClass}>
@@ -4403,6 +4405,10 @@ function getWorkspaceDecisionOptions(config, app, department) {
     return config.decisions || [];
   }
 
+  if (!isApprovalActionableRecord(app)) {
+    return [];
+  }
+
   if (department === "KB(LES)" && getApprovalStageKey(app) === "kb") {
     return [
       { value: "Verify", labelKey: "workspace.decision.verify" },
@@ -4462,6 +4468,10 @@ function getWorkspaceActions(config, app, department) {
   }
 
   const stage = getApprovalStageKey(app);
+  if (!isApprovalActionableRecord(app)) {
+    return [];
+  }
+
   const canKbVerify = department === "KB(LES)" && (stage === "kb" || stage === "kb_support");
   const canSupport =
     APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && stage === "support";
@@ -4469,6 +4479,15 @@ function getWorkspaceActions(config, app, department) {
     MPHLG_REVIEW_DEPARTMENTS.includes(department) && stage === "mphlg";
 
   return canKbVerify || canSupport || canMphlgApprove ? config.actions || [] : [];
+}
+
+function isApprovalActionableRecord(app) {
+  const status = normalizeStatus(app?.status);
+
+  return (
+    ["management_review", "mphlg_processing", "mphlg_decision_received"].includes(status) &&
+    !hasApplicationSection(app, "approval")
+  );
 }
 
 function canOpenWorkspaceRow(config, app, department) {
@@ -4668,7 +4687,7 @@ function shouldShowApprovalTechnicalReport(department, app) {
   );
 }
 
-function getActionUnavailableMessage(config, app, department) {
+function getActionUnavailableMessage(config, app, department, t = (key, fallback) => fallback) {
   if (!app) return "";
 
   if (config?.key === "payment") {
@@ -4683,37 +4702,99 @@ function getActionUnavailableMessage(config, app, department) {
 
   if (isApprovalHistoryRecord(app)) return "";
 
+  if (department === "IKL (TECHNICAL)" && normalizeStatus(app?.status) === "technical_site_visit") {
+    return "";
+  }
+
+  if (!isApprovalActionableRecord(app)) {
+    if (department === "KB(LES)" && normalizeStatus(app?.status) === "technical_site_visit") {
+      return t(
+        "workspace.approval.kbNotTaskYet",
+        "This is not a KB(LES) task yet. KB(LES) action is available after IKL(TECHNICAL) completes the technical site visit."
+      );
+    }
+
+    if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
+      return t(
+        "workspace.approval.tpPghNotTaskYet",
+        "This is not a TP(RES)/PGH task yet. TP(RES)/PGH action is available after KB(LES) completes verification or support."
+      );
+    }
+
+    if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
+      return t(
+        "workspace.approval.mphlgNotTaskYet",
+        "This is not an MPHLG task yet. MPHLG action is available after TP(RES)/PGH support."
+      );
+    }
+
+    return t(
+      "workspace.approval.notDepartmentTaskYet",
+      "This application is not awaiting this department's action yet."
+    );
+  }
+
   const stage = getApprovalStageKey(app);
 
   if (department === "KB(LES)") {
     if (stage === "support") {
-      return "The application is now awaiting TP(RES)/PGH final approval.";
+      return t(
+        "workspace.approval.awaitingTpPghFinal",
+        "The application is now awaiting TP(RES)/PGH final approval."
+      );
     }
 
-    return ["kb", "kb_support"].includes(stage) ? "" : "KB(LES) support is already complete or not required for this record.";
+    return ["kb", "kb_support"].includes(stage)
+      ? ""
+      : t(
+          "workspace.approval.kbSupportNotRequired",
+          "KB(LES) support is already complete or not required for this record."
+        );
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     if (isApprovalSupportMonitoredRecord(app)) {
-      return "The application is now awaiting the approval department shown in the status.";
+      return t(
+        "workspace.approval.awaitingStatusDepartment",
+        "The application is now awaiting the approval department shown in the status."
+      );
     }
 
-    return stage === "support" ? "" : "TP(RES)/PGH final approval is available after KB(LES) support.";
+    return stage === "support"
+      ? ""
+      : t(
+          "workspace.approval.tpPghAfterKbSupport",
+          "TP(RES)/PGH final approval is available after KB(LES) support."
+        );
   }
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
     if (isMphlgMonitoredRecord(app)) {
-      return "The application is now awaiting the approval department shown in the status.";
+      return t(
+        "workspace.approval.awaitingStatusDepartment",
+        "The application is now awaiting the approval department shown in the status."
+      );
     }
 
-    return stage === "mphlg" ? "" : "MPHLG approval is available after TP(RES)/PGH support.";
+    return stage === "mphlg"
+      ? ""
+      : t(
+          "workspace.approval.mphlgAfterTpPghSupport",
+          "MPHLG approval is available after TP(RES)/PGH support."
+        );
   }
 
   if (["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)", ...TECHNICAL_DEPARTMENTS].includes(department)) {
-    return "The application is now awaiting the approval department shown in the status.";
+    return t(
+      "workspace.approval.awaitingStatusDepartment",
+      "The application is now awaiting the approval department shown in the status."
+    );
   }
 
-  return "This queue is view-only for this account. Only the assigned approval department can record the next decision.";
+  return t(
+    "workspace.approval.viewOnlyAssignedDepartment",
+    "This queue is view-only for this account. Only the assigned approval department can record the next decision."
+  );
 }
 
 function getPaymentActionUnavailableMessage(app, department) {
@@ -6622,7 +6703,7 @@ const configs = {
         labelKey: "workspace.decision.yes",
         icon: "check_circle",
         decision: "Supported",
-        requiresComment: false,
+        requiresComment: true,
         success: "Technical review saved.",
         successKey: "workspace.message.technicalSaved",
         buildPayload: buildIklTechnicalDecisionPayload,
@@ -7205,6 +7286,9 @@ function IklWorkspaceSections({
   const [technicalDecision, setTechnicalDecision] = useState(
     config.technicalActions?.[0]?.decision || ""
   );
+  const [technicalDecisionInput, setTechnicalDecisionInput] = useState(
+    getTechnicalRecommendationInput(config.technicalActions?.[0]?.decision || "")
+  );
   const technicalSiteSaveTimerRef = useRef(null);
   const latestTechnicalSiteRef = useRef(technicalSite);
   const [kuChecks, setKuChecks] = useState(() =>
@@ -7249,6 +7333,11 @@ function IklWorkspaceSections({
     setTechnicalDecision(
       hasSavedDecision
         ? savedDecision
+        : ""
+    );
+    setTechnicalDecisionInput(
+      hasSavedDecision
+        ? getTechnicalRecommendationInput(savedDecision)
         : ""
     );
   }, [config.technicalActions, selectedRecord.id, selectedRecord.form_data?.technical_review]);
@@ -7509,27 +7598,30 @@ function IklWorkspaceSections({
           <div className="rounded-md border border-slate-200 bg-white p-3">
             <div className="space-y-2.5">
               <Field
-                label={t("workspace.technical.supportQuestion", "Support?")}
+                label={t("workspace.technical.supportQuestion", "Your Recommendation")}
                 labelClassName="!mb-1 !text-[13px] !leading-4"
               >
-                <select
-                  value={technicalDecision}
-                  onChange={(event) => setTechnicalDecision(event.target.value)}
+                <input
+                  type="text"
+                  value={technicalDecisionInput}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setTechnicalDecisionInput(nextValue);
+                    setTechnicalDecision(getTechnicalRecommendationDecision(nextValue));
+                  }}
                   className="form-input form-input-sm max-w-sm"
-                >
-                  <option value="">
-                    {t("workspace.decision.selectDecision", "Select decision")}
-                  </option>
-                  {config.technicalActions.map((action) => (
-                    <option key={action.decision} value={action.decision}>
-                      {t(action.labelKey, action.label)}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={t("workspace.technical.recommendationPlaceholder", "Type Yes or No")}
+                  inputMode="text"
+                />
               </Field>
 
               <Field
-                label={t("workspace.comment.remarks", "Remarks")}
+                label={
+                  <>
+                    {t("workspace.comment.remarks", "Remarks")}
+                    <span className="ml-1 text-red-600">*</span>
+                  </>
+                }
                 labelClassName="!mb-1 !text-[13px] !leading-4"
               >
                 <textarea
@@ -7542,6 +7634,8 @@ function IklWorkspaceSections({
                     }));
                   }}
                   rows="2"
+                  required
+                  aria-required="true"
                   className={`form-input form-input-sm !min-h-[58px] ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t("workspace.technical.siteRemarksPlaceholder")}
                 />
@@ -8730,6 +8824,21 @@ function getIklScreeningDecisionOptions(decisions, department) {
   if (!allowed) return decisions;
 
   return decisions.filter((item) => allowed.has(item.value || item));
+}
+
+function getTechnicalRecommendationDecision(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["yes", "y", "ya"].includes(normalized)) return "Supported";
+  if (["no", "n", "tidak"].includes(normalized)) return "Not Supported";
+  if (normalized === "supported") return "Supported";
+  if (normalized === "not supported") return "Not Supported";
+  return "";
+}
+
+function getTechnicalRecommendationInput(decision) {
+  if (decision === "Supported") return "Yes";
+  if (decision === "Not Supported") return "No";
+  return "";
 }
 
 function TechnicalSiteVisitFields({
