@@ -200,6 +200,7 @@ REMARK_REPEAT_STATUSES = {
     "incomplete",
     "rejected",
     "technical_amendment",
+    "mphlg_processing",
 }
 
 
@@ -1323,7 +1324,7 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = "IKL(TECHNICAL)"
-    elif memo_html and status_key == "mphlg_processing":
+    elif status_key == "mphlg_processing":
         mphlg_gateway = get_form_section(application, "mphlg_gateway")
         management_recommendation = get_form_section(application, "management_recommendation")
         sender = (
@@ -1331,8 +1332,9 @@ def build_web_metadata(application, title, body, recipient_role):
             or management_recommendation.get("officer")
             or "TP(RES)/PGH"
         )
-        metadata["memo_html"] = memo_html
-        metadata["memo_template"] = "tp_pgh_to_mphlg"
+        if memo_html:
+            metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "tp_pgh_to_mphlg"
         metadata["from"] = str(sender).strip() or "TP(RES)/PGH"
         metadata["sender"] = metadata["from"]
         metadata["to"] = "MPHLG"

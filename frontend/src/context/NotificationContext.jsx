@@ -121,7 +121,7 @@ function cleanRemark(value) {
 }
 
 function shouldShowNotificationRemark(status) {
-  return ["incomplete", "rejected", "technical_amendment", "technical_review_completed", "management_review"].includes(normalizeStatus(status));
+  return ["incomplete", "rejected", "technical_amendment", "technical_review_completed", "management_review", "mphlg_processing"].includes(normalizeStatus(status));
 }
 
 function appendNotificationRemark(message, remark, status, remarkLabel = "Remark") {

@@ -1589,8 +1589,9 @@ class NotificationRoutingTests(TestCase):
     def test_mphlg_processing_notifies_mphlg_admin(self):
         mphlg_user = User.objects.create_user(
             username="mphlg",
-            email="",
+            email="mphlg@example.com",
             password="Password123",
+            mobile_number="60123459999",
             role="admin",
             department="MPHLG",
             is_active=True,
@@ -1604,11 +1605,13 @@ class NotificationRoutingTests(TestCase):
             is_active=True,
         )
         memo_html = "<p>TP(RES) memo for MPHLG approval</p>"
+        remark = "I support this application."
         self.application.form_data = {
             **self.application.form_data,
             "management_recommendation": {
                 "officer": "TP(RES)",
                 "status": "Approved",
+                "remarks": remark,
             },
             "mphlg_gateway": {
                 "status": "Pending MPHLG Approval",
@@ -1616,17 +1619,21 @@ class NotificationRoutingTests(TestCase):
                 "memo_html": memo_html,
             },
         }
+        self.application.latest_remark = remark
+        self.application.save(update_fields=["form_data", "latest_remark"])
 
         self.notify_status("mphlg_processing", old_status="management_review")
 
         deliveries = NotificationDelivery.objects.filter(
-            channel="web",
             recipient_role="admin",
             metadata__event_status="mphlg_processing",
+            user=mphlg_user,
         )
-        self.assertTrue(deliveries.filter(user=mphlg_user).exists())
-        self.assertEqual(deliveries.count(), 1)
-        delivery = deliveries.get(user=mphlg_user)
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        for delivery in deliveries:
+            self.assertIn(remark, delivery.message)
+            self.assertIn(remark, delivery.metadata["message_en"])
+        delivery = deliveries.get(channel="web")
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["memo_template"], "tp_pgh_to_mphlg")
         self.assertEqual(delivery.metadata["from"], "TP(RES)")
