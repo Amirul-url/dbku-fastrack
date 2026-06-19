@@ -1510,7 +1510,7 @@ class NotificationRoutingTests(TestCase):
             "mphlg_gateway": None,
             "approval": None,
         }
-        self.application.latest_remark = remark
+        self.application.latest_remark = "older KU(IKL) remark"
         self.application.save(update_fields=["form_data", "latest_remark"])
 
         self.notify_status("technical_review_completed", old_status="management_review")
@@ -1523,6 +1523,7 @@ class NotificationRoutingTests(TestCase):
         for delivery in deliveries:
             self.assertIn(remark, delivery.message)
             self.assertIn(remark, delivery.metadata["message_en"])
+            self.assertNotIn("older KU(IKL) remark", delivery.message)
         delivery = deliveries.get(channel="web")
         self.assertEqual(
             delivery.metadata["title_en"],
@@ -1619,7 +1620,7 @@ class NotificationRoutingTests(TestCase):
                 "memo_html": memo_html,
             },
         }
-        self.application.latest_remark = remark
+        self.application.latest_remark = "older KU(IKL) remark"
         self.application.save(update_fields=["form_data", "latest_remark"])
 
         self.notify_status("mphlg_processing", old_status="management_review")
@@ -1633,11 +1634,19 @@ class NotificationRoutingTests(TestCase):
         for delivery in deliveries:
             self.assertIn(remark, delivery.message)
             self.assertIn(remark, delivery.metadata["message_en"])
+            self.assertNotIn("older KU(IKL) remark", delivery.message)
         delivery = deliveries.get(channel="web")
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["memo_template"], "tp_pgh_to_mphlg")
         self.assertEqual(delivery.metadata["from"], "TP(RES)")
         self.assertEqual(delivery.metadata["to"], "MPHLG")
+
+        client = APIClient()
+        client.force_authenticate(user=mphlg_user)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(data[0]["latest_remark"], remark)
 
     def test_mphlg_decision_received_notifies_sut_admin(self):
         sut_user = User.objects.create_user(
@@ -1698,16 +1707,25 @@ class NotificationRoutingTests(TestCase):
             )
 
         memo_html = "<p>MPHLG approved the application</p>"
+        remark = "i give approval"
         self.application.form_data = {
             **self.application.form_data,
             "mphlg_gateway": {
                 "officer": "MPHLG",
                 "status": "Approved",
                 "decision": "Approve",
+                "remarks": remark,
                 "memo_html": memo_html,
             },
+            "approval": {
+                "officer": "MPHLG",
+                "status": "Approved",
+                "decision": "Approve",
+                "remarks": remark,
+            },
         }
-        self.application.save(update_fields=["form_data"])
+        self.application.latest_remark = "older approval remark"
+        self.application.save(update_fields=["form_data", "latest_remark"])
 
         self.notify_status("approved", old_status="mphlg_processing")
 
@@ -1722,10 +1740,28 @@ class NotificationRoutingTests(TestCase):
                     set(deliveries.values_list("channel", flat=True)),
                     {"web", "email", "whatsapp"},
                 )
+                for delivery in deliveries:
+                    self.assertIn(remark, delivery.message)
+                    self.assertIn(remark, delivery.metadata["message_en"])
+                    self.assertNotIn("older approval remark", delivery.message)
                 web_delivery = deliveries.get(channel="web")
                 self.assertIn("approved by MPHLG", web_delivery.metadata["title_en"])
                 self.assertIn("approved by MPHLG", web_delivery.metadata["message_en"])
+                self.assertIn(remark, web_delivery.metadata["message_ms"])
                 self.assertEqual(web_delivery.metadata["from"], "MPHLG")
+
+                client = APIClient()
+                client.force_authenticate(user=user)
+                response = client.get("/api/notifications/")
+                self.assertEqual(response.status_code, 200)
+                data = response.data if isinstance(response.data, list) else response.data["results"]
+                approved_notifications = [
+                    item for item in data
+                    if item.get("reference_no") == self.application.reference_no
+                    and item.get("status") == "approved"
+                ]
+                self.assertTrue(approved_notifications)
+                self.assertEqual(approved_notifications[0]["latest_remark"], remark)
 
     def test_department_inbox_keeps_old_kb_les_memos(self):
         User.objects.create_user(

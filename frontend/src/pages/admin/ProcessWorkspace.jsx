@@ -689,8 +689,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
   const showWorkspaceVerificationReport =
     showApprovalTechnicalReport || showELicenseVerificationReport;
-  const hideMphlgActionChrome =
-    isApprovalWorkspace && MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
   const isApprovalLicenseManagement =
     isApprovalWorkspace &&
     userDepartment === "PT(IKL)" &&
@@ -2373,9 +2371,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             compact
             title={t("workspace.actionPanel")}
             description={
-              hideMphlgActionChrome
-                ? ""
-                : isReadOnlyActionPanel
+              isReadOnlyActionPanel
                 ? showApprovalPaymentReadOnly
                   ? t(
                       "workspace.approval.paymentReadOnlyAction",
@@ -2394,7 +2390,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
             ) : (
               <div className="space-y-4">
-              {!hideMphlgActionChrome && (
                 <ApplicationSummary
                   app={selectedRecord}
                   uniformText={isFocusedPersonalWorkspace && userDepartment === "IKL (TECHNICAL)"}
@@ -2424,21 +2419,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     ) : null
                   }
                 />
-              )}
-
-              {hideMphlgActionChrome && (
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon="visibility"
-                    className="min-h-8 px-3 py-1 text-sm leading-5"
-                    onClick={() => openSelectedFormView(selectedRecord.id)}
-                  >
-                    {t("workspace.openForm", "View Form")}
-                  </Button>
-                </div>
-              )}
 
               {showActionUnavailableNotice && (
                 <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold leading-5 text-amber-900 shadow-sm">
@@ -2446,7 +2426,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </p>
               )}
 
-              {showWorkspaceVerificationReport && !hideMphlgActionChrome && (
+              {showWorkspaceVerificationReport && (
                 <>
                   <div className="flex justify-end">
                     <Button
@@ -2518,7 +2498,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Field
                       label={
                         isMphlgApprovalWorkspace
-                          ? t("workspace.decision.approveQuestion", "Approve?")
+                          ? t("common.decision", "Your Recommendation")
                           : t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")
                       }
                     >
@@ -4777,7 +4757,10 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
-      return "";
+      return t(
+        "workspace.approval.mphlgAction",
+        "Record MPHLG review and final approval recommendation."
+      );
     }
 
   return t("workspace.approval.viewOnlyAction", "View applications awaiting KB(LES), TP(RES)/PGH, or MPHLG action.");
@@ -10295,20 +10278,24 @@ function PaymentDetails({
   async function viewReceipt() {
     if (!receiptSource) return;
 
+    const previewWindow = openBlankDocumentPreview(receiptFile?.name || "Receipt");
+    if (!previewWindow) {
+      window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
+      return;
+    }
+
     try {
       const isInlineFile =
         receiptSource.startsWith("blob:") || receiptSource.startsWith("data:");
       const url = isInlineFile
         ? receiptSource
         : URL.createObjectURL(await fetchAuthenticatedBlob(receiptSource));
+      const shouldRevoke = !isInlineFile;
 
-      window.open(url, "_blank", "noopener,noreferrer");
-
-      if (!isInlineFile) {
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-      }
+      renderBlankDocumentPreview(previewWindow, url, receiptFile?.name || "Receipt", shouldRevoke);
     } catch (error) {
       console.error("Failed to open payment receipt:", error);
+      previewWindow.close();
       window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
     }
   }
@@ -10738,11 +10725,11 @@ function PaymentVerificationDocumentRow({ item, t, saving }) {
           </>
         )}
 
-        {item.canUpload && (
+        {item.canUpload && !hasFile && (
           <>
             <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               <Icon name="upload_file" className="text-[17px]" />
-              {hasFile ? t("common.replace", "Replace") : t("common.uploadFile", "Upload File")}
+              {t("common.uploadFile", "Upload File")}
               <input
                 type="file"
                 accept="application/pdf,image/png,image/jpeg"
@@ -10755,19 +10742,19 @@ function PaymentVerificationDocumentRow({ item, t, saving }) {
                 }}
               />
             </label>
-            {hasFile && (
-              <Button
-                type="button"
-                variant="secondary"
-                icon="delete"
-                className="min-h-9 px-3 py-1 text-xs text-red-700"
-                disabled={saving}
-                onClick={item.onDelete}
-              >
-                {t("common.remove", "Remove")}
-              </Button>
-            )}
           </>
+        )}
+        {item.canUpload && hasFile && (
+          <Button
+            type="button"
+            variant="secondary"
+            icon="delete"
+            className="min-h-9 px-3 py-1 text-xs text-red-700"
+            disabled={saving}
+            onClick={item.onDelete}
+          >
+            {t("common.remove", "Remove")}
+          </Button>
         )}
       </div>
     </div>
@@ -10806,12 +10793,12 @@ function PaymentDocumentSlot({ label, file, t, canUpload, required = false, savi
             {t("common.view", "View")}
           </Button>
         )}
-        {canUpload && (
+        {canUpload && !fileSource && (
           <>
             <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               <Icon name="upload_file" className="text-[16px]" />
               <span>
-                {file ? t("common.replace", "Replace") : t("common.uploadFile", "Upload File")}
+                {t("common.uploadFile", "Upload File")}
               </span>
               <input
                 type="file"
@@ -10826,19 +10813,19 @@ function PaymentDocumentSlot({ label, file, t, canUpload, required = false, savi
                 }}
               />
             </label>
-            {fileSource && (
-              <Button
-                type="button"
-                variant="danger"
-                icon="delete"
-                className="min-h-9 px-3 py-1 text-xs"
-                disabled={saving}
-                onClick={onDelete}
-              >
-                {t("common.delete", "Delete")}
-              </Button>
-            )}
           </>
+        )}
+        {canUpload && fileSource && (
+          <Button
+            type="button"
+            variant="danger"
+            icon="delete"
+            className="min-h-9 px-3 py-1 text-xs"
+            disabled={saving}
+            onClick={onDelete}
+          >
+            {t("common.delete", "Delete")}
+          </Button>
         )}
       </div>
     </div>
@@ -12167,23 +12154,78 @@ function getPaymentDocumentFieldName(kind) {
   return "letter_file";
 }
 
+function openBlankDocumentPreview(title = "Document") {
+  const previewWindow = window.open("about:blank", "_blank");
+  if (!previewWindow) return null;
+
+  const safeTitle = escapeHtml(title || "Document");
+  previewWindow.document.open();
+  previewWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>${safeTitle}</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #111827; color: #cbd5e1; font-family: Arial, sans-serif; }
+      body { display: grid; place-items: center; }
+    </style>
+  </head>
+  <body>
+    <p>Loading document...</p>
+  </body>
+</html>`);
+  previewWindow.document.close();
+  return previewWindow;
+}
+
+function renderBlankDocumentPreview(previewWindow, url, title = "Document", shouldRevoke = false) {
+  if (!previewWindow || !url) return;
+
+  const safeTitle = escapeHtml(title || "Document");
+  const safeUrl = escapeHtml(url);
+  previewWindow.document.open();
+  previewWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>${safeTitle}</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #111827; }
+      iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <iframe src="${safeUrl}" title="${safeTitle}"></iframe>
+  </body>
+</html>`);
+  previewWindow.document.close();
+
+  if (shouldRevoke) {
+    const cleanup = () => URL.revokeObjectURL(url);
+    previewWindow.addEventListener?.("beforeunload", cleanup, { once: true });
+    setTimeout(cleanup, 5 * 60 * 1000);
+  }
+}
+
 async function openPaymentDocument(file, t) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
+
+  const previewWindow = openBlankDocumentPreview(file?.name || "Document");
+  if (!previewWindow) {
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    return;
+  }
 
   try {
     const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
     const url = isInlineFile
       ? source
       : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+    const shouldRevoke = !isInlineFile;
 
-    window.open(url, "_blank", "noopener,noreferrer");
-
-    if (!isInlineFile) {
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    }
+    renderBlankDocumentPreview(previewWindow, url, file?.name || "Document", shouldRevoke);
   } catch (error) {
     console.error("Failed to open payment document:", error);
+    previewWindow.close();
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
 }

@@ -80,6 +80,39 @@ function getLatestRemark(app) {
   const kbStatus = normalizeStatus(form.kb_les_verification?.status);
   const supportStatus = normalizeStatus(form.management_recommendation?.status);
 
+  if (status === "mphlg_processing") {
+    return cleanRemark(
+      form.management_recommendation?.remarks ||
+      form.mphlg_gateway?.remarks ||
+      app?.latest_remark
+    );
+  }
+
+  if (
+    status === "approved" &&
+    normalizeDepartment(form.mphlg_gateway?.officer) === "MPHLG"
+  ) {
+    return cleanRemark(
+      form.mphlg_gateway?.remarks ||
+      form.approval?.remarks ||
+      app?.latest_remark
+    );
+  }
+
+  if (status === "technical_review_completed") {
+    const correction = form.correction_request || {};
+    const correctionTarget = String(correction.target || "").trim().toUpperCase();
+    if (correctionTarget === "KU(IKL)") {
+      return cleanRemark(
+        correction.remarks ||
+        form.kb_les_verification?.remarks ||
+        form.management_recommendation?.remarks ||
+        form.mphlg_gateway?.remarks ||
+        app?.latest_remark
+      );
+    }
+  }
+
   if (status === "management_review" && !["verified", "supported", "completed"].includes(kbStatus)) {
     return cleanRemark(
       form.technical_ku_review?.remarks ||

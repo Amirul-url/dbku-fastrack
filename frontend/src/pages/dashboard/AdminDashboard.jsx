@@ -963,6 +963,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
 function CompleteApplicationCard({ row, t, language = "en" }) {
   const app = row.application || {};
   const [showVerificationReport, setShowVerificationReport] = useState(false);
+  const [showDecisionLog, setShowDecisionLog] = useState(false);
   const reference = row.reference || getApplicationReference(app);
   const statusLabel = t("status.license_issued", "E-License Generated");
   const updatedDate = app.updated_at || row.date;
@@ -971,6 +972,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
   const qrContainerRef = useRef(null);
   const documents = getCompleteApplicationDocuments(app, t);
   const applicantReceipt = getApplicantReceiptDocument(app, t);
+  const decisionLogs = buildDecisionLogReportRows(app, t);
   const viewPath = getResubmissionApplicationViewPath(
     row.applicationId,
     RESUBMISSION_DRILLDOWN_TYPES.complete,
@@ -996,7 +998,17 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
         </Link>
       </div>
 
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          onClick={() => setShowDecisionLog((visible) => !visible)}
+        >
+          <span className="material-symbols-outlined text-[18px]">assignment</span>
+          {showDecisionLog
+            ? t("admin.dashboard.hideDecisionLog", "Hide Log Decision")
+            : t("admin.dashboard.showDecisionLog", "Log Decision")}
+        </button>
         <button
           type="button"
           className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
@@ -1008,6 +1020,15 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
             : t("workspace.approval.showVerificationReport", "Show Verification Report")}
         </button>
       </div>
+
+      {showDecisionLog && (
+        <DecisionLogReport
+          app={app}
+          logs={decisionLogs}
+          reference={reference}
+          t={t}
+        />
+      )}
 
       {showVerificationReport && (
         <div className="mt-3">
@@ -1104,6 +1125,93 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
         </section>
       </div>
     </article>
+  );
+}
+
+function DecisionLogReport({ app, logs, reference, t }) {
+  const applicantName = getRegisteredApplicantName(app);
+  const project = getProjectName(app);
+
+  return (
+    <section className="mt-3 rounded-md border border-slate-300 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("admin.dashboard.decisionLogReport", "Decision Log Report")}
+            </p>
+            <h3 className="mt-1 text-base font-semibold text-slate-950">{reference}</h3>
+            <p className="mt-1 max-w-4xl whitespace-pre-line text-sm text-slate-600">
+              {project || t("common.project", "Project")}
+            </p>
+          </div>
+          <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2 lg:min-w-[360px]">
+            <DecisionLogMeta label={t("common.applicant", "Applicant")} value={applicantName} />
+            <DecisionLogMeta label={t("common.updated", "Updated")} value={formatCompactDateTime(app.updated_at)} />
+          </div>
+        </div>
+      </div>
+
+      {logs.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("common.department", "Department")}
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("admin.dashboard.decisionLogDecision", "Decision")}
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("common.remarks", "Remarks")}
+                </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
+                  {t("common.date", "Date")}
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("admin.dashboard.officer", "Officer")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {logs.map((log) => (
+                <tr key={log.id} className="align-top">
+                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">
+                    {log.department}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusPill value={log.decision || "-"} />
+                  </td>
+                  <td className="min-w-[320px] px-4 py-3 text-slate-700">
+                    <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                    {formatCompactDateTime(log.date)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                    {log.officer || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="px-4 py-4 text-sm font-medium text-slate-500">
+          {t("admin.dashboard.noDecisionLogs", "No DBKU or MPHLG decision records found.")}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function DecisionLogMeta({ label, value }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900">{value || "-"}</p>
+    </div>
   );
 }
 
@@ -1478,6 +1586,221 @@ function getCompleteApplicationDocuments(app, t) {
       file: license.license_file,
     },
   ];
+}
+
+function buildDecisionLogReportRows(app, t) {
+  const rows = [];
+  const autoScreening = getApplicationSection(app, "auto_screening");
+  const technicalReview = getApplicationSection(app, "technical_review");
+  const technicalKuReview = getApplicationSection(app, "technical_ku_review");
+  const kbLesVerification = getApplicationSection(app, "kb_les_verification");
+  const managementRecommendation = getApplicationSection(app, "management_recommendation");
+  const mphlgGateway = getApplicationSection(app, "mphlg_gateway");
+  const approval = getApplicationSection(app, "approval");
+
+  addDecisionLogRow(rows, {
+    id: "auto-screening",
+    department: getAutoScreeningDecisionDepartment(autoScreening) || "PT(IKL)",
+    section: autoScreening,
+    decision: getDecisionLogValue(autoScreening),
+    remarks: getDecisionLogRemarks(autoScreening),
+    date: getDecisionLogDate(autoScreening, ["checked_at", "reviewed_at", "decided_at"]),
+    officer: getDecisionLogOfficer(autoScreening, "PT(IKL)"),
+  });
+
+  Object.entries(getTechnicalDepartmentReviews(app))
+    .filter(([, review]) => review && typeof review === "object")
+    .forEach(([department, review]) => {
+      addDecisionLogRow(rows, {
+        id: `technical-department-${department}`,
+        department: normalizeDepartmentCode(department) || department,
+        section: review,
+        decision: getDecisionLogValue(review),
+        remarks: getDecisionLogRemarks(review),
+        date: getDecisionLogDate(review, ["reviewed_at", "submitted_at", "checked_at"]),
+        officer: getDecisionLogOfficer(review, normalizeDepartmentCode(department) || department),
+      });
+    });
+
+  addDecisionLogRow(rows, {
+    id: "ikl-technical",
+    department: "IKL(TECHNICAL)",
+    section: technicalReview,
+    decision: getDecisionLogValue(technicalReview),
+    remarks: getDecisionLogRemarks(technicalReview),
+    date: getDecisionLogDate(technicalReview, ["reviewed_at", "submitted_at"]),
+    officer: getDecisionLogOfficer(technicalReview, "IKL(TECHNICAL)"),
+  });
+
+  addDecisionLogRow(rows, {
+    id: "technical-ku-review",
+    department: "KU(IKL)",
+    section: technicalKuReview,
+    decision: getDecisionLogValue(technicalKuReview),
+    remarks: getDecisionLogRemarks(technicalKuReview),
+    date: getDecisionLogDate(technicalKuReview, ["reviewed_at", "checked_at"]),
+    officer: getDecisionLogOfficer(technicalKuReview, "KU(IKL)"),
+  });
+
+  addDecisionLogRow(rows, {
+    id: "kb-les-verification",
+    department: "KB(LES)",
+    section: kbLesVerification,
+    decision: getDecisionLogValue(kbLesVerification),
+    remarks: getDecisionLogRemarks(kbLesVerification),
+    date: getDecisionLogDate(kbLesVerification, ["verified_at", "reviewed_at"]),
+    officer: getDecisionLogOfficer(kbLesVerification, "KB(LES)"),
+  });
+
+  addDecisionLogRow(rows, {
+    id: "management-recommendation",
+    department: normalizeDepartmentCode(managementRecommendation.officer) || "TP(RES)/PGH",
+    section: managementRecommendation,
+    decision: getDecisionLogValue(managementRecommendation),
+    remarks: getDecisionLogRemarks(managementRecommendation),
+    date: getDecisionLogDate(managementRecommendation, ["decided_at", "supported_at", "approval_note_saved_at"]),
+    officer: getDecisionLogOfficer(managementRecommendation, "TP(RES)/PGH"),
+  });
+
+  addDecisionLogRow(rows, {
+    id: "mphlg-gateway",
+    department: "MPHLG",
+    section: mphlgGateway,
+    decision: getDecisionLogValue(mphlgGateway),
+    remarks: getDecisionLogRemarks(mphlgGateway),
+    date: getDecisionLogDate(mphlgGateway, ["reviewed_at", "decided_at"]),
+    officer: getDecisionLogOfficer(mphlgGateway, "MPHLG"),
+  });
+
+  addDecisionLogRow(rows, {
+    id: "final-approval",
+    department: normalizeDepartmentCode(approval.officer || approval.decided_by) || t("admin.dashboard.finalApproval", "Final Approval"),
+    section: approval,
+    decision: getDecisionLogValue(approval),
+    remarks: getDecisionLogRemarks(approval),
+    date: getDecisionLogDate(approval, ["approved_at", "decided_at"]),
+    officer: getDecisionLogOfficer(approval, t("admin.dashboard.finalApproval", "Final Approval")),
+  });
+
+  return rows
+    .filter((row, index, allRows) => {
+      const key = [
+        row.department,
+        row.decision,
+        row.remarks,
+        row.date,
+        row.officer,
+      ].join("|");
+      return allRows.findIndex((item) => [
+        item.department,
+        item.decision,
+        item.remarks,
+        item.date,
+        item.officer,
+      ].join("|") === key) === index;
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a.date || 0).getTime();
+      const bTime = new Date(b.date || 0).getTime();
+      return aTime - bTime;
+    });
+}
+
+function addDecisionLogRow(rows, row) {
+  const section = row.section && typeof row.section === "object" ? row.section : {};
+  const decision = cleanRemark(row.decision);
+  const remarks = cleanRemark(row.remarks);
+  const date = cleanRemark(row.date);
+  const status = String(section.status || "").trim().toLowerCase();
+  const hasCompletedSignal =
+    decision ||
+    remarks ||
+    date ||
+    section.memo_html ||
+    section.approval_note_html;
+
+  if (!hasCompletedSignal || status.includes("pending")) return;
+
+  rows.push({
+    id: row.id,
+    department: row.department || "-",
+    decision: decision || formatWorkflowStatus(section.status || ""),
+    remarks,
+    date,
+    officer: cleanRemark(row.officer),
+  });
+}
+
+function getAutoScreeningDecisionDepartment(section = {}) {
+  const decision = getDecisionLogValue(section);
+  if (decision.includes("KU(IKL)")) return "KU(IKL)";
+  if (decision.includes("PT(IKL)")) return "PT(IKL)";
+  return normalizeDepartmentCode(section.officer || section.checked_by || section.department);
+}
+
+function getDecisionLogValue(section = {}) {
+  if (!section || typeof section !== "object") return "";
+
+  return String(
+    section.final_decision ||
+      section.decision ||
+      section.result ||
+      section.recommendation ||
+      section.status ||
+      ""
+  ).trim();
+}
+
+function getDecisionLogRemarks(section = {}) {
+  if (!section || typeof section !== "object") return "";
+
+  const plainRemark =
+    section.remarks ||
+    section.comment ||
+    section.notes ||
+    section.site_remarks ||
+    section.findings ||
+    "";
+  const memoText =
+    section.approval_note_html ||
+    section.memo_html ||
+    "";
+
+  return cleanRemark(plainRemark) || htmlToPlainDecisionLogText(memoText);
+}
+
+function getDecisionLogDate(section = {}, keys = []) {
+  if (!section || typeof section !== "object") return "";
+
+  return keys.map((key) => section[key]).find(Boolean) || "";
+}
+
+function getDecisionLogOfficer(section = {}, fallback = "") {
+  if (!section || typeof section !== "object") return fallback;
+
+  return (
+    section.officer ||
+    section.reviewed_by ||
+    section.checked_by ||
+    section.decided_by ||
+    section.approved_by ||
+    section.submitted_by ||
+    section.approval_note_saved_by ||
+    fallback
+  );
+}
+
+function htmlToPlainDecisionLogText(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+
+  if (typeof document === "undefined") {
+    return cleanRemark(source.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = source;
+  return cleanRemark(container.textContent || container.innerText || "");
 }
 
 function getApplicantReceiptDocument(app, t) {

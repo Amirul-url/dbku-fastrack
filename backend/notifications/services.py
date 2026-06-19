@@ -1180,7 +1180,7 @@ def build_status_messages(application):
             f"Application {application.reference_no} was returned by {amendment_source} and requires "
             "KU(IKL) amendment before verification can continue."
         )
-        remark = get_latest_remark(application)
+        remark = get_ku_amendment_remark(application)
         if remark:
             admin_body = f"{admin_body}\n\nRemark: {remark}"
         subject = build_notification_subject(title, application.reference_no)
@@ -1349,7 +1349,10 @@ def build_web_metadata(application, title, body, recipient_role):
             metadata["memo_html"] = memo_html
             metadata["memo_template"] = "mphlg_to_pt_ikl"
         metadata["title_ms"] = "Permohonan diluluskan oleh MPHLG"
-        metadata["message_ms"] = f"Permohonan {application.reference_no} telah diluluskan oleh MPHLG."
+        message_ms = f"Permohonan {application.reference_no} telah diluluskan oleh MPHLG."
+        if remark:
+            message_ms = f"{message_ms}\n\nCatatan: {remark}"
+        metadata["message_ms"] = message_ms
         metadata["mphlg_approved"] = True
         metadata["from"] = "MPHLG"
         metadata["sender"] = "MPHLG"
@@ -1534,6 +1537,15 @@ def get_message_remark(application):
     if status_key == "management_review" and is_management_support_pending(application):
         return get_management_support_remark(application)
 
+    if status_key == "mphlg_processing":
+        return get_mphlg_processing_remark(application)
+
+    if status_key == "approved" and is_mphlg_approved(application):
+        return get_mphlg_approval_remark(application)
+
+    if status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+        return get_ku_amendment_remark(application)
+
     if status_key not in REMARK_REPEAT_STATUSES and not (
         status_key == "invoice_generated" and is_payment_receipt_rejected(application)
     ) and not (
@@ -1560,12 +1572,49 @@ def get_management_support_remark(application):
     )
 
 
+def get_mphlg_processing_remark(application):
+    return first_clean_remark(
+        get_form_section(application, "management_recommendation").get("remarks"),
+        get_form_section(application, "mphlg_gateway").get("remarks"),
+        getattr(application, "latest_remark", ""),
+    )
+
+
+def get_mphlg_approval_remark(application):
+    return first_clean_remark(
+        get_form_section(application, "mphlg_gateway").get("remarks"),
+        get_form_section(application, "approval").get("remarks"),
+        getattr(application, "latest_remark", ""),
+    )
+
+
+def get_ku_amendment_remark(application):
+    return first_clean_remark(
+        get_form_section(application, "correction_request").get("remarks"),
+        get_form_section(application, "kb_les_verification").get("remarks"),
+        get_form_section(application, "management_recommendation").get("remarks"),
+        get_form_section(application, "mphlg_gateway").get("remarks"),
+        getattr(application, "latest_remark", ""),
+    )
+
+
 def is_ku_ikl_technical_referral(application):
     referral = get_form_section(application, "technical_referral")
     return normalize_department(referral.get("source")) == "KU(IKL)"
 
 
 def get_latest_remark(application):
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
+    if status_key == "mphlg_processing":
+        remark = get_mphlg_processing_remark(application)
+        if remark:
+            return remark
+
+    if status_key == "approved" and is_mphlg_approved(application):
+        remark = get_mphlg_approval_remark(application)
+        if remark:
+            return remark
+
     form_data = application.form_data or {}
 
     if getattr(application, "latest_remark", ""):

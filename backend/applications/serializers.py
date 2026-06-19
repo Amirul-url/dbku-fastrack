@@ -339,21 +339,51 @@ def sync_application_summary(instance):
         instance.title = step1.get("project_name")
 
     instance.project_location = get_project_location_from_form_data(form_data)[:500]
-    instance.latest_remark = get_latest_remark_from_form_data(form_data)
+    instance.latest_remark = get_latest_remark_from_form_data(form_data, instance.status)
 
 
-def get_latest_remark_from_form_data(form_data):
+def get_latest_remark_from_form_data(form_data, status=""):
     form_data = form_data or {}
+    status_key = str(status or "").strip().lower()
 
     def section(name):
         value = form_data.get(name) or {}
         return value if isinstance(value, dict) else {}
+
+    if status_key == "mphlg_processing":
+        remark = clean_remark(
+            section("management_recommendation").get("remarks")
+            or section("mphlg_gateway").get("remarks")
+        )
+        if remark:
+            return remark
+
+    if status_key == "approved":
+        mphlg_gateway = section("mphlg_gateway")
+        mphlg_officer = str(mphlg_gateway.get("officer") or "").strip().upper()
+        mphlg_decision = str(mphlg_gateway.get("decision") or "").strip().lower()
+        mphlg_status = str(mphlg_gateway.get("status") or "").strip().lower()
+        if mphlg_officer == "MPHLG" and (mphlg_decision in {"approve", "approved"} or mphlg_status == "approved"):
+            remark = clean_remark(
+                mphlg_gateway.get("remarks")
+                or section("approval").get("remarks")
+            )
+            if remark:
+                return remark
+
+    if status_key == "technical_review_completed":
+        correction = section("correction_request")
+        if str(correction.get("target") or "").strip().upper() == "KU(IKL)":
+            remark = clean_remark(correction.get("remarks"))
+            if remark:
+                return remark
 
     candidates = [
         section("correction_request").get("remarks"),
         section("auto_screening").get("remarks"),
         section("technical_review").get("comment"),
         section("technical_review").get("remarks"),
+        section("management_recommendation").get("remarks"),
         section("approval").get("notes"),
         section("approval").get("comment"),
         section("payment").get("verification_notes"),

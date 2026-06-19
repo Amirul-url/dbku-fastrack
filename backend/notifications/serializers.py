@@ -64,6 +64,29 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
         kb_status = normalize_notification_status(section("kb_les_verification").get("status"))
         support_status = normalize_notification_status(section("management_recommendation").get("status"))
 
+        if event_status == "mphlg_processing":
+            return first_notification_remark(
+                section("management_recommendation").get("remarks"),
+                section("mphlg_gateway").get("remarks"),
+                getattr(application, "latest_remark", ""),
+            )
+
+        if event_status == "approved" and normalize_notification_status(section("mphlg_gateway").get("officer")) == "mphlg":
+            return first_notification_remark(
+                section("mphlg_gateway").get("remarks"),
+                section("approval").get("remarks"),
+                getattr(application, "latest_remark", ""),
+            )
+
+        if event_status == "technical_review_completed":
+            return first_notification_remark(
+                section("correction_request").get("remarks"),
+                section("kb_les_verification").get("remarks"),
+                section("management_recommendation").get("remarks"),
+                section("mphlg_gateway").get("remarks"),
+                getattr(application, "latest_remark", ""),
+            )
+
         if event_status == "management_review" and kb_status not in {"verified", "supported", "completed"}:
             return first_notification_remark(
                 section("technical_ku_review").get("remarks"),
