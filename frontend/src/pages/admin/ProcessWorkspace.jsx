@@ -4702,12 +4702,19 @@ function getActionUnavailableMessage(config, app, department, t = (key, fallback
 
   if (isApprovalHistoryRecord(app)) return "";
 
-  if (department === "IKL (TECHNICAL)" && normalizeStatus(app?.status) === "technical_site_visit") {
+  const status = normalizeStatus(app?.status);
+  const iklDepartmentStatuses = IKL_DEPARTMENT_STATUS_SCOPE[department] || [];
+
+  if (iklDepartmentStatuses.includes(status)) {
+    return "";
+  }
+
+  if (TECHNICAL_REVIEW_STATUSES.has(status) && isTechnicalDepartmentSelected(app, department)) {
     return "";
   }
 
   if (!isApprovalActionableRecord(app)) {
-    if (department === "KB(LES)" && normalizeStatus(app?.status) === "technical_site_visit") {
+    if (department === "KB(LES)" && status === "technical_site_visit") {
       return t(
         "workspace.approval.kbNotTaskYet",
         "This is not a KB(LES) task yet. KB(LES) action is available after IKL(TECHNICAL) completes the technical site visit."

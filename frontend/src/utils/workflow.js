@@ -230,7 +230,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.TECHNICAL_REVIEW]: "Technical Review",
     [WORKFLOW_STATUS.TECHNICAL_SITE_VISIT]: "Technical Site Visit",
     [WORKFLOW_STATUS.TECHNICAL_AMENDMENT]: "Technical Amendment Required",
-    [WORKFLOW_STATUS.TECHNICAL_REVIEW_COMPLETED]: "Technical Completed",
+    [WORKFLOW_STATUS.TECHNICAL_REVIEW_COMPLETED]: "Pending KU(IKL) Final Check",
     [WORKFLOW_STATUS.MANAGEMENT_REVIEW]: "Management Recommendation",
     [WORKFLOW_STATUS.MPHLG_PROCESSING]: "MPHLG Processing",
     [WORKFLOW_STATUS.MPHLG_DECISION_RECEIVED]: "MPHLG Decision Received",
