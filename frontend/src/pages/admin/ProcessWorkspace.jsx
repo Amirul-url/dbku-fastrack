@@ -144,11 +144,6 @@ const APPROVAL_REPORT_VIEW_DEPARTMENTS = [
   ...TECHNICAL_DEPARTMENTS,
   ...APPROVAL_TECHNICAL_REPORT_DEPARTMENTS,
 ];
-const APPROVAL_STAGE_FILTER_OPTIONS = ["kb", "kb_support", "support", "mphlg"];
-const APPROVAL_OUTCOME_STATUS_FILTER_OPTIONS = [
-  "approved",
-  "rejected",
-];
 const INTERNAL_WORK_TRACKING_DEPARTMENTS = new Set([
   "PT(IKL)",
   "KU(IKL)",
@@ -549,7 +544,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (q && !haystack.includes(q)) return false;
       if (monthFilter && updatedMonth !== monthFilter) return false;
       if (yearFilter && updatedYear !== yearFilter) return false;
-      if (!matchesWorkspaceStatusFilter(app, statusFilter, config)) return false;
+      if (!matchesWorkspaceStatusFilter(app, statusFilter, config, t, userDepartment)) return false;
 
       return true;
     });
@@ -581,8 +576,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [statusScopedApplications]);
 
   const statusOptions = useMemo(() => {
-    return getWorkspaceStatusFilterOptions(config, userDepartment, t);
-  }, [config, t, userDepartment]);
+    return getWorkspaceStatusFilterOptions(statusScopedApplications, config, userDepartment, t);
+  }, [config, statusScopedApplications, t, userDepartment]);
 
   useEffect(() => {
     if (!statusFilter) return;
@@ -921,7 +916,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess("");
 
       const now = new Date().toISOString();
-      const selectedTypes = normalizeApplicationTypeOptions(nextSelection).slice(0, 1);
+      const selectedTypes = normalizeApplicationTypeOptions(nextSelection);
       if (selectedTypes.length === 0) {
         setError(t("workspace.technical.applicationTypeRequired", "Please select at least one application type."));
         return;
@@ -5063,6 +5058,20 @@ function roundTechnicalNumber(value, decimals = 2) {
   return Math.round((Number(value) || 0) * factor) / factor;
 }
 
+function toTechnicalCurrencyCents(value) {
+  return Math.round((Number(value) || 0) * 100);
+}
+
+function roundTechnicalPayableToFiveSen(value) {
+  const cents = toTechnicalCurrencyCents(value);
+  const roundedCents = Math.round(cents / 5) * 5;
+
+  return {
+    roundedAmount: roundedCents / 100,
+    adjustment: (roundedCents - cents) / 100,
+  };
+}
+
 function getTechnicalFeeSchedule(subtype) {
   return TECHNICAL_LED_SUBTYPES.has(subtype)
     ? TECHNICAL_FEE_SCHEDULES.schedule_6
@@ -5103,6 +5112,8 @@ function calculateTechnicalFee(site = {}) {
     : 0;
   const additionalAreaFee = hasArea ? additionalAreaSqm * schedule.additionalAreaRate : 0;
   const feeTotal = firstAreaFee + additionalAreaFee;
+  const subtotalPayable = feeTotal + TECHNICAL_FIXED_DEPOSIT + TECHNICAL_PROCESSING_FEE;
+  const roundedPayable = roundTechnicalPayableToFiveSen(subtotalPayable);
 
   return {
     scheduleKey: schedule.key,
@@ -5122,7 +5133,9 @@ function calculateTechnicalFee(site = {}) {
     feeTotal,
     deposit: TECHNICAL_FIXED_DEPOSIT,
     processingFee: TECHNICAL_PROCESSING_FEE,
-    totalPayable: feeTotal + TECHNICAL_FIXED_DEPOSIT + TECHNICAL_PROCESSING_FEE,
+    roundingAdjustment: roundedPayable.adjustment,
+    subtotalPayable,
+    totalPayable: roundedPayable.roundedAmount,
   };
 }
 
@@ -5161,7 +5174,13 @@ function formatTechnicalArea(value) {
 }
 
 function formatTechnicalCurrency(value) {
-  return formatCurrency(value).replace(/^RM\s+/, "RM");
+  const amount = Number(value || 0);
+  const prefix = amount < 0 ? "-RM" : "RM";
+
+  return `${prefix}${Math.abs(amount).toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatTechnicalDecimal(value, maxDecimals = 10) {
@@ -5193,6 +5212,7 @@ function mergeTechnicalFeeCalculation(site = {}) {
     additional_area_sqm: fees.additionalAreaSqm ? String(fees.additionalAreaSqm) : "0",
     additional_area_fee: fees.additionalAreaFee ? String(fees.additionalAreaFee) : "0",
     fee_total: fees.feeTotal ? String(fees.feeTotal) : "",
+    rounding_adjustment: String(fees.roundingAdjustment || 0),
     payable_total: fees.feeTotal ? String(fees.totalPayable) : "",
     license_fee_calculation: fees.feeTotal ? String(fees.feeTotal) : "",
     deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
@@ -5258,6 +5278,7 @@ function calculateTechnicalFeeRows(rows = []) {
       additional_area_sqm: fees.additionalAreaSqm ? String(fees.additionalAreaSqm) : "0",
       additional_area_fee: fees.additionalAreaFee ? String(fees.additionalAreaFee) : "0",
       fee_total: fees.feeTotal ? String(fees.feeTotal) : "",
+      rounding_adjustment: String(fees.roundingAdjustment || 0),
       payable_total: fees.feeTotal ? String(fees.totalPayable) : "",
     };
   });
@@ -5925,6 +5946,9 @@ function getTechnicalAdvertisementTypeValue(step1 = {}, displayType = "") {
 }
 
 function normalizeTechnicalAdvertisementRow(row = {}, selectedType, fallbackSubtype = "") {
+  const rowType =
+    normalizeApplicationTypeOptions(row.applicationType || row.application_type)[0] ||
+    selectedType;
   const rowDisplayType =
     row.displayType === "led" || row.display_type === "led"
       ? "led"
@@ -5932,9 +5956,9 @@ function normalizeTechnicalAdvertisementRow(row = {}, selectedType, fallbackSubt
         ? "non_led"
         : "";
   const subtype =
-    normalizeApplicationSubtype(row.subtype, selectedType) ||
-    normalizeApplicationSubtype(fallbackSubtype, selectedType) ||
-    getSubtypeForTechnicalDisplayType(selectedType, rowDisplayType);
+    normalizeApplicationSubtype(row.subtype, rowType) ||
+    normalizeApplicationSubtype(fallbackSubtype, rowType) ||
+    getSubtypeForTechnicalDisplayType(rowType, rowDisplayType);
   const displayType =
     rowDisplayType ||
     getTechnicalDisplayTypeFromSubtype(subtype);
@@ -5942,8 +5966,8 @@ function normalizeTechnicalAdvertisementRow(row = {}, selectedType, fallbackSubt
 
   return {
     ...row,
-    applicationType: selectedType,
-    application_type: selectedType,
+    applicationType: rowType,
+    application_type: rowType,
     displayType,
     display_type: displayType,
     subtype,
@@ -5952,8 +5976,10 @@ function normalizeTechnicalAdvertisementRow(row = {}, selectedType, fallbackSubt
   };
 }
 
-function createTechnicalAdvertisementRow() {
+function createTechnicalAdvertisementRow(applicationType = "") {
   return {
+    applicationType,
+    application_type: applicationType,
     displayType: "",
     display_type: "",
     subtype: "",
@@ -6047,6 +6073,44 @@ function getTechnicalAdvertisementOptionLabel(value, language = "en") {
   return option ? stepText(language, option.labelKey) : value;
 }
 
+function formatTechnicalProjectText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("en-MY");
+}
+
+function buildTechnicalProjectNameLine(language, row, fallbackType = "") {
+  const rowType =
+    normalizeApplicationTypeOptions(row?.applicationType || row?.application_type)[0] ||
+    fallbackType;
+  const displayType = row?.displayType || row?.display_type || "";
+  const subtype = normalizeApplicationSubtype(row?.subtype, rowType);
+  const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
+  const displayLabel = getTechnicalDisplayTypeLabel(displayType, language);
+  const advertisementLabel =
+    customLabel ||
+    getApplicationSubtypeLabel(rowType, subtype, language) ||
+    getTechnicalAdvertisementOptionLabel(customLabel, language);
+
+  if (!rowType || !displayLabel || !advertisementLabel) return "";
+
+  const action = stepText(
+    language,
+    rowType === "building" ? "projectActionInstallation" : "projectActionConstruction"
+  );
+  const location = stepText(
+    language,
+    rowType === "building" ? "projectLocationBuilding" : "projectLocationOpenSpace"
+  );
+
+  if (language === "ms") {
+    return `${formatTechnicalProjectText(action)} ${formatTechnicalProjectText(advertisementLabel)} ${formatTechnicalProjectText(displayLabel)} DI ${formatTechnicalProjectText(location)}`;
+  }
+
+  return `${formatTechnicalProjectText(action)} OF ${formatTechnicalProjectText(displayLabel)} ${formatTechnicalProjectText(advertisementLabel)} AT ${formatTechnicalProjectText(location)}`;
+}
+
 function getTechnicalAdvertisementOptions(row = {}, language = "en") {
   const optionsByValue = new Map(
     TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES.map((option) => [
@@ -6122,6 +6186,18 @@ function getApplicationTypeTechnicalDepartmentsFromTypes(types) {
     (type) => APPLICATION_TYPE_TECHNICAL_DEPARTMENTS[type] || []
   );
   return normalizeTechnicalDepartmentSelection(departments);
+}
+
+function getApplicationTypeOptionsFromTechnicalRows(rows = [], fallbackType = "") {
+  const rowTypes = rows.map(
+    (row) =>
+      normalizeApplicationTypeOptions(row?.applicationType || row?.application_type)[0]
+  );
+  const selectedTypes = normalizeApplicationTypeOptions(rowTypes);
+
+  if (selectedTypes.length > 0) return selectedTypes;
+
+  return normalizeApplicationTypeOptions(fallbackType);
 }
 
 function getApplicationTypeTechnicalDepartments(app) {
@@ -6368,68 +6444,61 @@ function getWorkspaceStatusScope(config, department) {
   return Array.isArray(config?.statuses) ? config.statuses : [];
 }
 
-function getWorkspaceStatusFilterOptions(config, department, t) {
-  if (config?.key === "approval") {
-    const stageOptions = getApprovalStageFilterOptionsForDepartment(department).map((stage) => ({
-      value: `stage:${stage}`,
-      label: getApprovalStageFilterLabel(stage, t),
-    }));
-    const outcomeOptions = APPROVAL_OUTCOME_STATUS_FILTER_OPTIONS.map((status) => ({
-      value: `status:${status}`,
-      label: t(`status.${status}`, formatWorkflowStatus(status)),
-    }));
-
-    return [...stageOptions, ...outcomeOptions];
-  }
-
-  const scopedStatuses = getWorkspaceStatusScope(config, department);
-  const statuses =
-    scopedStatuses.length > 0
-      ? scopedStatuses
-      : Array.isArray(config?.statuses)
-        ? config.statuses
-        : [];
-
-  const uniqueStatuses = [...new Set(statuses.map(normalizeStatus).filter(Boolean))];
+function getWorkspaceStatusFilterOptions(applications, config, department, t) {
   const optionsByLabel = new Map();
+  const filterApplications = [
+    ...getWorkspaceStatusFilterFallbackApplications(config, department),
+    ...(applications || []),
+  ];
 
-  uniqueStatuses.forEach((status) => {
-    const label = getWorkspaceStatusFilterLabel(status, config, department, t);
-    const existing = optionsByLabel.get(label);
-
-    if (existing) {
-      existing.statuses.push(status);
-      existing.value = existing.statuses.join("|");
-      return;
-    }
+  filterApplications.forEach((app) => {
+    const label = String(getWorkspaceStatusLabel(app, config, t, department) || "").trim();
+    if (!label || optionsByLabel.has(label)) return;
 
     optionsByLabel.set(label, {
-      value: status,
+      value: `display:${encodeURIComponent(label)}`,
       label,
-      statuses: [status],
     });
   });
 
-  return [...optionsByLabel.values()].map(({ value, label }) => ({ value, label }));
+  return [...optionsByLabel.values()];
 }
 
-function getApprovalStageFilterOptionsForDepartment(department) {
-  if (department === "KB(LES)") return ["kb", "kb_support"];
-  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) return ["support"];
-  if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) return ["mphlg"];
+function getWorkspaceStatusFilterFallbackApplications(config, department) {
+  const statuses = getWorkspaceStatusFilterFallbackStatuses(config, department);
 
-  return APPROVAL_STAGE_FILTER_OPTIONS;
+  return statuses.map((status) => ({
+    status,
+    form_data: {},
+  }));
 }
 
-function matchesWorkspaceStatusFilter(app, value, config) {
-  if (!value) return true;
-
-  if (config?.key === "approval" && String(value).startsWith("stage:")) {
-    return getApprovalStageKey(app) === String(value).replace(/^stage:/, "");
+function getWorkspaceStatusFilterFallbackStatuses(config, department) {
+  if (config?.key === "approval" && INTERNAL_WORK_TRACKING_DEPARTMENTS.has(department)) {
+    return [
+      ...KU_IKL_TECHNICAL_TRACKING_STATUSES,
+      ...(config.statuses || []),
+      "bill_pending_ku",
+      "invoice_generated",
+      "payment_submitted",
+      "payment_verified",
+      "license_issued",
+      "license_revoked",
+    ];
   }
 
-  if (config?.key === "approval" && String(value).startsWith("status:")) {
-    return normalizeStatus(app.status) === String(value).replace(/^status:/, "");
+  const scopedStatuses = getWorkspaceStatusScope(config, department);
+  if (scopedStatuses.length > 0) return scopedStatuses;
+
+  return Array.isArray(config?.statuses) ? config.statuses : [];
+}
+
+function matchesWorkspaceStatusFilter(app, value, config, t, department) {
+  if (!value) return true;
+
+  if (String(value).startsWith("display:")) {
+    const expectedLabel = decodeURIComponent(String(value).replace(/^display:/, ""));
+    return getWorkspaceStatusLabel(app, config, t, department) === expectedLabel;
   }
 
   return getStatusFilterValues(value).includes(normalizeStatus(app.status));
@@ -6440,58 +6509,6 @@ function getStatusFilterValues(value) {
     .split("|")
     .map((item) => normalizeStatus(item))
     .filter(Boolean);
-}
-
-function getApprovalStageFilterLabel(stage, t) {
-  if (stage === "kb_support") {
-    return t("workspace.approval.stageKbSupport", "Pending KB(LES) Support");
-  }
-
-  if (stage === "support") {
-    return t("workspace.approval.stageSupport", "Pending TP(RES)/PGH Final Approval");
-  }
-
-  if (stage === "mphlg") {
-    return t("workspace.approval.stageMphlg", "Pending MPHLG Approval");
-  }
-
-  return t("workspace.approval.stageKbVerification", "Pending KB(LES) Verification");
-}
-
-function getWorkspaceStatusFilterLabel(status, config, department, t) {
-  if (config?.key === "screening") {
-    if (status === "submitted" || status === "ku_ikl_review") {
-      return t("status.ku_ikl_review", "KU(IKL) Review");
-    }
-
-    if (status === "technical_review_completed") {
-      return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
-    }
-
-    if (department === "IKL (TECHNICAL)" && TECHNICAL_REVIEW_STATUSES.has(status)) {
-      return t("status.ikl_technical_review", "IKL(TECH) Review");
-    }
-  }
-
-  if (config?.key === "technical" && TECHNICAL_REVIEW_STATUSES.has(status)) {
-    return getDepartmentReviewStatusLabel(department);
-  }
-
-  if (config?.key === "payment" && status === "bill_pending_ku") {
-    return t("status.bill_pending_ku", "Pending Bill Sending");
-  }
-
-  if (config?.key === "license") {
-    const labelMap = {
-      payment_verified: t("status.payment_verified", "Payment Verified"),
-      license_issued: t("status.license_issued", "E-License Issued"),
-      license_revoked: t("status.license_revoked", "License Revoked"),
-    };
-
-    if (labelMap[status]) return labelMap[status];
-  }
-
-  return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
 function getWorkspaceFetchParams(config, department, includeCompletedFallback = false) {
@@ -6594,6 +6611,7 @@ const configs = {
       label: "Submit PT/KU Decision",
       labelKey: "workspace.action.submitScreening",
       icon: "fact_check",
+      requiresComment: true,
       success: "Screening decision saved.",
       successKey: "workspace.message.screeningSaved",
       buildPayload: buildIklScreeningPayload,
@@ -7280,11 +7298,15 @@ function IklWorkspaceSections({
   }
 
   function handleTechnicalApplicationSubtypeChange(nextSubtype, advertisementMeta = {}) {
-    const selectedType = normalizeApplicationTypeOptions(technicalApplicationTypeSelection)[0];
+    const nextSelection = normalizeApplicationTypeOptions(
+      advertisementMeta.selectedTypes || technicalApplicationTypeSelection
+    );
+    const selectedType = nextSelection[0];
     const normalizedSubtype = normalizeApplicationSubtype(nextSubtype, selectedType);
 
     if (!normalizedSubtype) return;
 
+    setTechnicalApplicationTypeSelection(nextSelection);
     setTechnicalSite((prev) =>
       mergeTechnicalFeeCalculation({
         ...prev,
@@ -7292,7 +7314,7 @@ function IklWorkspaceSections({
       })
     );
     saveTechnicalApplicationTypeSelection(
-      technicalApplicationTypeSelection,
+      nextSelection,
       normalizedSubtype,
       advertisementMeta
     );
@@ -7383,16 +7405,31 @@ function IklWorkspaceSections({
             </Field>
 
             <Field
-              label={t(config.commentLabelKey, config.commentLabel || "Notes")}
+              label={
+                <>
+                  {t(config.commentLabelKey, config.commentLabel || "Notes")}
+                  <span className="ml-1 text-red-600">*</span>
+                </>
+              }
               labelClassName="!text-sm"
             >
               <textarea
                 value={comment}
-                onChange={(event) => setComment(event.target.value)}
+                onChange={(event) => {
+                  setComment(event.target.value);
+                  if (commentError) setCommentError("");
+                }}
                 rows="3"
-                className="form-input form-input-sm"
+                required
+                aria-required="true"
+                className={`form-input form-input-sm ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                 placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
               />
+              {commentError && (
+                <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                  {commentError}
+                </p>
+              )}
             </Field>
 
             <div className="flex justify-end">
@@ -7707,7 +7744,7 @@ function getIklScreeningCopy(department) {
       descriptionKey: "workspace.ikl.ptScreeningDesc",
       description: "Review applicant information and documents, then send the application onward or reject it with remarks.",
       placeholderKey: "workspace.comment.ptScreeningPlaceholder",
-      placeholder: "Required when rejecting.",
+      placeholder: "Enter remarks for this decision.",
       submitKey: "common.submit",
       submitLabel: "Submit",
     };
@@ -7722,7 +7759,7 @@ function getIklScreeningCopy(department) {
       descriptionKey: "workspace.ikl.kuScreeningDesc",
       description: "Review the screening result, then send the application to technical review or reject it with remarks.",
       placeholderKey: "workspace.comment.kuScreeningPlaceholder",
-      placeholder: "Required when rejecting.",
+      placeholder: "Enter remarks for this decision.",
       submitKey: "common.submit",
       submitLabel: "Submit",
     };
@@ -7736,7 +7773,7 @@ function getIklScreeningCopy(department) {
     descriptionKey: "workspace.ikl.screeningDesc",
     description: "Use this section to send to KU(IKL), send to technical review, or reject to the applicant with remarks.",
     placeholderKey: "workspace.comment.screeningPlaceholder",
-    placeholder: "Enter PT(IKL) / KU(IKL) remarks. Required when rejecting.",
+    placeholder: "Enter remarks for this decision.",
     submitKey: "workspace.action.submitScreening",
     submitLabel: "Submit PT/KU Decision",
   };
@@ -7750,7 +7787,6 @@ function TechnicalApplicationTypePanel({
   derivedDepartments,
   step1 = {},
   saving,
-  onToggle,
   onSubtypeChange,
   readOnly = false,
 }) {
@@ -7760,7 +7796,6 @@ function TechnicalApplicationTypePanel({
   });
   const [isEditingApplicationType, setIsEditingApplicationType] = useState(false);
   const selectedType = normalizeApplicationTypeOptions(selectedTypes)[0] || "";
-  const selectedSet = new Set(selectedType ? [selectedType] : []);
   const subtypeOptions = APPLICATION_SUBTYPE_OPTIONS[selectedType] || [];
   const normalizedSubtype =
     normalizeApplicationSubtype(selectedSubtype, selectedType) ||
@@ -7771,36 +7806,82 @@ function TechnicalApplicationTypePanel({
     normalizedSubtype
   );
   const canEdit = !saving && !readOnly && isEditingApplicationType;
-  const departmentsText = Array.isArray(derivedDepartments)
-    ? derivedDepartments.join(", ")
-    : String(derivedDepartments || "").trim();
+  const rowSelectedTypes = getApplicationTypeOptionsFromTechnicalRows(
+    advertisementRows,
+    selectedType
+  );
+  const rowDepartments = getApplicationTypeTechnicalDepartmentsFromTypes(rowSelectedTypes);
+  const displayDepartments = rowDepartments.length > 0 ? rowDepartments : derivedDepartments;
+  const departmentsText = Array.isArray(displayDepartments)
+    ? displayDepartments.join(", ")
+    : String(displayDepartments || "").trim();
 
   function commitAdvertisementRows(nextRows) {
     const primaryRow = nextRows[0] || {};
+    const primaryType =
+      normalizeApplicationTypeOptions(primaryRow.applicationType || primaryRow.application_type)[0] ||
+      selectedType;
+    const nextSelectedTypes = getApplicationTypeOptionsFromTechnicalRows(nextRows, primaryType);
     const nextSubtype =
-      normalizeApplicationSubtype(primaryRow.subtype, selectedType) ||
-      getSubtypeForTechnicalDisplayType(selectedType, primaryRow.displayType);
+      normalizeApplicationSubtype(primaryRow.subtype, primaryType) ||
+      getSubtypeForTechnicalDisplayType(primaryType, primaryRow.displayType);
 
     onSubtypeChange?.(nextSubtype, {
       rows: nextRows,
+      selectedTypes: nextSelectedTypes.length > 0 ? nextSelectedTypes : undefined,
       displayType: primaryRow.displayType,
       advertisementType: primaryRow.customLabel,
     });
   }
 
+  function handleCategoryChange(rowIndex, nextApplicationType) {
+    if (!canEdit) return;
+
+    const normalizedType =
+      normalizeApplicationTypeOptions(nextApplicationType)[0] || selectedType;
+    if (!normalizedType) return;
+
+    const nextRows = advertisementRows.map((row, index) => {
+      if (index !== rowIndex) return row;
+
+      const displayType =
+        row.displayType ||
+        row.display_type ||
+        getTechnicalDisplayTypeFromSubtype(row.subtype || normalizedSubtype);
+
+      return {
+        ...row,
+        applicationType: normalizedType,
+        application_type: normalizedType,
+        displayType,
+        display_type: displayType,
+        subtype: getSubtypeForTechnicalDisplayType(normalizedType, displayType),
+        customLabel: "",
+        custom_label: "",
+      };
+    });
+
+    commitAdvertisementRows(nextRows);
+  }
+
   function handleDisplayTypeChange(rowIndex, nextDisplayType) {
-    const nextSubtype = getSubtypeForTechnicalDisplayType(selectedType, nextDisplayType);
     const nextRows = advertisementRows.map((row, index) =>
-      index === rowIndex
-        ? {
-            ...row,
-            displayType: nextDisplayType,
-            display_type: nextDisplayType,
-            subtype: nextSubtype,
-            customLabel: "",
-            custom_label: "",
-          }
-        : row
+      {
+        if (index !== rowIndex) return row;
+
+        const rowType =
+          normalizeApplicationTypeOptions(row.applicationType || row.application_type)[0] ||
+          selectedType;
+
+        return {
+          ...row,
+          displayType: nextDisplayType,
+          display_type: nextDisplayType,
+          subtype: getSubtypeForTechnicalDisplayType(rowType, nextDisplayType),
+          customLabel: "",
+          custom_label: "",
+        };
+      }
     );
 
     commitAdvertisementRows(nextRows);
@@ -7810,16 +7891,22 @@ function TechnicalApplicationTypePanel({
     const currentRow = advertisementRows[rowIndex] || {};
     const displayType = currentRow.displayType || getTechnicalDisplayTypeFromSubtype(normalizedSubtype);
     const nextRows = advertisementRows.map((row, index) =>
-      index === rowIndex
-        ? {
-            ...row,
-            displayType,
-            display_type: displayType,
-            subtype: getSubtypeForTechnicalDisplayType(selectedType, displayType),
-            customLabel: nextAdvertisementType,
-            custom_label: nextAdvertisementType,
-          }
-        : row
+      {
+        if (index !== rowIndex) return row;
+
+        const rowType =
+          normalizeApplicationTypeOptions(row.applicationType || row.application_type)[0] ||
+          selectedType;
+
+        return {
+          ...row,
+          displayType,
+          display_type: displayType,
+          subtype: getSubtypeForTechnicalDisplayType(rowType, displayType),
+          customLabel: nextAdvertisementType,
+          custom_label: nextAdvertisementType,
+        };
+      }
     );
 
     commitAdvertisementRows(nextRows);
@@ -7827,7 +7914,12 @@ function TechnicalApplicationTypePanel({
 
   function handleAddRow() {
     if (!canEdit) return;
-    commitAdvertisementRows([...advertisementRows, createTechnicalAdvertisementRow()]);
+    const fallbackType =
+      normalizeApplicationTypeOptions(
+        advertisementRows[advertisementRows.length - 1]?.applicationType ||
+          advertisementRows[advertisementRows.length - 1]?.application_type
+      )[0] || selectedType;
+    commitAdvertisementRows([...advertisementRows, createTechnicalAdvertisementRow(fallbackType)]);
   }
 
   function handleDeleteRow(rowIndex) {
@@ -7879,7 +7971,7 @@ function TechnicalApplicationTypePanel({
       <div className="border-b border-black bg-slate-50 px-3 py-2">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold leading-5 text-slate-800">
-            {stepText(language, "typeOfApplication")}{" "}
+            {stepText(language, "applicationProjectList")}{" "}
             <span className="text-red-600" aria-hidden="true">*</span>
           </h3>
           {!readOnly && (
@@ -7902,51 +7994,48 @@ function TechnicalApplicationTypePanel({
       </div>
 
       <div className="space-y-3 p-3">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {APPLICATION_TYPE_OPTIONS.map((type) => (
-            <label
-              key={type}
-              className={`flex min-h-10 items-center gap-2 rounded-sm border px-3 py-2 text-sm leading-5 ${
-                selectedSet.has(type)
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                  : "border-slate-200 bg-white text-slate-700"
-              } ${canEdit ? "cursor-pointer" : "cursor-default opacity-80"}`}
-            >
-              <input
-                type="radio"
-                name="technical-application-type"
-                checked={selectedSet.has(type)}
-                disabled={!canEdit}
-                onChange={() => onToggle(type, true)}
-                className="h-4 w-4 accent-emerald-700"
-              />
-              <span className="text-sm leading-5">{getApplicationTypeOptionLabel(type, language)}</span>
-            </label>
-          ))}
-        </div>
-
         {subtypeOptions.length > 0 && (
           <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white">
-          <table className="min-w-[680px] w-full border-collapse text-sm">
-            <thead className="bg-slate-50 text-left text-sm font-bold text-slate-700">
+          <table className="min-w-[1080px] w-full border-collapse text-sm">
+            <colgroup>
+              <col className="w-16" />
+              <col className="w-[140px]" />
+              <col className="w-[170px]" />
+              <col className="w-[240px]" />
+              <col className="w-px" />
+              <col />
+            </colgroup>
+            <thead className="bg-slate-50 text-center text-sm font-bold text-slate-700">
               <tr>
-                <th className="w-16 border-b border-slate-200 px-3 py-2">
+                <th className="border-b border-slate-200 px-3 py-2">
                   {stepText(language, "advertisementNumber")}
                 </th>
-                <th className="w-[30%] border-b border-slate-200 px-3 py-2">
+                <th className="border-b border-slate-200 px-3 py-2">
+                  {stepText(language, "applicationCategory")}
+                </th>
+                <th className="border-b border-slate-200 px-3 py-2">
                   {stepText(language, "displayType")}
                 </th>
                 <th className="border-b border-slate-200 px-3 py-2">
                   {stepText(language, "advertisementType")}
                 </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-3 py-2">
+                  {stepText(language, "action")}
+                </th>
+                <th className="border-b border-slate-200 px-3 py-2">
+                  {stepText(language, "title")}
+                </th>
               </tr>
             </thead>
             <tbody>
               {advertisementRows.map((row, index) => {
+                const rowType =
+                  normalizeApplicationTypeOptions(row.applicationType || row.application_type)[0] ||
+                  selectedType;
                 const selectedAdvertisementValue =
                   row.customLabel ||
                   row.custom_label ||
-                  getApplicationSubtypeLabel(selectedType, row.subtype, "en") ||
+                  getApplicationSubtypeLabel(rowType, row.subtype, "en") ||
                   "";
                 const advertisementOptions = getTechnicalAdvertisementOptions(
                   row,
@@ -7972,6 +8061,20 @@ function TechnicalApplicationTypePanel({
                   <tr key={`technical-advertisement-row-${index}`} className="align-top">
                     <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-700">
                       {index + 1}
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <select
+                        className="spa-input !text-sm"
+                        value={rowType}
+                        disabled={!canEdit}
+                        onChange={(event) => handleCategoryChange(index, event.target.value)}
+                      >
+                        {APPLICATION_TYPE_OPTIONS.map((type) => (
+                          <option key={type} value={type}>
+                            {getApplicationTypeOptionLabel(type, language)}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">
                       <select
@@ -8007,9 +8110,13 @@ function TechnicalApplicationTypePanel({
                             </option>
                           ))}
                         </select>
+                      </div>
+                    </td>
+                    <td className="w-px whitespace-nowrap border-t border-slate-100 px-2 py-3">
+                      <div className="flex flex-nowrap gap-1.5">
                         <button
                           type="button"
-                          className="shrink-0 rounded-sm bg-[#006d32] px-3 py-2 text-sm font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                          className="shrink-0 rounded-sm bg-[#006d32] px-2.5 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
                           disabled={!canEdit}
                           onClick={() => handleOpenAddAdvertisementType(index)}
                         >
@@ -8017,12 +8124,17 @@ function TechnicalApplicationTypePanel({
                         </button>
                         <button
                           type="button"
-                          className="shrink-0 rounded-sm border border-red-600 bg-white px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                          className="shrink-0 rounded-sm border border-red-600 bg-white px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
                           disabled={!canEdit}
                           onClick={() => handleDeleteRow(index)}
                         >
                           {stepText(language, "deleteAdvertisementRow")}
                         </button>
+                      </div>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <div className="min-h-10 rounded-sm border border-slate-200 bg-white px-3 py-2 text-xs font-normal uppercase leading-5 text-slate-700">
+                        {buildTechnicalProjectNameLine(language, row, rowType) || "-"}
                       </div>
                     </td>
                   </tr>
@@ -8711,14 +8823,14 @@ function TechnicalSiteVisitFields({
         <p className="mb-1 text-sm font-semibold leading-5 text-slate-700">
           {t("workspace.technical.sitePhoto")}
         </p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="space-y-3">
           {!readOnly && (
-            <label className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-sm font-semibold leading-5 text-white hover:bg-emerald-800">
-              <Icon name="add_photo_alternate" className="mr-1 text-[15px]" />
+            <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold leading-5 text-white hover:bg-emerald-800">
+              <Icon name="add_photo_alternate" className="mr-1 text-base" />
               {t("workspace.technical.uploadSitePhoto")}
               <input
                 type="file"
-                accept="image/*"
+                accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                 multiple
                 className="hidden"
                 onChange={(event) => {
@@ -8728,48 +8840,59 @@ function TechnicalSiteVisitFields({
               />
             </label>
           )}
-          {sitePhotos.length > 0 && (
-            <span className="text-sm font-medium leading-5 text-emerald-700">
-              {t("workspace.technical.sitePhotoUploaded")}: {sitePhotos.length}
-            </span>
+
+          {!readOnly && (
+            <p className="text-xs font-medium text-slate-500">
+              {t(
+                "workspace.technical.sitePhotoImageOnly",
+                "Maximum file size 15MB. Accepted formats: PNG, JPG, JPEG, PDF."
+              )}
+            </p>
           )}
-          {readOnly && sitePhotos.length === 0 && (
-            <span className="text-sm font-medium leading-5 text-slate-500">
-              {t("workspace.technical.noSitePhoto", "No site photo uploaded.")}
-            </span>
+
+          {sitePhotos.length === 0 ? (
+            <div className="flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
+              <p className="text-xs font-semibold text-slate-500">
+                {t("workspace.technical.noSitePhoto", "No site photo uploaded.")}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sitePhotos.map((photo, index) => (
+                <div
+                  key={`${photo.name || "site-photo"}-${index}`}
+                  className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Icon name="image" className="shrink-0 text-xl text-slate-500" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium leading-5 text-slate-700">
+                        {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
+                      </p>
+                      <p className="text-xs leading-5 text-slate-500">
+                        {getTechnicalSitePhotoMeta(photo)}
+                      </p>
+                    </div>
+                  </div>
+                  <SitePhotoActions
+                    photo={photo}
+                    applicationId={applicationId}
+                    disabled={deletingIndex === index}
+                    onRemove={() => removePhoto(photo, index)}
+                    labels={{
+                      view: t("common.view"),
+                      download: t("common.download"),
+                      delete: t("common.delete"),
+                    }}
+                    hideDelete={readOnly}
+                  />
+                </div>
+              ))}
+            </div>
           )}
+
         </div>
       </div>
-
-      {sitePhotos.length > 0 && (
-        <div className="space-y-1.5">
-          {sitePhotos.map((photo, index) => (
-            <div
-              key={`${photo.name || "site-photo"}-${index}`}
-              className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <Icon name="image" className="shrink-0 text-[18px] text-slate-500" />
-                <span className="truncate text-sm font-medium leading-5 text-slate-700">
-                  {photo.name || `${t("workspace.technical.sitePhoto")} ${index + 1}`}
-                </span>
-              </div>
-              <SitePhotoActions
-                photo={photo}
-                applicationId={applicationId}
-                disabled={deletingIndex === index}
-                onRemove={() => removePhoto(photo, index)}
-                labels={{
-                  view: t("common.view"),
-                  download: t("common.download"),
-                  delete: t("common.delete"),
-                }}
-                hideDelete={readOnly}
-              />
-            </div>
-          ))}
-        </div>
-      )}
 
       <TechnicalFeeCalculationSheet
         t={t}
@@ -9085,6 +9208,11 @@ function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
             value={formatTechnicalCurrency(fee.processingFee)}
           />
           <TechnicalCalculationRow
+            label={stepText(language, "calculationRoundingAdjustment")}
+            guideline={stepText(language, "calculationRoundingAdjustmentHelp")}
+            value={formatTechnicalCurrency(fee.roundingAdjustment)}
+          />
+          <TechnicalCalculationRow
             label={stepText(language, "calculationTotalPayable")}
             value={formatTechnicalCurrency(fee.totalPayable)}
             strong
@@ -9095,16 +9223,35 @@ function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
   );
 }
 
-function TechnicalCalculationRow({ label, value, strong = false }) {
+function TechnicalCalculationRow({ label, value, strong = false, guideline = "" }) {
   return (
     <div
       className={`grid gap-2 sm:grid-cols-[210px_minmax(0,1fr)] ${
         strong ? "border-t border-slate-200 pt-1 font-bold text-slate-900" : ""
       }`}
     >
-      <span>{label}</span>
+      <span className="relative inline-flex items-center gap-1.5">
+        {label}
+        {guideline && <TechnicalCalculationGuidelineHint text={guideline} />}
+      </span>
       <span className="tabular-nums text-slate-800">{value}</span>
     </div>
+  );
+}
+
+function TechnicalCalculationGuidelineHint({ text }) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      aria-label={text}
+      className="group/icon inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-400 bg-white text-[10px] font-black leading-none text-slate-600 outline-none hover:border-[#006d32] hover:text-[#006d32] focus:border-[#006d32] focus:text-[#006d32]"
+    >
+      i
+      <span className="pointer-events-none absolute left-0 top-5 z-40 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block">
+        {text}
+      </span>
+    </span>
   );
 }
 
@@ -9241,16 +9388,80 @@ async function getSitePhotoBlobUrl(photo, applicationId) {
   return { url: URL.createObjectURL(blob), revoke: true };
 }
 
+function formatTechnicalSitePhotoSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!Number.isFinite(size) || size <= 0) return "";
+
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getTechnicalSitePhotoFormat(photo) {
+  const type = String(photo?.type || photo?.file?.type || photo?.attachment?.type || "").toLowerCase();
+  const name = String(photo?.name || photo?.file_name || photo?.filename || "").toLowerCase();
+  const extension = name.includes(".") ? name.split(".").pop() : "";
+
+  if (type === "application/pdf" || extension === "pdf") return "PDF";
+  if (type === "image/png" || extension === "png") return "PNG";
+  if (type === "image/jpeg" || extension === "jpg" || extension === "jpeg") return "JPG";
+  if (type === "image/webp" || extension === "webp") return "WEBP";
+
+  return extension ? extension.toUpperCase() : "IMAGE";
+}
+
+function getTechnicalSitePhotoMeta(photo) {
+  return [
+    getTechnicalSitePhotoFormat(photo),
+    formatTechnicalSitePhotoSize(photo?.size || photo?.file?.size || photo?.attachment?.size),
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
+
+function isTechnicalSitePhotoPdf(photo) {
+  return getTechnicalSitePhotoFormat(photo) === "PDF";
+}
+
 function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hideDelete = false }) {
   async function viewPhoto() {
-    const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
+    const previewWindow = window.open("about:blank", "_blank");
+    const photoName = photo?.name || "site-photo";
 
-    if (!url) return;
+    if (previewWindow) {
+      previewWindow.document.write(
+        `<!doctype html><html><head><title>${escapeHtml(photoName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:Arial,sans-serif;color:#334155}p{font-size:14px}</style></head><body><p>Loading image...</p></body></html>`
+      );
+      previewWindow.document.close();
+    }
 
-    window.open(url, "_blank", "noopener,noreferrer");
+    try {
+      const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
 
-    if (revoke) {
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      if (!url) {
+        previewWindow?.close();
+        return;
+      }
+
+      if (previewWindow) {
+        previewWindow.document.open();
+        previewWindow.document.write(
+          isTechnicalSitePhotoPdf(photo)
+            ? `<!doctype html><html><head><title>${escapeHtml(photoName)}</title><style>body{margin:0;height:100vh;background:#0f172a}iframe{width:100vw;height:100vh;border:0;background:white}</style></head><body><iframe src="${url}" title="${escapeHtml(photoName)}"></iframe></body></html>`
+            : `<!doctype html><html><head><title>${escapeHtml(photoName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${url}" alt="${escapeHtml(photoName)}"></body></html>`
+        );
+        previewWindow.document.close();
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+
+      if (revoke) {
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+    } catch (error) {
+      previewWindow?.close();
+      console.error("Failed to view site photo:", error);
     }
   }
 

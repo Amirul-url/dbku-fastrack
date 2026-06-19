@@ -266,7 +266,7 @@ function UserDashboard() {
       returnTab: "status",
     });
 
-    navigate(`/applications/${app.id}/edit?${params.toString()}`);
+    navigate(`/applications/${app.id}/submitting-person?${params.toString()}`);
   }
 
   function markApplicationSeen(tab, app) {
@@ -1634,12 +1634,22 @@ function RecentActivities({ activities, loading, t }) {
                     {activity.title}
                   </p>
                 </div>
-                <p className="mt-1 text-sm text-slate-600">
-                  <span className="font-semibold text-slate-700">{activity.reference}</span>
-                  {activity.project ? ` - ${activity.project}` : ""}
+                <p className="mt-1 text-sm font-semibold text-slate-700">
+                  {activity.reference}
                 </p>
+                {activity.project && (
+                  <p className="mt-1 whitespace-pre-line text-sm text-slate-600">
+                    {formatActivityProjectText(activity.project)}
+                  </p>
+                )}
                 {activity.description && (
                   <p className="mt-1 text-sm text-slate-500">{activity.description}</p>
+                )}
+                {activity.remark && (
+                  <p className="mt-1 whitespace-pre-line text-sm text-red-800">
+                    <span className="font-semibold">{t("common.remarks", "Remarks")}:</span>{" "}
+                    {activity.remark}
+                  </p>
                 )}
               </div>
               <p className="text-sm text-slate-500 sm:text-right">
@@ -1678,6 +1688,26 @@ function RecentActivities({ activities, loading, t }) {
       )}
     </section>
   );
+}
+
+function formatActivityProjectText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+(\d+\.\s+)/g, "\n$1");
+}
+
+function getActivityRemark(activity) {
+  const explicitRemark =
+    activity?.remark ||
+    activity?.remarks ||
+    activity?.metadata?.remark ||
+    activity?.metadata?.remarks;
+  const cleanedExplicitRemark = cleanRemark(explicitRemark);
+  if (cleanedExplicitRemark) return cleanedExplicitRemark;
+
+  const description = String(activity?.description || "");
+  const remarkMatch = description.match(/\bRemark:\s*(.+)$/i);
+  return cleanRemark(remarkMatch?.[1] || "");
 }
 
 function cleanRemark(value) {
@@ -1833,6 +1863,7 @@ function buildRecentActivities(applications, t, language = "en") {
 
       return activityLog.map((activity) => {
         const friendlyCopy = getApplicantActivityCopy(activity, t);
+        const activityRemark = getActivityRemark(activity);
 
         return {
           applicationId: app.id,
@@ -1840,6 +1871,7 @@ function buildRecentActivities(applications, t, language = "en") {
           project: getProjectName(app, language),
           title: friendlyCopy.title,
           description: friendlyCopy.description,
+          remark: activityRemark || (isApplicantRejectedActivity(activity) ? getApplicationRemark(app) : ""),
           rawTitle: activity.title || "",
           rawDescription: activity.description || "",
           createdAt: activity.created_at || app.updated_at,
@@ -1850,6 +1882,11 @@ function buildRecentActivities(applications, t, language = "en") {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return removeDuplicateSaveActivities(activities);
+}
+
+function isApplicantRejectedActivity(activity) {
+  const normalizedTitle = String(activity?.title || "").trim().toLowerCase();
+  return normalizedTitle.startsWith("application rejected by") || normalizedTitle === "application rejected";
 }
 
 function getApplicantActivityCopy(activity, t) {

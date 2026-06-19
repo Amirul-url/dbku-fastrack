@@ -392,6 +392,71 @@ class NotificationRoutingTests(TestCase):
             ).exists()
         )
 
+    @override_settings(
+        NOTIFICATION_EMAIL_ENABLED=True,
+        BREVO_API_KEY="test-key",
+        WHATSAPP_ENABLED=True,
+        WHATSAPP_PROVIDER="evolution",
+        EVOLUTION_API_URL="https://whatsapp.example.com",
+        EVOLUTION_API_KEY="test-key",
+        EVOLUTION_INSTANCE_NAME="alis",
+    )
+    @patch("notifications.services.send_whatsapp")
+    @patch("notifications.services.send_email")
+    def test_ku_ikl_remarks_are_sent_to_next_technical_task_channels(
+        self,
+        send_email,
+        send_whatsapp,
+    ):
+        blg_user = User.objects.create_user(
+            username="blg-technical-remarks",
+            email="blg-remarks@example.com",
+            password="Password123",
+            mobile_number="0125557788",
+            role="admin",
+            department="BLG",
+            is_active=True,
+        )
+        ku_remark = "Please review the building sign placement before site visit."
+        self.application.latest_remark = ""
+        self.application.form_data = {
+            **self.application.form_data,
+            "auto_screening": {
+                "status": "Screened",
+                "result": "KU(IKL) Confirm - Send to Technical Units",
+                "remarks": ku_remark,
+            },
+            "technical_referral": {
+                "status": "Referred",
+                "source": "KU(IKL)",
+                "target": "BLG",
+                "participating_departments": ["BLG"],
+            },
+            "technical_department_selection": {
+                "departments": ["BLG"],
+                "selected_by": "Application Type",
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("technical_review", old_status="ku_ikl_review")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="admin",
+            metadata__event_status="technical_review",
+            user=blg_user,
+        )
+        self.assertEqual(
+            set(deliveries.values_list("channel", flat=True)),
+            {"web", "email", "whatsapp"},
+        )
+        for delivery in deliveries:
+            self.assertIn(f"Remark: {ku_remark}", delivery.message)
+            self.assertIn(f"Remark: {ku_remark}", delivery.metadata["message_en"])
+
+        send_email.assert_called_once()
+        send_whatsapp.assert_called_once()
+
     def test_technical_review_notification_uses_open_space_department_list(self):
         gpm_user = User.objects.create_user(
             username="gpm-open-space",

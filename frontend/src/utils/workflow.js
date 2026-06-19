@@ -192,25 +192,8 @@ export function needsApplicantCorrection(app) {
   ].includes(status);
 }
 
-export function getApplicantApplicationRoute(app) {
-  const routes = {
-    1: "submitting-person",
-    2: "edit",
-    3: "supporting-document",
-    4: "declaration",
-    5: "print-form",
-  };
-
-  if (needsApplicantCorrection(app)) {
-    return "edit";
-  }
-
-  if (canEditApplicationForm(app)) {
-    const step = Number(app?.current_step || 1);
-    return routes[step] || "edit";
-  }
-
-  return "edit";
+export function getApplicantApplicationRoute() {
+  return "submitting-person";
 }
 
 export function getApplicantSaveDraftReturnPath(app) {

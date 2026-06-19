@@ -1012,13 +1012,9 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
 
   const resubmittedEntries = applications.flatMap((application) => {
     const activityLog = getApplicationActivityLog(application);
-    const explicitResubmissions = activityLog.filter(isResubmissionActivity);
-    const inferredResubmissions =
-      explicitResubmissions.length > 0
-        ? []
-        : activityLog.filter((activity) => isSubmissionAfterRejection(activity, activityLog));
+    const resubmissionActivities = getResubmissionActivitiesForRejectedCycles(activityLog);
 
-    return [...explicitResubmissions, ...inferredResubmissions]
+    return resubmissionActivities
       .map((activity) => {
         const eventDate = activity.created_at || application.updated_at || application.created_at;
         const description = t(
@@ -1284,26 +1280,46 @@ function isRejectedActivity(activity) {
   return title === "application rejected" || title.startsWith("application rejected by");
 }
 
+function getResubmissionActivitiesForRejectedCycles(activityLog) {
+  const sortedActivities = [...activityLog]
+    .map((activity) => ({
+      activity,
+      timestamp: getActivityTimestamp(activity),
+    }))
+    .filter((item) => Number.isFinite(item.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const rejectedActivities = sortedActivities.filter((item) => isRejectedActivity(item.activity));
+
+  return rejectedActivities
+    .map((rejectedItem, index) => {
+      const nextRejectedTime = rejectedActivities[index + 1]?.timestamp || Infinity;
+      const cycleCandidates = sortedActivities.filter((item) => {
+        if (item.timestamp <= rejectedItem.timestamp || item.timestamp >= nextRejectedTime) {
+          return false;
+        }
+
+        return isResubmissionActivity(item.activity) || isSubmissionActivity(item.activity);
+      });
+      const explicitResubmission = cycleCandidates.find((item) =>
+        isResubmissionActivity(item.activity)
+      );
+
+      return (explicitResubmission || cycleCandidates[0])?.activity || null;
+    })
+    .filter(Boolean);
+}
+
+function getActivityTimestamp(activity) {
+  const timestamp = new Date(activity?.created_at || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : NaN;
+}
+
 function isResubmissionActivity(activity) {
   return String(activity?.title || "").trim().toLowerCase() === "application resubmitted";
 }
 
 function isSubmissionActivity(activity) {
   return String(activity?.title || "").trim().toLowerCase() === "application submitted";
-}
-
-function isSubmissionAfterRejection(activity, activityLog) {
-  if (!isSubmissionActivity(activity)) return false;
-
-  const submittedTime = new Date(activity?.created_at || 0).getTime();
-  if (!Number.isFinite(submittedTime)) return false;
-
-  return activityLog.some((entry) => {
-    if (!isRejectedActivity(entry)) return false;
-
-    const rejectedTime = new Date(entry?.created_at || 0).getTime();
-    return Number.isFinite(rejectedTime) && rejectedTime < submittedTime;
-  });
 }
 
 function getActivityRemark(activity) {

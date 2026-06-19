@@ -1527,10 +1527,17 @@ def get_message_remark(application):
     status_key = str(application.status or "").strip().lower()
     if status_key not in REMARK_REPEAT_STATUSES and not (
         status_key == "invoice_generated" and is_payment_receipt_rejected(application)
+    ) and not (
+        status_key == "technical_review" and is_ku_ikl_technical_referral(application)
     ):
         return ""
 
     return get_latest_remark(application)
+
+
+def is_ku_ikl_technical_referral(application):
+    referral = get_form_section(application, "technical_referral")
+    return normalize_department(referral.get("source")) == "KU(IKL)"
 
 
 def get_latest_remark(application):
