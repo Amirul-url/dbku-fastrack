@@ -1482,6 +1482,60 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_html"], "<p>KB(LES) return memo</p>")
         self.assertEqual(delivery.metadata["memo_template"], "kb_les_to_ku_ikl")
 
+    def test_tp_pgh_not_support_notifies_ku_ikl_with_remarks(self):
+        ku_user = User.objects.create_user(
+            username="ku-ikl-tp-pgh-return",
+            email="ku-tp-pgh-return@example.com",
+            password="Password123",
+            mobile_number="60123450003",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        remark = "Please revise the management recommendation."
+        self.application.form_data = {
+            **self.application.form_data,
+            "management_recommendation": {
+                "officer": "TP(RES)",
+                "status": "Rejected",
+                "decision": "Reject",
+                "remarks": remark,
+            },
+            "correction_request": {
+                "source": "TP(RES)",
+                "target": "KU(IKL)",
+                "remarks": remark,
+                "memo_html": "",
+            },
+            "mphlg_gateway": None,
+            "approval": None,
+        }
+        self.application.latest_remark = remark
+        self.application.save(update_fields=["form_data", "latest_remark"])
+
+        self.notify_status("technical_review_completed", old_status="management_review")
+
+        deliveries = NotificationDelivery.objects.filter(
+            user=ku_user,
+            metadata__event_status="technical_review_completed",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        for delivery in deliveries:
+            self.assertIn(remark, delivery.message)
+            self.assertIn(remark, delivery.metadata["message_en"])
+        delivery = deliveries.get(channel="web")
+        self.assertEqual(
+            delivery.metadata["title_en"],
+            f"Application {self.application.reference_no} amendment required",
+        )
+        self.assertEqual(
+            delivery.subject,
+            f"ALiS - Application {self.application.reference_no} amendment required",
+        )
+        self.assertIn("returned by TP(RES)", delivery.metadata["message_en"])
+        self.assertEqual(delivery.metadata["from"], "TP(RES)")
+        self.assertEqual(delivery.metadata["to"], "KU(IKL)")
+
     def test_mphlg_rejection_notifies_ku_ikl_for_amendment(self):
         ku_user = User.objects.create_user(
             username="ku-ikl-mphlg-return",

@@ -250,6 +250,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalDecisionDraft, setApprovalDecisionDraft] = useState("");
   const [savedApprovalDecisionDraft, setSavedApprovalDecisionDraft] = useState("");
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
+  const [approvalSupportSignature, setApprovalSupportSignature] = useState(null);
+  const [approvalSupportSignatureError, setApprovalSupportSignatureError] = useState("");
   const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
   const [officialReceiptMode, setOfficialReceiptMode] = useState("upload");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
@@ -700,6 +702,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalSupportWorkspace && ["Approve", "Reject"].includes(decision)
       ? decision
       : "";
+  const showApprovalSupportSignature = approvalSupportDecision === "Approve";
+  const approvalSupportDecisionOptions = useMemo(
+    () => getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace),
+    [isFinalApprovalSupportWorkspace]
+  );
   const approvalOfficerName = getRegisteredUserFullName(currentUser, userDepartment);
   const savedApprovalDecisionHtml =
     selectedRecord?.form_data?.approval?.approval_note_html ||
@@ -837,9 +844,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id]);
 
   useEffect(() => {
+    const savedSignature =
+      selectedRecord?.form_data?.management_recommendation?.digital_signature ||
+      selectedRecord?.form_data?.approval?.digital_signature ||
+      null;
+
+    setApprovalSupportSignature(savedSignature);
+    setApprovalSupportSignatureError("");
+  }, [selectedRecord?.id]);
+
+  useEffect(() => {
     if (isApprovalSupportWorkspace) {
-      setDecision(isFinalApprovalSupportWorkspace ? "Approve" : "");
-      setDecisionInput("");
+      const nextDecision = isFinalApprovalSupportWorkspace ? "Approve" : "";
+      setDecision(nextDecision);
+      setDecisionInput(
+        nextDecision
+          ? getWorkspaceDecisionInput(nextDecision, approvalSupportDecisionOptions, t)
+          : ""
+      );
       setDecisionError("");
       setLicenseExpiryYears("1");
       return;
@@ -856,6 +878,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     setLicenseExpiryYears("1");
   }, [
     approvalStageKey,
+    approvalSupportDecisionOptions,
     canReuseSavedApprovalMemo,
     config,
     decisionOptions,
@@ -1527,7 +1550,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (!action) return;
 
     if (!decisionValue) {
-      setError(t("workspace.decision.required", "Please select a decision."));
+      setDecisionError(getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t));
+      decisionInputRef.current?.focus();
+      return;
+    }
+
+    if (!cleanRemark(comment)) {
+      setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+      commentRef.current?.focus();
+      return;
+    }
+
+    const requiresSignature = decisionValue === "Approve";
+    const supportSignature = requiresSignature ? approvalSupportSignature : null;
+
+    if (requiresSignature && !supportSignature?.dataUrl) {
+      setApprovalSupportSignatureError(
+        t("workspace.signature.required", "Digital signature is required.")
+      );
       return;
     }
 
@@ -1538,6 +1578,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         comment: cleanRemark(comment),
         checkDecisionRemark: false,
         approvalDecisionHtml: "",
+        approvalSupportSignature: supportSignature,
       });
       return;
     }
@@ -1547,6 +1588,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       comment: cleanRemark(comment),
       checkDecisionRemark: decisionValue !== "Approve",
       approvalDecisionHtml: "",
+      approvalSupportSignature: supportSignature,
     });
   }
 
@@ -1649,7 +1691,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       /reject|amendment|condition|not supported|not verify|not verified/i.test(String(actionDecision || ""));
 
     if (config.showDecision && !isApprovalLicenseManagement && !actionDecision) {
-      setError(t("workspace.decision.required", "Please select a decision."));
+      setError(t("workspace.decision.required", "Please select a recommendation."));
       return;
     }
 
@@ -1782,7 +1824,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           titleKey: "workspace.memo.technicalToKuTitle",
           title: "Memo to KU(IKL)",
           descriptionKey: "workspace.memo.technicalToKuDescription",
-          description: "Complete the memo before sending this technical decision to KU(IKL).",
+          description: "Complete the memo before sending this technical recommendation to KU(IKL).",
         });
         return false;
       }
@@ -2477,7 +2519,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       label={
                         isMphlgApprovalWorkspace
                           ? t("workspace.decision.approveQuestion", "Approve?")
-                          : t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")
+                          : t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")
                       }
                     >
                       {useTypedApprovalDecision ? (
@@ -2517,8 +2559,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           {!isKbLesSupportWorkspace && (
                             <option value="">
                               {isMphlgApprovalWorkspace
-                                ? t("workspace.decision.selectDecisionDashed", "--select decision--")
-                                : t("workspace.decision.selectDecision", "Select decision")}
+                                ? t("workspace.decision.selectDecisionDashed", "--select recommendation--")
+                                : t("workspace.decision.selectDecision", "Select recommendation")}
                             </option>
                           )}
                           {decisionOptions.map((item) => (
@@ -2562,11 +2604,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Field
                       label={
                         <span className="relative inline-flex items-center gap-1.5">
-                          <span>{t("common.decision", "Decision")}</span>
+                          <span>{t("common.decision", "Your Recommendation")}</span>
                           <WorkspaceGuidelineHint
                             text={t(
                               "workspace.payment.receiptDecisionHint",
-                              "Please view the applicant receipt first, then select a decision before submitting."
+                              "Please view the applicant receipt first, then select a recommendation before submitting."
                             )}
                           />
                         </span>
@@ -2584,7 +2626,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         className="form-input form-input-sm max-w-xs"
                       >
                         <option value="">
-                          {t("workspace.decision.selectDecision", "Select decision")}
+                          {t("workspace.decision.selectDecision", "Select recommendation")}
                         </option>
                         {paymentReceiptDecisionOptions.map((action) => (
                           <option key={action.label} value={action.label}>
@@ -2641,43 +2683,87 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           t={t}
                         />
                       )}
-                      <Field label={t("common.decision", "Decision")}>
-                        <select
-                          value={approvalSupportDecision}
-                          onChange={(event) =>
-                            isFinalApprovalSupportWorkspace
-                              ? setDecision("Approve")
-                              : setDecision(event.target.value)
-                          }
-                          className="form-input max-w-xs"
-                        >
-                          {!isFinalApprovalSupportWorkspace && (
-                            <option value="">
-                              {t("workspace.decision.selectDecision", "Select decision")}
-                            </option>
-                          )}
-                          <option value="Approve">
-                            {isFinalApprovalSupportWorkspace
-                              ? t("workspace.decision.approveApplication", "Approve Application")
-                              : t("workspace.decision.support", "Support")}
-                          </option>
-                          {!isFinalApprovalSupportWorkspace && (
-                            <option value="Reject">
-                              {t("workspace.decision.notSupport", "Not Support")}
-                            </option>
-                          )}
-                        </select>
+                      <Field label={t("common.decision", "Your Recommendation")}>
+                        <input
+                          ref={decisionInputRef}
+                          type="text"
+                          value={decisionInput}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            const nextDecision = getWorkspaceDecisionFromInput(
+                              nextValue,
+                              approvalSupportDecisionOptions,
+                              t
+                            );
+                            setDecisionInput(nextValue);
+                            if (decisionError) setDecisionError("");
+                            setDecision(nextDecision);
+                            if (nextDecision !== "Approve") {
+                              setApprovalSupportSignature(null);
+                              setApprovalSupportSignatureError("");
+                            }
+                          }}
+                          onBlur={() => {
+                            if (decision) {
+                              setDecisionInput(
+                                getWorkspaceDecisionInput(
+                                  decision,
+                                  approvalSupportDecisionOptions,
+                                  t
+                                )
+                              );
+                            }
+                          }}
+                          className={`form-input w-full max-w-[28rem] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          placeholder={getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t)}
+                          inputMode="text"
+                          aria-invalid={Boolean(decisionError)}
+                        />
+                        {decisionError && (
+                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                            {decisionError}
+                          </p>
+                        )}
                       </Field>
-                      {approvalSupportDecision && (
-                        <Field label={t("workspace.comment.approvalRemarks", "Remarks")}>
-                          <textarea
-                            value={comment}
-                            onChange={(event) => setComment(event.target.value)}
-                            rows="5"
-                            className="form-input"
-                            placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks if needed.")}
-                          />
-                        </Field>
+                      <Field
+                        label={
+                          <>
+                            {t("workspace.comment.approvalRemarks", "Remarks")}
+                            <span className="ml-1 text-red-600">*</span>
+                          </>
+                        }
+                      >
+                        <textarea
+                          ref={commentRef}
+                          value={comment}
+                          onChange={(event) => {
+                            setComment(event.target.value);
+                            if (commentError) setCommentError("");
+                          }}
+                          rows="5"
+                          required
+                          aria-required
+                          aria-invalid={Boolean(commentError)}
+                          className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks.")}
+                        />
+                        {commentError && (
+                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                            {commentError}
+                          </p>
+                        )}
+                      </Field>
+                      {showApprovalSupportSignature && (
+                        <ApprovalSupportSignatureBox
+                          t={t}
+                          value={approvalSupportSignature}
+                          error={approvalSupportSignatureError}
+                          onChange={(nextSignature) => {
+                            setApprovalSupportSignature(nextSignature);
+                            if (approvalSupportSignatureError) setApprovalSupportSignatureError("");
+                          }}
+                          onError={setApprovalSupportSignatureError}
+                        />
                       )}
                     </>
                   )}
@@ -2765,10 +2851,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                                 : approvalSupportDecision
                             )
                           }
-                          disabled={
-                            saving ||
-                            (!canSendSavedApprovalMemoToMphlg && !approvalSupportDecision)
-                          }
+                          disabled={saving}
                           variant="primary"
                           icon="check_circle"
                           className="min-w-40"
@@ -2780,7 +2863,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <Button
                         onClick={() => {
                           if (!selectedPaymentReceiptAction) {
-                            setError(t("workspace.decision.required", "Please select a decision."));
+                            setError(t("workspace.decision.required", "Please select a recommendation."));
                             return;
                           }
 
@@ -3064,7 +3147,7 @@ function ApprovalDecisionMemoPreview({ memoHtml, t }) {
           <p className="mt-1 text-[14px] leading-5 text-slate-500">
             {t(
               "workspace.memo.savedPreviewDescription",
-              "This memo will be submitted with the approval decision."
+              "This memo will be submitted with the approval recommendation."
             )}
           </p>
         </div>
@@ -3076,6 +3159,244 @@ function ApprovalDecisionMemoPreview({ memoHtml, t }) {
         />
       </div>
     </section>
+  );
+}
+
+function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const drawingRef = useRef(false);
+  const hasDrawingRef = useRef(false);
+  const suppressUploadClickUntilRef = useRef(0);
+  const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
+  const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
+
+  useEffect(() => {
+    if (value?.mode === "upload") {
+      setMode("upload");
+      return;
+    }
+
+    if (value?.mode === "draw") {
+      setMode("draw");
+    }
+  }, [value?.mode]);
+
+  useEffect(() => {
+    if (mode !== "draw") return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ratio = Math.max(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(signatureCanvasSize.width * ratio);
+    canvas.height = Math.round(signatureCanvasSize.height * ratio);
+    const context = canvas.getContext("2d");
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 2;
+    context.strokeStyle = "#0f172a";
+    hasDrawingRef.current = false;
+
+    if (!value?.dataUrl || value.mode !== "draw") return;
+
+    const image = new Image();
+    image.onload = () => {
+      context.clearRect(0, 0, signatureCanvasSize.width, signatureCanvasSize.height);
+      context.drawImage(image, 0, 0, signatureCanvasSize.width, signatureCanvasSize.height);
+      hasDrawingRef.current = true;
+    };
+    image.src = value.dataUrl;
+  }, [mode, signatureCanvasSize, value?.dataUrl, value?.mode]);
+
+  function getCanvasPoint(event) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * signatureCanvasSize.width,
+      y: ((event.clientY - rect.top) / rect.height) * signatureCanvasSize.height,
+    };
+  }
+
+  function getSignatureDataUrl() {
+    const sourceCanvas = canvasRef.current;
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = signatureCanvasSize.width * 2;
+    outputCanvas.height = signatureCanvasSize.height * 2;
+    const outputContext = outputCanvas.getContext("2d");
+    outputContext.fillStyle = "#ffffff";
+    outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+    outputContext.drawImage(sourceCanvas, 0, 0, outputCanvas.width, outputCanvas.height);
+    return outputCanvas.toDataURL("image/png");
+  }
+
+  function beginDraw(event) {
+    if (mode !== "draw") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const canvas = canvasRef.current;
+    canvas.setPointerCapture?.(event.pointerId);
+    const context = canvas.getContext("2d");
+    const point = getCanvasPoint(event);
+    drawingRef.current = true;
+    hasDrawingRef.current = true;
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  }
+
+  function continueDraw(event) {
+    if (!drawingRef.current || mode !== "draw") return;
+    event.preventDefault();
+    event.stopPropagation();
+    const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
+    const point = getCanvasPoint(event);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+  }
+
+  function finishDraw(event) {
+    if (!drawingRef.current || mode !== "draw") return;
+    event.preventDefault();
+    event.stopPropagation();
+    canvasRef.current?.releasePointerCapture?.(event.pointerId);
+    drawingRef.current = false;
+    suppressUploadClickUntilRef.current = Date.now() + 500;
+
+    if (!hasDrawingRef.current) return;
+    onChange({
+      mode: "draw",
+      dataUrl: getSignatureDataUrl(),
+      fileName: "digital_signature.png",
+      type: "image/png",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function clearSignature() {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas
+        .getContext("2d")
+        .clearRect(0, 0, signatureCanvasSize.width, signatureCanvasSize.height);
+    }
+    hasDrawingRef.current = false;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onChange(null);
+  }
+
+  function handleFileChange(event) {
+    const [file] = Array.from(event.target.files || []);
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      onError(t("workspace.signature.imageOnly", "Please upload an image file for the signature."));
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setMode("upload");
+      onChange({
+        mode: "upload",
+        dataUrl: String(reader.result || ""),
+        fileName: file.name,
+        type: file.type,
+        size: file.size,
+        updatedAt: new Date().toISOString(),
+      });
+    };
+    reader.onerror = () => {
+      onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function openSignatureFilePicker() {
+    if (Date.now() < suppressUploadClickUntilRef.current) return;
+    fileInputRef.current?.click();
+  }
+
+  return (
+    <div>
+      <span className="mb-1.5 block text-[14px] font-semibold leading-5 text-slate-700">
+          {t("workspace.signature.title", "Digital Signature")}
+          <span className="ml-1 text-red-600">*</span>
+      </span>
+      <div
+        className={`max-w-xl rounded border bg-white p-3 ${error ? "border-red-300 shadow-[0_0_0_3px_rgba(220,38,38,0.08)]" : "border-slate-200"}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant={mode === "upload" ? "primary" : "secondary"}
+            icon="upload_file"
+            className="min-h-8 px-3 py-1.5 text-[13px]"
+            onClick={openSignatureFilePicker}
+          >
+            {t("workspace.signature.upload", "Upload File")}
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "draw" ? "primary" : "secondary"}
+            icon="draw"
+            className="min-h-8 px-3 py-1.5 text-[13px]"
+            onClick={() => setMode("draw")}
+          >
+            {t("workspace.signature.draw", "Draw Signature")}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            icon="backspace"
+            className="min-h-8 px-3 py-1.5 text-[13px]"
+            onClick={clearSignature}
+          >
+            {t("common.clear", "Clear")}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
+
+        {mode === "upload" && value?.dataUrl ? (
+          <div className="flex aspect-[4/1] w-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 p-3">
+            <img
+              src={value.dataUrl}
+              alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+              className="max-h-24 max-w-full object-contain"
+            />
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            className={`aspect-[4/1] w-full touch-none rounded border border-dashed bg-white ${error ? "border-red-300" : "border-slate-300"}`}
+            onPointerDown={beginDraw}
+            onPointerMove={continueDraw}
+            onPointerUp={finishDraw}
+            onPointerCancel={finishDraw}
+            onPointerLeave={finishDraw}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          />
+        )}
+
+        {value?.fileName && (
+          <p className="mt-2 text-[13px] leading-5 text-slate-500">{value.fileName}</p>
+        )}
+        {error && (
+          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">{error}</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -3316,7 +3637,7 @@ function createKuIklFinalReviewMemoTemplate(app, technicalSite, decision, commen
           <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Keputusan KU(IKL)</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Cadangan KU(IKL)</strong></td>
           <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(decision)}</td>
         </tr>
         <tr>
@@ -3410,7 +3731,7 @@ function createIklTechnicalToKuMemoTemplate(app, technicalSite, decision, commen
           <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(location)}</td>
         </tr>
         <tr>
-          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Keputusan</strong></td>
+          <td style="border:1px solid #bfbfbf;padding:6px;"><strong>Cadangan</strong></td>
           <td style="border:1px solid #bfbfbf;padding:6px;">${escapeHtml(decision)}</td>
         </tr>
         <tr>
@@ -4452,7 +4773,7 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
     }
 
     if (APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment)) {
-      return t("workspace.approval.supportAction", "Make the final approval decision after KB(LES) support.");
+      return t("workspace.approval.supportAction", "Make the final approval recommendation after KB(LES) support.");
     }
 
     if (MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment)) {
@@ -4484,6 +4805,23 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
 function getDepartmentReviewStatusLabel(department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   return normalizedDepartment ? `${normalizedDepartment} Review` : "Department Review";
+}
+
+function getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace = false) {
+  if (isFinalApprovalSupportWorkspace) {
+    return [
+      {
+        value: "Approve",
+        label: "Approve Application",
+        labelKey: "workspace.decision.approveApplication",
+      },
+    ];
+  }
+
+  return [
+    { value: "Approve", label: "Support", labelKey: "workspace.decision.support" },
+    { value: "Reject", label: "Not Support", labelKey: "workspace.decision.notSupport" },
+  ];
 }
 
 function getWorkspaceDecisionOptions(config, app, department) {
@@ -4886,7 +5224,7 @@ function getActionUnavailableMessage(config, app, department, t = (key, fallback
 
   return t(
     "workspace.approval.viewOnlyAssignedDepartment",
-    "This queue is view-only for this account. Only the assigned approval department can record the next decision."
+    "This queue is view-only for this account. Only the assigned approval department can record the next recommendation."
   );
 }
 
@@ -5799,6 +6137,11 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     const finalApproval = hasSutApprovalResult(app);
+    const approvalSupportSignature =
+      data.approvalSupportSignature ||
+      app.form_data?.management_recommendation?.digital_signature ||
+      app.form_data?.approval?.digital_signature ||
+      null;
     const approvalDecisionHtml =
       data.approvalDecisionHtml ||
       app.form_data?.approval?.approval_note_html ||
@@ -5821,6 +6164,7 @@ function buildApprovalWorkflowPayload(app, data) {
           decision,
           remarks: rejected ? data.comment || approvalDecisionRemarks : data.comment,
           approval_note_html: approvalDecisionHtml,
+          digital_signature: approvalSupportSignature,
           decided_at: now,
         },
         mphlg_gateway: rejected || finalApproval
@@ -5851,6 +6195,7 @@ function buildApprovalWorkflowPayload(app, data) {
               remarks: data.comment,
               memo_html: data.memoHtml || app.form_data?.approval?.memo_html || "",
               approval_note_html: approvalDecisionHtml,
+              digital_signature: approvalSupportSignature,
               approved_at: now,
             },
       }),
@@ -6758,7 +7103,7 @@ const configs = {
     descriptionKey: "workspace.screening.description",
     queueTitle: "Screening Queue",
     queueTitleKey: "workspace.screening.queue",
-    actionDescription: "Record PT(IKL) or KU(IKL) decision for the selected application.",
+    actionDescription: "Record PT(IKL) or KU(IKL) recommendation for the selected application.",
     actionDescriptionKey: "workspace.screening.action",
     showDecision: true,
     showComment: true,
@@ -6782,11 +7127,11 @@ const configs = {
       { label: "Passed", labelKey: "workspace.stat.passed", value: countBy(apps, (app) => ["ku_ikl_review", "technical_review", "technical_site_visit", "technical_review_completed"].includes(normalizeStatus(app.status))), icon: "check_circle" },
     ],
     screeningAction: {
-      label: "Submit PT/KU Decision",
+      label: "Submit PT/KU Recommendation",
       labelKey: "workspace.action.submitScreening",
       icon: "fact_check",
       requiresComment: true,
-      success: "Screening decision saved.",
+      success: "Screening recommendation saved.",
       successKey: "workspace.message.screeningSaved",
       buildPayload: buildIklScreeningPayload,
     },
@@ -6839,11 +7184,11 @@ const configs = {
     eyebrowKey: "workspace.technical.eyebrow",
     title: "Technical Review",
     titleKey: "workspace.technical.title",
-    description: "Record department site visit decision and remarks for IKL review.",
+    description: "Record department site visit recommendation and remarks for IKL review.",
     descriptionKey: "workspace.technical.description",
     queueTitle: "Technical Queue",
     queueTitleKey: "workspace.technical.queue",
-    actionDescription: "Enter department decision and site finding remarks.",
+    actionDescription: "Enter department recommendation and site finding remarks.",
     actionDescriptionKey: "workspace.technical.action",
     showDecision: false,
     showComment: true,
@@ -6894,7 +7239,7 @@ const configs = {
     descriptionKey: "workspace.approval.description",
     queueTitle: "Approval Queue",
     queueTitleKey: "workspace.approval.queue",
-    actionDescription: "Submit approval decision or remarks.",
+    actionDescription: "Submit approval recommendation or remarks.",
     actionDescriptionKey: "workspace.approval.action",
     showDecision: true,
     showComment: true,
@@ -6905,7 +7250,7 @@ const configs = {
     ],
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
-    commentPlaceholder: "Enter remarks for this decision.",
+    commentPlaceholder: "Enter remarks for this recommendation.",
     commentPlaceholderKey: "workspace.comment.approvalPlaceholder",
     stats: (apps) => [
       { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
@@ -7627,7 +7972,7 @@ function IklWorkspaceSections({
 
           <div className="space-y-3">
             <Field
-              label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")}
+              label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")}
               labelClassName="!text-sm"
             >
               <select
@@ -7636,7 +7981,7 @@ function IklWorkspaceSections({
                 className={`form-input form-input-sm ${["PT(IKL)", "KU(IKL)"].includes(userDepartment) ? "max-w-60" : ""}`}
               >
                 <option value="">
-                  {t("workspace.decision.selectDecision", "Select decision")}
+                  {t("workspace.decision.selectDecision", "Select recommendation")}
                 </option>
                 {screeningDecisionOptions.map((item) => (
                   <option key={item.value || item} value={item.value || item}>
@@ -8026,13 +8371,13 @@ function getIklScreeningCopy(department) {
   if (department === "PT(IKL)") {
     return {
       actionDescriptionKey: "workspace.screening.actionPt",
-      actionDescription: "Record PT(IKL) decision for the selected application.",
+      actionDescription: "Record PT(IKL) recommendation for the selected application.",
       titleKey: "workspace.ikl.ptScreeningTitle",
       title: "PT(IKL) Verification",
       descriptionKey: "workspace.ikl.ptScreeningDesc",
       description: "Review applicant information and documents, then send the application onward or reject it with remarks.",
       placeholderKey: "workspace.comment.ptScreeningPlaceholder",
-      placeholder: "Enter remarks for this decision.",
+      placeholder: "Enter remarks for this recommendation.",
       submitKey: "common.submit",
       submitLabel: "Submit",
     };
@@ -8041,13 +8386,13 @@ function getIklScreeningCopy(department) {
   if (department === "KU(IKL)") {
     return {
       actionDescriptionKey: "workspace.screening.actionKu",
-      actionDescription: "Record KU(IKL) decision for the selected application.",
+      actionDescription: "Record KU(IKL) recommendation for the selected application.",
       titleKey: "workspace.ikl.kuScreeningTitle",
       title: "KU(IKL) Verification",
       descriptionKey: "workspace.ikl.kuScreeningDesc",
       description: "Review the screening result, then send the application to technical review or reject it with remarks.",
       placeholderKey: "workspace.comment.kuScreeningPlaceholder",
-      placeholder: "Enter remarks for this decision.",
+      placeholder: "Enter remarks for this recommendation.",
       submitKey: "common.submit",
       submitLabel: "Submit",
     };
@@ -8055,15 +8400,15 @@ function getIklScreeningCopy(department) {
 
   return {
     actionDescriptionKey: "workspace.screening.action",
-    actionDescription: "Record PT(IKL) or KU(IKL) decision for the selected application.",
+    actionDescription: "Record PT(IKL) or KU(IKL) recommendation for the selected application.",
     titleKey: "workspace.ikl.screeningTitle",
     title: "PT(IKL) / KU(IKL) Verification",
     descriptionKey: "workspace.ikl.screeningDesc",
     description: "Use this section to send to KU(IKL), send to technical review, or reject to the applicant with remarks.",
     placeholderKey: "workspace.comment.screeningPlaceholder",
-    placeholder: "Enter remarks for this decision.",
+    placeholder: "Enter remarks for this recommendation.",
     submitKey: "workspace.action.submitScreening",
-    submitLabel: "Submit PT/KU Decision",
+    submitLabel: "Submit PT/KU Recommendation",
   };
 }
 
@@ -9107,7 +9452,7 @@ function getWorkspaceDecisionInputPrompt(
     return `Type ${labels.join(" or ")}`;
   }
 
-  return t("workspace.decision.required", "Please select a decision.");
+  return t("workspace.decision.required", "Please select a recommendation.");
 }
 
 function TechnicalSiteVisitFields({
@@ -10329,7 +10674,7 @@ function PaymentVerificationDocumentList({ t, documents, saving, canUploadIssueD
               )
             : t(
                 "workspace.payment.verifyDocumentListPendingDesc",
-                "View the applicant documents before selecting a receipt decision."
+                "View the applicant documents before selecting a receipt recommendation."
               )}
         </p>
       </div>

@@ -108,6 +108,7 @@ function getLatestRemark(app) {
     form.auto_screening?.remarks ||
     form.technical_ku_review?.remarks ||
     form.technical_review?.comment ||
+    form.management_recommendation?.remarks ||
     form.approval?.notes ||
     form.payment?.receipt_reference ||
     ""
@@ -120,7 +121,7 @@ function cleanRemark(value) {
 }
 
 function shouldShowNotificationRemark(status) {
-  return ["incomplete", "rejected", "technical_amendment", "management_review"].includes(normalizeStatus(status));
+  return ["incomplete", "rejected", "technical_amendment", "technical_review_completed", "management_review"].includes(normalizeStatus(status));
 }
 
 function appendNotificationRemark(message, remark, status, remarkLabel = "Remark") {
@@ -216,15 +217,31 @@ function getAdminNotificationRecipient(user, delivery = {}) {
   return formatContactRecipient(email, mobile);
 }
 
-function getNotificationSender(role, status, user) {
-  const department = getUserDepartment(user);
-  const normalizedStatus = normalizeStatus(status);
+function getCorrectionRequest(app) {
+  const correction = app?.form_data?.correction_request || app?.correction_request || {};
+  return correction && typeof correction === "object" ? correction : {};
+}
 
-  if (
-    role === "admin" &&
-    department === "KU(IKL)" &&
-    normalizedStatus === "ku_ikl_review"
-  ) {
+function isReturnedToKuIkl(app) {
+  const correction = getCorrectionRequest(app);
+  const target = String(correction.target || "").trim().toUpperCase();
+  return normalizeStatus(app?.status) === "technical_review_completed" && target === "KU(IKL)";
+}
+
+function getReturnSource(app) {
+  const source = String(getCorrectionRequest(app).source || "").trim();
+  return source || "ALiS Notification Center";
+}
+
+function getNotificationSender(role, status, user, app = null) {
+  const normalizedStatus = normalizeStatus(status);
+  const department = getUserDepartment(user);
+
+  if (role === "admin" && department === "KU(IKL)" && isReturnedToKuIkl(app)) {
+    return getReturnSource(app);
+  }
+
+  if (role === "admin" && department === "KU(IKL)" && normalizedStatus === "ku_ikl_review") {
     return "PT(IKL)";
   }
 
@@ -588,7 +605,7 @@ function buildBaseNotification(app, role, category, type, titleEn, titleMs, mess
     body: memoMessageEn,
     bodyEn: memoMessageEn,
     bodyMs: memoMessageMs,
-    from: getNotificationSender(role, status, user),
+    from: getNotificationSender(role, status, user, app),
     to: getNotificationRecipient(role, user),
     subject: getMemoSubject("", titleEn, reference, { role, status, user }),
     time: formatDateTime(updatedAt),
@@ -729,6 +746,8 @@ function buildAdminNotifications(app, user) {
   if (adminTechnicalTaskStatuses.has(status) && isAdminNotificationAllowedForUser(status, user, app)) {
     const department = getUserDepartment(user);
     const amendmentTask = status === "technical_amendment";
+    const returnedToKu = department === "KU(IKL)" && isReturnedToKuIkl(app);
+    const returnSource = getReturnSource(app);
     const selectedDepartments = getSelectedTechnicalDepartments(app);
     const departmentText = selectedDepartments.join(", ") || department;
     notifications.push(
@@ -737,16 +756,24 @@ function buildAdminNotifications(app, user) {
         "admin",
         "technical",
         "warning",
-        amendmentTask
+        returnedToKu
+          ? `Application ${reference} amendment required`
+          : amendmentTask
           ? "IKL(TECHNICAL) amendment required"
           : `Application ${reference} requires review.`,
-        amendmentTask
+        returnedToKu
+          ? `Permohonan ${reference} memerlukan pindaan`
+          : amendmentTask
           ? "Pindaan IKL(TECHNICAL) diperlukan"
           : `Permohonan ${reference} memerlukan semakan.`,
-        amendmentTask
+        returnedToKu
+          ? `Application ${reference} was returned by ${returnSource} and requires KU(IKL) amendment before verification can continue.`
+          : amendmentTask
           ? `${reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue.`
           : `Application ${reference} is ready for ${departmentText} review.`,
-        amendmentTask
+        returnedToKu
+          ? `Permohonan ${reference} telah dikembalikan oleh ${returnSource} dan memerlukan pindaan KU(IKL) sebelum verifikasi boleh diteruskan.`
+          : amendmentTask
           ? `${reference} memerlukan pindaan IKL(TECHNICAL) sebelum KU(IKL) boleh meneruskan.`
           : `Permohonan ${reference} sedia untuk semakan ${departmentText}.`,
         user

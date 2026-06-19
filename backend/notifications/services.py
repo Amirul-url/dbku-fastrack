@@ -1302,10 +1302,11 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["from"] = "Technical Units"
         metadata["sender"] = "Technical Units"
         metadata["to"] = KU_TECHNICAL_MEMO_RECIPIENT
-    elif memo_html and status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
+    elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         amendment_source = get_ku_amendment_source(application) or "KB(LES)"
-        metadata["memo_html"] = memo_html
-        metadata["memo_template"] = "kb_les_to_ku_ikl"
+        if memo_html:
+            metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "kb_les_to_ku_ikl"
         metadata["from"] = amendment_source
         metadata["sender"] = amendment_source
         metadata["to"] = "KU(IKL)"
@@ -1366,7 +1367,7 @@ def get_web_metadata_sender(application, recipient_role):
         return "KB(LES) <ALiS Notification Center>"
 
     if recipient_role == "admin" and is_kb_les_returned_to_ku(application):
-        return "KB(LES) <ALiS Notification Center>"
+        return get_ku_amendment_source(application) or "KB(LES)"
 
     return ""
 
