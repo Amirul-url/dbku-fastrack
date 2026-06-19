@@ -1525,6 +1525,9 @@ def get_notification_status_label(application):
 
 def get_message_remark(application):
     status_key = str(application.status or "").strip().lower()
+    if status_key == "management_review" and is_kb_les_verification_pending(application):
+        return get_latest_remark(application)
+
     if status_key not in REMARK_REPEAT_STATUSES and not (
         status_key == "invoice_generated" and is_payment_receipt_rejected(application)
     ) and not (

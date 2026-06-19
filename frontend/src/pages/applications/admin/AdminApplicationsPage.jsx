@@ -20,6 +20,7 @@ import {
   getApplicationReference,
   getApplicationType,
   getProjectName,
+  getRegisteredApplicantName,
   normalizeStatus,
   WORKFLOW_STATUS,
 } from "../../../utils/workflow";
@@ -205,7 +206,7 @@ function AdminApplicationsPage() {
                 </button>
               ),
             },
-            { key: "applicant", label: "Applicant", render: getApplicantName },
+            { key: "applicant", label: "Applicant", render: getRegisteredApplicantName },
             { key: "project", label: "Project", render: getProjectName },
             { key: "type", label: "Type", render: getApplicationType },
             { key: "location", label: "Location", render: getApplicationLocation },

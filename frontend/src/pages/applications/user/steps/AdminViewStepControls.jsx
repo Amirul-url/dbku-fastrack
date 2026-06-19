@@ -71,11 +71,13 @@ function AdminViewStepControls({ applicationId, currentStep, language, className
   const from = queryParams.get("from") || (approvalWorkflowUser ? "approval" : "");
   const returnTo = queryParams.get("returnTo") || "";
   const returnPath = buildReturnPath(applicationId, from, returnTo, approvalWorkflowUser);
-  const backText = isSafeInternalPath(returnTo) || from === "action-panel"
-    ? stepText(language, "backToActionPanel")
-    : from === "approval"
-      ? stepText(language, "backToAwaitingApproval")
-      : stepText(language, "back");
+  const backText = from === "completed-approvals"
+    ? stepText(language, "backToCompleted")
+    : isSafeInternalPath(returnTo) || from === "action-panel"
+      ? stepText(language, "backToActionPanel")
+      : from === "approval"
+        ? stepText(language, "backToAwaitingApproval")
+        : stepText(language, "back");
   const previousStep = currentStep - 1;
   const nextStep = currentStep + 1;
 

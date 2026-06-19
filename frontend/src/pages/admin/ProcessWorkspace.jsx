@@ -40,6 +40,7 @@ import {
   getInvoiceNo,
   getLicenseId,
   getProjectName,
+  getRegisteredApplicantName,
   normalizeStatus,
   WORKFLOW_STATUS,
 } from "../../utils/workflow";
@@ -223,6 +224,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const returnToPath = searchParams.get("returnTo") || "";
   const fromPersonalTask = searchParams.get("from") === "personal";
   const fromCompletedApprovals = searchParams.get("from") === "completed-approvals";
+  const shouldOpenVerificationReport = searchParams.get("showReport") === "1";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
@@ -246,7 +248,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalDecisionDraft, setApprovalDecisionDraft] = useState("");
   const [savedApprovalDecisionDraft, setSavedApprovalDecisionDraft] = useState("");
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
-  const [showVerificationReport, setShowVerificationReport] = useState(false);
+  const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
   const [officialReceiptMode, setOfficialReceiptMode] = useState("upload");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
@@ -803,8 +805,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   ]);
 
   useEffect(() => {
-    setShowVerificationReport(false);
-  }, [selectedRecord?.id]);
+    setShowVerificationReport(shouldOpenVerificationReport);
+  }, [selectedRecord?.id, shouldOpenVerificationReport]);
 
   useEffect(() => {
     setOfficialReceiptMode("upload");
@@ -4270,10 +4272,6 @@ function readFileAsDataUrl(file) {
   });
 }
 
-function getRegisteredApplicantName(app) {
-  return String(app?.applicant_registered_name || app?.applicant_full_name || getApplicantName(app) || "").trim();
-}
-
 function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const status = normalizeStatus(app?.status);
   const isIklWorkspace = config?.key === "screening";
@@ -6737,7 +6735,7 @@ const configs = {
         label: "Submit",
         labelKey: "common.submit",
         icon: "send",
-        requiresComment: false,
+        requiresComment: true,
         success: "KU(IKL) technical review saved.",
         successKey: "workspace.message.kuTechnicalReviewSaved",
         buildPayload: buildKuTechnicalReviewPayload,
@@ -7289,6 +7287,8 @@ function IklWorkspaceSections({
   const [kuDecision, setKuDecision] = useState(
     ""
   );
+  const [kuDecisionInput, setKuDecisionInput] = useState("");
+  const [kuDecisionError, setKuDecisionError] = useState("");
   const [kuRemarks, setKuRemarks] = useState("");
   const [technicalDecision, setTechnicalDecision] = useState(
     config.technicalActions?.[0]?.decision || ""
@@ -7296,8 +7296,13 @@ function IklWorkspaceSections({
   const [technicalDecisionInput, setTechnicalDecisionInput] = useState(
     getTechnicalRecommendationInput(config.technicalActions?.[0]?.decision || "")
   );
+  const [technicalDecisionError, setTechnicalDecisionError] = useState("");
   const technicalSiteSaveTimerRef = useRef(null);
   const latestTechnicalSiteRef = useRef(technicalSite);
+  const technicalDecisionInputRef = useRef(null);
+  const technicalRemarksRef = useRef(null);
+  const kuDecisionInputRef = useRef(null);
+  const kuRemarksRef = useRef(null);
   const [kuChecks, setKuChecks] = useState(() =>
     createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks)
   );
@@ -7311,12 +7316,12 @@ function IklWorkspaceSections({
     (action) => action.decision === technicalDecision
   );
   const technicalDecisionMustWait =
+    selectedTechnicalAction &&
     (!hasSavedDepartmentSelection || !allDepartmentReviewsComplete) &&
-    selectedTechnicalAction?.decision !== "Not Supported";
+    selectedTechnicalAction.decision !== "Not Supported";
   const technicalDecisionDisabled =
     saving ||
-    !selectedTechnicalAction ||
-    Boolean(selectedTechnicalAction.disabled) ||
+    Boolean(selectedTechnicalAction?.disabled) ||
     technicalDecisionMustWait;
 
   useEffect(() => {
@@ -7466,6 +7471,59 @@ function IklWorkspaceSections({
     });
   }
 
+  function submitKuTechnicalReview() {
+    const cleanedRemarks = cleanRemark(kuRemarks);
+
+    if (!kuDecision) {
+      setKuDecisionError(
+        t(
+          "workspace.decision.typeApproveOrRequestAmendment",
+          "Type Approve or Request Amendment"
+        )
+      );
+      kuDecisionInputRef.current?.focus();
+      return;
+    }
+
+    if (!cleanedRemarks) {
+      setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+      kuRemarksRef.current?.focus();
+      return;
+    }
+
+    submitAction(config.kuTechnicalReview.action, {
+      decision: kuDecision,
+      comment: kuRemarks,
+      kuChecks,
+      checkDecisionRemark: true,
+    });
+  }
+
+  function submitTechnicalFinalDecision() {
+    const cleanedRemarks = cleanRemark(technicalSite.site_remarks);
+
+    if (!selectedTechnicalAction) {
+      setTechnicalDecisionError(
+        t("workspace.technical.typeYesOrNo", "Type Yes or No")
+      );
+      technicalDecisionInputRef.current?.focus();
+      return;
+    }
+
+    if (technicalDecisionDisabled) return;
+
+    if (!cleanedRemarks) {
+      setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+      technicalRemarksRef.current?.focus();
+      return;
+    }
+
+    submitAction(selectedTechnicalAction, {
+      comment: technicalSite.site_remarks,
+      checkDecisionRemark: true,
+    });
+  }
+
   return (
     <div className="space-y-4 text-sm leading-5">
       {showScreeningDecision && (
@@ -7609,17 +7667,25 @@ function IklWorkspaceSections({
                 labelClassName="!mb-1 !text-[13px] !leading-4"
               >
                 <input
+                  ref={technicalDecisionInputRef}
                   type="text"
                   value={technicalDecisionInput}
                   onChange={(event) => {
                     const nextValue = event.target.value;
                     setTechnicalDecisionInput(nextValue);
+                    if (technicalDecisionError) setTechnicalDecisionError("");
                     setTechnicalDecision(getTechnicalRecommendationDecision(nextValue));
                   }}
-                  className="form-input form-input-sm max-w-sm"
+                  className={`form-input form-input-sm max-w-sm ${technicalDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t("workspace.technical.recommendationPlaceholder", "Type Yes or No")}
                   inputMode="text"
+                  aria-invalid={Boolean(technicalDecisionError)}
                 />
+                {technicalDecisionError && (
+                  <p className="mt-1.5 text-sm font-medium leading-5 text-red-600">
+                    {technicalDecisionError}
+                  </p>
+                )}
               </Field>
 
               <Field
@@ -7632,6 +7698,7 @@ function IklWorkspaceSections({
                 labelClassName="!mb-1 !text-[13px] !leading-4"
               >
                 <textarea
+                  ref={technicalRemarksRef}
                   value={technicalSite.site_remarks}
                   onChange={(event) => {
                     if (commentError) setCommentError("");
@@ -7643,6 +7710,7 @@ function IklWorkspaceSections({
                   rows="2"
                   required
                   aria-required="true"
+                  aria-invalid={Boolean(commentError)}
                   className={`form-input form-input-sm !min-h-[58px] ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t("workspace.technical.siteRemarksPlaceholder")}
                 />
@@ -7657,14 +7725,7 @@ function IklWorkspaceSections({
                 <Button
                   icon="fact_check"
                   disabled={technicalDecisionDisabled}
-                  onClick={() => {
-                    if (technicalDecisionDisabled) return;
-
-                    submitAction(selectedTechnicalAction, {
-                      comment: technicalSite.site_remarks,
-                      checkDecisionRemark: true,
-                    });
-                  }}
+                  onClick={submitTechnicalFinalDecision}
                   className="w-full sm:w-auto"
                 >
                   {saving
@@ -7713,44 +7774,82 @@ function IklWorkspaceSections({
 
           <section className="space-y-3">
               <Field label={t("common.decision")}>
-                <select
-                  value={kuDecision}
-                  onChange={(event) => setKuDecision(event.target.value)}
-                  className="form-input max-w-64"
-                >
-                  <option value="">
-                    {t("workspace.decision.selectDecision", "Select decision")}
-                  </option>
-                  {config.kuTechnicalReview.decisions.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {t(item.labelKey, item.value)}
-                    </option>
-                  ))}
-                </select>
+                <input
+                  ref={kuDecisionInputRef}
+                  type="text"
+                  value={kuDecisionInput}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setKuDecisionInput(nextValue);
+                    if (kuDecisionError) setKuDecisionError("");
+                    setKuDecision(
+                      getKuTechnicalReviewDecisionFromInput(
+                        nextValue,
+                        config.kuTechnicalReview.decisions,
+                        t
+                      )
+                    );
+                  }}
+                  onBlur={() => {
+                    if (kuDecision) {
+                      setKuDecisionInput(
+                        getKuTechnicalReviewDecisionInput(
+                          kuDecision,
+                          config.kuTechnicalReview.decisions,
+                          t
+                        )
+                      );
+                    }
+                  }}
+                  className={`form-input w-full max-w-[28rem] ${kuDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  placeholder={t(
+                    "workspace.decision.typeApproveOrRequestAmendment",
+                    "Type Approve or Request Amendment"
+                  )}
+                  inputMode="text"
+                  aria-invalid={Boolean(kuDecisionError)}
+                />
+                {kuDecisionError && (
+                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                    {kuDecisionError}
+                  </p>
+                )}
               </Field>
 
-              <Field label={t("workspace.comment.remarks")}>
+              <Field
+                label={
+                  <>
+                    {t("workspace.comment.remarks")}
+                    <span className="ml-1 text-red-600">*</span>
+                  </>
+                }
+              >
                 <textarea
+                  ref={kuRemarksRef}
                   value={kuRemarks}
-                  onChange={(event) => setKuRemarks(event.target.value)}
+                  onChange={(event) => {
+                    setKuRemarks(event.target.value);
+                    if (commentError) setCommentError("");
+                  }}
                   rows="4"
-                  className="form-input"
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(commentError)}
+                  className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t("workspace.technical.kuReviewPlaceholder")}
                 />
+                {commentError && (
+                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                    {commentError}
+                  </p>
+                )}
               </Field>
 
               <div className="flex justify-end">
                 <Button
                   icon={config.kuTechnicalReview.action.icon}
                   disabled={saving}
-                  onClick={() =>
-                    submitAction(config.kuTechnicalReview.action, {
-                      decision: kuDecision,
-                      comment: kuRemarks,
-                      kuChecks,
-                      checkDecisionRemark: true,
-                    })
-                  }
+                  onClick={submitKuTechnicalReview}
                   className="w-full sm:w-auto"
                 >
                   {saving
@@ -8846,6 +8945,36 @@ function getTechnicalRecommendationInput(decision) {
   if (decision === "Supported") return "Yes";
   if (decision === "Not Supported") return "No";
   return "";
+}
+
+function getKuTechnicalReviewDecisionInput(
+  decision,
+  decisions = [],
+  t = (key, fallback) => fallback || key
+) {
+  const option = decisions.find((item) => item.value === decision);
+
+  return option ? t(option.labelKey, option.value) : decision || "";
+}
+
+function getKuTechnicalReviewDecisionFromInput(
+  value,
+  decisions = [],
+  t = (key, fallback) => fallback || key
+) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+
+  const option = decisions.find((item) => {
+    const decisionValue = String(item.value || "").trim().toLowerCase();
+    const decisionLabel = String(t(item.labelKey, item.value) || "")
+      .trim()
+      .toLowerCase();
+
+    return normalized === decisionValue || normalized === decisionLabel;
+  });
+
+  return option?.value || "";
 }
 
 function TechnicalSiteVisitFields({

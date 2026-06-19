@@ -12,9 +12,9 @@ import {
   TARGET_PROCESSING_DAYS,
   formatDate,
   formatWorkflowStatus,
-  getApplicantName,
   getApplicationReference,
   getApplicationType,
+  getRegisteredApplicantName,
   normalizeStatus,
 } from "../../utils/workflow";
 
@@ -99,7 +99,7 @@ function ReportsPage() {
           emptyText="No applications found."
           columns={[
             { key: "reference", label: "Reference", render: getApplicationReference },
-            { key: "applicant", label: "Applicant", render: getApplicantName },
+            { key: "applicant", label: "Applicant", render: getRegisteredApplicantName },
             { key: "type", label: "Type", render: getApplicationType },
             {
               key: "status",

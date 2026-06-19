@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest, fetchApplicationList, getStoredUser } from "../../services/api";
+import { apiRequest, fetchApplicationList, fetchAuthenticatedBlob, getStoredUser } from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
 import {
   Alert,
@@ -14,12 +15,16 @@ import {
   StatusPill,
 } from "../../components/ui/SystemUI";
 import {
+  canViewLicense,
   formatCompactDateTime,
   formatWorkflowStatus,
   getApplicationReference,
+  getLicenseId,
   getProjectName,
+  getRegisteredApplicantName,
   normalizeStatus,
 } from "../../utils/workflow";
+import { openAdvertisementLicenseDocument } from "../../utils/advertisementLicenseDocument";
 
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
@@ -72,6 +77,7 @@ const RESUBMISSION_MONTH_ALL = "all";
 const RESUBMISSION_DRILLDOWN_TYPES = {
   rejected: "rejected",
   resubmitted: "resubmitted",
+  complete: "complete",
 };
 const units = [
   {
@@ -469,7 +475,9 @@ function InternalResubmissionGraph({
 }) {
   const maxCount = Math.max(
     1,
-    ...insights.buckets.map((bucket) => Math.max(bucket.rejected, bucket.resubmitted))
+    ...insights.buckets.map((bucket) =>
+      Math.max(bucket.rejected, bucket.resubmitted, bucket.complete)
+    )
   );
   const monthOptions = getResubmissionMonthOptions(language);
   const xAxisLabel =
@@ -507,7 +515,7 @@ function InternalResubmissionGraph({
       ) : (
         <div className="px-4 py-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-3 gap-2 text-xs">
               <ResubmissionSummaryCard
                 active={selectedDrilldown === RESUBMISSION_DRILLDOWN_TYPES.rejected}
                 count={loading ? "..." : insights.totalRejected}
@@ -521,6 +529,13 @@ function InternalResubmissionGraph({
                 label={t("admin.dashboard.resubmitted", "Resubmitted")}
                 onClick={() => onDrilldownSelect(RESUBMISSION_DRILLDOWN_TYPES.resubmitted)}
                 tone="blue"
+              />
+              <ResubmissionSummaryCard
+                active={selectedDrilldown === RESUBMISSION_DRILLDOWN_TYPES.complete}
+                count={loading ? "..." : insights.totalComplete}
+                label={t("common.complete", "Complete")}
+                onClick={() => onDrilldownSelect(RESUBMISSION_DRILLDOWN_TYPES.complete)}
+                tone="green"
               />
             </div>
             <div className="flex flex-wrap items-end gap-3">
@@ -606,6 +621,12 @@ function InternalResubmissionGraph({
                             label={`${bucket.label} ${t("admin.dashboard.resubmitted", "Resubmitted")}: ${bucket.resubmitted}`}
                             value={bucket.resubmitted}
                           />
+                          <ChartBar
+                            colorClassName="bg-emerald-500"
+                            height={bucket.complete ? Math.max(12, (bucket.complete / maxCount) * barMaxHeight) : 0}
+                            label={`${bucket.label} ${t("common.complete", "Complete")}: ${bucket.complete}`}
+                            value={bucket.complete}
+                          />
                         </div>
                       ))}
                     </div>
@@ -665,6 +686,10 @@ function ResubmissionSummaryCard({ active, count, label, onClick, tone }) {
       card: "bg-blue-50 text-blue-700 hover:bg-blue-100",
       marker: "bg-blue-500",
     },
+    green: {
+      card: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+      marker: "bg-emerald-500",
+    },
     slate: {
       card: "bg-slate-100 text-slate-700 hover:bg-slate-200",
       marker: "bg-slate-500",
@@ -700,27 +725,38 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
     year: String(new Date().getFullYear()),
   }));
   const [page, setPage] = useState(0);
+  const [selectedCompleteRowId, setSelectedCompleteRowId] = useState("");
   const title = getResubmissionDrilldownTitle(type, t);
   const description = getResubmissionDrilldownDescription(type, t);
+  const isCompleteDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.complete;
   const monthOptions = getResubmissionMonthOptions(language);
   const yearOptions = useMemo(() => {
     return buildDrilldownYearOptions(rows, filters.year);
   }, [filters.year, rows]);
   const filteredRows = useMemo(() => {
-    return filterResubmissionDrilldownRows(rows, filters);
-  }, [filters, rows]);
+    return isCompleteDrilldown ? rows : filterResubmissionDrilldownRows(rows, filters);
+  }, [filters, isCompleteDrilldown, rows]);
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / RESUBMISSION_DRILLDOWN_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
   const visibleRows = filteredRows.slice(
     currentPage * RESUBMISSION_DRILLDOWN_PAGE_SIZE,
     (currentPage + 1) * RESUBMISSION_DRILLDOWN_PAGE_SIZE
   );
+  const selectedCompleteRow = isCompleteDrilldown
+    ? filteredRows.find((row) => row.id === selectedCompleteRowId) || null
+    : null;
   const columns = [
     {
       key: "reference",
       label: t("common.reference", "Reference"),
       className: "w-[170px]",
       render: (row) => <span className="font-semibold text-slate-900">{row.reference}</span>,
+    },
+    {
+      key: "applicantName",
+      label: t("workspace.license.applicantName", "Applicant Name"),
+      className: "w-[210px]",
+      render: (row) => <span className="font-medium text-slate-900">{row.applicantName}</span>,
     },
     {
       key: "project",
@@ -737,11 +773,15 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
         </span>
       ),
     },
-    {
-      key: "remark",
-      label: t("common.remarks", "Remarks"),
-      render: (row) => row.remark || "-",
-    },
+    ...(type === RESUBMISSION_DRILLDOWN_TYPES.rejected
+      ? [
+          {
+            key: "remark",
+            label: t("common.remarks", "Remarks"),
+            render: (row) => row.remark || "-",
+          },
+        ]
+      : []),
     {
       key: "date",
       label: t("common.date", "Date"),
@@ -753,18 +793,29 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       label: t("common.action", "Action"),
       className: "w-[110px] whitespace-nowrap",
       render: (row) => (
-        <Link
-          className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
-          to={getResubmissionApplicationViewPath(row.applicationId, type)}
-        >
-          {t("common.view", "View")}
-        </Link>
+        isCompleteDrilldown ? (
+          <button
+            type="button"
+            className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+            onClick={() => setSelectedCompleteRowId(row.id)}
+          >
+            {t("common.view", "View")}
+          </button>
+        ) : (
+          <Link
+            className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+            to={getResubmissionApplicationViewPath(row.applicationId, type)}
+          >
+            {t("common.view", "View")}
+          </Link>
+        )
       ),
     },
   ];
 
   useEffect(() => {
     setPage(0);
+    setSelectedCompleteRowId("");
   }, [filters.month, filters.search, filters.year, type]);
 
   useEffect(() => {
@@ -778,82 +829,94 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
           <p className="mt-1 text-sm text-slate-500">{description}</p>
         </div>
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={selectedCompleteRow ? () => setSelectedCompleteRowId("") : onClose}
+        >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
           {t("common.back", "Back")}
         </Button>
       </div>
 
       <div className="p-4">
-        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_190px_auto] lg:items-end">
-          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-            <span>{t("common.search", "Search")}</span>
-            <input
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
-              placeholder={t("admin.dashboard.searchStatisticRecords", "Search reference, project, or remarks")}
-              type="search"
-              value={filters.search}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, search: event.target.value }))
-              }
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-            <span>{t("common.year", "Year")}</span>
-            <select
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
-              value={filters.year}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, year: event.target.value }))
+        {!isCompleteDrilldown && (
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_190px_auto] lg:items-end">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+              <span>{t("common.search", "Search")}</span>
+              <input
+                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+                placeholder={t("admin.dashboard.searchStatisticRecords", "Search reference, project, or remarks")}
+                type="search"
+                value={filters.search}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, search: event.target.value }))
+                }
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+              <span>{t("common.year", "Year")}</span>
+              <select
+                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+                value={filters.year}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, year: event.target.value }))
+                }
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+              <span>{t("common.month", "Month")}</span>
+              <select
+                className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
+                value={filters.month}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, month: event.target.value }))
+                }
+              >
+                <option value={RESUBMISSION_MONTH_ALL}>{t("common.all", "All")}</option>
+                {monthOptions.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                setFilters({
+                  month: RESUBMISSION_MONTH_ALL,
+                  search: "",
+                  year: String(new Date().getFullYear()),
+                })
               }
             >
-              {yearOptions.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-            <span>{t("common.month", "Month")}</span>
-            <select
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
-              value={filters.month}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, month: event.target.value }))
-              }
-            >
-              <option value={RESUBMISSION_MONTH_ALL}>{t("common.all", "All")}</option>
-              {monthOptions.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() =>
-              setFilters({
-                month: RESUBMISSION_MONTH_ALL,
-                search: "",
-                year: String(new Date().getFullYear()),
-              })
-            }
-          >
-            <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
-            {t("common.reset", "Reset")}
-          </Button>
-        </div>
-        <DataTable
-          columns={columns}
-          emptyText={t("admin.dashboard.noStatisticRecords", "No applications found for this statistic.")}
-          loading={loading}
-          loadingText={t("common.loading", "Loading...")}
-          rows={visibleRows}
-        />
-        {!loading && (
+              <span className="material-symbols-outlined text-[18px]">filter_alt_off</span>
+              {t("common.reset", "Reset")}
+            </Button>
+          </div>
+        )}
+        {selectedCompleteRow ? (
+          <div>
+            <CompleteApplicationCard row={selectedCompleteRow} t={t} />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            emptyText={t("admin.dashboard.noStatisticRecords", "No applications found for this statistic.")}
+            loading={loading}
+            loadingText={t("common.loading", "Loading...")}
+            rows={visibleRows}
+          />
+        )}
+        {!loading && !selectedCompleteRow && (
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
               {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
@@ -882,6 +945,311 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
         )}
       </div>
     </section>
+  );
+}
+
+function CompleteApplicationCard({ row, t }) {
+  const app = row.application || {};
+  const [showVerificationReport, setShowVerificationReport] = useState(false);
+  const reference = row.reference || getApplicationReference(app);
+  const statusLabel = t("status.license_issued", "E-License Generated");
+  const updatedDate = app.updated_at || row.date;
+  const licenseId = getLicenseId(app);
+  const verificationUrl = getDashboardLicenseVerificationUrl(licenseId);
+  const qrContainerRef = useRef(null);
+  const documents = getCompleteApplicationDocuments(app, t);
+  const applicantReceipt = getApplicantReceiptDocument(app, t);
+  const viewPath = getResubmissionApplicationViewPath(row.applicationId, RESUBMISSION_DRILLDOWN_TYPES.complete);
+
+  return (
+    <article className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
+        <CompleteMetaBlock label={t("common.reference", "Reference")} value={reference} />
+        <div>
+          <p className="text-xs font-semibold uppercase text-slate-500">{t("common.status", "Status")}</p>
+          <StatusPill value={statusLabel} />
+        </div>
+        <CompleteMetaBlock label={t("common.created", "Created")} value={formatCompactDateTime(app.created_at)} />
+        <CompleteMetaBlock label={t("common.updated", "Updated")} value={formatCompactDateTime(updatedDate)} />
+        <Link
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          to={viewPath}
+        >
+          <span className="material-symbols-outlined text-[18px]">visibility</span>
+          {t("workspace.openForm", "View Form")}
+        </Link>
+      </div>
+
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          onClick={() => setShowVerificationReport((visible) => !visible)}
+        >
+          <span className="material-symbols-outlined text-[18px]">visibility</span>
+          {showVerificationReport
+            ? t("workspace.approval.hideVerificationReport", "Hide Verification Report")
+            : t("workspace.approval.showVerificationReport", "Show Verification Report")}
+        </button>
+      </div>
+
+      {showVerificationReport && <CompletedVerificationReport app={app} t={t} />}
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(300px,32%)_1fr]">
+        <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
+          <div className="flex min-h-[330px] flex-col items-center justify-center gap-3 text-center">
+            {canViewLicense(app) ? (
+              <>
+                <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <QRCodeSVG
+                    value={verificationUrl}
+                    size={300}
+                    level="M"
+                    includeMargin
+                    className="h-auto max-w-full"
+                    role="img"
+                    aria-label="License verification QR"
+                  />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{reference}</p>
+                <button
+                  type="button"
+                  onClick={() => downloadDashboardQrCode(qrContainerRef.current, reference)}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">download</span>
+                  {t("common.download", "Download")}
+                </button>
+              </>
+            ) : (
+              <p className="max-w-xs text-sm font-medium text-slate-500">
+                {t("applicant.qrLicensePending", "QR e-license will be displayed once the license is generated.")}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="rounded-md border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-3 py-3">
+              <h3 className="text-sm font-semibold text-slate-950">
+                {t("admin.dashboard.completedDocumentListTitle", "List of Document")}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {t("applicant.paymentDocumentsDesc", "View the submitted application form and download related documents from ALiS.")}
+              </p>
+            </div>
+            <div className="divide-y divide-slate-200">
+              {documents.map((document) => (
+                <CompleteDocumentRow key={document.type} document={document} app={app} t={t} />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-3 py-3">
+              <h3 className="text-sm font-semibold uppercase text-slate-500">
+                {t("workspace.payment.applicantReceipt", "Applicant Receipt")}
+              </h3>
+            </div>
+            {applicantReceipt ? (
+              <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{applicantReceipt.name}</p>
+                  <p className="mt-1 text-xs font-medium text-emerald-700">
+                    {t("common.valid", "Valid")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openDashboardPaymentDocument(applicantReceipt.file, t)}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                >
+                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                  {t("common.view", "View")}
+                </button>
+              </div>
+            ) : (
+              <div className="px-3 py-4 text-sm font-medium text-slate-500">
+                {t("workspace.payment.noApplicantReceipt", "No applicant receipt available.")}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </article>
+  );
+}
+
+function CompleteMetaBlock({ label, value }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value || "-"}</p>
+    </div>
+  );
+}
+
+function CompletedVerificationReport({ app, t }) {
+  const formData = app?.form_data || {};
+  const step1 = formData.step_1 || {};
+  const technicalReview = formData.technical_review || {};
+  const kuReview = formData.technical_ku_review || {};
+  const departmentReviews = formData.technical_department_reviews || {};
+  const selectedDepartments = Array.isArray(step1.technical_departments)
+    ? step1.technical_departments
+    : Object.keys(departmentReviews);
+  const departmentRows = selectedDepartments
+    .map((department) => ({
+      department,
+      review: departmentReviews?.[department] || {},
+    }))
+    .filter((row) => row.department);
+
+  return (
+    <section className="mt-3 rounded-md border border-slate-200 bg-slate-50">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <h3 className="text-sm font-semibold text-slate-950">
+          {t("workspace.approval.verificationReport", "Verification Report")}
+        </h3>
+      </div>
+
+      <div className="grid gap-3 p-3">
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <h4 className="text-xs font-semibold uppercase text-slate-500">
+            {t("workspace.technical.iklTechnicalRemarks", "IKL(TECHNICAL) Remarks")}
+          </h4>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <CompletedReportField
+              label={t("common.decision", "Decision")}
+              value={technicalReview.final_decision || technicalReview.decision}
+            />
+            <CompletedReportField
+              label={t("common.updated", "Updated")}
+              value={formatCompactDateTime(technicalReview.reviewed_at)}
+            />
+          </div>
+          <CompletedReportField
+            className="mt-2"
+            label={t("common.remarks", "Remarks")}
+            value={technicalReview.comment || technicalReview.remarks}
+            multiline
+          />
+        </div>
+
+        <div className="rounded-md border border-slate-200 bg-white p-3">
+          <h4 className="text-xs font-semibold uppercase text-slate-500">
+            {t("status.technical_ku_review", "Pending KU(IKL) Final Check")}
+          </h4>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <CompletedReportField
+              label={t("common.decision", "Decision")}
+              value={kuReview.decision}
+            />
+            <CompletedReportField
+              label={t("common.updated", "Updated")}
+              value={formatCompactDateTime(kuReview.reviewed_at)}
+            />
+          </div>
+          <CompletedReportField
+            className="mt-2"
+            label={t("common.remarks", "Remarks")}
+            value={kuReview.comment || kuReview.remarks}
+            multiline
+          />
+        </div>
+
+        <div className="rounded-md border border-slate-200 bg-white">
+          <h4 className="border-b border-slate-200 px-3 py-3 text-xs font-semibold uppercase text-slate-500">
+            {t("workspace.technical.departmentFeedbackStatus", "Department Feedback Status")}
+          </h4>
+          {departmentRows.length > 0 ? (
+            <div className="divide-y divide-slate-200">
+              {departmentRows.map(({ department, review }) => (
+                <div key={department} className="grid gap-2 px-3 py-3 md:grid-cols-[120px_1fr_1fr]">
+                  <p className="text-sm font-semibold text-slate-900">{department}</p>
+                  <CompletedReportField
+                    label={t("common.status", "Status")}
+                    value={review.status || review.decision || review.result}
+                  />
+                  <CompletedReportField
+                    label={t("common.remarks", "Remarks")}
+                    value={review.remarks || review.comment}
+                    multiline
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="px-3 py-4 text-sm font-medium text-slate-500">
+              {t("workspace.technical.noDepartmentFeedback", "No department feedback recorded.")}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CompletedReportField({ className = "", label, value, multiline = false }) {
+  const displayValue = cleanReportValue(value);
+
+  return (
+    <div className={className}>
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-medium text-slate-900 ${multiline ? "whitespace-pre-wrap" : ""}`}>
+        {displayValue}
+      </p>
+    </div>
+  );
+}
+
+function cleanReportValue(value) {
+  const text = String(value || "").trim();
+  return text && text !== "Invalid Date" ? text : "-";
+}
+
+function CompleteDocumentRow({ app, document, t }) {
+  const hasFile = Boolean(getPaymentDocumentSource(document.file));
+  const canRenderLicense = document.type === "advertisement_license" && canViewLicense(app);
+  const documentName =
+    hasFile || canRenderLicense
+      ? document.name
+      : t("workspace.payment.missingFile", "Missing file");
+
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold uppercase text-slate-500">{document.label}</p>
+        <p className={`mt-1 truncate text-sm font-semibold ${hasFile || canRenderLicense ? "text-slate-900" : "text-slate-500"}`}>
+          {documentName}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            hasFile
+              ? openDashboardPaymentDocument(document.file, t)
+              : openAdvertisementLicenseDocument(app, t)
+          }
+          disabled={!hasFile && !canRenderLicense}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="material-symbols-outlined text-[18px]">visibility</span>
+          {t("common.view", "View")}
+        </button>
+        <button
+          type="button"
+          onClick={() => downloadDashboardPaymentDocument(document.file, document.name, t)}
+          disabled={!hasFile}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <span className="material-symbols-outlined text-[18px]">download</span>
+          {t("common.download", "Download")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -984,6 +1352,7 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
       return rejectedActivities.map(({ activity, createdAt }) => ({
         type: "rejected",
         applicationId: application.id,
+        application,
         reference: getApplicationReference(application),
         project: getProjectName(application),
         eventDate: createdAt,
@@ -1000,6 +1369,7 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
     return [{
       type: "rejected",
       applicationId: application.id,
+      application,
       reference: getApplicationReference(application),
       project: getProjectName(application),
       eventDate,
@@ -1024,6 +1394,7 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
         return {
           type: "resubmitted",
           applicationId: application.id,
+          application,
           reference: getApplicationReference(application),
           project: getProjectName(application),
           eventDate,
@@ -1035,7 +1406,32 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
       })
       .filter((entry) => entry.eventDate);
   });
-  const entries = dedupeInternalResubmissionEntries([...rejectedEntries, ...resubmittedEntries]).sort(
+  const completeEntries = applications
+    .filter(isCompleteApplication)
+    .map((application) => {
+      const eventDate = getApplicationCompleteDate(application);
+      return {
+        type: "complete",
+        applicationId: application.id,
+        application,
+        reference: getApplicationReference(application),
+        project: getProjectName(application),
+        eventDate,
+        eventLabel: t("common.complete", "Complete"),
+        remark: "",
+        description: t(
+          "admin.dashboard.completeLogDesc",
+          "QR e-license has been generated for this application."
+        ),
+        sortDate: eventDate,
+      };
+    })
+    .filter((entry) => entry.eventDate);
+  const entries = dedupeInternalResubmissionEntries([
+    ...rejectedEntries,
+    ...resubmittedEntries,
+    ...completeEntries,
+  ]).sort(
     (a, b) => new Date(b.sortDate || 0).getTime() - new Date(a.sortDate || 0).getTime()
   );
   const filteredEntries = filterResubmissionEntriesForChart(entries, filters, now);
@@ -1043,6 +1439,7 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
   return {
     totalRejected: filteredEntries.filter((entry) => entry.type === "rejected").length,
     totalResubmitted: filteredEntries.filter((entry) => entry.type === "resubmitted").length,
+    totalComplete: filteredEntries.filter((entry) => entry.type === "complete").length,
     buckets: buildResubmissionChartBuckets(entries, now, language, filters),
     entries,
     filteredEntries,
@@ -1061,6 +1458,10 @@ function buildResubmissionDrilldownRows(type, insights, t) {
       label: t("admin.dashboard.resubmitted", "Resubmitted"),
       className: "inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700",
     },
+    [RESUBMISSION_DRILLDOWN_TYPES.complete]: {
+      label: t("common.complete", "Complete"),
+      className: "inline-flex rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700",
+    },
   };
   const config = statusConfig[type] || statusConfig[RESUBMISSION_DRILLDOWN_TYPES.rejected];
 
@@ -1069,7 +1470,9 @@ function buildResubmissionDrilldownRows(type, insights, t) {
     .map((entry) => ({
       id: `${entry.applicationId}-${entry.type}-${entry.eventDate}`,
       applicationId: entry.applicationId,
+      application: entry.application,
       reference: entry.reference,
+      applicantName: getRegisteredApplicantName(entry.application),
       project: entry.project,
       remark: entry.remark || "",
       statusLabel: config.label,
@@ -1081,7 +1484,11 @@ function buildResubmissionDrilldownRows(type, insights, t) {
 
 function getResubmissionApplicationViewPath(applicationId, type) {
   const returnTo = encodeURIComponent(`/dashboard/admin?view=dashboard&resubmission=${type}`);
-  return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=action-panel&returnTo=${returnTo}`;
+  const from = type === RESUBMISSION_DRILLDOWN_TYPES.complete
+    ? "completed-approvals"
+    : "action-panel";
+
+  return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=${from}&returnTo=${returnTo}`;
 }
 
 function filterResubmissionDrilldownRows(rows, filters) {
@@ -1098,6 +1505,7 @@ function filterResubmissionDrilldownRows(rows, filters) {
     if (!search) return true;
     const searchableText = [
       row.reference,
+      row.applicantName,
       row.project,
       row.remark,
       row.statusLabel,
@@ -1125,7 +1533,246 @@ function sortRowsByDateDesc(a, b) {
   return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
 }
 
+function getCompleteApplicationDocuments(app, t) {
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const license = app?.form_data?.license || {};
+  const officialReceiptFile = getSentOfficialReceiptFile(app);
+
+  return [
+    {
+      type: "approval_letter",
+      label: t("workspace.payment.approvalLetter", "Approval Letter"),
+      name: getDocumentDisplayName(approvalLetter.letter_file, "Approval Letter.pdf"),
+      file: approvalLetter.letter_file,
+    },
+    {
+      type: "bill",
+      label: t("workspace.payment.billDocument", "Bill"),
+      name: getDocumentDisplayName(approvalLetter.bill_file, "Bill.pdf"),
+      file: approvalLetter.bill_file,
+    },
+    {
+      type: "official_receipt",
+      label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+      name: getDocumentDisplayName(officialReceiptFile, "Official Receipt.pdf"),
+      file: officialReceiptFile,
+    },
+    {
+      type: "advertisement_license",
+      label: t("workspace.license.documentTitle", "Advertisement License"),
+      name: getDocumentDisplayName(license.license_file, "Advertisement License.pdf"),
+      file: license.license_file,
+    },
+  ];
+}
+
+function getApplicantReceiptDocument(app, t) {
+  const receiptFile = app?.form_data?.payment?.receipt_file || null;
+  if (!getPaymentDocumentSource(receiptFile)) return null;
+
+  return {
+    file: receiptFile,
+    name: getDocumentDisplayName(receiptFile, t("workspace.payment.receiptFileName", "receipt.pdf")),
+  };
+}
+
+function getSentOfficialReceiptFile(app) {
+  const file = app?.form_data?.approval_letter?.official_receipt_file || null;
+  if (!getPaymentDocumentSource(file)) return null;
+
+  const status = normalizeStatus(app?.status);
+  if (
+    file.sent_at ||
+    file.status === "Sent to Applicant" ||
+    ["payment_verified", "license_issued", "license_revoked"].includes(status)
+  ) {
+    return file;
+  }
+
+  return null;
+}
+
+function getPaymentDocumentSource(file) {
+  return file?.dataUrl || file?.url || file?.file_url || file?.file || "";
+}
+
+function getDocumentDisplayName(file, fallbackName) {
+  return file?.name || fallbackName;
+}
+
+async function openDashboardPaymentDocument(file, t) {
+  const source = getPaymentDocumentSource(file);
+  if (!source) return;
+
+  const previewWindow = window.open("about:blank", "_blank");
+  if (!previewWindow) {
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    return;
+  }
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+    const shouldRevoke = !isInlineFile;
+
+    renderBlankDocumentPreview(previewWindow, url, file?.name || "Document", shouldRevoke);
+  } catch (err) {
+    console.error("Failed to open completed application document:", err);
+    previewWindow.close();
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function renderBlankDocumentPreview(previewWindow, url, title, shouldRevoke = false) {
+  const safeTitle = escapePreviewHtml(title || "Document");
+  const safeUrl = escapePreviewHtml(url);
+
+  previewWindow.document.open();
+  previewWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>${safeTitle}</title>
+    <style>
+      html, body { height: 100%; margin: 0; background: #111827; }
+      iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <iframe src="${safeUrl}" title="${safeTitle}"></iframe>
+  </body>
+</html>`);
+  previewWindow.document.close();
+
+  if (shouldRevoke) {
+    const cleanup = () => URL.revokeObjectURL(url);
+    previewWindow.addEventListener?.("beforeunload", cleanup, { once: true });
+    setTimeout(cleanup, 5 * 60 * 1000);
+  }
+}
+
+function escapePreviewHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function downloadDashboardPaymentDocument(file, fallbackLabel, t) {
+  const source = getPaymentDocumentSource(file);
+  if (!source) return;
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+    const filename = getDownloadFilename(file?.name || fallbackLabel, "pdf");
+
+    triggerDownload(url, filename);
+
+    if (!isInlineFile) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (err) {
+    console.error("Failed to download completed application document:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function getDashboardLicenseVerificationUrl(licenseId) {
+  const runtimeOrigin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "";
+  const configuredOrigin = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
+  let origin = runtimeOrigin;
+
+  try {
+    const runtimeHost = new URL(runtimeOrigin).hostname.toLowerCase();
+    if (["localhost", "127.0.0.1", "0.0.0.0"].includes(runtimeHost)) {
+      origin = configuredOrigin || runtimeOrigin;
+    }
+  } catch {
+    origin = configuredOrigin || runtimeOrigin;
+  }
+
+  return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
+}
+
+function getQrSvgBlob(qrContainer) {
+  const svg = qrContainer?.querySelector?.("svg");
+  if (!svg) return null;
+
+  const clone = svg.cloneNode(true);
+  clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  return new Blob([new XMLSerializer().serializeToString(clone)], {
+    type: "image/svg+xml;charset=utf-8",
+  });
+}
+
+async function downloadDashboardQrCode(qrContainer, reference) {
+  const blob = getQrSvgBlob(qrContainer);
+  if (!blob) return;
+
+  const sourceUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = new Image();
+    image.src = sourceUrl;
+    await image.decode();
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 720;
+    canvas.height = 720;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!pngBlob) return;
+
+    const downloadUrl = URL.createObjectURL(pngBlob);
+    triggerDownload(downloadUrl, `${reference || "e-license"}-qr.png`);
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+  } catch (err) {
+    console.error("Failed to download QR code:", err);
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function triggerDownload(url, filename) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function getDownloadFilename(value, fallbackExtension) {
+  const raw = String(value || "document").trim() || "document";
+  const normalized = raw
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  const extension = String(fallbackExtension || "").replace(/^\./, "");
+
+  if (!extension || /\.[a-z0-9]{2,8}$/i.test(normalized)) {
+    return normalized || `document.${extension}`;
+  }
+
+  return `${normalized}.${extension}`;
+}
+
 function getResubmissionDrilldownTitle(type, t) {
+  if (type === RESUBMISSION_DRILLDOWN_TYPES.complete) {
+    return t("admin.dashboard.completeApplicationsTitle", "Complete Applications");
+  }
   if (type === RESUBMISSION_DRILLDOWN_TYPES.resubmitted) {
     return t("admin.dashboard.resubmittedApplicationsTitle", "Resubmitted Applications");
   }
@@ -1133,6 +1780,9 @@ function getResubmissionDrilldownTitle(type, t) {
 }
 
 function getResubmissionDrilldownDescription(type, t) {
+  if (type === RESUBMISSION_DRILLDOWN_TYPES.complete) {
+    return t("admin.dashboard.completeApplicationsDesc", "Applications completed through QR e-license generation.");
+  }
   if (type === RESUBMISSION_DRILLDOWN_TYPES.resubmitted) {
     return t("admin.dashboard.resubmittedApplicationsDesc", "Applications resubmitted by applicants for review.");
   }
@@ -1158,6 +1808,7 @@ function buildResubmissionMonthlyBuckets(entries, now, language = "en", filters 
       label: formatter.format(date),
       rejected: 0,
       resubmitted: 0,
+      complete: 0,
     };
   });
   const monthMap = new Map(months.map((month) => [month.key, month]));
@@ -1174,6 +1825,8 @@ function buildResubmissionMonthlyBuckets(entries, now, language = "en", filters 
       bucket.rejected += 1;
     } else if (entry.type === "resubmitted") {
       bucket.resubmitted += 1;
+    } else if (entry.type === "complete") {
+      bucket.complete += 1;
     }
   });
 
@@ -1191,6 +1844,7 @@ function buildResubmissionDailyBuckets(entries, now, filters = {}) {
       label: String(day),
       rejected: 0,
       resubmitted: 0,
+      complete: 0,
     };
   });
   const dayMap = new Map(days.map((day) => [day.key, day]));
@@ -1208,6 +1862,8 @@ function buildResubmissionDailyBuckets(entries, now, filters = {}) {
       bucket.rejected += 1;
     } else if (entry.type === "resubmitted") {
       bucket.resubmitted += 1;
+    } else if (entry.type === "complete") {
+      bucket.complete += 1;
     }
   });
 
@@ -1338,6 +1994,21 @@ function getActivityRemark(activity) {
 
 function isRejectedApplication(application) {
   return ["incomplete", "rejected"].includes(normalizeStatus(application?.status));
+}
+
+function isCompleteApplication(application) {
+  return normalizeStatus(application?.status) === "license_issued";
+}
+
+function getApplicationCompleteDate(application) {
+  const license = application?.form_data?.license || {};
+  return (
+    license.issued_at ||
+    license.issue_date ||
+    application?.updated_at ||
+    application?.created_at ||
+    ""
+  );
 }
 
 function getApplicationRemark(application) {

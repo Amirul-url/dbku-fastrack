@@ -114,6 +114,49 @@ class ApplicationReferenceTests(TestCase):
             "KU(IKL) Confirm - Send to KB(LES)",
         )
 
+    def test_application_list_uses_submitting_person_before_legacy_step_one_applicant(self):
+        User = get_user_model()
+        applicant = User.objects.create_user(
+            username="020215130135",
+            password="testpass123",
+            role="applicant",
+            first_name="REGISTERED",
+            last_name="NAME",
+        )
+        staff = User.objects.create_user(
+            username="pt-ikl",
+            password="testpass123",
+            role="admin",
+            department="PT(IKL)",
+            is_staff=True,
+        )
+        Application.objects.create(
+            applicant=applicant,
+            title="Waterfront hotel signage",
+            status="submitted",
+            form_data={
+                "step_1": {
+                    "applicant": "WATERFRONT HOTEL",
+                    "project_name": "PERMOHONAN PEMASANGAN BILLBOARD WATERFRONT HOTEL KUCHING",
+                },
+                "step_3": {
+                    "org_name": "THE WATERFRONT HOTEL",
+                    "full_name": "MUHAMMAD AMIRUL AQMAL BIN ABDUL LATIP",
+                },
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=staff)
+        response = client.get("/api/applications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(
+            data[0]["applicant_full_name"],
+            "MUHAMMAD AMIRUL AQMAL BIN ABDUL LATIP",
+        )
+
     def test_applicant_submit_marks_application_submitted(self):
         User = get_user_model()
         applicant = User.objects.create_user(

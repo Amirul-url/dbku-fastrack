@@ -306,15 +306,29 @@ export function getApplicantName(app) {
   const usernameLooksLikeNric = /^\d{12}$/.test(username.replace(/\D/g, ""));
 
   return (
-    step1.applicant ||
-    step2.org_name ||
     step2.full_name ||
-    step3.org_name ||
     step3.full_name ||
+    step2.applicant ||
+    step3.applicant ||
+    step2.org_name ||
+    step3.org_name ||
     app?.applicant_full_name ||
+    app?.applicant_registered_name ||
     (!usernameLooksLikeNric ? username : "") ||
+    step1.applicant ||
     "Applicant"
   );
+}
+
+export function getRegisteredApplicantName(app) {
+  const registeredName = String(app?.applicant_registered_name || "").trim();
+  if (registeredName) return registeredName;
+
+  const username = String(app?.applicant_username || "").trim();
+  const usernameLooksLikeNric = /^\d{12}$/.test(username.replace(/\D/g, ""));
+  if (username && !usernameLooksLikeNric) return username;
+
+  return "Applicant";
 }
 
 export function getProjectName(app, language = "en") {

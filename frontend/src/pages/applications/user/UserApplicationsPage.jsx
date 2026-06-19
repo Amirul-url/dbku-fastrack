@@ -167,16 +167,6 @@ function UserApplicationsPage() {
               render: (app) => <StatusPill value={translatedStatus(t, getApplicantFilterStatus(app))} />,
             },
             {
-              key: "remarks",
-              label: t("common.remarks", "Remarks"),
-              className: "w-[22%]",
-              render: (app) => (
-                <span className="block max-w-[24rem] whitespace-normal text-sm leading-5 text-slate-600">
-                  {getApplicationRemark(app) || "-"}
-                </span>
-              ),
-            },
-            {
               key: "updated",
               label: t("common.updated"),
               className: "w-[12%]",

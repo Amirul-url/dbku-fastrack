@@ -41,24 +41,25 @@ def merge_dicts(current, updates):
 
 def get_application_applicant_name(application):
     form_data = application.form_data or {}
-    sections = [
-        form_data.get("step_1") or {},
-        form_data.get("step_2") or {},
-        form_data.get("step_3") or {},
+    step2 = form_data.get("step_2") or {}
+    step3 = form_data.get("step_3") or {}
+    step1 = form_data.get("step_1") or {}
+    if not isinstance(step2, dict):
+        step2 = {}
+    if not isinstance(step3, dict):
+        step3 = {}
+    if not isinstance(step1, dict):
+        step1 = {}
+
+    form_candidates = [
+        step2.get("full_name"),
+        step3.get("full_name"),
+        step2.get("applicant"),
+        step3.get("applicant"),
+        step2.get("org_name"),
+        step3.get("org_name"),
+        step1.get("applicant"),
     ]
-    form_candidates = []
-
-    for section in sections:
-        if not isinstance(section, dict):
-            continue
-
-        form_candidates.extend(
-            [
-                section.get("applicant"),
-                section.get("org_name"),
-                section.get("full_name"),
-            ]
-        )
 
     for value in form_candidates:
         name = str(value or "").strip()

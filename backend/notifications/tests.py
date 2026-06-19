@@ -899,6 +899,48 @@ class NotificationRoutingTests(TestCase):
             },
         )
 
+    def test_ku_ikl_final_check_remarks_are_sent_to_kb_les_channels(self):
+        kb_user = User.objects.create_user(
+            username="kb-final-check",
+            email="kb-final@example.com",
+            password="Password123",
+            mobile_number="0125557799",
+            role="admin",
+            department="KB(LES)",
+            is_active=True,
+        )
+        ku_remark = "KU(IKL) final check completed. Please verify the fee and site documents."
+        self.application.latest_remark = ku_remark
+        self.application.form_data = {
+            **self.application.form_data,
+            "technical_ku_review": {
+                "status": "Verified",
+                "decision": "KU(IKL) Confirm - Send to KB(LES)",
+                "remarks": ku_remark,
+                "reviewed_by": "KU(IKL)",
+            },
+            "kb_les_verification": {
+                "status": "Pending KB(LES) Verification",
+                "routed_from": "KU(IKL)",
+            },
+        }
+        self.application.save(update_fields=["latest_remark", "form_data"])
+
+        self.notify_status("management_review", old_status="technical_review_completed")
+
+        deliveries = NotificationDelivery.objects.filter(
+            recipient_role="admin",
+            metadata__event_status="management_review",
+            user=kb_user,
+        )
+        self.assertEqual(
+            set(deliveries.values_list("channel", flat=True)),
+            {"web", "email", "whatsapp"},
+        )
+        for delivery in deliveries:
+            self.assertIn(f"Remark: {ku_remark}", delivery.message)
+            self.assertIn(f"Remark: {ku_remark}", delivery.metadata["message_en"])
+
     def test_ku_ikl_rejection_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Rejected by KU(IKL). Please update the site details."
         self.application.form_data = {
