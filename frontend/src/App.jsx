@@ -31,7 +31,6 @@ import UserProfilePage from "./pages/profile/UserProfilePage";
 /* ADMIN APPLICATION */
 import AdminApplicationsPage from "./pages/applications/admin/AdminApplicationsPage";
 import AdminApplicationDetailPage from "./pages/applications/admin/AdminApplicationDetailPage";
-import AdminGuidelinesPage from "./pages/guidelines/AdminGuidelinesPage";
 
 /* USER APPLICATION STEPS */
 import SittingApplicationPage from "./pages/applications/user/steps/SittingApplicationPage";
@@ -511,15 +510,6 @@ function App() {
           element={
             <AdminRoute>
               <AdminApplicationsPage />
-            </AdminRoute>
-          }
-        />
-
-        <Route
-          path="/admin/guidelines"
-          element={
-            <AdminRoute>
-              <AdminGuidelinesPage />
             </AdminRoute>
           }
         />

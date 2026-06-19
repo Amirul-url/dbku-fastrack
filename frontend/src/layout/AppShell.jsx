@@ -60,14 +60,6 @@ function readSessionBoolean(key, fallback = false) {
   }
 }
 
-function hasSessionBoolean(key) {
-  try {
-    return window.sessionStorage.getItem(key) !== null;
-  } catch {
-    return false;
-  }
-}
-
 function writeSessionBoolean(key, value) {
   try {
     window.sessionStorage.setItem(key, value ? "true" : "false");
@@ -78,21 +70,24 @@ function writeSessionBoolean(key, value) {
 
 function buildAdminNav(taskCounts = {}, user = null) {
   if (isMphlgUser(user)) {
+    const approvalBadge = taskCounts.approval || 0;
+
     return [
       {
         labelKey: "nav.dashboard",
         fallback: "Dashboard",
         path: "/dashboard/admin",
-        view: "dashboard",
         icon: "dashboard",
-      },
-      {
-        labelKey: "admin.dashboard.awaitingApproval",
-        fallback: "Awaiting Approval",
-        path: "/dashboard/admin?view=approval",
-        view: "approval",
-        icon: "check_circle",
-        badge: taskCounts.approval || 0,
+        badge: approvalBadge,
+        children: [
+          {
+            labelKey: "admin.dashboard.awaitingApproval",
+            fallback: "Awaiting Approval",
+            path: "/dashboard/admin?view=approval",
+            view: "approval",
+            badge: approvalBadge,
+          },
+        ],
       },
     ];
   }
@@ -143,12 +138,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
           badge: eLicensePaymentBadge + eLicenseLicenseBadge,
         }
       : null,
-    {
-      labelKey: "nav.guidelines",
-      fallback: "Guidelines",
-      path: "/admin/guidelines",
-      icon: "menu_book",
-    },
   ].filter(Boolean);
 }
 
@@ -215,7 +204,7 @@ function AppShell({ children, role = "admin" }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(() =>
-    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false)
+    readSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true)
   );
   const [adminELicensesOpen, setAdminELicensesOpen] = useState(() =>
     readSessionBoolean(ADMIN_E_LICENSES_MENU_KEY, false)
@@ -283,9 +272,9 @@ function AppShell({ children, role = "admin" }) {
           setApplicantSeenAt(getApplicantRecordSeen(normalizedUser));
         }
 
-        if (role === "admin" && !hasSessionBoolean(ADMIN_DASHBOARD_MENU_KEY)) {
-          setAdminDashboardOpen(false);
-          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, false);
+        if (role === "admin") {
+          setAdminDashboardOpen(true);
+          writeSessionBoolean(ADMIN_DASHBOARD_MENU_KEY, true);
         }
       })
       .catch(() => {});
