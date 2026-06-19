@@ -740,8 +740,8 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
     return buildDrilldownYearOptions(rows, filters.year);
   }, [filters.year, rows]);
   const filteredRows = useMemo(() => {
-    return isCompleteDrilldown ? rows : filterResubmissionDrilldownRows(rows, filters);
-  }, [filters, isCompleteDrilldown, rows]);
+    return filterResubmissionDrilldownRows(rows, filters);
+  }, [filters, rows]);
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / RESUBMISSION_DRILLDOWN_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
   const visibleRows = filteredRows.slice(
@@ -852,13 +852,13 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       </div>
 
       <div className="p-4">
-        {!isCompleteDrilldown && (
+        {!selectedCompleteRow && (
           <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_190px_auto] lg:items-end">
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
               <span>{t("common.search", "Search")}</span>
               <input
                 className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 shadow-sm focus:border-emerald-600 focus:outline-none"
-                placeholder={t("admin.dashboard.searchStatisticRecords", "Search reference, project, or remarks")}
+                placeholder={t("admin.dashboard.searchStatisticRecords", "Search reference, applicant name, or project")}
                 type="search"
                 value={filters.search}
                 onChange={(event) =>
