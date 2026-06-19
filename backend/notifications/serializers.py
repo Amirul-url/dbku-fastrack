@@ -54,15 +54,37 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
 
     def get_latest_remark(self, obj):
         application = getattr(obj, "application", None)
-        remark = str(getattr(application, "latest_remark", "") or "").strip()
-        if remark and remark not in {"-", "[]"}:
-            return remark
-
         form_data = getattr(application, "form_data", None) or {}
 
         def section(name):
             value = form_data.get(name) or {}
             return value if isinstance(value, dict) else {}
+
+        event_status = str((obj.metadata or {}).get("event_status") or getattr(application, "status", "") or "").strip().lower()
+        kb_status = normalize_notification_status(section("kb_les_verification").get("status"))
+        support_status = normalize_notification_status(section("management_recommendation").get("status"))
+
+        if event_status == "management_review" and kb_status not in {"verified", "supported", "completed"}:
+            return first_notification_remark(
+                section("technical_ku_review").get("remarks"),
+                section("technical_ku_review").get("comment"),
+                getattr(application, "latest_remark", ""),
+            )
+
+        if (
+            event_status == "management_review"
+            and kb_status in {"verified", "supported", "completed"}
+            and support_status not in {"supported", "approved", "completed"}
+        ):
+            return first_notification_remark(
+                section("kb_les_verification").get("remarks"),
+                section("management_recommendation").get("remarks"),
+                getattr(application, "latest_remark", ""),
+            )
+
+        remark = clean_notification_remark(getattr(application, "latest_remark", ""))
+        if remark:
+            return remark
 
         candidates = [
             section("correction_request").get("remarks"),
@@ -74,8 +96,8 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
         ]
 
         for value in candidates:
-            remark = str(value or "").strip()
-            if remark and remark not in {"-", "[]"}:
+            remark = clean_notification_remark(value)
+            if remark:
                 return remark
 
         return ""
@@ -123,3 +145,21 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
             "created_at",
             "read_at",
         ]
+
+
+def first_notification_remark(*values):
+    for value in values:
+        remark = clean_notification_remark(value)
+        if remark:
+            return remark
+
+    return ""
+
+
+def clean_notification_remark(value):
+    remark = str(value or "").strip()
+    return "" if remark in {"", "-", "[]"} else remark
+
+
+def normalize_notification_status(value):
+    return str(value or "").strip().lower()

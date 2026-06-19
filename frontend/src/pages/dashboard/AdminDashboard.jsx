@@ -3,6 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
+import { ApprovalTechnicalReviewSummary } from "../admin/ProcessWorkspace";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest, fetchApplicationList, fetchAuthenticatedBlob, getStoredUser } from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
@@ -719,13 +720,18 @@ function ResubmissionSummaryCard({ active, count, label, onClick, tone }) {
 }
 
 function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type }) {
+  const location = useLocation();
   const [filters, setFilters] = useState(() => ({
     month: RESUBMISSION_MONTH_ALL,
     search: "",
     year: String(new Date().getFullYear()),
   }));
   const [page, setPage] = useState(0);
-  const [selectedCompleteRowId, setSelectedCompleteRowId] = useState("");
+  const initialCompleteRowId =
+    type === RESUBMISSION_DRILLDOWN_TYPES.complete
+      ? new URLSearchParams(location.search).get("completeId") || ""
+      : "";
+  const [selectedCompleteRowId, setSelectedCompleteRowId] = useState(initialCompleteRowId);
   const title = getResubmissionDrilldownTitle(type, t);
   const description = getResubmissionDrilldownDescription(type, t);
   const isCompleteDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.complete;
@@ -815,8 +821,14 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
 
   useEffect(() => {
     setPage(0);
+    if (type === RESUBMISSION_DRILLDOWN_TYPES.complete) {
+      setSelectedCompleteRowId(
+        new URLSearchParams(location.search).get("completeId") || ""
+      );
+      return;
+    }
     setSelectedCompleteRowId("");
-  }, [filters.month, filters.search, filters.year, type]);
+  }, [filters.month, filters.search, filters.year, location.search, type]);
 
   useEffect(() => {
     setPage((current) => Math.min(current, totalPages - 1));
@@ -905,7 +917,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
         )}
         {selectedCompleteRow ? (
           <div>
-            <CompleteApplicationCard row={selectedCompleteRow} t={t} />
+            <CompleteApplicationCard row={selectedCompleteRow} t={t} language={language} />
           </div>
         ) : (
           <DataTable
@@ -948,7 +960,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
   );
 }
 
-function CompleteApplicationCard({ row, t }) {
+function CompleteApplicationCard({ row, t, language = "en" }) {
   const app = row.application || {};
   const [showVerificationReport, setShowVerificationReport] = useState(false);
   const reference = row.reference || getApplicationReference(app);
@@ -959,7 +971,11 @@ function CompleteApplicationCard({ row, t }) {
   const qrContainerRef = useRef(null);
   const documents = getCompleteApplicationDocuments(app, t);
   const applicantReceipt = getApplicantReceiptDocument(app, t);
-  const viewPath = getResubmissionApplicationViewPath(row.applicationId, RESUBMISSION_DRILLDOWN_TYPES.complete);
+  const viewPath = getResubmissionApplicationViewPath(
+    row.applicationId,
+    RESUBMISSION_DRILLDOWN_TYPES.complete,
+    row.id
+  );
 
   return (
     <article className="rounded-md border border-slate-200 bg-white p-3">
@@ -993,7 +1009,17 @@ function CompleteApplicationCard({ row, t }) {
         </button>
       </div>
 
-      {showVerificationReport && <CompletedVerificationReport app={app} t={t} />}
+      {showVerificationReport && (
+        <div className="mt-3">
+          <ApprovalTechnicalReviewSummary
+            t={t}
+            language={language}
+            selectedRecord={app}
+            technicalSite={app?.form_data?.technical_site_visit || {}}
+            userDepartment="KB(LES)"
+          />
+        </div>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(300px,32%)_1fr]">
         <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -1088,125 +1114,6 @@ function CompleteMetaBlock({ label, value }) {
       <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value || "-"}</p>
     </div>
   );
-}
-
-function CompletedVerificationReport({ app, t }) {
-  const formData = app?.form_data || {};
-  const step1 = formData.step_1 || {};
-  const technicalReview = formData.technical_review || {};
-  const kuReview = formData.technical_ku_review || {};
-  const departmentReviews = formData.technical_department_reviews || {};
-  const selectedDepartments = Array.isArray(step1.technical_departments)
-    ? step1.technical_departments
-    : Object.keys(departmentReviews);
-  const departmentRows = selectedDepartments
-    .map((department) => ({
-      department,
-      review: departmentReviews?.[department] || {},
-    }))
-    .filter((row) => row.department);
-
-  return (
-    <section className="mt-3 rounded-md border border-slate-200 bg-slate-50">
-      <div className="border-b border-slate-200 px-3 py-3">
-        <h3 className="text-sm font-semibold text-slate-950">
-          {t("workspace.approval.verificationReport", "Verification Report")}
-        </h3>
-      </div>
-
-      <div className="grid gap-3 p-3">
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <h4 className="text-xs font-semibold uppercase text-slate-500">
-            {t("workspace.technical.iklTechnicalRemarks", "IKL(TECHNICAL) Remarks")}
-          </h4>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <CompletedReportField
-              label={t("common.decision", "Decision")}
-              value={technicalReview.final_decision || technicalReview.decision}
-            />
-            <CompletedReportField
-              label={t("common.updated", "Updated")}
-              value={formatCompactDateTime(technicalReview.reviewed_at)}
-            />
-          </div>
-          <CompletedReportField
-            className="mt-2"
-            label={t("common.remarks", "Remarks")}
-            value={technicalReview.comment || technicalReview.remarks}
-            multiline
-          />
-        </div>
-
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <h4 className="text-xs font-semibold uppercase text-slate-500">
-            {t("status.technical_ku_review", "Pending KU(IKL) Final Check")}
-          </h4>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <CompletedReportField
-              label={t("common.decision", "Decision")}
-              value={kuReview.decision}
-            />
-            <CompletedReportField
-              label={t("common.updated", "Updated")}
-              value={formatCompactDateTime(kuReview.reviewed_at)}
-            />
-          </div>
-          <CompletedReportField
-            className="mt-2"
-            label={t("common.remarks", "Remarks")}
-            value={kuReview.comment || kuReview.remarks}
-            multiline
-          />
-        </div>
-
-        <div className="rounded-md border border-slate-200 bg-white">
-          <h4 className="border-b border-slate-200 px-3 py-3 text-xs font-semibold uppercase text-slate-500">
-            {t("workspace.technical.departmentFeedbackStatus", "Department Feedback Status")}
-          </h4>
-          {departmentRows.length > 0 ? (
-            <div className="divide-y divide-slate-200">
-              {departmentRows.map(({ department, review }) => (
-                <div key={department} className="grid gap-2 px-3 py-3 md:grid-cols-[120px_1fr_1fr]">
-                  <p className="text-sm font-semibold text-slate-900">{department}</p>
-                  <CompletedReportField
-                    label={t("common.status", "Status")}
-                    value={review.status || review.decision || review.result}
-                  />
-                  <CompletedReportField
-                    label={t("common.remarks", "Remarks")}
-                    value={review.remarks || review.comment}
-                    multiline
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="px-3 py-4 text-sm font-medium text-slate-500">
-              {t("workspace.technical.noDepartmentFeedback", "No department feedback recorded.")}
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CompletedReportField({ className = "", label, value, multiline = false }) {
-  const displayValue = cleanReportValue(value);
-
-  return (
-    <div className={className}>
-      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-      <p className={`mt-1 text-sm font-medium text-slate-900 ${multiline ? "whitespace-pre-wrap" : ""}`}>
-        {displayValue}
-      </p>
-    </div>
-  );
-}
-
-function cleanReportValue(value) {
-  const text = String(value || "").trim();
-  return text && text !== "Invalid Date" ? text : "-";
 }
 
 function CompleteDocumentRow({ app, document, t }) {
@@ -1482,8 +1389,15 @@ function buildResubmissionDrilldownRows(type, insights, t) {
     .sort(sortRowsByDateDesc);
 }
 
-function getResubmissionApplicationViewPath(applicationId, type) {
-  const returnTo = encodeURIComponent(`/dashboard/admin?view=dashboard&resubmission=${type}`);
+function getResubmissionApplicationViewPath(applicationId, type, selectedRowId = "") {
+  const returnParams = new URLSearchParams({
+    view: "dashboard",
+    resubmission: type,
+  });
+  if (type === RESUBMISSION_DRILLDOWN_TYPES.complete && selectedRowId) {
+    returnParams.set("completeId", selectedRowId);
+  }
+  const returnTo = encodeURIComponent(`/dashboard/admin?${returnParams.toString()}`);
   const from = type === RESUBMISSION_DRILLDOWN_TYPES.complete
     ? "completed-approvals"
     : "action-panel";

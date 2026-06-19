@@ -1174,7 +1174,7 @@ def build_status_messages(application):
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         amendment_source = get_ku_amendment_source(application) or "KB(LES)"
-        title = "KU(IKL) amendment required"
+        title = f"Application {application.reference_no} amendment required"
         admin_body = (
             f"Application {application.reference_no} was returned by {amendment_source} and requires "
             "KU(IKL) amendment before verification can continue."
@@ -1281,7 +1281,7 @@ def build_web_metadata(application, title, body, recipient_role):
         metadata["memo_template"] = "kb_les_to_tp_pgh"
         metadata["display_status"] = "approval_support"
         metadata["from"] = "KB(LES)"
-        metadata["sender"] = "KB(LES)"
+        metadata["sender"] = sender or "KB(LES) <ALiS Notification Center>"
         metadata["to"] = "TP(RES)/PGH"
     elif memo_html and status_key == "ku_ikl_review":
         metadata["memo_html"] = memo_html
@@ -1526,7 +1526,10 @@ def get_notification_status_label(application):
 def get_message_remark(application):
     status_key = str(application.status or "").strip().lower()
     if status_key == "management_review" and is_kb_les_verification_pending(application):
-        return get_latest_remark(application)
+        return get_kb_les_verification_remark(application)
+
+    if status_key == "management_review" and is_management_support_pending(application):
+        return get_management_support_remark(application)
 
     if status_key not in REMARK_REPEAT_STATUSES and not (
         status_key == "invoice_generated" and is_payment_receipt_rejected(application)
@@ -1536,6 +1539,22 @@ def get_message_remark(application):
         return ""
 
     return get_latest_remark(application)
+
+
+def get_kb_les_verification_remark(application):
+    return first_clean_remark(
+        get_form_section(application, "technical_ku_review").get("remarks"),
+        get_form_section(application, "technical_ku_review").get("comment"),
+        getattr(application, "latest_remark", ""),
+    )
+
+
+def get_management_support_remark(application):
+    return first_clean_remark(
+        get_form_section(application, "kb_les_verification").get("remarks"),
+        get_form_section(application, "management_recommendation").get("remarks"),
+        getattr(application, "latest_remark", ""),
+    )
 
 
 def is_ku_ikl_technical_referral(application):
@@ -1560,12 +1579,23 @@ def get_latest_remark(application):
         section("technical_ku_review").get("comment"),
         section("technical_review").get("comment"),
         section("technical_review").get("remarks"),
+        section("kb_les_verification").get("remarks"),
+        section("management_recommendation").get("remarks"),
         section("approval").get("notes"),
         section("approval").get("comment"),
         section("payment").get("verification_notes"),
     ]
 
     for value in candidates:
+        remark = clean_remark(value)
+        if remark:
+            return remark
+
+    return ""
+
+
+def first_clean_remark(*values):
+    for value in values:
         remark = clean_remark(value)
         if remark:
             return remark

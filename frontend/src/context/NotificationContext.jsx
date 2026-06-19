@@ -75,10 +75,34 @@ function saveStoredIds(ids) {
 }
 
 function getLatestRemark(app) {
+  const form = app?.form_data || {};
+  const status = normalizeStatus(app?.status);
+  const kbStatus = normalizeStatus(form.kb_les_verification?.status);
+  const supportStatus = normalizeStatus(form.management_recommendation?.status);
+
+  if (status === "management_review" && !["verified", "supported", "completed"].includes(kbStatus)) {
+    return cleanRemark(
+      form.technical_ku_review?.remarks ||
+      form.technical_ku_review?.comment ||
+      app?.latest_remark
+    );
+  }
+
+  if (
+    status === "management_review" &&
+    ["verified", "supported", "completed"].includes(kbStatus) &&
+    !["supported", "approved", "completed"].includes(supportStatus)
+  ) {
+    return cleanRemark(
+      form.kb_les_verification?.remarks ||
+      form.management_recommendation?.remarks ||
+      app?.latest_remark
+    );
+  }
+
   const summaryRemark = cleanRemark(app?.latest_remark);
   if (summaryRemark) return summaryRemark;
 
-  const form = app?.form_data || {};
   return cleanRemark(
     form.correction_request?.remarks ||
     form.auto_screening?.remarks ||
@@ -311,8 +335,8 @@ function getMemoSubject(subject, title, reference, options = {}) {
   if (role === "admin" && status === "technical_review_completed" && department === "KU(IKL)") {
     if (/amendment/i.test(cleanTitle)) {
       return cleanReference
-        ? `${cleanReference} requires KU(IKL) amendment`
-        : "Application requires KU(IKL) amendment";
+        ? `Application ${cleanReference} amendment required`
+        : "Application amendment required";
     }
 
     return cleanReference

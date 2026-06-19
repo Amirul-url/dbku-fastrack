@@ -241,6 +241,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [commentError, setCommentError] = useState("");
   const [technicalSizeError, setTechnicalSizeError] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
+  const [decisionInput, setDecisionInput] = useState("");
+  const [decisionError, setDecisionError] = useState("");
   const [comment, setComment] = useState("");
   const [licenseExpiryYears, setLicenseExpiryYears] = useState("1");
   const [memoDraft, setMemoDraft] = useState("");
@@ -259,6 +261,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const manualLicenseDraftTimerRef = useRef(null);
   const manualLicenseDraftSavePromiseRef = useRef(null);
   const manualLicenseDraftDataRef = useRef(null);
+  const decisionInputRef = useRef(null);
+  const commentRef = useRef(null);
   const formViewFallbackTimerRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
     application_subtype: "",
@@ -640,7 +644,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     approvalStageKey === "mphlg" &&
     MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
   const showApprovalDecisionButtons = false;
-  const decisionOptions = getWorkspaceDecisionOptions(config, selectedRecord, userDepartment);
+  const decisionOptions = useMemo(
+    () => getWorkspaceDecisionOptions(config, selectedRecord, userDepartment),
+    [
+      approvalStageKey,
+      config,
+      selectedRecord?.id,
+      selectedRecord?.status,
+      selectedRecord?.updated_at,
+      userDepartment,
+    ]
+  );
   const isKbLesSupportWorkspace =
     isApprovalWorkspace && userDepartment === "KB(LES)" && approvalStageKey === "kb_support";
   const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
@@ -720,6 +734,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     userDepartment === "PT(IKL)" &&
     normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
     workspaceActions.some((action) => action.requiresSubmittedReceipt);
+  const useTypedApprovalDecision =
+    isApprovalWorkspace &&
+    canSubmitWorkspaceAction &&
+    !isApprovalLicenseManagement &&
+    !isApprovalSupportWorkspace &&
+    !showApprovalDecisionButtons &&
+    !showPaymentReceiptDecision;
+  const workspaceCommentRequired =
+    workspaceActions.some((action) => action.requiresComment) ||
+    useTypedApprovalDecision;
   const showWorkspaceCommentField =
     !isApprovalLicenseManagement &&
     config.showComment &&
@@ -815,18 +839,30 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   useEffect(() => {
     if (isApprovalSupportWorkspace) {
       setDecision(isFinalApprovalSupportWorkspace ? "Approve" : "");
+      setDecisionInput("");
+      setDecisionError("");
       setLicenseExpiryYears("1");
       return;
     }
 
-    setDecision(getDefaultWorkspaceDecision(config, selectedRecord, userDepartment));
+    const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
+    setDecision(nextDecision);
+    setDecisionInput(
+      useTypedApprovalDecision
+        ? getWorkspaceDecisionInput(nextDecision, decisionOptions, t)
+        : ""
+    );
+    setDecisionError("");
     setLicenseExpiryYears("1");
   }, [
     approvalStageKey,
     canReuseSavedApprovalMemo,
     config,
+    decisionOptions,
     isApprovalSupportWorkspace,
     selectedRecord?.id,
+    t,
+    useTypedApprovalDecision,
     userDepartment,
   ]);
 
@@ -1519,6 +1555,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (!action) return;
 
     submitAction(action, { decision: decisionValue, checkDecisionRemark: false });
+  }
+
+  function submitWorkspaceAction(action) {
+    if (useTypedApprovalDecision) {
+      if (!decision) {
+        setDecisionError(getWorkspaceDecisionInputPrompt(decisionOptions, t));
+        decisionInputRef.current?.focus();
+        return;
+      }
+
+      if (!cleanRemark(comment)) {
+        setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+        commentRef.current?.focus();
+        return;
+      }
+    }
+
+    submitAction(action);
   }
 
   function isKbLesDecisionAction(action, actionDecision) {
@@ -2426,24 +2480,54 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           : t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Decision")
                       }
                     >
-                      <select
-                        value={decision}
-                        onChange={(event) => setDecision(event.target.value)}
-                        className={`form-input ${tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "max-w-xs" : ""}`}
-                      >
-                        {!isKbLesSupportWorkspace && (
-                          <option value="">
-                            {isMphlgApprovalWorkspace
-                              ? t("workspace.decision.selectDecisionDashed", "--select decision--")
-                              : t("workspace.decision.selectDecision", "Select decision")}
-                          </option>
-                        )}
-                        {decisionOptions.map((item) => (
-                          <option key={item.value || item} value={item.value || item}>
-                            {t(item.labelKey, item.label || item)}
-                          </option>
-                        ))}
-                      </select>
+                      {useTypedApprovalDecision ? (
+                        <>
+                          <input
+                            ref={decisionInputRef}
+                            type="text"
+                            value={decisionInput}
+                            onChange={(event) => {
+                              const nextValue = event.target.value;
+                              setDecisionInput(nextValue);
+                              if (decisionError) setDecisionError("");
+                              setDecision(getWorkspaceDecisionFromInput(nextValue, decisionOptions, t));
+                            }}
+                            onBlur={() => {
+                              if (decision) {
+                                setDecisionInput(getWorkspaceDecisionInput(decision, decisionOptions, t));
+                              }
+                            }}
+                            className={`form-input w-full max-w-[28rem] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                            placeholder={getWorkspaceDecisionInputPrompt(decisionOptions, t)}
+                            inputMode="text"
+                            aria-invalid={Boolean(decisionError)}
+                          />
+                          {decisionError && (
+                            <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                              {decisionError}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <select
+                          value={decision}
+                          onChange={(event) => setDecision(event.target.value)}
+                          className={`form-input ${tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "max-w-xs" : ""}`}
+                        >
+                          {!isKbLesSupportWorkspace && (
+                            <option value="">
+                              {isMphlgApprovalWorkspace
+                                ? t("workspace.decision.selectDecisionDashed", "--select decision--")
+                                : t("workspace.decision.selectDecision", "Select decision")}
+                            </option>
+                          )}
+                          {decisionOptions.map((item) => (
+                            <option key={item.value || item} value={item.value || item}>
+                              {t(item.labelKey, item.label || item)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </Field>
                   )}
 
@@ -2515,8 +2599,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <Field
                       label={
                         <>
-                          {t(config.commentLabelKey, config.commentLabel || "Notes")}
-                          {workspaceActions.some((action) => action.requiresComment) && (
+                          {useTypedApprovalDecision
+                            ? t("workspace.comment.remarks", "Remarks")
+                            : t(config.commentLabelKey, config.commentLabel || "Notes")}
+                          {workspaceCommentRequired && (
                             <span className="ml-1 text-red-600">*</span>
                           )}
                         </>
@@ -2524,14 +2610,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       labelClassName={showPaymentReceiptDecision ? "!text-[13px]" : ""}
                     >
                       <textarea
+                        ref={commentRef}
                         value={comment}
                         onChange={(event) => {
                           setComment(event.target.value);
                           if (commentError) setCommentError("");
                         }}
                         rows="5"
-                        required={workspaceActions.some((action) => action.requiresComment)}
-                        aria-required={workspaceActions.some((action) => action.requiresComment)}
+                        required={workspaceCommentRequired}
+                        aria-required={workspaceCommentRequired}
+                        aria-invalid={Boolean(commentError)}
                         className={`form-input ${showPaymentReceiptDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                         placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
                       />
@@ -2737,7 +2825,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       workspaceActions.map((action) => (
                         <Button
                           key={action.label}
-                          onClick={() => submitAction(action)}
+                          onClick={() => submitWorkspaceAction(action)}
                           disabled={saving}
                           variant={action.variant || "primary"}
                           icon={action.icon}
@@ -6817,7 +6905,7 @@ const configs = {
     ],
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
-    commentPlaceholder: "Enter notes if needed. Required when rejecting.",
+    commentPlaceholder: "Enter remarks for this decision.",
     commentPlaceholderKey: "workspace.comment.approvalPlaceholder",
     stats: (apps) => [
       { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
@@ -8575,7 +8663,7 @@ function KuTechnicalFurtherReviewPanel({
   );
 }
 
-function ApprovalTechnicalReviewSummary({
+export function ApprovalTechnicalReviewSummary({
   t,
   language,
   selectedRecord,
@@ -8975,6 +9063,51 @@ function getKuTechnicalReviewDecisionFromInput(
   });
 
   return option?.value || "";
+}
+
+function getWorkspaceDecisionInput(
+  decision,
+  decisions = [],
+  t = (key, fallback) => fallback || key
+) {
+  const option = decisions.find((item) => (item.value || item) === decision);
+
+  return option ? t(option.labelKey, option.label || option.value || option) : decision || "";
+}
+
+function getWorkspaceDecisionFromInput(
+  value,
+  decisions = [],
+  t = (key, fallback) => fallback || key
+) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+
+  const option = decisions.find((item) => {
+    const decisionValue = String(item.value || item || "").trim().toLowerCase();
+    const decisionLabel = String(t(item.labelKey, item.label || item.value || item) || "")
+      .trim()
+      .toLowerCase();
+
+    return normalized === decisionValue || normalized === decisionLabel;
+  });
+
+  return option?.value || option || "";
+}
+
+function getWorkspaceDecisionInputPrompt(
+  decisions = [],
+  t = (key, fallback) => fallback || key
+) {
+  const labels = decisions
+    .map((item) => t(item.labelKey, item.label || item.value || item))
+    .filter(Boolean);
+
+  if (labels.length > 0) {
+    return `Type ${labels.join(" or ")}`;
+  }
+
+  return t("workspace.decision.required", "Please select a decision.");
 }
 
 function TechnicalSiteVisitFields({

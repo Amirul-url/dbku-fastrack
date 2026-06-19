@@ -1227,6 +1227,7 @@ class NotificationRoutingTests(TestCase):
             **self.application.form_data,
             "technical_ku_review": {
                 "decision": "KU(IKL) Confirm - Send to KB(LES)",
+                "remarks": "proceed next",
                 "memo_html": memo_html,
             },
             "kb_les_verification": {
@@ -1235,7 +1236,8 @@ class NotificationRoutingTests(TestCase):
                 "memo_html": memo_html,
             },
         }
-        self.application.save(update_fields=["form_data"])
+        self.application.latest_remark = "okay"
+        self.application.save(update_fields=["form_data", "latest_remark"])
 
         self.notify_status("management_review", old_status="technical_review_completed")
 
@@ -1249,6 +1251,16 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_final_review")
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "KB(LES)")
+        self.assertIn("Remark: proceed next", delivery.message)
+        self.assertIn("Remark: proceed next", delivery.metadata["message_en"])
+        self.assertNotIn("Remark: okay", delivery.message)
+
+        client = APIClient()
+        client.force_authenticate(user=kb_user)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(data[0]["latest_remark"], "proceed next")
 
     def test_management_review_does_not_use_fallback_when_staff_account_has_no_contacts(self):
         kb_user = User.objects.create_user(
@@ -1334,9 +1346,9 @@ class NotificationRoutingTests(TestCase):
     def test_management_review_notifies_tp_pgh_after_kb_les_support(self):
         tp_user = User.objects.create_user(
             username="tp-res",
-            email="",
+            email="tp-res@example.com",
             password="Password123",
-            mobile_number="",
+            mobile_number="60123450001",
             role="supervisor",
             department="TP(RES)",
             is_active=True,
@@ -1352,20 +1364,29 @@ class NotificationRoutingTests(TestCase):
         )
         self.application.form_data = {
             **self.application.form_data,
-            "kb_les_verification": {"status": "Supported"},
+            "kb_les_verification": {
+                "status": "Supported",
+                "decision": "Verify",
+                "remarks": "Verified by KB(LES), please proceed.",
+            },
             "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
         }
-        self.application.save(update_fields=["form_data"])
+        self.application.latest_remark = "older remark"
+        self.application.save(update_fields=["form_data", "latest_remark"])
 
         self.notify_status("management_review")
 
         deliveries = NotificationDelivery.objects.filter(
-            channel="web",
             recipient_role="admin",
             metadata__event_status="management_review",
+            user=tp_user,
         )
-        self.assertTrue(deliveries.filter(user=tp_user).exists())
-        delivery = deliveries.get(user=tp_user)
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        for delivery in deliveries:
+            self.assertIn("Verified by KB(LES), please proceed.", delivery.message)
+            self.assertIn("Verified by KB(LES), please proceed.", delivery.metadata["message_en"])
+            self.assertNotIn("older remark", delivery.message)
+        delivery = deliveries.get(channel="web")
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
         self.assertIn("TP(RES)/PGH final approval", delivery.metadata["message_en"])
         self.assertNotIn("KB(LES) support", delivery.metadata["title_en"])
@@ -1411,6 +1432,7 @@ class NotificationRoutingTests(TestCase):
             username="ku-ikl-return",
             email="ku-return@example.com",
             password="Password123",
+            mobile_number="60123450002",
             role="admin",
             department="KU(IKL)",
             is_active=True,
@@ -1437,12 +1459,23 @@ class NotificationRoutingTests(TestCase):
 
         self.notify_status("technical_review_completed", old_status="management_review")
 
-        delivery = NotificationDelivery.objects.get(
-            channel="web",
+        deliveries = NotificationDelivery.objects.filter(
             user=ku_user,
             metadata__event_status="technical_review_completed",
         )
-        self.assertIn("KU(IKL) amendment required", delivery.metadata["title_en"])
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        for delivery in deliveries:
+            self.assertIn("Please amend the recommendation.", delivery.message)
+            self.assertIn("Please amend the recommendation.", delivery.metadata["message_en"])
+        delivery = deliveries.get(channel="web")
+        self.assertEqual(
+            delivery.metadata["title_en"],
+            f"Application {self.application.reference_no} amendment required",
+        )
+        self.assertEqual(
+            delivery.subject,
+            f"ALiS - Application {self.application.reference_no} amendment required",
+        )
         self.assertIn("returned by KB(LES)", delivery.metadata["message_en"])
         self.assertEqual(delivery.metadata["from"], "KB(LES)")
         self.assertEqual(delivery.metadata["to"], "KU(IKL)")
@@ -1485,7 +1518,14 @@ class NotificationRoutingTests(TestCase):
             user=ku_user,
             metadata__event_status="technical_review_completed",
         )
-        self.assertIn("KU(IKL) amendment required", delivery.metadata["title_en"])
+        self.assertEqual(
+            delivery.metadata["title_en"],
+            f"Application {self.application.reference_no} amendment required",
+        )
+        self.assertEqual(
+            delivery.subject,
+            f"ALiS - Application {self.application.reference_no} amendment required",
+        )
         self.assertIn("returned by MPHLG", delivery.metadata["message_en"])
         self.assertEqual(delivery.metadata["from"], "MPHLG")
         self.assertEqual(delivery.metadata["to"], "KU(IKL)")
@@ -1715,7 +1755,7 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["sender"], "KB(LES) <ALiS Notification Center>")
-        self.assertEqual(delivery.metadata["to"], "TP(RES)")
+        self.assertEqual(delivery.metadata["to"], "TP(RES)/PGH")
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
 
 
