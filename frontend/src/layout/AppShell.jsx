@@ -69,8 +69,25 @@ function writeSessionBoolean(key, value) {
 }
 
 function buildAdminNav(taskCounts = {}, user = null) {
+  const department = normalizeDepartmentCode(user?.department);
+  const personalBadge = Number(taskCounts.personal || 0);
+  const approvalBadge = Number(taskCounts.approval || 0);
+  const isApprovalDepartment =
+    department === "KB(LES)" ||
+    APPROVAL_SUPPORT_DEPARTMENTS.has(department) ||
+    department === "MPHLG";
+  const personalTaskChild = department
+    ? {
+        labelKey: "admin.dashboard.personalTask",
+        fallback: "Personal Task",
+        path: "/dashboard/admin?view=personal",
+        view: "personal",
+        badge: personalBadge,
+      }
+    : null;
+
   if (isMphlgUser(user)) {
-    const approvalBadge = taskCounts.approval || 0;
+    const dashboardBadge = Math.max(personalBadge, approvalBadge);
 
     return [
       {
@@ -78,8 +95,9 @@ function buildAdminNav(taskCounts = {}, user = null) {
         fallback: "Dashboard",
         path: "/dashboard/admin",
         icon: "dashboard",
-        badge: approvalBadge,
+        badge: dashboardBadge,
         children: [
+          personalTaskChild,
           {
             labelKey: "admin.dashboard.awaitingApproval",
             fallback: "Awaiting Approval",
@@ -87,35 +105,27 @@ function buildAdminNav(taskCounts = {}, user = null) {
             view: "approval",
             badge: approvalBadge,
           },
-        ],
+        ].filter(Boolean),
       },
     ];
   }
 
-  const isSupervisor = isApprovalWorkflowUser(user);
-
   const dashboardChildren = [
-    isSupervisor
-      ? null
-      : {
-          labelKey: "admin.dashboard.personalTask",
-          fallback: "Personal Task",
-          path: "/dashboard/admin?view=personal",
-          view: "personal",
-          badge: taskCounts.personal || 0,
-        },
+    personalTaskChild,
     {
       labelKey: "admin.dashboard.awaitingApproval",
       fallback: "Awaiting Approval",
       path: "/dashboard/admin?view=approval",
       view: "approval",
-      badge: taskCounts.approval || 0,
+      badge: approvalBadge,
     },
   ].filter(Boolean);
-  const dashboardBadge = dashboardChildren.reduce(
-    (total, child) => total + Number(child.badge || 0),
-    0
-  );
+  const dashboardBadge = isApprovalDepartment
+    ? Math.max(personalBadge, approvalBadge)
+    : dashboardChildren.reduce(
+        (total, child) => total + Number(child.badge || 0),
+        0
+      );
   const eLicensePaymentBadge = Number(taskCounts.eLicensePayment || 0);
   const eLicenseLicenseBadge = Number(taskCounts.eLicenseLicense || 0);
 
@@ -875,18 +885,6 @@ function isELicenseWorkflowUser() {
   return false;
 }
 
-function isApprovalWorkflowUser(user) {
-  const role = String(user?.role || "").trim().toLowerCase();
-  const department = normalizeDepartmentCode(user?.department);
-
-  return (
-    role === "supervisor" ||
-    department === "KB(LES)" ||
-    APPROVAL_SUPPORT_DEPARTMENTS.has(department) ||
-    isMphlgUser(user)
-  );
-}
-
 function isMphlgUser(user) {
   return normalizeDepartmentCode(user?.department) === "MPHLG";
 }
@@ -926,6 +924,22 @@ function isPersonalTaskForDepartment(application, department) {
       isTechnicalDepartmentSelected(application, department) &&
       !hasTechnicalDepartmentReview(application, department)
     );
+  }
+
+  if (department === "KB(LES)") {
+    return status === "management_review" && !isKbLesVerified(application);
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
+    return (
+      status === "management_review" &&
+      isKbLesVerified(application) &&
+      !hasManagementSupport(application)
+    );
+  }
+
+  if (department === "MPHLG") {
+    return status === "mphlg_processing" && !isMphlgReviewComplete(application);
   }
 
   return false;

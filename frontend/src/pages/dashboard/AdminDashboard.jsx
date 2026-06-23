@@ -43,6 +43,20 @@ const APPROVAL_WORKFLOW_DEPARTMENTS = new Set([
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   "MPHLG",
 ]);
+const APPROVAL_HISTORY_STATUSES = [
+  "management_review",
+  "mphlg_processing",
+  "mphlg_decision_received",
+  "approved",
+  "approved_with_conditions",
+  "rejected",
+  "bill_pending_ku",
+  "invoice_generated",
+  "payment_submitted",
+  "payment_verified",
+  "license_issued",
+  "license_revoked",
+];
 const IKL_HISTORY_STATUSES = [
   "submitted",
   "incomplete",
@@ -189,6 +203,72 @@ const units = [
     historyStatuses: IKL_HISTORY_STATUSES,
     path: "/admin/technical-review",
   },
+  {
+    code: "KB(LES)",
+    department: "KB(LES)",
+    title: "KB(LES)",
+    descriptionKey: "admin.workflow.kbLesShort",
+    icon: "verified_user",
+    color: "bg-amber-600",
+    statuses: ["management_review"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
+  {
+    code: "TP(RES)",
+    department: "TP(RES)",
+    title: "TP(RES)",
+    descriptionKey: "admin.workflow.tpPghShort",
+    icon: "approval",
+    color: "bg-violet-600",
+    statuses: ["management_review"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
+  {
+    code: "PGH",
+    department: "PGH",
+    title: "PGH",
+    descriptionKey: "admin.workflow.tpPghShort",
+    icon: "approval",
+    color: "bg-fuchsia-600",
+    statuses: ["management_review"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
+  {
+    code: "TP(RES)/PGH",
+    department: "TP(RES)/PGH",
+    title: "TP(RES)/PGH",
+    descriptionKey: "admin.workflow.tpPghShort",
+    icon: "approval",
+    color: "bg-purple-600",
+    statuses: ["management_review"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
+  {
+    code: "TP/PGH",
+    department: "TP/PGH",
+    title: "TP/PGH",
+    descriptionKey: "admin.workflow.tpPghShort",
+    icon: "approval",
+    color: "bg-pink-600",
+    statuses: ["management_review"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
+  {
+    code: "MPHLG",
+    department: "MPHLG",
+    title: "MPHLG",
+    descriptionKey: "admin.workflow.mphlgShort",
+    icon: "account_balance",
+    color: "bg-slate-700",
+    statuses: ["mphlg_processing"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
 ];
 
 function AdminDashboard() {
@@ -222,12 +302,8 @@ function AdminDashboard() {
     return <ApprovalPage />;
   }
 
-  if (view === "personal" && !isMphlgUser(currentUser)) {
+  if (view === "personal") {
     return <PersonalTaskDashboard />;
-  }
-
-  if (isMphlgUser(currentUser) && view === "personal") {
-    return <MphlgDashboard user={currentUser} />;
   }
 
   if (view === "dashboard") {
@@ -1017,7 +1093,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
           <span className="material-symbols-outlined text-[18px]">visibility</span>
           {showVerificationReport
             ? t("workspace.approval.hideVerificationReport", "Hide Verification Report")
-            : t("workspace.approval.showVerificationReport", "Show Verification Report")}
+            : t("workspace.approval.verificationReport", "Verification Report")}
         </button>
       </div>
 
@@ -1229,23 +1305,6 @@ function CompleteDocumentRow({ app, document, t }) {
         </button>
       </div>
     </div>
-  );
-}
-
-function MphlgDashboard({ user }) {
-  const { t } = useLanguage();
-  const department = normalizeDepartmentCode(user?.department) || "MPHLG";
-
-  return (
-    <AdminDashboardLayout>
-      <div className="mb-5">
-        <h1 className="text-2xl font-semibold text-slate-950">
-          {t("mphlg.dashboard.title", `${department} Dashboard`).replace("{department}", department)}
-        </h1>
-      </div>
-
-      <section className="min-h-[420px] rounded-md border border-slate-200 bg-white" />
-    </AdminDashboardLayout>
   );
 }
 
@@ -2643,6 +2702,17 @@ function hasManagementSupport(application) {
   return ["supported", "approved", "completed"].includes(status);
 }
 
+function isMphlgReviewComplete(application) {
+  const section = getApplicationSection(application, "mphlg_gateway");
+  const status = String(section?.status || "").trim().toLowerCase();
+  const decision = String(section?.decision || section?.recommendation || "").trim();
+
+  return (
+    ["approved", "reviewed", "completed"].includes(status) ||
+    Boolean(decision || section?.reviewed_at || section?.decided_at)
+  );
+}
+
 function getAdminActivityTitle(application, userDepartment, t) {
   const status = normalizeStatus(application.status);
 
@@ -2882,6 +2952,10 @@ function PersonalTaskDashboard() {
 
   const processListUnits = useMemo(() => {
     return unitTasks.filter((unit) => {
+      if (APPROVAL_WORKFLOW_DEPARTMENTS.has(unit.department)) {
+        return unit.department === activeDepartment;
+      }
+
       if (!IKL_DEPARTMENTS.has(unit.department)) return true;
       return IKL_DEPARTMENTS.has(activeDepartment)
         ? unit.department === activeDepartment
@@ -3131,6 +3205,13 @@ function getAssignedUnit(department) {
 function isUnitActionableApplication(application, unit, activeDepartment = "") {
   const isAssignedDepartment =
     !activeDepartment || unit.department === activeDepartment;
+  if (APPROVAL_WORKFLOW_DEPARTMENTS.has(unit.department)) {
+    return (
+      isAssignedDepartment &&
+      isApprovalPersonalTaskForDepartment(application, unit.department)
+    );
+  }
+
   const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
   const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
   const isExternalTechnicalTask =
@@ -3154,6 +3235,10 @@ function isUnitHistoryApplication(application, unit, activeDepartment = "") {
 
   if (!isAssignedDepartment || !isMatchingHistoryStatus) return false;
 
+  if (APPROVAL_WORKFLOW_DEPARTMENTS.has(unit.department)) {
+    return isApprovalPersonalTaskForDepartment(application, unit.department);
+  }
+
   if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department)) {
     return (
       isUnitActionableApplication(application, unit, activeDepartment) ||
@@ -3162,6 +3247,28 @@ function isUnitHistoryApplication(application, unit, activeDepartment = "") {
   }
 
   return true;
+}
+
+function isApprovalPersonalTaskForDepartment(application, department) {
+  const status = normalizeStatus(application?.status);
+
+  if (department === "KB(LES)") {
+    return status === "management_review" && !isKbLesVerified(application);
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
+    return (
+      status === "management_review" &&
+      isKbLesVerified(application) &&
+      !hasManagementSupport(application)
+    );
+  }
+
+  if (department === "MPHLG") {
+    return status === "mphlg_processing" && !isMphlgReviewComplete(application);
+  }
+
+  return false;
 }
 
 function sortApplicationsByUpdatedDate(a, b) {

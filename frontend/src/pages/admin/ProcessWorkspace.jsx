@@ -693,7 +693,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showWorkspaceDecisionLog =
     Boolean(selectedRecord) &&
     showActionPanel &&
-    !isReadOnlyActionPanel &&
     (
       fromPersonalTask ||
       isFocusedPersonalWorkspace ||
@@ -2458,9 +2457,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   }
                 />
 
-              {showWorkspaceDecisionLog && (
-                <>
-                  <div className="flex justify-end">
+              {(showWorkspaceDecisionLog || showWorkspaceVerificationReport) && (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {showWorkspaceDecisionLog && (
                     <Button
                       type="button"
                       variant="secondary"
@@ -2471,26 +2470,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         ? t("workspace.decisionLog.hide", "Hide Log Decision")
                         : t("workspace.decisionLog.show", "Log Decision")}
                     </Button>
-                  </div>
-
-                  {showDecisionLog && (
-                    <WorkspaceDecisionLogReport
-                      app={selectedRecord}
-                      t={t}
-                    />
                   )}
-                </>
-              )}
 
-              {showActionUnavailableNotice && (
-                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold leading-5 text-amber-900 shadow-sm">
-                  {actionUnavailableMessage}
-                </p>
-              )}
-
-              {showWorkspaceVerificationReport && (
-                <>
-                  <div className="flex justify-end">
+                  {showWorkspaceVerificationReport && (
                     <Button
                       type="button"
                       variant="secondary"
@@ -2499,20 +2481,33 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     >
                       {showVerificationReport
                         ? t("workspace.approval.hideVerificationReport", "Hide Verification Report")
-                        : t("workspace.approval.showVerificationReport", "Show Verification Report")}
+                        : t("workspace.approval.verificationReport", "Verification Report")}
                     </Button>
-                  </div>
-
-                  {showVerificationReport && (
-                    <ApprovalTechnicalReviewSummary
-                      t={t}
-                      language={language}
-                      selectedRecord={selectedRecord}
-                      technicalSite={technicalSite}
-                      userDepartment={userDepartment}
-                    />
                   )}
-                </>
+                </div>
+              )}
+
+              {showWorkspaceDecisionLog && showDecisionLog && (
+                <WorkspaceDecisionLogReport
+                  app={selectedRecord}
+                  t={t}
+                />
+              )}
+
+              {showActionUnavailableNotice && (
+                <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold leading-5 text-amber-900 shadow-sm">
+                  {actionUnavailableMessage}
+                </p>
+              )}
+
+              {showWorkspaceVerificationReport && showVerificationReport && (
+                <ApprovalTechnicalReviewSummary
+                  t={t}
+                  language={language}
+                  selectedRecord={selectedRecord}
+                  technicalSite={technicalSite}
+                  userDepartment={userDepartment}
+                />
               )}
 
               {showApprovalPaymentReadOnly && (
@@ -7610,7 +7605,7 @@ const configs = {
     ],
     commentLabel: "Remarks",
     commentLabelKey: "workspace.comment.technical",
-    commentPlaceholder: "Add department comments, conditions, site notes, or rejection reasons.",
+    commentPlaceholder: "Add comments",
     commentPlaceholderKey: "workspace.comment.technicalPlaceholder",
     stats: (apps, department) => [
       { label: "Pending", labelKey: "workspace.stat.pending", value: countBy(apps, (app) => !hasTechnicalDepartmentReview(app, department)), icon: "pending", tone: "amber" },
@@ -7659,7 +7654,7 @@ const configs = {
     ],
     commentLabel: "Approval Notes",
     commentLabelKey: "workspace.comment.approval",
-    commentPlaceholder: "Enter remarks for this recommendation.",
+    commentPlaceholder: "Add comments",
     commentPlaceholderKey: "workspace.comment.approvalPlaceholder",
     stats: (apps) => [
       { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
@@ -8923,6 +8918,7 @@ function TechnicalApplicationTypePanel({
   const departmentsText = Array.isArray(displayDepartments)
     ? displayDepartments.join(", ")
     : String(displayDepartments || "").trim();
+  const showRequiredMarker = !readOnly;
 
   function commitAdvertisementRows(nextRows) {
     const primaryRow = nextRows[0] || {};
@@ -9080,7 +9076,9 @@ function TechnicalApplicationTypePanel({
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold leading-5 text-slate-800">
             {stepText(language, "applicationProjectList")}{" "}
-            <span className="text-red-600" aria-hidden="true">*</span>
+            {showRequiredMarker && (
+              <span className="text-red-600" aria-hidden="true">*</span>
+            )}
           </h3>
           {!readOnly && (
             <button
@@ -9104,13 +9102,13 @@ function TechnicalApplicationTypePanel({
       <div className="space-y-3 p-3">
         {subtypeOptions.length > 0 && (
           <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white">
-          <table className="min-w-[1080px] w-full border-collapse text-sm">
+          <table className={`${readOnly ? "min-w-[840px]" : "min-w-[1080px]"} w-full border-collapse text-sm`}>
             <colgroup>
               <col className="w-16" />
               <col className="w-[140px]" />
               <col className="w-[170px]" />
               <col className="w-[240px]" />
-              <col className="w-px" />
+              {!readOnly && <col className="w-px" />}
               <col />
             </colgroup>
             <thead className="bg-slate-50 text-center text-sm font-bold text-slate-700">
@@ -9127,9 +9125,11 @@ function TechnicalApplicationTypePanel({
                 <th className="border-b border-slate-200 px-3 py-2">
                   {stepText(language, "advertisementType")}
                 </th>
-                <th className="whitespace-nowrap border-b border-slate-200 px-3 py-2">
-                  {stepText(language, "action")}
-                </th>
+                {!readOnly && (
+                  <th className="whitespace-nowrap border-b border-slate-200 px-3 py-2">
+                    {stepText(language, "action")}
+                  </th>
+                )}
                 <th className="border-b border-slate-200 px-3 py-2">
                   {stepText(language, "title")}
                 </th>
@@ -9171,75 +9171,101 @@ function TechnicalApplicationTypePanel({
                       {index + 1}
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">
-                      <select
-                        className="spa-input !text-sm"
-                        value={rowType}
-                        disabled={!canEdit}
-                        onChange={(event) => handleCategoryChange(index, event.target.value)}
-                      >
-                        {APPLICATION_TYPE_OPTIONS.map((type) => (
-                          <option key={type} value={type}>
-                            {getApplicationTypeOptionLabel(type, language)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="border-t border-slate-100 px-3 py-3">
-                      <select
-                        className="spa-input !text-sm"
-                        value={row.displayType || ""}
-                        disabled={!canEdit}
-                        onChange={(event) => handleDisplayTypeChange(index, event.target.value)}
-                      >
-                        <option value="">
-                          {stepText(language, "selectDisplayType")}
-                        </option>
-                        {TECHNICAL_DISPLAY_TYPE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {stepText(language, option.labelKey)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="border-t border-slate-100 px-3 py-3">
-                      <div className="flex flex-col gap-2 sm:flex-row">
+                      {readOnly ? (
+                        <ReadOnlyTableValue value={getApplicationTypeOptionLabel(rowType, language)} />
+                      ) : (
                         <select
-                          className="spa-input min-w-0 flex-1 !text-sm"
-                          value={selectedAdvertisementValue}
+                          className="spa-input !text-sm"
+                          value={rowType}
                           disabled={!canEdit}
-                          onChange={(event) => handleAdvertisementTypeChange(index, event.target.value)}
+                          onChange={(event) => handleCategoryChange(index, event.target.value)}
                         >
-                          <option value="">
-                            {stepText(language, "selectAdvertisementType")}
-                          </option>
-                          {advertisementOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label || getTechnicalAdvertisementOptionLabel(option.value, language)}
+                          {APPLICATION_TYPE_OPTIONS.map((type) => (
+                            <option key={type} value={type}>
+                              {getApplicationTypeOptionLabel(type, language)}
                             </option>
                           ))}
                         </select>
-                      </div>
+                      )}
                     </td>
-                    <td className="w-px whitespace-nowrap border-t border-slate-100 px-2 py-3">
-                      <div className="flex flex-nowrap gap-1.5">
-                        <button
-                          type="button"
-                          className="shrink-0 rounded-sm bg-[#006d32] px-2.5 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      {readOnly ? (
+                        <ReadOnlyTableValue
+                          value={
+                            getTechnicalDisplayTypeLabel(row.displayType || "", language) ||
+                            "-"
+                          }
+                        />
+                      ) : (
+                        <select
+                          className="spa-input !text-sm"
+                          value={row.displayType || ""}
                           disabled={!canEdit}
-                          onClick={() => handleOpenAddAdvertisementType(index)}
+                          onChange={(event) => handleDisplayTypeChange(index, event.target.value)}
                         >
-                          {stepText(language, "addAdvertisementOption")}
-                        </button>
-                        <button
-                          type="button"
-                          className="shrink-0 rounded-sm border border-red-600 bg-white px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
-                          disabled={!canEdit}
-                          onClick={() => handleDeleteRow(index)}
-                        >
-                          {stepText(language, "deleteAdvertisementRow")}
-                        </button>
-                      </div>
+                          <option value="">
+                            {stepText(language, "selectDisplayType")}
+                          </option>
+                          {TECHNICAL_DISPLAY_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {stepText(language, option.labelKey)}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      {readOnly ? (
+                        <ReadOnlyTableValue
+                          value={
+                            getTechnicalAdvertisementOptionLabel(
+                              selectedAdvertisementValue,
+                              language
+                            ) || "-"
+                          }
+                        />
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <select
+                            className="spa-input min-w-0 flex-1 !text-sm"
+                            value={selectedAdvertisementValue}
+                            disabled={!canEdit}
+                            onChange={(event) => handleAdvertisementTypeChange(index, event.target.value)}
+                          >
+                            <option value="">
+                              {stepText(language, "selectAdvertisementType")}
+                            </option>
+                            {advertisementOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label || getTechnicalAdvertisementOptionLabel(option.value, language)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </td>
+                    {!readOnly && (
+                      <td className="w-px whitespace-nowrap border-t border-slate-100 px-2 py-3">
+                        <div className="flex flex-nowrap gap-1.5">
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-sm bg-[#006d32] px-2.5 py-2 text-xs font-semibold text-white hover:bg-[#005224] disabled:cursor-not-allowed disabled:bg-slate-300"
+                            disabled={!canEdit}
+                            onClick={() => handleOpenAddAdvertisementType(index)}
+                          >
+                            {stepText(language, "addAdvertisementOption")}
+                          </button>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-sm border border-red-600 bg-white px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                            disabled={!canEdit}
+                            onClick={() => handleDeleteRow(index)}
+                          >
+                            {stepText(language, "deleteAdvertisementRow")}
+                          </button>
+                        </div>
+                      </td>
+                    )}
                     <td className="border-t border-slate-100 px-3 py-3">
                       <div className="min-h-10 rounded-sm border border-slate-200 bg-white px-3 py-2 text-xs font-normal uppercase leading-5 text-slate-700">
                         {buildTechnicalProjectNameLine(language, row, rowType) || "-"}
@@ -9251,16 +9277,18 @@ function TechnicalApplicationTypePanel({
             </tbody>
           </table>
 
-          <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
-            <button
-              type="button"
-              className="rounded-sm border border-emerald-700 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
-              disabled={!canEdit}
-              onClick={handleAddRow}
-            >
-              {stepText(language, "addAdvertisementRow")}
-            </button>
-          </div>
+          {!readOnly && (
+            <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
+              <button
+                type="button"
+                className="rounded-sm border border-emerald-700 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+                disabled={!canEdit}
+                onClick={handleAddRow}
+              >
+                {stepText(language, "addAdvertisementRow")}
+              </button>
+            </div>
+          )}
           </div>
         )}
         {departmentsText && (
@@ -9324,6 +9352,14 @@ function TechnicalApplicationTypePanel({
       </div>
     )}
     </>
+  );
+}
+
+function ReadOnlyTableValue({ value }) {
+  return (
+    <div className="min-h-10 rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-700">
+      {value || "-"}
+    </div>
   );
 }
 
