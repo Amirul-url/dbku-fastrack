@@ -1863,53 +1863,19 @@ function AttachmentLinkList({
 async function openAttachmentPreview(url, title = "Attachment") {
   if (!url) return;
 
-  const previewWindow = window.open("about:blank", "_blank");
-  const safeTitle = escapeHtml(title);
-
-  if (!previewWindow) {
-    return;
-  }
-
-  previewWindow.document.write(
-    `<!doctype html><html><head><title>${safeTitle}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:Arial,sans-serif;color:#334155}p{font-size:14px}</style></head><body><p>Opening attachment...</p></body></html>`
-  );
-  previewWindow.document.close();
-
   try {
     const blob =
       url.startsWith("blob:") || url.startsWith("data:")
         ? await fetch(url).then((response) => response.blob())
         : await fetchAuthenticatedBlob(url);
     const objectUrl = URL.createObjectURL(blob);
-    const isImage = isImagePreviewAttachment(blob, title);
 
-    previewWindow.document.open();
-    previewWindow.document.write(
-      isImage
-        ? `<!doctype html><html><head><title>${safeTitle}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${objectUrl}" alt="${safeTitle}"></body></html>`
-        : `<!doctype html><html><head><title>${safeTitle}</title><style>body{margin:0;height:100vh;background:#0f172a}iframe{width:100vw;height:100vh;border:0;background:white}</style></head><body><iframe src="${objectUrl}" title="${safeTitle}"></iframe></body></html>`
-    );
-    previewWindow.document.close();
-    previewWindow.addEventListener(
-      "beforeunload",
-      () => URL.revokeObjectURL(objectUrl),
-      { once: true }
-    );
+    window.open(objectUrl, "_blank");
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
   } catch (error) {
     console.error("Failed to open attachment:", error);
-    previewWindow.document.body.innerHTML =
-      '<p style="font-family: Arial, sans-serif; padding: 16px;">Failed to open attachment.</p>';
   }
-}
-
-function isImagePreviewAttachment(blob, title = "") {
-  const type = String(blob?.type || "").toLowerCase();
-  const fileName = String(title || "").toLowerCase();
-
-  return (
-    type.startsWith("image/") ||
-    /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileName)
-  );
 }
 
 function escapeHtml(value) {

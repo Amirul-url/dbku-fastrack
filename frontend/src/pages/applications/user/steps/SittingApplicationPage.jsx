@@ -2163,44 +2163,19 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
   }
 
   async function handleView(image) {
-    const previewWindow = window.open("about:blank", "_blank");
-    const imageName = image?.name || "site-image";
-
-    if (previewWindow) {
-      previewWindow.document.write(
-        `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:Arial,sans-serif;color:#334155}p{font-size:14px}</style></head><body><p>Loading image...</p></body></html>`
-      );
-      previewWindow.document.close();
-    }
-
     try {
       const objectUrl = await getFileObjectUrl(image);
       if (!objectUrl) {
-        previewWindow?.close();
         return;
       }
       const shouldRevoke = !isInlinePreview(image?.preview);
 
-      if (previewWindow) {
-        previewWindow.document.open();
-        previewWindow.document.write(
-          isPdfSiteImage(image)
-            ? `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;height:100vh;background:#0f172a}iframe{width:100vw;height:100vh;border:0;background:white}</style></head><body><iframe src="${objectUrl}" title="${escapeHtml(imageName)}"></iframe></body></html>`
-            : `<!doctype html><html><head><title>${escapeHtml(imageName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${objectUrl}" alt="${escapeHtml(imageName)}"></body></html>`
-        );
-        previewWindow.document.close();
-      } else {
-        const opened = window.open(objectUrl, "_blank");
-        if (!opened) {
-          alert(tx("failedViewFile"));
-        }
-      }
+      window.open(objectUrl, "_blank");
 
       if (shouldRevoke) {
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
       }
     } catch (error) {
-      previewWindow?.close();
       console.error("Failed to view site image:", error);
       alert(tx("failedViewFile"));
     }

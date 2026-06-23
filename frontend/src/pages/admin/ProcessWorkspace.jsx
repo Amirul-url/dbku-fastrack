@@ -253,6 +253,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalSupportSignature, setApprovalSupportSignature] = useState(null);
   const [approvalSupportSignatureError, setApprovalSupportSignatureError] = useState("");
   const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
+  const [showDecisionLog, setShowDecisionLog] = useState(false);
   const [officialReceiptMode, setOfficialReceiptMode] = useState("upload");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
@@ -689,6 +690,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
   const showWorkspaceVerificationReport =
     showApprovalTechnicalReport || showELicenseVerificationReport;
+  const showWorkspaceDecisionLog =
+    Boolean(selectedRecord) &&
+    showActionPanel &&
+    !isReadOnlyActionPanel &&
+    (
+      fromPersonalTask ||
+      isFocusedPersonalWorkspace ||
+      isApprovalWorkspace ||
+      ["screening", "technical", "payment", "license"].includes(config.key)
+    );
   const isApprovalLicenseManagement =
     isApprovalWorkspace &&
     userDepartment === "PT(IKL)" &&
@@ -748,13 +759,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !showPaymentReceiptDecision;
   const workspaceCommentRequired =
     workspaceActions.some((action) => action.requiresComment) ||
-    useTypedApprovalDecision;
+    useTypedApprovalDecision ||
+    showPaymentReceiptDecision;
   const showWorkspaceCommentField =
     !isApprovalLicenseManagement &&
     config.showComment &&
     canSubmitWorkspaceAction &&
     !isApprovalSupportWorkspace &&
-    (!showPaymentReceiptDecision || decision === "Reject Receipt") &&
     (
       config.key !== "payment" ||
       workspaceActions.some((action) =>
@@ -780,6 +791,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     (!selectedPaymentReceiptAction.requiresLicenseDocument ||
       getPaymentDocumentSource(selectedRecord?.form_data?.license?.license_file))
   );
+  const selectedPaymentReceiptActionRequirementsReady =
+    !selectedPaymentReceiptAction || selectedPaymentReceiptActionReady;
   const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
@@ -838,6 +851,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id, shouldOpenVerificationReport]);
 
   useEffect(() => {
+    setShowDecisionLog(false);
+  }, [selectedRecord?.id]);
+
+  useEffect(() => {
     setOfficialReceiptMode("upload");
   }, [selectedRecord?.id]);
 
@@ -865,11 +882,31 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
+    if (showPaymentReceiptDecision && decision) {
+      const preservedDecision =
+        getWorkspaceDecisionFromInput(decision, paymentReceiptDecisionOptions, t) || decision;
+      const canPreservePaymentDecision = paymentReceiptDecisionOptions.some(
+        (action) => (action.value || action.label || action) === preservedDecision
+      );
+
+      if (canPreservePaymentDecision) {
+        setDecision(preservedDecision);
+        setDecisionInput(getWorkspaceDecisionInput(preservedDecision, paymentReceiptDecisionOptions, t));
+        setDecisionError("");
+        setLicenseExpiryYears("1");
+        return;
+      }
+    }
+
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
     setDecision(nextDecision);
     setDecisionInput(
-      useTypedApprovalDecision
-        ? getWorkspaceDecisionInput(nextDecision, decisionOptions, t)
+      useTypedApprovalDecision || showPaymentReceiptDecision
+        ? getWorkspaceDecisionInput(
+            nextDecision,
+            showPaymentReceiptDecision ? paymentReceiptDecisionOptions : decisionOptions,
+            t
+          )
         : ""
     );
     setDecisionError("");
@@ -882,6 +919,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     decisionOptions,
     isApprovalSupportWorkspace,
     selectedRecord?.id,
+    showPaymentReceiptDecision,
     t,
     useTypedApprovalDecision,
     userDepartment,
@@ -2420,6 +2458,30 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   }
                 />
 
+              {showWorkspaceDecisionLog && (
+                <>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon="assignment"
+                      onClick={() => setShowDecisionLog((visible) => !visible)}
+                    >
+                      {showDecisionLog
+                        ? t("workspace.decisionLog.hide", "Hide Log Decision")
+                        : t("workspace.decisionLog.show", "Log Decision")}
+                    </Button>
+                  </div>
+
+                  {showDecisionLog && (
+                    <WorkspaceDecisionLogReport
+                      app={selectedRecord}
+                      t={t}
+                    />
+                  )}
+                </>
+              )}
+
               {showActionUnavailableNotice && (
                 <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold leading-5 text-amber-900 shadow-sm">
                   {actionUnavailableMessage}
@@ -2588,32 +2650,46 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           <WorkspaceGuidelineHint
                             text={t(
                               "workspace.payment.receiptDecisionHint",
-                              "Please view the applicant receipt first, then select a recommendation before submitting."
+                              "Please view the applicant receipt first, then type a recommendation before submitting."
                             )}
                           />
                         </span>
                       }
                       labelClassName="!text-[13px]"
                     >
-                      <select
-                        value={decision}
+                      <input
+                        ref={decisionInputRef}
+                        type="text"
+                        value={decisionInput}
                         onChange={(event) => {
-                          const nextDecision = event.target.value;
+                          const nextValue = event.target.value;
+                          const nextDecision = getWorkspaceDecisionFromInput(
+                            nextValue,
+                            paymentReceiptDecisionOptions,
+                            t
+                          );
+                          setDecisionInput(nextValue);
                           setDecision(nextDecision);
-                          if (nextDecision !== "Reject Receipt") setComment("");
+                          if (decisionError) setDecisionError("");
                           if (commentError) setCommentError("");
                         }}
-                        className="form-input form-input-sm max-w-xs"
-                      >
-                        <option value="">
-                          {t("workspace.decision.selectDecision", "Select recommendation")}
-                        </option>
-                        {paymentReceiptDecisionOptions.map((action) => (
-                          <option key={action.label} value={action.label}>
-                            {t(action.labelKey, action.label)}
-                          </option>
-                        ))}
-                      </select>
+                        onBlur={() => {
+                          if (decision) {
+                            setDecisionInput(
+                              getWorkspaceDecisionInput(decision, paymentReceiptDecisionOptions, t)
+                            );
+                          }
+                        }}
+                        className={`form-input form-input-sm max-w-xs ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                        placeholder={getWorkspaceDecisionInputPrompt(paymentReceiptDecisionOptions, t)}
+                        inputMode="text"
+                        aria-invalid={Boolean(decisionError)}
+                      />
+                      {decisionError && (
+                        <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                          {decisionError}
+                        </p>
+                      )}
                     </Field>
                   )}
 
@@ -2622,6 +2698,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       label={
                         <>
                           {useTypedApprovalDecision
+                            || showPaymentReceiptDecision
                             ? t("workspace.comment.remarks", "Remarks")
                             : t(config.commentLabelKey, config.commentLabel || "Notes")}
                           {workspaceCommentRequired && (
@@ -2843,16 +2920,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <Button
                         onClick={() => {
                           if (!selectedPaymentReceiptAction) {
-                            setError(t("workspace.decision.required", "Please select a recommendation."));
+                            setDecisionError(getWorkspaceDecisionInputPrompt(paymentReceiptDecisionOptions, t));
+                            decisionInputRef.current?.focus();
+                            return;
+                          }
+
+                          if (!cleanRemark(comment)) {
+                            setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+                            commentRef.current?.focus();
                             return;
                           }
 
                           submitAction(selectedPaymentReceiptAction, {
                             decision,
+                            comment: cleanRemark(comment),
                             checkDecisionRemark: false,
                           });
                         }}
-                        disabled={saving || !selectedPaymentReceiptActionReady}
+                        disabled={saving || !selectedPaymentReceiptActionRequirementsReady}
                         variant="primary"
                         icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "qr_code_2"}
                         className="min-w-40"
@@ -2942,6 +3027,59 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
     </AdminDashboardLayout>
+  );
+}
+
+function WorkspaceDecisionLogReport({ app, t }) {
+  const logs = buildWorkspaceDecisionLogRows(app, t);
+
+  return (
+    <section className="rounded-md border border-slate-300 bg-white">
+      {logs.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("common.department", "Department")}
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("admin.dashboard.decisionLogRecommendation", "Your Recommendation")}
+                </th>
+                <th className="border-b border-slate-200 px-4 py-3">
+                  {t("common.remarks", "Remarks")}
+                </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
+                  {t("common.date", "Date")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {logs.map((log) => (
+                <tr key={log.id} className="align-top">
+                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">
+                    {log.department}
+                  </td>
+                  <td className="px-4 py-3">
+                    {log.decision ? <StatusPill value={log.decision} /> : null}
+                  </td>
+                  <td className="min-w-[320px] px-4 py-3 text-slate-700">
+                    <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                    {formatCompactDateTime(log.date)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="px-4 py-4 text-sm font-medium text-slate-500">
+          {t("admin.dashboard.noDecisionLogs", "No DBKU or MPHLG decision records found.")}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -5404,6 +5542,281 @@ function getApplicationSection(app, key) {
   return app?.[key] || app?.form_data?.[key] || {};
 }
 
+function buildWorkspaceDecisionLogRows(app, t) {
+  const rows = [];
+  const autoScreening = getApplicationSection(app, "auto_screening");
+  const technicalReview = getApplicationSection(app, "technical_review");
+  const technicalKuReview = getApplicationSection(app, "technical_ku_review");
+  const kbLesVerification = getApplicationSection(app, "kb_les_verification");
+  const managementRecommendation = getApplicationSection(app, "management_recommendation");
+  const mphlgGateway = getApplicationSection(app, "mphlg_gateway");
+  const approval = getApplicationSection(app, "approval");
+  const payment = getApplicationSection(app, "payment");
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "auto-screening",
+    department: getWorkspaceAutoScreeningDecisionDepartment(autoScreening) || "PT(IKL)",
+    section: autoScreening,
+    decision: getWorkspaceDecisionLogValue(autoScreening),
+    remarks: getWorkspaceDecisionLogRemarks(autoScreening),
+    date: getWorkspaceDecisionLogDate(autoScreening, ["checked_at", "reviewed_at", "decided_at"]),
+  }, t);
+
+  Object.entries(getTechnicalDepartmentReviews(app))
+    .filter(([, review]) => review && typeof review === "object")
+    .forEach(([department, review]) => {
+      const remarks = getWorkspaceDecisionLogRemarks(review);
+      if (!remarks) return;
+
+      addWorkspaceDecisionLogRow(rows, {
+        id: `technical-department-${department}`,
+        department: normalizeDepartmentCode(department) || department,
+        section: review,
+        decision: "",
+        remarks,
+        date: getWorkspaceDecisionLogDate(review, ["reviewed_at", "submitted_at", "checked_at"]),
+        useStatusFallback: false,
+      }, t);
+    });
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "ikl-technical",
+    department: "IKL(TECHNICAL)",
+    section: technicalReview,
+    decision: getWorkspaceDecisionLogValue(technicalReview),
+    remarks: getWorkspaceDecisionLogRemarks(technicalReview),
+    date: getWorkspaceDecisionLogDate(technicalReview, ["reviewed_at", "submitted_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "technical-ku-review",
+    department: "KU(IKL)",
+    section: technicalKuReview,
+    decision: getWorkspaceDecisionLogValue(technicalKuReview),
+    remarks: getWorkspaceDecisionLogRemarks(technicalKuReview),
+    date: getWorkspaceDecisionLogDate(technicalKuReview, ["reviewed_at", "checked_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "kb-les-verification",
+    department: "KB(LES)",
+    section: kbLesVerification,
+    decision: getWorkspaceDecisionLogValue(kbLesVerification),
+    remarks: getWorkspaceDecisionLogRemarks(kbLesVerification),
+    date: getWorkspaceDecisionLogDate(kbLesVerification, ["verified_at", "reviewed_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "management-recommendation",
+    department: normalizeDepartmentCode(managementRecommendation.officer) || "TP(RES)/PGH",
+    section: managementRecommendation,
+    decision: getWorkspaceDecisionLogValue(managementRecommendation),
+    remarks: getWorkspaceDecisionLogRemarks(managementRecommendation),
+    date: getWorkspaceDecisionLogDate(managementRecommendation, ["decided_at", "supported_at", "approval_note_saved_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "mphlg-gateway",
+    department: "MPHLG",
+    section: mphlgGateway,
+    decision: getWorkspaceDecisionLogValue(mphlgGateway),
+    remarks: getWorkspaceDecisionLogRemarks(mphlgGateway),
+    date: getWorkspaceDecisionLogDate(mphlgGateway, ["reviewed_at", "decided_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "final-approval",
+    department: normalizeDepartmentCode(approval.officer || approval.decided_by) || t("admin.dashboard.finalApproval", "Final Approval"),
+    section: approval,
+    decision: getWorkspaceDecisionLogValue(approval),
+    remarks: getWorkspaceDecisionLogRemarks(approval),
+    date: getWorkspaceDecisionLogDate(approval, ["approved_at", "decided_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "payment-receipt-verification",
+    department: "PT(IKL)",
+    section: payment,
+    decision: getWorkspacePaymentReceiptDecisionLogValue(payment),
+    remarks: payment.verification_notes,
+    date: getWorkspaceDecisionLogDate(payment, ["verified_at", "rejected_at"]),
+  }, t);
+
+  return rows
+    .filter((row, index, allRows) => {
+      const key = [row.department, row.decision, row.remarks, row.date].join("|");
+      return allRows.findIndex((item) =>
+        [item.department, item.decision, item.remarks, item.date].join("|") === key
+      ) === index;
+    })
+    .sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+}
+
+function addWorkspaceDecisionLogRow(rows, row, t) {
+  const section = row.section && typeof row.section === "object" ? row.section : {};
+  const decision = cleanRemark(row.decision);
+  const remarks = cleanRemark(row.remarks);
+  const date = cleanRemark(row.date);
+  const status = String(section.status || "").trim().toLowerCase();
+  const hasCompletedSignal =
+    decision ||
+    remarks ||
+    date ||
+    section.memo_html ||
+    section.approval_note_html;
+
+  if (!hasCompletedSignal || status.includes("pending")) return;
+
+  rows.push({
+    id: row.id,
+    department: row.department || "-",
+    decision: formatWorkspaceDecisionLogRecommendation(
+      decision || (row.useStatusFallback === false ? "" : formatWorkflowStatus(section.status || "")),
+      row.department,
+      t
+    ),
+    remarks,
+    date,
+  });
+}
+
+function getWorkspaceAutoScreeningDecisionDepartment(section = {}) {
+  const decision = getWorkspaceDecisionLogValue(section);
+  if (decision.includes("KU(IKL)")) return "KU(IKL)";
+  if (decision.includes("PT(IKL)")) return "PT(IKL)";
+  return normalizeDepartmentCode(section.officer || section.checked_by || section.department);
+}
+
+function getWorkspaceDecisionLogValue(section = {}) {
+  if (!section || typeof section !== "object") return "";
+
+  return String(
+    section.recommendation ||
+      section.final_decision ||
+      section.decision ||
+      section.result ||
+      section.status ||
+      ""
+  ).trim();
+}
+
+function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (key, fallback) => fallback || key) {
+  const decision = cleanRemark(value);
+  if (!decision) return "";
+
+  const normalized = decision.toLowerCase();
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  const routeRecommendationMap = {
+    "pt(ikl) send to ku(ikl)": t("workspace.decision.approve", "Approve"),
+    "pt(ikl) hantar kepada ku(ikl)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) confirm - send to technical units": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) confirm - send to ikl(technical)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) sahkan - hantar kepada ikl(technical)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) confirm - send to kb(les)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) request technical amendment": t("workspace.decision.kuRequestTechnicalAmendment", "Request Amendment"),
+    "technical amendment required": t("workspace.decision.kuRequestTechnicalAmendment", "Request Amendment"),
+    "pt(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
+    "ku(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
+    "verified - sent to kb(les)": t("workspace.decision.verify", "Verify"),
+  };
+
+  if (routeRecommendationMap[normalized]) {
+    return routeRecommendationMap[normalized];
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(normalizedDepartment)) {
+    if (["approve", "approved"].includes(normalized)) {
+      return t("workspace.decision.support", "Support");
+    }
+    if (["reject", "rejected", "not support", "not supported"].includes(normalized)) {
+      return t("workspace.decision.notSupport", "Not Support");
+    }
+  }
+
+  if (
+    normalizedDepartment === "KU(IKL)" &&
+    normalized.includes("confirm") &&
+    (normalized.includes("technical") || normalized.includes("kb(les)"))
+  ) {
+    return t("workspace.decision.approve", "Approve");
+  }
+
+  if (normalized.includes("reject") && normalized.includes("applicant")) {
+    return t("workspace.decision.reject", "Reject");
+  }
+
+  if (normalized.includes("amendment")) {
+    return t("workspace.decision.kuRequestTechnicalAmendment", "Request Amendment");
+  }
+
+  return decision;
+}
+
+function getWorkspacePaymentReceiptDecisionLogValue(payment = {}) {
+  if (!payment || typeof payment !== "object") return "";
+
+  const explicitDecision = cleanRemark(
+    payment.recommendation ||
+      payment.decision ||
+      payment.verification_decision ||
+      payment.receipt_decision
+  );
+  if (explicitDecision) return explicitDecision;
+
+  const result = String(payment.verification_result || "").trim().toLowerCase();
+  const status = String(payment.status || "").trim().toLowerCase();
+
+  if (result === "valid" || status === "payment verified") {
+    return "Verify Receipt";
+  }
+
+  if (
+    result.includes("invalid") ||
+    result.includes("fake") ||
+    status === "receipt rejected"
+  ) {
+    return "Reject Receipt";
+  }
+
+  return "";
+}
+
+function getWorkspaceDecisionLogRemarks(section = {}) {
+  if (!section || typeof section !== "object") return "";
+
+  const plainRemark =
+    section.remarks ||
+    section.comment ||
+    section.notes ||
+    section.site_remarks ||
+    section.findings ||
+    "";
+  const memoText =
+    section.approval_note_html ||
+    section.memo_html ||
+    "";
+
+  return cleanRemark(plainRemark) || htmlToPlainWorkspaceDecisionLogText(memoText);
+}
+
+function getWorkspaceDecisionLogDate(section = {}, keys = []) {
+  if (!section || typeof section !== "object") return "";
+  return keys.map((key) => section[key]).find(Boolean) || "";
+}
+
+function htmlToPlainWorkspaceDecisionLogText(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+
+  if (typeof document === "undefined") {
+    return cleanRemark(source.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = source;
+  return cleanRemark(container.textContent || container.innerText || "");
+}
+
 function hasApplicationSection(app, key) {
   const section = getApplicationSection(app, key);
   return Boolean(section && Object.keys(section).length > 0);
@@ -5894,6 +6307,7 @@ function buildIklScreeningPayload(app, data) {
     form_data: mergeFormData(app, {
       auto_screening: {
         status: "Screened",
+        recommendation: data.decision,
         result: correctionRequired ? "Rejected to Applicant" : data.decision,
         remarks: data.comment,
         memo_html:
@@ -5969,6 +6383,7 @@ function buildIklTechnicalDecisionPayload(app, data) {
       technical_review: {
         ...(app.form_data?.technical_review || {}),
         status: notSupported ? "Not Supported" : "Completed",
+        recommendation: data.decision,
         final_decision: data.decision,
         decision: data.decision,
         comment: data.comment,
@@ -6029,6 +6444,7 @@ function buildKuTechnicalReviewPayload(app, data) {
     form_data: mergeFormData(app, {
       technical_ku_review: {
         status: amendmentRequired ? "Amendment Required" : "Verified",
+        recommendation: data.decision,
         decision: data.decision,
         remarks: data.comment,
         checks: createKuTechnicalChecks(data.kuChecks),
@@ -6084,9 +6500,10 @@ function buildApprovalWorkflowPayload(app, data) {
             ? isKbLesVerified(app)
               ? app.form_data?.kb_les_verification?.status || "Verified"
               : "Verified"
-            : rejected
+          : rejected
               ? "Not Verified"
               : "Verified",
+          recommendation: decision,
           decision,
           remarks: data.comment,
           memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
@@ -6098,6 +6515,7 @@ function buildApprovalWorkflowPayload(app, data) {
               ...(app.form_data?.management_recommendation || {}),
               officer: kbSupportStage ? "KB(LES)" : app.form_data?.management_recommendation?.officer,
               status: kbSupportStage ? "Supported" : "Pending TP(RES)/PGH Approval",
+              recommendation: kbSupportStage ? decision : app.form_data?.management_recommendation?.recommendation,
               decision: kbSupportStage ? decision : app.form_data?.management_recommendation?.decision,
               remarks: kbSupportStage ? data.comment : app.form_data?.management_recommendation?.remarks,
               routed_from: "KB(LES)",
@@ -6120,6 +6538,11 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     const finalApproval = hasSutApprovalResult(app);
+    const supportRecommendation = finalApproval
+      ? decision
+      : decision === "Approve"
+        ? "Support"
+        : "Not Support";
     const approvalSupportSignature =
       data.approvalSupportSignature ||
       app.form_data?.management_recommendation?.digital_signature ||
@@ -6144,6 +6567,7 @@ function buildApprovalWorkflowPayload(app, data) {
           ...(app.form_data?.management_recommendation || {}),
           officer: department,
           status: rejected ? "Rejected" : "Approved",
+          recommendation: supportRecommendation,
           decision,
           remarks: rejected ? data.comment || approvalDecisionRemarks : data.comment,
           approval_note_html: approvalDecisionHtml,
@@ -6174,6 +6598,7 @@ function buildApprovalWorkflowPayload(app, data) {
               ...(app.form_data?.approval || {}),
               officer: department,
               status: "Approved",
+              recommendation: supportRecommendation,
               decision,
               remarks: data.comment,
               memo_html: data.memoHtml || app.form_data?.approval?.memo_html || "",
@@ -6199,6 +6624,7 @@ function buildApprovalWorkflowPayload(app, data) {
           ...(app.form_data?.mphlg_gateway || {}),
           officer: "MPHLG",
           status: approved ? "Approved" : "Returned to Applicant",
+          recommendation: decision,
           decision,
           remarks: approved ? data.comment : rejectRemark,
           memo_html: approved
@@ -6221,6 +6647,7 @@ function buildApprovalWorkflowPayload(app, data) {
               ...(app.form_data?.approval || {}),
               officer: "MPHLG",
               status: "Approved",
+              recommendation: decision,
               decision,
               remarks: data.comment,
               memo_html: data.memoHtml || app.form_data?.approval?.memo_html || "",
@@ -6247,7 +6674,6 @@ function buildDepartmentTechnicalReviewPayload(app, data) {
     [department]: {
       cycle_id: cycleId,
       department,
-      decision: data.decision,
       remarks: data.comment,
       reviewed_at: now,
       reviewed_by: department,
@@ -7343,7 +7769,7 @@ const configs = {
 
           return {
             status: "license_issued",
-            latest_remark: "",
+            latest_remark: data.comment,
             form_data: mergeFormData(app, {
               approval_letter: {
                 ...savedApprovalLetter,
@@ -7356,6 +7782,8 @@ const configs = {
               payment: {
                 ...(app.form_data?.payment || {}),
                 status: "Payment Verified",
+                recommendation: "Verify Receipt",
+                receipt_decision: "Verify Receipt",
                 verification_result: "Valid",
                 verification_notes: data.comment,
                 verified_at: timestamp,
@@ -7402,6 +7830,8 @@ const configs = {
             payment: {
               ...(app.form_data?.payment || {}),
               status: "Receipt Rejected",
+              recommendation: "Reject Receipt",
+              receipt_decision: "Reject Receipt",
               verification_result: "Invalid/Fake",
               verification_notes: data.comment,
               rejected_at: new Date().toISOString(),
@@ -7703,6 +8133,8 @@ function IklWorkspaceSections({
   const [kuDecision, setKuDecision] = useState(
     ""
   );
+  const [screeningDecisionInput, setScreeningDecisionInput] = useState("");
+  const [screeningDecisionError, setScreeningDecisionError] = useState("");
   const [kuDecisionInput, setKuDecisionInput] = useState("");
   const [kuDecisionError, setKuDecisionError] = useState("");
   const [kuRemarks, setKuRemarks] = useState("");
@@ -7715,6 +8147,8 @@ function IklWorkspaceSections({
   const [technicalDecisionError, setTechnicalDecisionError] = useState("");
   const technicalSiteSaveTimerRef = useRef(null);
   const latestTechnicalSiteRef = useRef(technicalSite);
+  const screeningDecisionInputRef = useRef(null);
+  const screeningRemarksRef = useRef(null);
   const technicalDecisionInputRef = useRef(null);
   const technicalRemarksRef = useRef(null);
   const kuDecisionInputRef = useRef(null);
@@ -7723,9 +8157,9 @@ function IklWorkspaceSections({
     createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks)
   );
   const reviewTechnicalSite = getReviewTechnicalSite(technicalSite, selectedRecord);
-  const screeningDecisionOptions = getIklScreeningDecisionOptions(
-    config.decisions,
-    userDepartment
+  const screeningDecisionOptions = useMemo(
+    () => getIklScreeningDecisionOptions(config.decisions, userDepartment),
+    [config.decisions, userDepartment]
   );
   const screeningCopy = getIklScreeningCopy(userDepartment);
   const selectedTechnicalAction = config.technicalActions.find(
@@ -7746,8 +8180,17 @@ function IklWorkspaceSections({
     );
     if (decision && !hasDecision) {
       setDecision("");
+      setScreeningDecisionInput("");
+      return;
     }
-  }, [decision, screeningDecisionOptions, setDecision]);
+
+    setScreeningDecisionInput(
+      hasDecision
+        ? getIklScreeningDecisionInput(decision, screeningDecisionOptions, userDepartment, t)
+        : ""
+    );
+    setScreeningDecisionError("");
+  }, [decision, screeningDecisionOptions, setDecision, t, userDepartment]);
 
   useEffect(() => {
     const savedDecision =
@@ -7958,20 +8401,39 @@ function IklWorkspaceSections({
               label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")}
               labelClassName="!text-sm"
             >
-              <select
-                value={decision}
-                onChange={(event) => setDecision(event.target.value)}
-                className={`form-input form-input-sm ${["PT(IKL)", "KU(IKL)"].includes(userDepartment) ? "max-w-60" : ""}`}
-              >
-                <option value="">
-                  {t("workspace.decision.selectDecision", "Select recommendation")}
-                </option>
-                {screeningDecisionOptions.map((item) => (
-                  <option key={item.value || item} value={item.value || item}>
-                    {getIklScreeningDecisionLabel(item, userDepartment, t)}
-                  </option>
-                ))}
-              </select>
+              <input
+                ref={screeningDecisionInputRef}
+                type="text"
+                value={screeningDecisionInput}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  const nextDecision = getIklScreeningDecisionFromInput(
+                    nextValue,
+                    screeningDecisionOptions,
+                    userDepartment,
+                    t
+                  );
+                  setScreeningDecisionInput(nextValue);
+                  setDecision(nextDecision);
+                  if (screeningDecisionError) setScreeningDecisionError("");
+                }}
+                onBlur={() => {
+                  if (decision) {
+                    setScreeningDecisionInput(
+                      getIklScreeningDecisionInput(decision, screeningDecisionOptions, userDepartment, t)
+                    );
+                  }
+                }}
+                className={`form-input form-input-sm max-w-60 ${screeningDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                placeholder={getIklScreeningDecisionInputPrompt(screeningDecisionOptions, userDepartment, t)}
+                inputMode="text"
+                aria-invalid={Boolean(screeningDecisionError)}
+              />
+              {screeningDecisionError && (
+                <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                  {screeningDecisionError}
+                </p>
+              )}
             </Field>
 
             <Field
@@ -7984,6 +8446,7 @@ function IklWorkspaceSections({
               labelClassName="!text-sm"
             >
               <textarea
+                ref={screeningRemarksRef}
                 value={comment}
                 onChange={(event) => {
                   setComment(event.target.value);
@@ -8006,7 +8469,36 @@ function IklWorkspaceSections({
               <Button
                 icon="fact_check"
                 disabled={saving}
-                onClick={() => submitAction(config.screeningAction)}
+                onClick={() => {
+                  const typedDecision = getIklScreeningDecisionFromInput(
+                    screeningDecisionInput,
+                    screeningDecisionOptions,
+                    userDepartment,
+                    t
+                  );
+                  const cleanedComment = cleanRemark(comment);
+
+                  if (!typedDecision) {
+                    setScreeningDecisionError(
+                      getIklScreeningDecisionInputPrompt(screeningDecisionOptions, userDepartment, t)
+                    );
+                    screeningDecisionInputRef.current?.focus();
+                    return;
+                  }
+
+                  if (!cleanedComment) {
+                    setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+                    screeningRemarksRef.current?.focus();
+                    return;
+                  }
+
+                  setDecision(typedDecision);
+                  submitAction(config.screeningAction, {
+                    decision: typedDecision,
+                    comment: cleanedComment,
+                    checkDecisionRemark: false,
+                  });
+                }}
                 className="min-h-8 px-2.5 py-1 text-sm sm:w-auto"
               >
                 {saving
@@ -9331,6 +9823,68 @@ function getIklScreeningDecisionLabel(item, department, t) {
   return t(item.labelKey, item.label || item);
 }
 
+function getIklScreeningDecisionInput(decision, decisions, department, t) {
+  const option = decisions.find((item) => (item.value || item) === decision);
+  return option ? getIklScreeningDecisionLabel(option, department, t) : decision || "";
+}
+
+function getIklScreeningDecisionFromInput(value, decisions, department, t) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+
+  const directDecision = getIklScreeningDirectDecision(normalized, department);
+  if (directDecision) return directDecision;
+
+  const option = decisions.find((item) => {
+    const decisionValue = String(item.value || item || "").trim().toLowerCase();
+    const decisionLabel = String(getIklScreeningDecisionLabel(item, department, t) || "")
+      .trim()
+      .toLowerCase();
+
+    return normalized === decisionValue || normalized === decisionLabel;
+  });
+
+  return option?.value || option || "";
+}
+
+function getIklScreeningDecisionInputPrompt(decisions, department, t) {
+  const directLabels = getIklScreeningDirectLabels(department, t);
+  const options = directLabels.length > 0
+    ? directLabels
+    : decisions
+    .map((item) => getIklScreeningDecisionLabel(item, department, t))
+    .filter(Boolean);
+
+  if (options.length === 0) {
+    return t("workspace.decision.required", "Please select a recommendation.");
+  }
+
+  return `Type ${options.join(" or ")}`;
+}
+
+function getIklScreeningDirectDecision(normalized, department) {
+  if (department === "PT(IKL)") {
+    if (normalized === "approve") return "PT(IKL) Send to KU(IKL)";
+    if (normalized === "reject") return "PT(IKL) Reject to Applicant";
+  }
+
+  if (department === "KU(IKL)") {
+    if (normalized === "approve") return "KU(IKL) Confirm - Send to Technical Units";
+    if (normalized === "reject") return "KU(IKL) Reject to Applicant";
+  }
+
+  return "";
+}
+
+function getIklScreeningDirectLabels(department, t) {
+  if (department !== "PT(IKL)" && department !== "KU(IKL)") return [];
+
+  return [
+    t("workspace.decision.approve", "Approve"),
+    t("workspace.decision.reject", "Reject"),
+  ];
+}
+
 function getIklScreeningDecisionOptions(decisions, department) {
   const allowed = {
     "PT(IKL)": new Set([
@@ -9398,7 +9952,7 @@ function getWorkspaceDecisionInput(
   decisions = [],
   t = (key, fallback) => fallback || key
 ) {
-  const option = decisions.find((item) => (item.value || item) === decision);
+  const option = decisions.find((item) => (item.value || item.label || item) === decision);
 
   return option ? t(option.labelKey, option.label || option.value || option) : decision || "";
 }
@@ -9412,7 +9966,7 @@ function getWorkspaceDecisionFromInput(
   if (!normalized) return "";
 
   const option = decisions.find((item) => {
-    const decisionValue = String(item.value || item || "").trim().toLowerCase();
+    const decisionValue = String(item.value || item.label || item || "").trim().toLowerCase();
     const decisionLabel = String(t(item.labelKey, item.label || item.value || item) || "")
       .trim()
       .toLowerCase();
@@ -9420,7 +9974,7 @@ function getWorkspaceDecisionFromInput(
     return normalized === decisionValue || normalized === decisionLabel;
   });
 
-  return option?.value || option || "";
+  return option?.value || option?.label || option || "";
 }
 
 function getWorkspaceDecisionInputPrompt(
@@ -10132,41 +10686,19 @@ function isTechnicalSitePhotoPdf(photo) {
 
 function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hideDelete = false }) {
   async function viewPhoto() {
-    const previewWindow = window.open("about:blank", "_blank");
-    const photoName = photo?.name || "site-photo";
-
-    if (previewWindow) {
-      previewWindow.document.write(
-        `<!doctype html><html><head><title>${escapeHtml(photoName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;font-family:Arial,sans-serif;color:#334155}p{font-size:14px}</style></head><body><p>Loading image...</p></body></html>`
-      );
-      previewWindow.document.close();
-    }
-
     try {
       const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
 
       if (!url) {
-        previewWindow?.close();
         return;
       }
 
-      if (previewWindow) {
-        previewWindow.document.open();
-        previewWindow.document.write(
-          isTechnicalSitePhotoPdf(photo)
-            ? `<!doctype html><html><head><title>${escapeHtml(photoName)}</title><style>body{margin:0;height:100vh;background:#0f172a}iframe{width:100vw;height:100vh;border:0;background:white}</style></head><body><iframe src="${url}" title="${escapeHtml(photoName)}"></iframe></body></html>`
-            : `<!doctype html><html><head><title>${escapeHtml(photoName)}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f172a}img{max-width:100vw;max-height:100vh;object-fit:contain}</style></head><body><img src="${url}" alt="${escapeHtml(photoName)}"></body></html>`
-        );
-        previewWindow.document.close();
-      } else {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
+      window.open(url, "_blank");
 
       if (revoke) {
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
       }
     } catch (error) {
-      previewWindow?.close();
       console.error("Failed to view site photo:", error);
     }
   }
@@ -10278,24 +10810,20 @@ function PaymentDetails({
   async function viewReceipt() {
     if (!receiptSource) return;
 
-    const previewWindow = openBlankDocumentPreview(receiptFile?.name || "Receipt");
-    if (!previewWindow) {
-      window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
-      return;
-    }
-
     try {
       const isInlineFile =
         receiptSource.startsWith("blob:") || receiptSource.startsWith("data:");
       const url = isInlineFile
         ? receiptSource
         : URL.createObjectURL(await fetchAuthenticatedBlob(receiptSource));
-      const shouldRevoke = !isInlineFile;
 
-      renderBlankDocumentPreview(previewWindow, url, receiptFile?.name || "Receipt", shouldRevoke);
+      window.open(url, "_blank");
+
+      if (!isInlineFile) {
+        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+      }
     } catch (error) {
       console.error("Failed to open payment receipt:", error);
-      previewWindow.close();
       window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
     }
   }
@@ -12154,78 +12682,23 @@ function getPaymentDocumentFieldName(kind) {
   return "letter_file";
 }
 
-function openBlankDocumentPreview(title = "Document") {
-  const previewWindow = window.open("about:blank", "_blank");
-  if (!previewWindow) return null;
-
-  const safeTitle = escapeHtml(title || "Document");
-  previewWindow.document.open();
-  previewWindow.document.write(`<!doctype html>
-<html>
-  <head>
-    <title>${safeTitle}</title>
-    <style>
-      html, body { height: 100%; margin: 0; background: #111827; color: #cbd5e1; font-family: Arial, sans-serif; }
-      body { display: grid; place-items: center; }
-    </style>
-  </head>
-  <body>
-    <p>Loading document...</p>
-  </body>
-</html>`);
-  previewWindow.document.close();
-  return previewWindow;
-}
-
-function renderBlankDocumentPreview(previewWindow, url, title = "Document", shouldRevoke = false) {
-  if (!previewWindow || !url) return;
-
-  const safeTitle = escapeHtml(title || "Document");
-  const safeUrl = escapeHtml(url);
-  previewWindow.document.open();
-  previewWindow.document.write(`<!doctype html>
-<html>
-  <head>
-    <title>${safeTitle}</title>
-    <style>
-      html, body { height: 100%; margin: 0; background: #111827; }
-      iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-    </style>
-  </head>
-  <body>
-    <iframe src="${safeUrl}" title="${safeTitle}"></iframe>
-  </body>
-</html>`);
-  previewWindow.document.close();
-
-  if (shouldRevoke) {
-    const cleanup = () => URL.revokeObjectURL(url);
-    previewWindow.addEventListener?.("beforeunload", cleanup, { once: true });
-    setTimeout(cleanup, 5 * 60 * 1000);
-  }
-}
-
 async function openPaymentDocument(file, t) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
-
-  const previewWindow = openBlankDocumentPreview(file?.name || "Document");
-  if (!previewWindow) {
-    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
-    return;
-  }
 
   try {
     const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
     const url = isInlineFile
       ? source
       : URL.createObjectURL(await fetchAuthenticatedBlob(source));
-    const shouldRevoke = !isInlineFile;
 
-    renderBlankDocumentPreview(previewWindow, url, file?.name || "Document", shouldRevoke);
+    window.open(url, "_blank");
+
+    if (!isInlineFile) {
+      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+    }
   } catch (error) {
     console.error("Failed to open payment document:", error);
-    previewWindow.close();
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
 }
@@ -13729,7 +14202,7 @@ function openPrintablePreview(title, html) {
   const previewUrl = URL.createObjectURL(
     new Blob([titledHtml], { type: "text/html" })
   );
-  const preview = window.open(previewUrl, "_blank", "noopener,noreferrer");
+  const preview = window.open(previewUrl, "_blank");
 
   if (!preview) {
     URL.revokeObjectURL(previewUrl);

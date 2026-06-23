@@ -1129,29 +1129,8 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
 }
 
 function DecisionLogReport({ app, logs, reference, t }) {
-  const applicantName = getRegisteredApplicantName(app);
-  const project = getProjectName(app);
-
   return (
     <section className="mt-3 rounded-md border border-slate-300 bg-white">
-      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("admin.dashboard.decisionLogReport", "Decision Log Report")}
-            </p>
-            <h3 className="mt-1 text-base font-semibold text-slate-950">{reference}</h3>
-            <p className="mt-1 max-w-4xl whitespace-pre-line text-sm text-slate-600">
-              {project || t("common.project", "Project")}
-            </p>
-          </div>
-          <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2 lg:min-w-[360px]">
-            <DecisionLogMeta label={t("common.applicant", "Applicant")} value={applicantName} />
-            <DecisionLogMeta label={t("common.updated", "Updated")} value={formatCompactDateTime(app.updated_at)} />
-          </div>
-        </div>
-      </div>
-
       {logs.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
@@ -1161,16 +1140,13 @@ function DecisionLogReport({ app, logs, reference, t }) {
                   {t("common.department", "Department")}
                 </th>
                 <th className="border-b border-slate-200 px-4 py-3">
-                  {t("admin.dashboard.decisionLogDecision", "Decision")}
+                  {t("admin.dashboard.decisionLogRecommendation", "Your Recommendation")}
                 </th>
                 <th className="border-b border-slate-200 px-4 py-3">
                   {t("common.remarks", "Remarks")}
                 </th>
                 <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
                   {t("common.date", "Date")}
-                </th>
-                <th className="border-b border-slate-200 px-4 py-3">
-                  {t("admin.dashboard.officer", "Officer")}
                 </th>
               </tr>
             </thead>
@@ -1181,16 +1157,13 @@ function DecisionLogReport({ app, logs, reference, t }) {
                     {log.department}
                   </td>
                   <td className="px-4 py-3">
-                    <StatusPill value={log.decision || "-"} />
+                    {log.decision ? <StatusPill value={log.decision} /> : null}
                   </td>
                   <td className="min-w-[320px] px-4 py-3 text-slate-700">
                     <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                     {formatCompactDateTime(log.date)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                    {log.officer || "-"}
                   </td>
                 </tr>
               ))}
@@ -1203,15 +1176,6 @@ function DecisionLogReport({ app, logs, reference, t }) {
         </p>
       )}
     </section>
-  );
-}
-
-function DecisionLogMeta({ label, value }) {
-  return (
-    <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">{value || "-"}</p>
-    </div>
   );
 }
 
@@ -1597,6 +1561,7 @@ function buildDecisionLogReportRows(app, t) {
   const managementRecommendation = getApplicationSection(app, "management_recommendation");
   const mphlgGateway = getApplicationSection(app, "mphlg_gateway");
   const approval = getApplicationSection(app, "approval");
+  const payment = getApplicationSection(app, "payment");
 
   addDecisionLogRow(rows, {
     id: "auto-screening",
@@ -1606,7 +1571,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(autoScreening),
     date: getDecisionLogDate(autoScreening, ["checked_at", "reviewed_at", "decided_at"]),
     officer: getDecisionLogOfficer(autoScreening, "PT(IKL)"),
-  });
+  }, t);
 
   Object.entries(getTechnicalDepartmentReviews(app))
     .filter(([, review]) => review && typeof review === "object")
@@ -1615,11 +1580,12 @@ function buildDecisionLogReportRows(app, t) {
         id: `technical-department-${department}`,
         department: normalizeDepartmentCode(department) || department,
         section: review,
-        decision: getDecisionLogValue(review),
+        decision: "",
         remarks: getDecisionLogRemarks(review),
         date: getDecisionLogDate(review, ["reviewed_at", "submitted_at", "checked_at"]),
         officer: getDecisionLogOfficer(review, normalizeDepartmentCode(department) || department),
-      });
+        useStatusFallback: false,
+      }, t);
     });
 
   addDecisionLogRow(rows, {
@@ -1630,7 +1596,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(technicalReview),
     date: getDecisionLogDate(technicalReview, ["reviewed_at", "submitted_at"]),
     officer: getDecisionLogOfficer(technicalReview, "IKL(TECHNICAL)"),
-  });
+  }, t);
 
   addDecisionLogRow(rows, {
     id: "technical-ku-review",
@@ -1640,7 +1606,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(technicalKuReview),
     date: getDecisionLogDate(technicalKuReview, ["reviewed_at", "checked_at"]),
     officer: getDecisionLogOfficer(technicalKuReview, "KU(IKL)"),
-  });
+  }, t);
 
   addDecisionLogRow(rows, {
     id: "kb-les-verification",
@@ -1650,7 +1616,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(kbLesVerification),
     date: getDecisionLogDate(kbLesVerification, ["verified_at", "reviewed_at"]),
     officer: getDecisionLogOfficer(kbLesVerification, "KB(LES)"),
-  });
+  }, t);
 
   addDecisionLogRow(rows, {
     id: "management-recommendation",
@@ -1660,7 +1626,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(managementRecommendation),
     date: getDecisionLogDate(managementRecommendation, ["decided_at", "supported_at", "approval_note_saved_at"]),
     officer: getDecisionLogOfficer(managementRecommendation, "TP(RES)/PGH"),
-  });
+  }, t);
 
   addDecisionLogRow(rows, {
     id: "mphlg-gateway",
@@ -1670,7 +1636,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(mphlgGateway),
     date: getDecisionLogDate(mphlgGateway, ["reviewed_at", "decided_at"]),
     officer: getDecisionLogOfficer(mphlgGateway, "MPHLG"),
-  });
+  }, t);
 
   addDecisionLogRow(rows, {
     id: "final-approval",
@@ -1680,7 +1646,17 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(approval),
     date: getDecisionLogDate(approval, ["approved_at", "decided_at"]),
     officer: getDecisionLogOfficer(approval, t("admin.dashboard.finalApproval", "Final Approval")),
-  });
+  }, t);
+
+  addDecisionLogRow(rows, {
+    id: "payment-receipt-verification",
+    department: "PT(IKL)",
+    section: payment,
+    decision: getPaymentReceiptDecisionLogValue(payment),
+    remarks: payment.verification_notes,
+    date: getDecisionLogDate(payment, ["verified_at", "rejected_at"]),
+    officer: "PT(IKL)",
+  }, t);
 
   return rows
     .filter((row, index, allRows) => {
@@ -1689,14 +1665,12 @@ function buildDecisionLogReportRows(app, t) {
         row.decision,
         row.remarks,
         row.date,
-        row.officer,
       ].join("|");
       return allRows.findIndex((item) => [
         item.department,
         item.decision,
         item.remarks,
         item.date,
-        item.officer,
       ].join("|") === key) === index;
     })
     .sort((a, b) => {
@@ -1706,7 +1680,7 @@ function buildDecisionLogReportRows(app, t) {
     });
 }
 
-function addDecisionLogRow(rows, row) {
+function addDecisionLogRow(rows, row, t) {
   const section = row.section && typeof row.section === "object" ? row.section : {};
   const decision = cleanRemark(row.decision);
   const remarks = cleanRemark(row.remarks);
@@ -1724,7 +1698,12 @@ function addDecisionLogRow(rows, row) {
   rows.push({
     id: row.id,
     department: row.department || "-",
-    decision: decision || formatWorkflowStatus(section.status || ""),
+    decision: formatDecisionLogRecommendation(
+      decision || (row.useStatusFallback === false ? "" : formatWorkflowStatus(section.status || "")),
+      row.department,
+      section,
+      t
+    ),
     remarks,
     date,
     officer: cleanRemark(row.officer),
@@ -1742,13 +1721,104 @@ function getDecisionLogValue(section = {}) {
   if (!section || typeof section !== "object") return "";
 
   return String(
-    section.final_decision ||
+    section.recommendation ||
+      section.final_decision ||
       section.decision ||
       section.result ||
-      section.recommendation ||
       section.status ||
       ""
   ).trim();
+}
+
+function formatDecisionLogRecommendation(value, department = "", section = {}, t = (key, fallback) => fallback || key) {
+  const decision = cleanRemark(value);
+  if (!decision) return "";
+
+  const normalized = decision.toLowerCase();
+  const normalizedDepartment = normalizeDepartmentCode(department);
+
+  const routeRecommendationMap = {
+    "pt(ikl) send to ku(ikl)": t("workspace.decision.approve", "Approve"),
+    "pt(ikl) hantar kepada ku(ikl)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) confirm - send to technical units": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) confirm - send to ikl(technical)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) sahkan - hantar kepada ikl(technical)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) confirm - send to kb(les)": t("workspace.decision.approve", "Approve"),
+    "ku(ikl) request technical amendment": t("workspace.decision.kuRequestTechnicalAmendment", "Request Amendment"),
+    "technical amendment required": t("workspace.decision.kuRequestTechnicalAmendment", "Request Amendment"),
+    "pt(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
+    "ku(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
+    "verified - sent to kb(les)": t("workspace.decision.verify", "Verify"),
+  };
+
+  if (routeRecommendationMap[normalized]) {
+    return routeRecommendationMap[normalized];
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.has(normalizedDepartment)) {
+    if (["approve", "approved"].includes(normalized)) {
+      return t("workspace.decision.support", "Support");
+    }
+
+    if (["reject", "rejected", "not support", "not supported"].includes(normalized)) {
+      return t("workspace.decision.notSupport", "Not Support");
+    }
+  }
+
+  if (
+    normalizedDepartment === "KU(IKL)" &&
+    normalized.includes("confirm") &&
+    normalized.includes("technical")
+  ) {
+    return t("workspace.decision.approve", "Approve");
+  }
+
+  if (
+    normalizedDepartment === "KU(IKL)" &&
+    normalized.includes("confirm") &&
+    normalized.includes("kb(les)")
+  ) {
+    return t("workspace.decision.approve", "Approve");
+  }
+
+  if (normalized.includes("reject") && normalized.includes("applicant")) {
+    return t("workspace.decision.reject", "Reject");
+  }
+
+  if (normalized.includes("amendment")) {
+    return t("workspace.decision.kuRequestTechnicalAmendment", "Request Amendment");
+  }
+
+  return decision;
+}
+
+function getPaymentReceiptDecisionLogValue(payment = {}) {
+  if (!payment || typeof payment !== "object") return "";
+
+  const explicitDecision = cleanRemark(
+    payment.recommendation ||
+      payment.decision ||
+      payment.verification_decision ||
+      payment.receipt_decision
+  );
+  if (explicitDecision) return explicitDecision;
+
+  const result = String(payment.verification_result || "").trim().toLowerCase();
+  const status = String(payment.status || "").trim().toLowerCase();
+
+  if (result === "valid" || status === "payment verified") {
+    return "Verify Receipt";
+  }
+
+  if (
+    result.includes("invalid") ||
+    result.includes("fake") ||
+    status === "receipt rejected"
+  ) {
+    return "Reject Receipt";
+  }
+
+  return "";
 }
 
 function getDecisionLogRemarks(section = {}) {
@@ -1841,60 +1911,21 @@ async function openDashboardPaymentDocument(file, t) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
 
-  const previewWindow = window.open("about:blank", "_blank");
-  if (!previewWindow) {
-    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
-    return;
-  }
-
   try {
     const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
     const url = isInlineFile
       ? source
       : URL.createObjectURL(await fetchAuthenticatedBlob(source));
-    const shouldRevoke = !isInlineFile;
 
-    renderBlankDocumentPreview(previewWindow, url, file?.name || "Document", shouldRevoke);
+    window.open(url, "_blank");
+
+    if (!isInlineFile) {
+      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+    }
   } catch (err) {
     console.error("Failed to open completed application document:", err);
-    previewWindow.close();
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
-}
-
-function renderBlankDocumentPreview(previewWindow, url, title, shouldRevoke = false) {
-  const safeTitle = escapePreviewHtml(title || "Document");
-  const safeUrl = escapePreviewHtml(url);
-
-  previewWindow.document.open();
-  previewWindow.document.write(`<!doctype html>
-<html>
-  <head>
-    <title>${safeTitle}</title>
-    <style>
-      html, body { height: 100%; margin: 0; background: #111827; }
-      iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-    </style>
-  </head>
-  <body>
-    <iframe src="${safeUrl}" title="${safeTitle}"></iframe>
-  </body>
-</html>`);
-  previewWindow.document.close();
-
-  if (shouldRevoke) {
-    const cleanup = () => URL.revokeObjectURL(url);
-    previewWindow.addEventListener?.("beforeunload", cleanup, { once: true });
-    setTimeout(cleanup, 5 * 60 * 1000);
-  }
-}
-
-function escapePreviewHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 async function downloadDashboardPaymentDocument(file, fallbackLabel, t) {

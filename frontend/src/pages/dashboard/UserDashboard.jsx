@@ -432,25 +432,18 @@ function UserDashboard() {
     const source = getPaymentReceiptSource(paymentReceipt);
     if (!source) return;
 
-    const previewWindow = openBlankDocumentPreview(
-      t("applicant.paymentReceipt", "Payment Receipt")
-    );
-    if (!previewWindow) return;
-
     try {
       const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
       const url = isInlineFile
         ? source
         : URL.createObjectURL(await fetchAuthenticatedBlob(source));
 
-      renderBlankDocumentPreview(
-        previewWindow,
-        url,
-        t("applicant.paymentReceipt", "Payment Receipt"),
-        !isInlineFile
-      );
+      window.open(url, "_blank");
+
+      if (!isInlineFile) {
+        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+      }
     } catch (err) {
-      previewWindow.close();
       console.error("Failed to open payment receipt:", err);
       setMessage({
         type: "error",
@@ -2102,66 +2095,9 @@ function getPaymentDocumentSource(file) {
   return file?.dataUrl || file?.url || file?.file_url || file?.file || "";
 }
 
-function openBlankDocumentPreview(title = "Document") {
-  const previewWindow = window.open("about:blank", "_blank");
-  if (!previewWindow) return null;
-
-  previewWindow.opener = null;
-  const safeTitle = escapeHtml(title);
-  previewWindow.document.open();
-  previewWindow.document.write(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${safeTitle}</title>
-  <style>
-    html, body { margin: 0; min-height: 100%; background: #f8fafc; color: #1e293b; font-family: Arial, sans-serif; }
-    .loading { min-height: 100vh; display: grid; place-items: center; font-size: 16px; }
-  </style>
-</head>
-<body>
-  <div class="loading">Loading document...</div>
-</body>
-</html>`);
-  previewWindow.document.close();
-  return previewWindow;
-}
-
-function renderBlankDocumentPreview(previewWindow, url, title = "Document", shouldRevoke = false) {
-  if (!previewWindow || !url) return;
-
-  const safeTitle = escapeHtml(title);
-  const safeUrl = escapeHtml(url);
-  previewWindow.document.open();
-  previewWindow.document.write(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${safeTitle}</title>
-  <style>
-    html, body { margin: 0; width: 100%; height: 100%; background: #0f172a; }
-    iframe { display: block; width: 100%; height: 100vh; border: 0; background: white; }
-  </style>
-</head>
-<body>
-  <iframe src="${safeUrl}" title="${safeTitle}"></iframe>
-</body>
-</html>`);
-  previewWindow.document.close();
-
-  if (shouldRevoke) {
-    const revoke = () => URL.revokeObjectURL(url);
-    previewWindow.addEventListener?.("beforeunload", revoke, { once: true });
-    window.setTimeout(revoke, 5 * 60 * 1000);
-  }
-}
-
 async function openApplicantPaymentDocument(file, t) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
-
-  const previewWindow = openBlankDocumentPreview(file?.name || "Document");
-  if (!previewWindow) return;
 
   try {
     const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
@@ -2169,9 +2105,12 @@ async function openApplicantPaymentDocument(file, t) {
       ? source
       : URL.createObjectURL(await fetchAuthenticatedBlob(source));
 
-    renderBlankDocumentPreview(previewWindow, url, file?.name || "Document", !isInlineFile);
+    window.open(url, "_blank");
+
+    if (!isInlineFile) {
+      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+    }
   } catch (err) {
-    previewWindow.close();
     console.error("Failed to open payment document:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
@@ -2211,13 +2150,14 @@ function openApplicantManualPaymentDocument(app, type, t) {
       ? t("workspace.payment.billDocument", "Bill")
       : manualLetter.subject || t("workspace.payment.approvalLetter", "Approval Letter");
 
-  const preview = window.open("about:blank", "_blank");
-  if (!preview) return;
-  preview.opener = null;
-  preview.document.open();
-  preview.document.write(html);
-  preview.document.close();
-  preview.document.title = `${getApplicationReference(app)} ${title}`;
+  const previewUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  const preview = window.open(previewUrl, "_blank");
+  if (!preview) {
+    URL.revokeObjectURL(previewUrl);
+    return;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
 }
 
 async function downloadApplicantManualPaymentDocument(app, type, t) {

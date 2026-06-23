@@ -423,15 +423,17 @@ function openPrintablePreview(title, html) {
     /<title>[\s\S]*?<\/title>/i,
     `<title>${escapeHtml(title)}</title>`
   );
+  const previewUrl = URL.createObjectURL(
+    new Blob([titledHtml], { type: "text/html" })
+  );
+  const preview = window.open(previewUrl, "_blank");
 
-  const preview = window.open("about:blank", "_blank");
-  if (!preview) return;
+  if (!preview) {
+    URL.revokeObjectURL(previewUrl);
+    return;
+  }
 
-  preview.opener = null;
-  preview.document.open();
-  preview.document.write(titledHtml);
-  preview.document.close();
-  preview.document.title = title;
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
 }
 
 function escapeHtml(value) {
