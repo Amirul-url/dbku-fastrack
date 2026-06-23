@@ -2,6 +2,7 @@ import { getStoredUser } from "../services/api";
 
 const APPLICANT_STATUS_SEEN_KEY = "fastrack_applicant_status_seen_records";
 const APPLICANT_E_LICENSE_SEEN_KEY = "fastrack_applicant_e_license_seen_records";
+const SEEN_TIMESTAMP_GRACE_MS = 5000;
 
 function readLocalJson(key, fallback = {}) {
   try {
@@ -59,7 +60,7 @@ export function markApplicantRecordSeen(tab, record, user = getStoredUser()) {
   const currentMap = readLocalJson(storageKey);
   const nextMap = {
     ...currentMap,
-    [record.id]: Math.max(Date.now(), getRecordUpdatedTime(record)),
+    [record.id]: Math.max(Date.now() + SEEN_TIMESTAMP_GRACE_MS, getRecordUpdatedTime(record)),
   };
 
   writeLocalJson(storageKey, nextMap);

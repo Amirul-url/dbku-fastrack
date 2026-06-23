@@ -16,7 +16,7 @@ from .services import (
     notify_application_status_change,
     process_license_renewal_reminders,
 )
-from .services import send_brevo_email, send_webhook_whatsapp
+from .services import send_brevo_email, send_smtp_email, send_webhook_whatsapp
 
 
 class NotificationSenderDefaultsTests(TestCase):
@@ -31,13 +31,25 @@ class NotificationSenderDefaultsTests(TestCase):
             is_active=True,
         )
 
-    @override_settings(BREVO_FROM_EMAIL="fallback@example.com", BREVO_FROM_NAME="ALiS")
-    def test_brevo_sender_uses_superadmin_email(self):
+    @override_settings(DEFAULT_FROM_EMAIL="noreply@dbku.gov.my")
+    def test_smtp_sender_uses_default_from_email(self):
+        with patch("notifications.services.EmailMultiAlternatives") as email_class:
+            send_smtp_email("applicant@example.com", "Subject", "Message")
+
+        email_class.assert_called_once_with(
+            subject="Subject",
+            body="Message",
+            from_email="noreply@dbku.gov.my",
+            to=["applicant@example.com"],
+        )
+
+    @override_settings(BREVO_FROM_EMAIL="sender@example.com", BREVO_FROM_NAME="ALiS")
+    def test_brevo_sender_uses_brevo_from_email(self):
         with patch("notifications.services.post_json") as post_json:
             send_brevo_email("applicant@example.com", "Subject", "Message")
 
         payload = post_json.call_args.args[1]
-        self.assertEqual(payload["sender"]["email"], "superadmin@example.com")
+        self.assertEqual(payload["sender"]["email"], "sender@example.com")
 
     @override_settings(WHATSAPP_WEBHOOK_URL="https://example.com/webhook", WHATSAPP_WEBHOOK_TOKEN="")
     def test_webhook_whatsapp_uses_superadmin_mobile_as_sender(self):
@@ -408,7 +420,9 @@ class NotificationRoutingTests(TestCase):
 
     @override_settings(
         NOTIFICATION_EMAIL_ENABLED=True,
-        BREVO_API_KEY="test-key",
+        NOTIFICATION_EMAIL_PROVIDER="smtp",
+        EMAIL_HOST="58.26.203.101",
+        DEFAULT_FROM_EMAIL="noreply@dbku.gov.my",
         WHATSAPP_ENABLED=True,
         WHATSAPP_PROVIDER="evolution",
         EVOLUTION_API_URL="https://whatsapp.example.com",
@@ -559,7 +573,9 @@ class NotificationRoutingTests(TestCase):
     @override_settings(
         NOTIFICATION_SIDE_EFFECTS_ENABLED=False,
         NOTIFICATION_EMAIL_ENABLED=True,
-        BREVO_API_KEY="test-key",
+        NOTIFICATION_EMAIL_PROVIDER="smtp",
+        EMAIL_HOST="58.26.203.101",
+        DEFAULT_FROM_EMAIL="noreply@dbku.gov.my",
         WHATSAPP_ENABLED=True,
         WHATSAPP_PROVIDER="evolution",
         EVOLUTION_API_URL="https://whatsapp.example.com",
@@ -612,7 +628,9 @@ class NotificationRoutingTests(TestCase):
     @override_settings(
         NOTIFICATION_SIDE_EFFECTS_ENABLED=False,
         NOTIFICATION_EMAIL_ENABLED=True,
-        BREVO_API_KEY="test-key",
+        NOTIFICATION_EMAIL_PROVIDER="smtp",
+        EMAIL_HOST="58.26.203.101",
+        DEFAULT_FROM_EMAIL="noreply@dbku.gov.my",
         WHATSAPP_ENABLED=True,
         WHATSAPP_PROVIDER="evolution",
         EVOLUTION_API_URL="https://whatsapp.example.com",

@@ -526,7 +526,7 @@ function UserDashboard() {
             onYearChange={setStatusFilterYear}
             isReferenceNew={(app) =>
               isApplicantRecordNew(app, "status", recordSeen) ||
-              isApplicantRecordNew(app, "license", recordSeen)
+              (isELicenseApplication(app) && isApplicantRecordNew(app, "license", recordSeen))
             }
             onOpen={(app) => {
               if (isELicenseApplication(app)) {

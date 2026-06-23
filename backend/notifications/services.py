@@ -11,6 +11,7 @@ from hashlib import sha1
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
+from django.core.mail import EmailMultiAlternatives
 from django.utils.dateparse import parse_datetime, parse_date
 from django.utils import timezone
 
@@ -2171,9 +2172,18 @@ def get_default_superadmin():
 
 
 def get_notification_sender_email():
-    superadmin = get_default_superadmin()
-    email = normalize_email(getattr(superadmin, "email", ""))
-    return email or getattr(settings, "BREVO_FROM_EMAIL", "")
+    return normalize_email(getattr(settings, "DEFAULT_FROM_EMAIL", ""))
+
+
+def get_brevo_sender_email():
+    return normalize_email(getattr(settings, "BREVO_FROM_EMAIL", ""))
+
+
+def get_notification_email_provider():
+    provider = str(getattr(settings, "NOTIFICATION_EMAIL_PROVIDER", "smtp") or "").strip().lower()
+    if provider in {"brevo", "smtp"}:
+        return provider
+    return "smtp"
 
 
 def get_notification_sender_phone():
@@ -2340,7 +2350,11 @@ def send_email(recipient, subject, message):
         message,
     )
 
-    send_brevo_email(actual_recipient, actual_subject, actual_message)
+    if get_notification_email_provider() == "brevo":
+        send_brevo_email(actual_recipient, actual_subject, actual_message)
+        return
+
+    send_smtp_email(actual_recipient, actual_subject, actual_message)
 
 
 def prepare_email_delivery(recipient, subject, message):
@@ -2356,12 +2370,24 @@ def prepare_email_delivery(recipient, subject, message):
     return redirect_to, f"[fasTrack test] {subject}", redirected_message
 
 
+def send_smtp_email(recipient, subject, message):
+    html_message = "<br>".join(escape_html(message).splitlines())
+    email = EmailMultiAlternatives(
+        subject=subject,
+        body=message,
+        from_email=get_notification_sender_email(),
+        to=[recipient],
+    )
+    email.attach_alternative(f"<p>{html_message}</p>", "text/html")
+    email.send(fail_silently=False)
+
+
 def send_brevo_email(recipient, subject, message):
     html_message = "<br>".join(escape_html(message).splitlines())
     payload = {
         "sender": {
             "name": settings.BREVO_FROM_NAME,
-            "email": get_notification_sender_email(),
+            "email": get_brevo_sender_email(),
         },
         "to": [{"email": recipient}],
         "subject": subject,
@@ -2466,9 +2492,16 @@ def is_channel_configured(channel):
         return True
 
     if channel == "email":
+        if get_notification_email_provider() == "brevo":
+            return bool(
+                settings.NOTIFICATION_EMAIL_ENABLED
+                and settings.BREVO_API_KEY
+                and get_brevo_sender_email()
+            )
+
         return bool(
             settings.NOTIFICATION_EMAIL_ENABLED
-            and settings.BREVO_API_KEY
+            and settings.EMAIL_HOST
             and get_notification_sender_email()
         )
 
@@ -2489,7 +2522,10 @@ def is_channel_configured(channel):
 
 def get_channel_skip_reason(channel):
     if channel == "email":
-        return "Brevo email credentials are not configured."
+        if get_notification_email_provider() == "brevo":
+            return "Brevo email credentials are not configured."
+
+        return "SMTP email service is not configured."
 
     if channel == "whatsapp" and not settings.WHATSAPP_ENABLED:
         return "WhatsApp notifications are disabled."

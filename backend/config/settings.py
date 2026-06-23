@@ -21,6 +21,10 @@ def env_list(name, default=""):
     ]
 
 
+def env_bool(name, default="False"):
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
 ALLOWED_HOSTS = env_list(
     "ALLOWED_HOSTS",
     "localhost,127.0.0.1,t13ibowgmqv1q5b97ctxtd3t.sapotlokal.my",
@@ -211,10 +215,20 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Outbound notifications
 FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")
 
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@dbku.gov.my")
+
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "58.26.203.101")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "25"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", "False")
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", "False")
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
 
 NOTIFICATION_SIDE_EFFECTS_ENABLED = os.getenv("NOTIFICATION_SIDE_EFFECTS_ENABLED", "False") == "True"
 NOTIFICATION_EMAIL_ENABLED = os.getenv("NOTIFICATION_EMAIL_ENABLED", "False") == "True"
+NOTIFICATION_EMAIL_PROVIDER = os.getenv("NOTIFICATION_EMAIL_PROVIDER", "brevo").strip().lower()
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
 BREVO_FROM_EMAIL = os.getenv("BREVO_FROM_EMAIL", DEFAULT_FROM_EMAIL)
 BREVO_FROM_NAME = os.getenv("BREVO_FROM_NAME", "DBKU fasTrack")

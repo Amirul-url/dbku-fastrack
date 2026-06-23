@@ -408,8 +408,11 @@ def deliver_password_reset_otp(user, channel, otp):
         if not user.email:
             return False, "This account does not have an email address saved."
 
-        if getattr(settings, "NOTIFICATION_EMAIL_ENABLED", False) and settings.BREVO_API_KEY:
-            from notifications.services import send_email
+        if getattr(settings, "NOTIFICATION_EMAIL_ENABLED", False):
+            from notifications.services import is_channel_configured, send_email
+
+            if not is_channel_configured("email"):
+                return False, "Email OTP service is not configured right now. Please try WhatsApp or contact support."
 
             try:
                 send_email(user.email, "ALiS Password Reset OTP", message)
