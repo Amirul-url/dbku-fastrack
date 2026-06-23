@@ -157,6 +157,52 @@ class ApplicationReferenceTests(TestCase):
             "MUHAMMAD AMIRUL AQMAL BIN ABDUL LATIP",
         )
 
+    def test_application_detail_preserves_digital_signature_data_url(self):
+        User = get_user_model()
+        applicant = User.objects.create_user(
+            username="signature-applicant",
+            password="testpass123",
+            role="applicant",
+        )
+        staff = User.objects.create_user(
+            username="tp-res",
+            password="testpass123",
+            role="admin",
+            department="TP(RES)",
+            is_staff=True,
+        )
+        signature_data_url = "data:image/png;base64,abc123"
+        preview_data_url = "data:image/png;base64,preview123"
+        application = Application.objects.create(
+            applicant=applicant,
+            title="LED signage",
+            status="management_review",
+            form_data={
+                "management_recommendation": {
+                    "status": "Approved",
+                    "digital_signature": {
+                        "mode": "draw",
+                        "dataUrl": signature_data_url,
+                    },
+                },
+                "technical_site_visit": {
+                    "site_image_preview": preview_data_url,
+                },
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=staff)
+        response = client.get(f"/api/applications/{application.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        form_data = response.data["form_data"]
+        self.assertEqual(
+            form_data["management_recommendation"]["digital_signature"]["dataUrl"],
+            signature_data_url,
+        )
+        self.assertEqual(form_data["technical_site_visit"]["site_image_preview"], "")
+
     def test_applicant_submit_marks_application_submitted(self):
         User = get_user_model()
         applicant = User.objects.create_user(

@@ -1224,6 +1224,9 @@ function DecisionLogReport({ app, logs, reference, t }) {
                   {t("common.remarks", "Remarks")}
                 </th>
                 <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
+                  {t("workspace.signature.title", "Digital Signature")}
+                </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
                   {t("common.date", "Date")}
                 </th>
               </tr>
@@ -1240,6 +1243,9 @@ function DecisionLogReport({ app, logs, reference, t }) {
                   <td className="min-w-[320px] px-4 py-3 text-slate-700">
                     <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
                   </td>
+                  <td className="px-4 py-3">
+                    <DecisionLogSignatureCell signature={log.signature} t={t} />
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                     {formatCompactDateTime(log.date)}
                   </td>
@@ -1254,6 +1260,27 @@ function DecisionLogReport({ app, logs, reference, t }) {
         </p>
       )}
     </section>
+  );
+}
+
+function DecisionLogSignatureCell({ signature, t }) {
+  const signatureSource = getDecisionLogSignatureSource(signature);
+
+  if (!signatureSource) {
+    return <span className="text-slate-400">-</span>;
+  }
+
+  return (
+    <span
+      className="inline-flex min-h-12 min-w-28 items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 shadow-sm"
+      title={t("workspace.signature.previewAlt", "Digital signature preview")}
+    >
+      <img
+        src={signatureSource}
+        alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+        className="max-h-10 max-w-28 object-contain"
+      />
+    </span>
   );
 }
 
@@ -1622,6 +1649,7 @@ function buildDecisionLogReportRows(app, t) {
   const managementRecommendation = getApplicationSection(app, "management_recommendation");
   const mphlgGateway = getApplicationSection(app, "mphlg_gateway");
   const approval = getApplicationSection(app, "approval");
+  const approvalLetter = getApplicationSection(app, "approval_letter");
   const payment = getApplicationSection(app, "payment");
 
   addDecisionLogRow(rows, {
@@ -1687,6 +1715,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(managementRecommendation),
     date: getDecisionLogDate(managementRecommendation, ["decided_at", "supported_at", "approval_note_saved_at"]),
     officer: getDecisionLogOfficer(managementRecommendation, "TP(RES)/PGH"),
+    signature: managementRecommendation.digital_signature,
   }, t);
 
   addDecisionLogRow(rows, {
@@ -1707,6 +1736,7 @@ function buildDecisionLogReportRows(app, t) {
     remarks: getDecisionLogRemarks(approval),
     date: getDecisionLogDate(approval, ["approved_at", "decided_at"]),
     officer: getDecisionLogOfficer(approval, t("admin.dashboard.finalApproval", "Final Approval")),
+    signature: approval.digital_signature,
   }, t);
 
   addDecisionLogRow(rows, {
@@ -1717,6 +1747,16 @@ function buildDecisionLogReportRows(app, t) {
     remarks: payment.verification_notes,
     date: getDecisionLogDate(payment, ["verified_at", "rejected_at"]),
     officer: "PT(IKL)",
+  }, t);
+
+  addDecisionLogRow(rows, {
+    id: "payment-letter-bill",
+    department: "PT(IKL)",
+    section: approvalLetter,
+    decision: approvalLetter.letter_bill_decision || approvalLetter.recommendation,
+    remarks: getDecisionLogRemarks(approvalLetter),
+    date: getDecisionLogDate(approvalLetter, ["sent_to_applicant_at", "submitted_at"]),
+    officer: getDecisionLogOfficer(approvalLetter, "PT(IKL)"),
   }, t);
 
   return rows
@@ -1768,7 +1808,24 @@ function addDecisionLogRow(rows, row, t) {
     remarks,
     date,
     officer: cleanRemark(row.officer),
+    signature: row.signature || section.digital_signature || null,
   });
+}
+
+function getDecisionLogSignatureSource(signature) {
+  if (!signature) return "";
+  if (typeof signature === "string") return signature;
+  if (typeof signature !== "object") return "";
+
+  return String(
+    signature.dataUrl ||
+      signature.data_url ||
+      signature.url ||
+      signature.file_url ||
+      signature.preview_url ||
+      signature.source ||
+      ""
+  ).trim();
 }
 
 function getAutoScreeningDecisionDepartment(section = {}) {
@@ -1810,6 +1867,10 @@ function formatDecisionLogRecommendation(value, department = "", section = {}, t
     "pt(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
     "ku(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
     "verified - sent to kb(les)": t("workspace.decision.verify", "Verify"),
+    "submit letter & bill": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "hantar surat & bil": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "generate approval letter & bill": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "jana surat kelulusan & bil": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
   };
 
   if (routeRecommendationMap[normalized]) {
@@ -2964,6 +3025,10 @@ function PersonalTaskDashboard() {
 
   const processListUnits = useMemo(() => {
     return unitTasks.filter((unit) => {
+      if (activeDepartment === "MPHLG") {
+        return unit.department === "MPHLG";
+      }
+
       if (APPROVAL_WORKFLOW_DEPARTMENTS.has(activeDepartment)) {
         return APPROVAL_PROCESS_LIST_DEPARTMENTS.has(unit.department);
       }
@@ -3058,6 +3123,7 @@ function ClaimableTaskView({
         title={`${selected.title} ${t("admin.dashboard.taskQueue")}`}
         description={t("admin.dashboard.queueDescription")}
         className="mt-5"
+        bodyClassName="p-0"
       >
         <PaginatedTaskTable
           t={t}
@@ -3148,8 +3214,8 @@ function PaginatedTaskTable({ rows, t, ...props }) {
   );
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white">
-      <DataTable {...props} rows={visibleRows} />
+    <div className="bg-white">
+      <DataTable {...props} rows={visibleRows} framed={false} />
       {!props.loading && (
         <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
@@ -3411,6 +3477,10 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
   if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
     return t("status.ikl_technical_review", "IKL(TECH) Review");
+  }
+
+  if (status === "payment_submitted") {
+    return t("status.receipt_review", "Receipt Review");
   }
 
   if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit?.department) && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {

@@ -742,10 +742,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
   const approvalSupportDecision =
-    isApprovalSupportWorkspace && ["Approve", "Reject"].includes(decision)
+    isApprovalSupportWorkspace && ["Approve", "Support", "Reject"].includes(decision)
       ? decision
       : "";
-  const showApprovalSupportSignature = approvalSupportDecision === "Approve";
+  const showApprovalSupportSignature = isSignedApprovalSupportDecision(approvalSupportDecision);
   const approvalSupportDecisionOptions = useMemo(
     () => getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace),
     [isFinalApprovalSupportWorkspace]
@@ -784,17 +784,22 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     userDepartment === "PT(IKL)" &&
     normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
     workspaceActions.some((action) => action.requiresSubmittedReceipt);
+  const showPaymentDocumentDecision =
+    config.key === "payment" &&
+    userDepartment === "PT(IKL)" &&
+    workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
+  const showPaymentTypedDecision = showPaymentReceiptDecision || showPaymentDocumentDecision;
   const useTypedApprovalDecision =
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
     !isApprovalLicenseManagement &&
     !isApprovalSupportWorkspace &&
     !showApprovalDecisionButtons &&
-    !showPaymentReceiptDecision;
+    !showPaymentTypedDecision;
   const workspaceCommentRequired =
     workspaceActions.some((action) => action.requiresComment) ||
     useTypedApprovalDecision ||
-    showPaymentReceiptDecision;
+    showPaymentTypedDecision;
   const showWorkspaceCommentField =
     !isApprovalLicenseManagement &&
     config.showComment &&
@@ -804,16 +809,30 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       config.key !== "payment" ||
       workspaceActions.some((action) =>
         action.requiresComment ||
+        action.requiresPaymentDocuments ||
         action.requiresReceipt ||
         action.requiresSubmittedReceipt
       )
     );
   const showDetailsBeforeComment =
     config.key === "payment" &&
-    workspaceActions.some((action) => action.requiresSubmittedReceipt);
+    (showPaymentDocumentDecision || workspaceActions.some((action) => action.requiresSubmittedReceipt));
   const paymentReceiptDecisionOptions = showPaymentReceiptDecision
     ? workspaceActions.filter((action) => action.requiresSubmittedReceipt)
     : [];
+  const paymentDocumentDecisionOptions = showPaymentDocumentDecision
+    ? workspaceActions
+        .filter((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt)
+        .map((action) => ({
+          ...action,
+          value: "Generate Approval Letter & Bill",
+          label: "Generate Approval Letter & Bill",
+          labelKey: "workspace.decision.generateApprovalLetterBill",
+        }))
+    : [];
+  const paymentTypedDecisionOptions = showPaymentReceiptDecision
+    ? paymentReceiptDecisionOptions
+    : paymentDocumentDecisionOptions;
   const selectedPaymentReceiptAction = showPaymentReceiptDecision
     ? paymentReceiptDecisionOptions.find((action) => action.label === decision)
     : null;
@@ -916,16 +935,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    if (showPaymentReceiptDecision && decision) {
+    if (showPaymentTypedDecision && decision) {
       const preservedDecision =
-        getWorkspaceDecisionFromInput(decision, paymentReceiptDecisionOptions, t) || decision;
-      const canPreservePaymentDecision = paymentReceiptDecisionOptions.some(
+        getWorkspaceDecisionFromInput(decision, paymentTypedDecisionOptions, t) || decision;
+      const canPreservePaymentDecision = paymentTypedDecisionOptions.some(
         (action) => (action.value || action.label || action) === preservedDecision
       );
 
       if (canPreservePaymentDecision) {
         setDecision(preservedDecision);
-        setDecisionInput(getWorkspaceDecisionInput(preservedDecision, paymentReceiptDecisionOptions, t));
+        setDecisionInput(getWorkspaceDecisionInput(preservedDecision, paymentTypedDecisionOptions, t));
         setDecisionError("");
         setLicenseExpiryYears("1");
         return;
@@ -935,10 +954,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const nextDecision = getDefaultWorkspaceDecision(config, selectedRecord, userDepartment);
     setDecision(nextDecision);
     setDecisionInput(
-      useTypedApprovalDecision || showPaymentReceiptDecision
+      useTypedApprovalDecision || showPaymentTypedDecision
         ? getWorkspaceDecisionInput(
             nextDecision,
-            showPaymentReceiptDecision ? paymentReceiptDecisionOptions : decisionOptions,
+            showPaymentTypedDecision ? paymentTypedDecisionOptions : decisionOptions,
             t
           )
         : ""
@@ -953,7 +972,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     decisionOptions,
     isApprovalSupportWorkspace,
     selectedRecord?.id,
+    showPaymentDocumentDecision,
     showPaymentReceiptDecision,
+    showPaymentTypedDecision,
     t,
     useTypedApprovalDecision,
     userDepartment,
@@ -1631,7 +1652,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    const requiresSignature = decisionValue === "Approve";
+    const requiresSignature = isSignedApprovalSupportDecision(decisionValue);
     const supportSignature = requiresSignature ? approvalSupportSignature : null;
 
     if (requiresSignature && !supportSignature?.dataUrl) {
@@ -1670,6 +1691,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }
 
   function submitWorkspaceAction(action) {
+    if (showPaymentDocumentDecision) {
+      if (!decision) {
+        setDecisionError(getWorkspaceDecisionInputPrompt(paymentDocumentDecisionOptions, t));
+        decisionInputRef.current?.focus();
+        return;
+      }
+
+      if (!cleanRemark(comment)) {
+        setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+        commentRef.current?.focus();
+        return;
+      }
+    }
+
     if (useTypedApprovalDecision) {
       if (!decision) {
         setDecisionError(getWorkspaceDecisionInputPrompt(decisionOptions, t));
@@ -1995,6 +2030,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
+        approvalSupportSignature: overrides.approvalSupportSignature || null,
         kuChecks: overrides.kuChecks,
         officialReceiptMode: "upload",
       });
@@ -2222,9 +2258,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             title={isSimpleApprovalWorkspace ? t("admin.dashboard.awaitingApproval", "Awaiting Approval") : t(config.queueTitleKey, config.queueTitle)}
             description={isSimpleApprovalWorkspace ? "" : t("workspace.queue.instructions")}
             className={tableFirstWorkspace ? "" : "xl:col-span-2"}
+            bodyClassName="p-0"
           >
             {statusScopedApplications.length > 0 && (
-              <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto] lg:items-end">
+              <div className="grid grid-cols-1 gap-3 px-4 pb-4 pt-4 lg:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto] lg:items-end">
                 <Field label={t("common.search")}>
                   <input
                     value={keyword}
@@ -2451,16 +2488,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             description={
               isReadOnlyActionPanel
                 ? showApprovalPaymentReadOnly
-                  ? t(
-                      "workspace.approval.paymentReadOnlyAction",
-                      "View PT(IKL) post-approval progress, payment documents, receipt, and e-license files."
-                    )
+                  ? ""
                   : isApprovalHistoryRecord(selectedRecord)
-                  ? t("workspace.approval.completedAction", "Final approval has been recorded.")
-                  : t(
-                      "workspace.approval.viewOnlyAction",
-                      "View applications awaiting KB(LES), TP(RES)/PGH, or MPHLG action."
-                    )
+                    ? t("workspace.approval.completedAction", "Final approval has been recorded.")
+                    : ""
                 : getWorkspaceActionDescription(config, t, userDepartment, selectedRecord)
             }
           >
@@ -2479,7 +2510,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     type: t("common.type"),
                     status: t("common.status"),
                     location: t("workspace.location"),
-                    created: t("workspace.created"),
+                    created: t("common.created", "Created"),
                     updated: t("common.updated"),
                   }}
                   statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
@@ -2696,18 +2727,22 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )
                   )}
 
-                  {showPaymentReceiptDecision && (
+                  {showPaymentTypedDecision && (
                     <Field
                       label={
-                        <span className="relative inline-flex items-center gap-1.5">
-                          <span>{t("common.decision", "Your Recommendation")}</span>
-                          <WorkspaceGuidelineHint
-                            text={t(
-                              "workspace.payment.receiptDecisionHint",
-                              "Please view the applicant receipt first, then type a recommendation before submitting."
-                            )}
-                          />
-                        </span>
+                        showPaymentReceiptDecision ? (
+                          <span className="relative inline-flex items-center gap-1.5">
+                            <span>{t("common.decision", "Your Recommendation")}</span>
+                            <WorkspaceGuidelineHint
+                              text={t(
+                                "workspace.payment.receiptDecisionHint",
+                                "Please view the applicant receipt first, then type a recommendation before submitting."
+                              )}
+                            />
+                          </span>
+                        ) : (
+                          t("common.decision", "Your Recommendation")
+                        )
                       }
                       labelClassName="!text-[13px]"
                     >
@@ -2719,7 +2754,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           const nextValue = event.target.value;
                           const nextDecision = getWorkspaceDecisionFromInput(
                             nextValue,
-                            paymentReceiptDecisionOptions,
+                            paymentTypedDecisionOptions,
                             t
                           );
                           setDecisionInput(nextValue);
@@ -2730,12 +2765,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onBlur={() => {
                           if (decision) {
                             setDecisionInput(
-                              getWorkspaceDecisionInput(decision, paymentReceiptDecisionOptions, t)
+                              getWorkspaceDecisionInput(decision, paymentTypedDecisionOptions, t)
                             );
                           }
                         }}
                         className={`form-input form-input-sm max-w-xs ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                        placeholder={getWorkspaceDecisionInputPrompt(paymentReceiptDecisionOptions, t)}
+                        placeholder={getWorkspaceDecisionInputPrompt(paymentTypedDecisionOptions, t)}
                         inputMode="text"
                         aria-invalid={Boolean(decisionError)}
                       />
@@ -2752,7 +2787,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       label={
                         <>
                           {useTypedApprovalDecision
-                            || showPaymentReceiptDecision
+                            || showPaymentTypedDecision
                             ? t("workspace.comment.remarks", "Remarks")
                             : t(config.commentLabelKey, config.commentLabel || "Notes")}
                           {workspaceCommentRequired && (
@@ -2760,7 +2795,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           )}
                         </>
                       }
-                      labelClassName={showPaymentReceiptDecision ? "!text-[13px]" : ""}
+                      labelClassName={showPaymentTypedDecision ? "!text-[13px]" : ""}
                     >
                       <textarea
                         ref={commentRef}
@@ -2773,8 +2808,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         required={workspaceCommentRequired}
                         aria-required={workspaceCommentRequired}
                         aria-invalid={Boolean(commentError)}
-                        className={`form-input ${showPaymentReceiptDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                        placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+                        className={`form-input ${showPaymentTypedDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                        placeholder={
+                          showPaymentTypedDecision
+                            ? t("workspace.comment.approvalPlaceholder", "Add comments")
+                            : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
+                        }
                       />
                       {commentError && (
                         <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
@@ -2809,7 +2848,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             setDecisionInput(nextValue);
                             if (decisionError) setDecisionError("");
                             setDecision(nextDecision);
-                            if (nextDecision !== "Approve") {
+                            if (!isSignedApprovalSupportDecision(nextDecision)) {
                               setApprovalSupportSignature(null);
                               setApprovalSupportSignatureError("");
                             }
@@ -3104,6 +3143,9 @@ function WorkspaceDecisionLogReport({ app, t }) {
                   {t("common.remarks", "Remarks")}
                 </th>
                 <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
+                  {t("workspace.signature.title", "Digital Signature")}
+                </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
                   {t("common.date", "Date")}
                 </th>
               </tr>
@@ -3120,6 +3162,9 @@ function WorkspaceDecisionLogReport({ app, t }) {
                   <td className="min-w-[320px] px-4 py-3 text-slate-700">
                     <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
                   </td>
+                  <td className="px-4 py-3">
+                    <DecisionLogSignatureCell signature={log.signature} t={t} />
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                     {formatCompactDateTime(log.date)}
                   </td>
@@ -3134,6 +3179,27 @@ function WorkspaceDecisionLogReport({ app, t }) {
         </p>
       )}
     </section>
+  );
+}
+
+function DecisionLogSignatureCell({ signature, t }) {
+  const signatureSource = getDecisionLogSignatureSource(signature);
+
+  if (!signatureSource) {
+    return <span className="text-slate-400">-</span>;
+  }
+
+  return (
+    <span
+      className="inline-flex min-h-12 min-w-28 items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 shadow-sm"
+      title={t("workspace.signature.previewAlt", "Digital signature preview")}
+    >
+      <img
+        src={signatureSource}
+        alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+        className="max-h-10 max-w-28 object-contain"
+      />
+    </span>
   );
 }
 
@@ -3208,8 +3274,8 @@ function PaginatedWorkspaceTable({ rows, t, ...props }) {
   );
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white">
-      <DataTable {...props} rows={visibleRows} />
+    <div className="bg-white">
+      <DataTable {...props} rows={visibleRows} framed={false} />
       {!props.loading && (
         <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
@@ -4899,6 +4965,10 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.bill_pending_ku", "Pending Bill Sending");
   }
 
+  if (config?.key === "payment" && status === "payment_submitted") {
+    return t("status.receipt_review", "Receipt Review");
+  }
+
   return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
@@ -4906,7 +4976,7 @@ function getPostApprovalPaymentStatusLabel(app, t) {
   const status = normalizeStatus(app?.status);
   const labelMap = {
     invoice_generated: t("status.invoice_generated", "Waiting for Payment"),
-    payment_submitted: t("status.payment_submitted", "Receipt Submitted"),
+    payment_submitted: t("status.receipt_review", "Receipt Review"),
     payment_verified: t("status.payment_verified", "Payment Verified"),
     license_issued: t("status.license_issued", "E-License Issued"),
     license_revoked: t("status.license_revoked", "License Revoked"),
@@ -4997,6 +5067,10 @@ function getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace = fal
     { value: "Approve", label: "Support", labelKey: "workspace.decision.support" },
     { value: "Reject", label: "Not Support", labelKey: "workspace.decision.notSupport" },
   ];
+}
+
+function isSignedApprovalSupportDecision(decision) {
+  return ["approve", "support"].includes(String(decision || "").trim().toLowerCase());
 }
 
 function getWorkspaceDecisionOptions(config, app, department) {
@@ -5605,6 +5679,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
   const managementRecommendation = getApplicationSection(app, "management_recommendation");
   const mphlgGateway = getApplicationSection(app, "mphlg_gateway");
   const approval = getApplicationSection(app, "approval");
+  const approvalLetter = getApplicationSection(app, "approval_letter");
   const payment = getApplicationSection(app, "payment");
 
   addWorkspaceDecisionLogRow(rows, {
@@ -5667,6 +5742,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(managementRecommendation),
     remarks: getWorkspaceDecisionLogRemarks(managementRecommendation),
     date: getWorkspaceDecisionLogDate(managementRecommendation, ["decided_at", "supported_at", "approval_note_saved_at"]),
+    signature: managementRecommendation.digital_signature,
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -5685,6 +5761,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(approval),
     remarks: getWorkspaceDecisionLogRemarks(approval),
     date: getWorkspaceDecisionLogDate(approval, ["approved_at", "decided_at"]),
+    signature: approval.digital_signature,
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -5694,6 +5771,15 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspacePaymentReceiptDecisionLogValue(payment),
     remarks: payment.verification_notes,
     date: getWorkspaceDecisionLogDate(payment, ["verified_at", "rejected_at"]),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "payment-letter-bill",
+    department: "PT(IKL)",
+    section: approvalLetter,
+    decision: approvalLetter.letter_bill_decision || approvalLetter.recommendation,
+    remarks: getWorkspaceDecisionLogRemarks(approvalLetter),
+    date: getWorkspaceDecisionLogDate(approvalLetter, ["sent_to_applicant_at", "submitted_at"]),
   }, t);
 
   return rows
@@ -5731,7 +5817,24 @@ function addWorkspaceDecisionLogRow(rows, row, t) {
     ),
     remarks,
     date,
+    signature: row.signature || section.digital_signature || null,
   });
+}
+
+function getDecisionLogSignatureSource(signature) {
+  if (!signature) return "";
+  if (typeof signature === "string") return signature;
+  if (typeof signature !== "object") return "";
+
+  return String(
+    signature.dataUrl ||
+      signature.data_url ||
+      signature.url ||
+      signature.file_url ||
+      signature.preview_url ||
+      signature.source ||
+      ""
+  ).trim();
 }
 
 function getWorkspaceAutoScreeningDecisionDepartment(section = {}) {
@@ -5773,6 +5876,10 @@ function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (k
     "pt(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
     "ku(ikl) reject to applicant": t("workspace.decision.reject", "Reject"),
     "verified - sent to kb(les)": t("workspace.decision.verify", "Verify"),
+    "submit letter & bill": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "hantar surat & bil": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "generate approval letter & bill": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "jana surat kelulusan & bil": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
   };
 
   if (routeRecommendationMap[normalized]) {
@@ -6603,9 +6710,10 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     const finalApproval = hasSutApprovalResult(app);
+    const signedSupport = isSignedApprovalSupportDecision(decision);
     const supportRecommendation = finalApproval
       ? decision
-      : decision === "Approve"
+      : signedSupport
         ? "Support"
         : "Not Support";
     const approvalSupportSignature =
@@ -6633,7 +6741,7 @@ function buildApprovalWorkflowPayload(app, data) {
           officer: department,
           status: rejected ? "Rejected" : "Approved",
           recommendation: supportRecommendation,
-          decision,
+          decision: signedSupport ? "Approve" : decision,
           remarks: rejected ? data.comment || approvalDecisionRemarks : data.comment,
           approval_note_html: approvalDecisionHtml,
           digital_signature: approvalSupportSignature,
@@ -7776,34 +7884,45 @@ const configs = {
     ],
     actions: [
       {
-        label: "Submit Letter & Bill",
-        labelKey: "workspace.action.submitLetterBill",
-        icon: "upload_file",
+        label: "Submit",
+        labelKey: "common.submit",
+        icon: "send",
         success: "Approval letter and bill sent to applicant.",
         successKey: "workspace.message.invoiceGenerated",
         requiresPaymentDocuments: true,
+        requiresComment: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && ["approved", "bill_pending_ku"].includes(normalizeStatus(app?.status)),
-        buildPayload: (app) => ({
-          status: "invoice_generated",
-          form_data: mergeFormData(app, {
-            approval_letter: {
-              ...(app.form_data?.approval_letter || {}),
-              status: "Sent to Applicant",
-              submitted_by: "PT(IKL)",
-              submitted_at: new Date().toISOString(),
-              sent_to_applicant_at: new Date().toISOString(),
-            },
-            payment: {
-              ...(app.form_data?.payment || {}),
-              invoice_no: getInvoiceNo(app),
-              amount: getBillAmount(app),
-              status: "Awaiting Payment",
-              generated_by: "PT(IKL)",
-              generated_at: new Date().toISOString(),
-            },
-          }),
-        }),
+        buildPayload: (app, data = {}) => {
+          const timestamp = new Date().toISOString();
+          const decision = data.decision || "Generate Approval Letter & Bill";
+          const remarks = cleanRemark(data.comment);
+
+          return {
+            status: "invoice_generated",
+            latest_remark: remarks,
+            form_data: mergeFormData(app, {
+              approval_letter: {
+                ...(app.form_data?.approval_letter || {}),
+                status: "Sent to Applicant",
+                recommendation: decision,
+                letter_bill_decision: decision,
+                remarks,
+                submitted_by: "PT(IKL)",
+                submitted_at: timestamp,
+                sent_to_applicant_at: timestamp,
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                invoice_no: getInvoiceNo(app),
+                amount: getBillAmount(app),
+                status: "Awaiting Payment",
+                generated_by: "PT(IKL)",
+                generated_at: timestamp,
+              },
+            }),
+          };
+        },
       },
       {
         label: "Verify Receipt",
@@ -9970,7 +10089,10 @@ function getIklScreeningDecisionInputPrompt(decisions, department, t) {
     return t("workspace.decision.required", "Please select a recommendation.");
   }
 
-  return `Type ${options.join(" or ")}`;
+  return t("workspace.decision.typeOptions", "Type {options}").replace(
+    "{options}",
+    options.join(` ${t("common.or", "or")} `)
+  );
 }
 
 function getIklScreeningDirectDecision(normalized, department) {
@@ -10097,7 +10219,10 @@ function getWorkspaceDecisionInputPrompt(
     .filter(Boolean);
 
   if (labels.length > 0) {
-    return `Type ${labels.join(" or ")}`;
+    return t("workspace.decision.typeOptions", "Type {options}").replace(
+      "{options}",
+      labels.join(` ${t("common.or", "or")} `)
+    );
   }
 
   return t("workspace.decision.required", "Please select a recommendation.");
@@ -10915,7 +11040,8 @@ function PaymentDetails({
     payment.verification_result ||
     payment.verification_notes
   );
-  const showVerificationUploads = isReceiptVerification && paymentReceiptDecision === "Verify Receipt";
+  const isRejectReceiptDecision = paymentReceiptDecision === "Reject Receipt";
+  const showVerificationUploads = isReceiptVerification && !isRejectReceiptDecision;
   const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
   async function viewReceipt() {
@@ -10941,6 +11067,7 @@ function PaymentDetails({
 
   const showOfficialReceiptSection = showVerificationUploads || Boolean(officialReceiptFile);
   const showLicenseDocumentSection = showVerificationUploads || Boolean(licenseFile);
+  const showQrPanel = true;
 
   const officialReceiptUploadSection = showOfficialReceiptSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
@@ -11058,9 +11185,6 @@ function PaymentDetails({
           {payment.verification_result && (
             <p className="mt-1 text-xs text-slate-500">{payment.verification_result}</p>
           )}
-          {payment.verification_notes && (
-            <p className="mt-1 text-xs text-slate-500">{payment.verification_notes}</p>
-          )}
         </div>
 
         {receiptSource && (
@@ -11103,40 +11227,24 @@ function PaymentDetails({
   ) : null;
   const verificationDocuments = [
     {
-      label: t("workspace.payment.approvalLetter", "Approval Letter"),
-      file: letterFile,
+      label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+      file: officialReceiptFile,
+      required: showVerificationUploads,
+      canUpload: showVerificationUploads,
+      onFileChange: (file) => onPaymentDocumentUpload?.("official_receipt", file),
+      onDelete: () => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile),
     },
     {
-      label: t("workspace.payment.billDocument", "Bill"),
-      file: billFile,
+      label: t("workspace.license.documentTitle", "Advertisement License"),
+      file: licenseFile,
+      required: showVerificationUploads,
+      canUpload: showVerificationUploads,
+      onFileChange: (file) => onLicenseDocumentUpload?.(file),
+      onDelete: () => onLicenseDocumentDelete?.(licenseFile),
     },
-    ...(showOfficialReceiptSection
-      ? [
-          {
-            label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
-            file: officialReceiptFile,
-            required: showVerificationUploads,
-            canUpload: showVerificationUploads,
-            onFileChange: (file) => onPaymentDocumentUpload?.("official_receipt", file),
-            onDelete: () => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile),
-          },
-        ]
-      : []),
-    ...(showLicenseDocumentSection
-      ? [
-          {
-            label: t("workspace.license.documentTitle", "Advertisement License"),
-            file: licenseFile,
-            required: showVerificationUploads,
-            canUpload: showVerificationUploads,
-            onFileChange: (file) => onLicenseDocumentUpload?.(file),
-            onDelete: () => onLicenseDocumentDelete?.(licenseFile),
-          },
-        ]
-      : []),
   ];
 
-  const verificationDocumentSection = isReceiptVerification ? (
+  const verificationDocumentSection = showVerificationUploads ? (
     <PaymentVerificationDocumentList
       t={t}
       saving={saving}
@@ -11146,8 +11254,8 @@ function PaymentDetails({
   ) : null;
 
   return (
-    <div className="grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
-      <PaymentQrPanel app={app} t={t} />
+    <div className={showQrPanel ? "grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]" : "text-sm"}>
+      {showQrPanel && <PaymentQrPanel app={app} t={t} />}
 
       <div className="space-y-4">
         {isIssuedLicenseView ? (
@@ -11300,7 +11408,7 @@ function PaymentVerificationDocumentList({ t, documents, saving, canUploadIssueD
               )
             : t(
                 "workspace.payment.verifyDocumentListPendingDesc",
-                "View the applicant documents before selecting a receipt recommendation."
+                "Select Verify Receipt to upload the official receipt and advertisement license."
               )}
         </p>
       </div>

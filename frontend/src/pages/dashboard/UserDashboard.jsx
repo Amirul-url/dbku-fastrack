@@ -1571,9 +1571,20 @@ function ReferenceNewBadge({ t }) {
 
 function getApplicationRemark(app) {
   const status = normalizeStatus(app?.status);
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || app?.approval_letter || {};
+
+  if (["invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
+    return cleanRemark(
+      approvalLetter.remarks ||
+        approvalLetter.comment ||
+        approvalLetter.notes ||
+        formData.payment?.verification_notes
+    );
+  }
+
   if (!["incomplete", "rejected"].includes(status)) return "";
 
-  const formData = app?.form_data || {};
   return cleanRemark(
     formData.correction_request?.remarks ||
       app?.latest_remark ||

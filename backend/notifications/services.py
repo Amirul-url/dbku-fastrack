@@ -1552,6 +1552,12 @@ def get_message_remark(application):
     if status_key == "technical_review_completed":
         return get_ikl_technical_review_remark(application)
 
+    if status_key == "invoice_generated":
+        if is_payment_receipt_rejected(application):
+            return get_latest_remark(application)
+
+        return get_payment_request_remark(application)
+
     if status_key not in REMARK_REPEAT_STATUSES and not (
         status_key == "invoice_generated" and is_payment_receipt_rejected(application)
     ) and not (
@@ -1591,6 +1597,15 @@ def get_mphlg_approval_remark(application):
         get_form_section(application, "mphlg_gateway").get("remarks"),
         get_form_section(application, "approval").get("remarks"),
         getattr(application, "latest_remark", ""),
+    )
+
+
+def get_payment_request_remark(application):
+    approval_letter = get_form_section(application, "approval_letter")
+    return first_clean_remark(
+        approval_letter.get("remarks"),
+        approval_letter.get("comment"),
+        approval_letter.get("notes"),
     )
 
 

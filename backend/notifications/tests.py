@@ -246,6 +246,14 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(data[0]["recipient_mobile_number"], "0161112222")
 
     def test_payment_request_notifies_applicant_only(self):
+        self.application.form_data = {
+            **self.application.form_data,
+            "approval_letter": {
+                "remarks": "please download",
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
         self.notify_status("invoice_generated", old_status="approved")
 
         applicant_channels = set(
@@ -256,6 +264,12 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
         self.assertFalse(NotificationDelivery.objects.filter(recipient_role="admin").exists())
+        for delivery in NotificationDelivery.objects.filter(
+            recipient_role="applicant",
+            metadata__event_status="invoice_generated",
+        ):
+            self.assertIn("Remark: please download", delivery.message)
+            self.assertIn("Remark: please download", delivery.metadata["message"])
 
     def test_pt_ikl_rejection_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Please correct the applicant details."

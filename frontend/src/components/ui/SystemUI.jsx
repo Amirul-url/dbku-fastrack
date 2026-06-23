@@ -105,7 +105,7 @@ export function LinkButton({ to, children, icon, variant = "primary", className 
   );
 }
 
-export function Panel({ title, description, action, children, className = "", compact = false }) {
+export function Panel({ title, description, action, children, className = "", bodyClassName = "", compact = false }) {
   const headerClass = compact ? "px-3 py-2.5" : "px-4 py-3";
   const titleClass = compact
     ? "text-[14px] font-semibold leading-5 text-slate-950"
@@ -113,7 +113,7 @@ export function Panel({ title, description, action, children, className = "", co
   const descriptionClass = compact
     ? "mt-1 text-[13px] leading-5 text-slate-500"
     : "mt-1 text-[14px] leading-5 text-slate-500";
-  const bodyClass = compact ? "p-3" : "p-4";
+  const bodyClass = bodyClassName || (compact ? "p-3" : "p-4");
 
   return (
     <section className={`rounded-md border border-slate-200 bg-white ${className}`}>
@@ -271,7 +271,7 @@ export function EmptyState({ title = "No data", description, icon = "inbox" }) {
   );
 }
 
-export function DataTable({ columns, rows, loading, emptyText, loadingText = "Loading..." }) {
+export function DataTable({ columns, rows, loading, emptyText, loadingText = "Loading...", framed = true }) {
   const headerClassName = (column) =>
     ["border-b border-slate-200 px-3 py-2.5", column.headerClassName || column.className || ""]
       .filter(Boolean)
@@ -282,7 +282,7 @@ export function DataTable({ columns, rows, loading, emptyText, loadingText = "Lo
       .join(" ");
 
   return (
-    <div className="overflow-x-auto rounded-md border border-slate-200">
+    <div className={framed ? "overflow-x-auto rounded-md border border-slate-200" : "overflow-x-auto"}>
       <table className="w-full min-w-[720px] text-left text-sm leading-5">
         <thead className="bg-slate-50 text-[13px] uppercase tracking-wide text-slate-500">
           <tr>

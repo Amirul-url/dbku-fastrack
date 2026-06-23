@@ -5,23 +5,27 @@ from rest_framework import serializers
 from .models import Application, SupportingDocument
 
 
-def strip_inline_file_data(value):
+def strip_inline_file_data(value, preserve_inline_data=False):
     if isinstance(value, dict):
         cleaned = {}
 
         for key, item in value.items():
+            keep_inline_data = preserve_inline_data or key == "digital_signature"
             if key in ["dataUrl", "site_image_preview"] and isinstance(item, str):
-                cleaned[key] = "" if item.startswith("data:") else item
+                cleaned[key] = item if keep_inline_data or not item.startswith("data:") else ""
                 continue
 
-            cleaned[key] = strip_inline_file_data(item)
+            cleaned[key] = strip_inline_file_data(item, preserve_inline_data=keep_inline_data)
 
         return cleaned
 
     if isinstance(value, list):
-        return [strip_inline_file_data(item) for item in value]
+        return [
+            strip_inline_file_data(item, preserve_inline_data=preserve_inline_data)
+            for item in value
+        ]
 
-    if isinstance(value, str) and value.startswith("data:"):
+    if isinstance(value, str) and value.startswith("data:") and not preserve_inline_data:
         return ""
 
     return value
@@ -137,6 +141,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     mphlg_gateway = serializers.SerializerMethodField()
     sut_approval = serializers.SerializerMethodField()
     approval = serializers.SerializerMethodField()
+    approval_letter = serializers.SerializerMethodField()
     activity_log = serializers.SerializerMethodField()
 
     class Meta:
@@ -166,6 +171,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "mphlg_gateway",
             "sut_approval",
             "approval",
+            "approval_letter",
             "activity_log",
             "created_at",
             "updated_at",
@@ -229,6 +235,13 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_approval(self, obj):
         return (obj.form_data or {}).get("approval", {})
+
+    def get_approval_letter(self, obj):
+        approval_letter = (obj.form_data or {}).get("approval_letter", {})
+        if not isinstance(approval_letter, dict):
+            return {}
+
+        return strip_inline_file_data(approval_letter)
 
     def get_activity_log(self, obj):
         activity_log = (obj.form_data or {}).get("activity_log", [])
