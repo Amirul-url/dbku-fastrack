@@ -1531,6 +1531,9 @@ def get_notification_status_label(application):
 
 def get_message_remark(application):
     status_key = str(application.status or "").strip().lower()
+    if status_key == "technical_site_visit":
+        return get_technical_department_review_remark(application)
+
     if status_key == "management_review" and is_kb_les_verification_pending(application):
         return get_kb_les_verification_remark(application)
 
@@ -1545,6 +1548,9 @@ def get_message_remark(application):
 
     if status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         return get_ku_amendment_remark(application)
+
+    if status_key == "technical_review_completed":
+        return get_ikl_technical_review_remark(application)
 
     if status_key not in REMARK_REPEAT_STATUSES and not (
         status_key == "invoice_generated" and is_payment_receipt_rejected(application)
@@ -1596,6 +1602,44 @@ def get_ku_amendment_remark(application):
         get_form_section(application, "mphlg_gateway").get("remarks"),
         getattr(application, "latest_remark", ""),
     )
+
+
+def get_ikl_technical_review_remark(application):
+    technical_review = get_form_section(application, "technical_review")
+    return first_clean_remark(
+        technical_review.get("remarks"),
+        technical_review.get("comment"),
+        technical_review.get("site_remarks"),
+        technical_review.get("findings"),
+    )
+
+
+def get_technical_department_review_remark(application):
+    reviews = get_technical_department_reviews(application)
+    selected_departments = get_selected_technical_departments(application)
+    ordered_departments = [
+        department
+        for department in TECHNICAL_DEPARTMENT_ORDER
+        if not selected_departments or department in selected_departments
+    ]
+    remarks = []
+
+    for department in ordered_departments:
+        review = reviews.get(department)
+        if not isinstance(review, dict):
+            continue
+
+        remark = first_clean_remark(
+            review.get("remarks"),
+            review.get("comment"),
+            review.get("notes"),
+            review.get("site_remarks"),
+            review.get("findings"),
+        )
+        if remark:
+            remarks.append(f"{department}: {remark}")
+
+    return "\n".join(remarks)
 
 
 def is_ku_ikl_technical_referral(application):

@@ -15,6 +15,10 @@ import {
   getApplicantRecordSeen,
   getRecordUpdatedTime,
 } from "../utils/applicantSeenRecords";
+import {
+  getAdminApprovalRecordSeen,
+  isAdminApprovalRecordUnread,
+} from "../utils/adminSeenRecords";
 const logo = "/ALiS.png";
 const ADMIN_DASHBOARD_MENU_KEY = "fastrack_admin_dashboard_menu_open";
 const ADMIN_E_LICENSES_MENU_KEY = "fastrack_admin_e_licenses_menu_open";
@@ -244,7 +248,9 @@ function AppShell({ children, role = "admin" }) {
 
     try {
       const applications = await fetchApplicationList();
-      setAdminTaskCounts(getAdminTaskCounts(applications, user));
+      const approvalSeenAt = getAdminApprovalRecordSeen(user);
+
+      setAdminTaskCounts(getAdminTaskCounts(applications, user, approvalSeenAt));
     } catch {
       if (!silent) setAdminTaskCounts({ personal: 0, approval: 0 });
     }
@@ -354,6 +360,22 @@ function AppShell({ children, role = "admin" }) {
       window.removeEventListener("fastrack:applicant-record-seen", handleSeenChange);
     };
   }, [refreshApplicantTaskCounts, role, user]);
+
+  useEffect(() => {
+    if (role !== "admin") {
+      return undefined;
+    }
+
+    const handleSeenChange = () => {
+      refreshAdminTaskCounts({ silent: true });
+    };
+
+    window.addEventListener("fastrack:admin-approval-record-seen", handleSeenChange);
+
+    return () => {
+      window.removeEventListener("fastrack:admin-approval-record-seen", handleSeenChange);
+    };
+  }, [refreshAdminTaskCounts, role]);
 
   useEffect(() => {
     if (role !== "admin" || !location.pathname.startsWith("/admin/e-licenses")) {
@@ -796,7 +818,7 @@ function SidebarChildLabel({ child, t }) {
   return label;
 }
 
-function getAdminTaskCounts(applications, user) {
+function getAdminTaskCounts(applications, user, approvalSeenAt = {}) {
   const department = normalizeDepartmentCode(user?.department);
 
   return applications.reduce(
@@ -805,7 +827,10 @@ function getAdminTaskCounts(applications, user) {
         counts.personal += 1;
       }
 
-      if (isAwaitingApprovalTask(application, department)) {
+      if (
+        isAwaitingApprovalTask(application, department) &&
+        isAdminApprovalRecordUnread(application, approvalSeenAt)
+      ) {
         counts.approval += 1;
       }
 

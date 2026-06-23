@@ -37,12 +37,14 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
 ]);
 const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
+const TECHNICAL_LOG_DEPARTMENTS = new Set(["IKL (TECHNICAL)", ...EXTERNAL_TECHNICAL_DEPARTMENTS]);
 const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const APPROVAL_WORKFLOW_DEPARTMENTS = new Set([
   "KB(LES)",
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   "MPHLG",
 ]);
+const APPROVAL_PROCESS_LIST_DEPARTMENTS = new Set(["KB(LES)", "TP(RES)", "PGH"]);
 const APPROVAL_HISTORY_STATUSES = [
   "management_review",
   "mphlg_processing",
@@ -1814,6 +1816,16 @@ function formatDecisionLogRecommendation(value, department = "", section = {}, t
     return routeRecommendationMap[normalized];
   }
 
+  if (TECHNICAL_LOG_DEPARTMENTS.has(normalizedDepartment)) {
+    if (["supported", "support", "yes", "y", "ya"].includes(normalized)) {
+      return t("workspace.decision.yes", "Yes");
+    }
+
+    if (["not supported", "not support", "no", "n", "tidak"].includes(normalized)) {
+      return t("workspace.decision.no", "No");
+    }
+  }
+
   if (APPROVAL_SUPPORT_DEPARTMENTS.has(normalizedDepartment)) {
     if (["approve", "approved"].includes(normalized)) {
       return t("workspace.decision.support", "Support");
@@ -2952,8 +2964,12 @@ function PersonalTaskDashboard() {
 
   const processListUnits = useMemo(() => {
     return unitTasks.filter((unit) => {
+      if (APPROVAL_WORKFLOW_DEPARTMENTS.has(activeDepartment)) {
+        return APPROVAL_PROCESS_LIST_DEPARTMENTS.has(unit.department);
+      }
+
       if (APPROVAL_WORKFLOW_DEPARTMENTS.has(unit.department)) {
-        return unit.department === activeDepartment;
+        return false;
       }
 
       if (!IKL_DEPARTMENTS.has(unit.department)) return true;
@@ -3054,15 +3070,25 @@ function ClaimableTaskView({
               label: t("common.reference"),
               className: "w-[10%] whitespace-nowrap",
               render: (application) => (
-                <span className="font-semibold text-slate-950">
+                <span className="font-semibold text-emerald-700">
                   {getApplicationReference(application)}
+                </span>
+              ),
+            },
+            {
+              key: "applicant",
+              label: t("workspace.license.applicantName", "Applicant Name"),
+              className: "w-[16%] min-w-[12rem]",
+              render: (application) => (
+                <span className="font-medium text-slate-700">
+                  {getRegisteredApplicantName(application) || "-"}
                 </span>
               ),
             },
             {
               key: "project",
               label: t("common.project"),
-              className: "w-[52%] min-w-[18rem]",
+              className: "w-[36%] min-w-[18rem]",
               render: (application) => (
                 <span className="block max-w-[42rem] whitespace-pre-line leading-5">
                   {getProjectName(application, language)}

@@ -50,6 +50,11 @@ import {
   buildManualAdvertisementLicenseForIssuance,
   getAdvertisementLicenseDraftFields,
 } from "../../utils/advertisementLicenseDocument";
+import {
+  getAdminApprovalRecordSeen,
+  isAdminApprovalRecordUnread,
+  markAdminApprovalRecordSeen,
+} from "../../utils/adminSeenRecords";
 import { stepText } from "../applications/user/steps/ApplicationStepText";
 
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
@@ -224,6 +229,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const returnToPath = searchParams.get("returnTo") || "";
   const fromPersonalTask = searchParams.get("from") === "personal";
   const fromCompletedApprovals = searchParams.get("from") === "completed-approvals";
+  const forceReadOnlyActionPanel = searchParams.get("readonly") === "1";
   const shouldOpenVerificationReport = searchParams.get("showReport") === "1";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
@@ -252,6 +258,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [approvalSupportSignature, setApprovalSupportSignature] = useState(null);
   const [approvalSupportSignatureError, setApprovalSupportSignatureError] = useState("");
+  const [adminApprovalSeenAt, setAdminApprovalSeenAt] = useState(() =>
+    getAdminApprovalRecordSeen(getStoredUser())
+  );
   const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
   const [showDecisionLog, setShowDecisionLog] = useState(false);
   const [officialReceiptMode, setOfficialReceiptMode] = useState("upload");
@@ -303,6 +312,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         const user = data?.user || data;
         if (!active || !user) return;
         setCurrentUser(user);
+        setAdminApprovalSeenAt(getAdminApprovalRecordSeen(user));
         localStorage.setItem("fastrack_user", JSON.stringify(user));
       })
       .catch(() => {});
@@ -479,6 +489,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isDepartmentTechnicalWorkspace = config.key === "technical";
   const isApprovalWorkspace = config.key === "approval";
   const isSimpleApprovalWorkspace = isApprovalWorkspace;
+  const forceReadOnlyApprovalPanel = isApprovalWorkspace && forceReadOnlyActionPanel;
   const tableFirstWorkspace = isTableFirstWorkspace(config);
   const isELicenseWorkspace = isELicenseTableWorkspace(config);
   const isApprovalViewOnlyWorkspace =
@@ -660,14 +671,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
   const isKbLesSupportWorkspace =
     isApprovalWorkspace && userDepartment === "KB(LES)" && approvalStageKey === "kb_support";
-  const workspaceActions = getWorkspaceActions(config, selectedRecord, userDepartment);
-  const canSubmitWorkspaceAction = isIklWorkspace || workspaceActions.length > 0;
+  const workspaceActions =
+    forceReadOnlyApprovalPanel
+      ? []
+      : getWorkspaceActions(config, selectedRecord, userDepartment);
+  const canSubmitWorkspaceAction =
+    !forceReadOnlyApprovalPanel && (isIklWorkspace || workspaceActions.length > 0);
   const canViewSelectedWorkspace =
     tableFirstWorkspace &&
     Boolean(selectedRecord) &&
     canViewWorkspaceRow(config, selectedRecord, userDepartment);
   const isReadOnlyActionPanel =
-    tableFirstWorkspace && canViewSelectedWorkspace && !canSubmitWorkspaceAction;
+    tableFirstWorkspace &&
+    canViewSelectedWorkspace &&
+    (forceReadOnlyApprovalPanel || !canSubmitWorkspaceAction);
   const canChooseLicenseExpiry =
     config.key === "license" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified" &&
@@ -688,8 +705,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showELicenseVerificationReport =
     isELicenseWorkspace &&
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
+  const showIklKuVerificationReport =
+    isIklWorkspace &&
+    userDepartment === "KU(IKL)" &&
+    normalizeStatus(selectedRecord?.status) === "technical_review_completed";
   const showWorkspaceVerificationReport =
-    showApprovalTechnicalReport || showELicenseVerificationReport;
+    showApprovalTechnicalReport || showELicenseVerificationReport || showIklKuVerificationReport;
   const showWorkspaceDecisionLog =
     Boolean(selectedRecord) &&
     showActionPanel &&
@@ -699,6 +720,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       isApprovalWorkspace ||
       ["screening", "technical", "payment", "license"].includes(config.key)
     );
+  useEffect(() => {
+    if (!forceReadOnlyApprovalPanel || !selectedRecord?.id) return;
+
+    const nextSeenAt = markAdminApprovalRecordSeen(selectedRecord, currentUser);
+    setAdminApprovalSeenAt(nextSeenAt);
+  }, [
+    currentUser?.email,
+    currentUser?.id,
+    currentUser?.pk,
+    currentUser?.username,
+    forceReadOnlyApprovalPanel,
+    selectedRecord?.id,
+    selectedRecord?.updated_at,
+  ]);
   const isApprovalLicenseManagement =
     isApprovalWorkspace &&
     userDepartment === "PT(IKL)" &&
@@ -2059,6 +2094,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     setSelectedId(String(app.id));
     const params = new URLSearchParams(location.search);
     params.set("id", app.id);
+    if (config.key === "approval" && tableFirstWorkspace && !fromPersonalTask) {
+      const nextSeenAt = markAdminApprovalRecordSeen(app, currentUser);
+      setAdminApprovalSeenAt(nextSeenAt);
+      params.set("readonly", "1");
+    }
     navigate(`${location.pathname}?${params.toString()}`);
   }
 
@@ -2267,7 +2307,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     const showNewBadge =
                       isApprovalWorkspace &&
                       canOpenWorkspaceRow(config, app, userDepartment) &&
-                      !isApprovalHistoryRecord(app);
+                      !isApprovalHistoryRecord(app) &&
+                      isAdminApprovalRecordUnread(app, adminApprovalSeenAt);
                     const referenceContent = (
                       <span className="inline-flex items-center gap-2">
                         <span>{getApplicationReference(app)}</span>
@@ -2487,6 +2528,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </div>
               )}
 
+              {isReadOnlyActionPanel &&
+                !showDecisionLog &&
+                !showVerificationReport &&
+                !showApprovalPaymentReadOnly && (
+                  <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-5 text-sky-950">
+                    <p className="font-semibold">
+                      {t("workspace.approval.readOnlyGuideTitle", "Read-only view")}
+                    </p>
+                    <p className="mt-1 text-sky-900">
+                      {t(
+                        "workspace.approval.readOnlyGuide",
+                        "Use View Form to inspect the application, Log Decision to review recorded decisions, or Verification Report to view technical verification details. Submit actions are available from Personal Task."
+                      )}
+                    </p>
+                  </div>
+                )}
+
               {showWorkspaceDecisionLog && showDecisionLog && (
                 <WorkspaceDecisionLogReport
                   app={selectedRecord}
@@ -2500,7 +2558,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </p>
               )}
 
-              {showWorkspaceVerificationReport && showVerificationReport && (
+              {(showApprovalTechnicalReport || showELicenseVerificationReport) && showVerificationReport && (
                 <ApprovalTechnicalReviewSummary
                   t={t}
                   language={language}
@@ -2544,6 +2602,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   technicalSizeError={technicalSizeError}
                   setTechnicalSizeError={setTechnicalSizeError}
                   userDepartment={userDepartment}
+                  showKuVerificationReport={showVerificationReport}
                 />
               ) : (
                 <>
@@ -5701,6 +5760,7 @@ function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (k
 
   const normalized = decision.toLowerCase();
   const normalizedDepartment = normalizeDepartmentCode(department);
+  const technicalLogDepartments = new Set(["IKL (TECHNICAL)", ...TECHNICAL_DEPARTMENTS]);
   const routeRecommendationMap = {
     "pt(ikl) send to ku(ikl)": t("workspace.decision.approve", "Approve"),
     "pt(ikl) hantar kepada ku(ikl)": t("workspace.decision.approve", "Approve"),
@@ -5717,6 +5777,16 @@ function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (k
 
   if (routeRecommendationMap[normalized]) {
     return routeRecommendationMap[normalized];
+  }
+
+  if (technicalLogDepartments.has(normalizedDepartment)) {
+    if (["supported", "support", "yes", "y", "ya"].includes(normalized)) {
+      return t("workspace.decision.yes", "Yes");
+    }
+
+    if (["not supported", "not support", "no", "n", "tidak"].includes(normalized)) {
+      return t("workspace.decision.no", "No");
+    }
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(normalizedDepartment)) {
@@ -8106,6 +8176,7 @@ function IklWorkspaceSections({
   technicalSizeError,
   setTechnicalSizeError,
   userDepartment,
+  showKuVerificationReport = false,
 }) {
   const status = normalizeStatus(selectedRecord.status);
   const allDepartmentReviewsComplete = areAllTechnicalDepartmentReviewsComplete(selectedRecord);
@@ -8643,37 +8714,41 @@ function IklWorkspaceSections({
 
       {showKuTechnicalReview && config.kuTechnicalReview && (
         <>
-          <TechnicalApplicationTypePanel
-            t={t}
-            language={language}
-            selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
-            selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
-            derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
-            step1={selectedRecord.form_data?.step_1 || {}}
-            saving={false}
-            onToggle={() => {}}
-            readOnly
-          />
+          {showKuVerificationReport && (
+            <>
+              <TechnicalApplicationTypePanel
+                t={t}
+                language={language}
+                selectedTypes={getApplicationTypeOptionsFromApplication(selectedRecord)}
+                selectedSubtype={getApplicationSubtypeFromApplication(selectedRecord)}
+                derivedDepartments={getSelectedTechnicalDepartments(selectedRecord)}
+                step1={selectedRecord.form_data?.step_1 || {}}
+                saving={false}
+                onToggle={() => {}}
+                readOnly
+              />
 
-          <KuTechnicalFurtherReviewPanel
-            t={t}
-            language={language}
-            selectedRecord={selectedRecord}
-            technicalSite={reviewTechnicalSite}
-            checks={kuChecks}
-            onCheckChange={updateKuCheck}
-            compact
-          />
+              <KuTechnicalFurtherReviewPanel
+                t={t}
+                language={language}
+                selectedRecord={selectedRecord}
+                technicalSite={reviewTechnicalSite}
+                checks={kuChecks}
+                onCheckChange={updateKuCheck}
+                compact
+              />
 
-          <TechnicalSiteVisitFields
-            t={t}
-            language={language}
-            applicationId={selectedRecord.id}
-            value={reviewTechnicalSite}
-            onChange={() => {}}
-            onFileChange={() => {}}
-            readOnly
-          />
+              <TechnicalSiteVisitFields
+                t={t}
+                language={language}
+                applicationId={selectedRecord.id}
+                value={reviewTechnicalSite}
+                onChange={() => {}}
+                onFileChange={() => {}}
+                readOnly
+              />
+            </>
+          )}
 
           <section className="space-y-3">
               <Field label={t("common.decision")}>

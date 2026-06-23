@@ -810,6 +810,7 @@ class NotificationRoutingTests(TestCase):
             is_active=True,
         )
         memo_html = "<p>Selected unit review completed</p>"
+        blg_remark = "Building sign placement is acceptable."
         self.application.status = "technical_site_visit"
         self.application.form_data = {
             **self.application.form_data,
@@ -828,6 +829,7 @@ class NotificationRoutingTests(TestCase):
                 "BLG": {
                     "department": "BLG",
                     "decision": "Supported",
+                    "remarks": blg_remark,
                     "reviewed_at": timezone.now().isoformat(),
                 }
             },
@@ -853,6 +855,9 @@ class NotificationRoutingTests(TestCase):
             email_delivery.subject,
             f"ALiS - Application {self.application.reference_no} requires IKL(TECHNICAL) review",
         )
+        for delivery in deliveries.filter(user=ikl_user):
+            self.assertIn(f"Remark: BLG: {blg_remark}", delivery.message)
+            self.assertIn(f"Remark: BLG: {blg_remark}", delivery.metadata["message_en"])
 
     def test_ku_ikl_final_check_values_are_visible_to_kb_les(self):
         ku_user = User.objects.create_user(
@@ -1006,15 +1011,22 @@ class NotificationRoutingTests(TestCase):
             is_active=True,
         )
         memo_html = "<p>IKL(TECHNICAL) memo for KU(IKL)</p>"
+        old_ku_remark = "i approve this"
+        ikl_remark = "We have no objection to this application.2"
+        self.application.latest_remark = old_ku_remark
         self.application.form_data = {
             **self.application.form_data,
+            "technical_ku_review": {
+                "remarks": old_ku_remark,
+            },
             "technical_review": {
                 "status": "Completed",
                 "decision": "Supported",
+                "remarks": ikl_remark,
                 "memo_html": memo_html,
             },
         }
-        self.application.save(update_fields=["form_data"])
+        self.application.save(update_fields=["latest_remark", "form_data"])
 
         self.notify_status("technical_review_completed", old_status="technical_review")
 
@@ -1028,6 +1040,20 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(delivery.metadata["memo_template"], "technical_to_ku_ikl")
         self.assertEqual(delivery.metadata["from"], "IKL(TECHNICAL)")
         self.assertEqual(delivery.metadata["to"], "KU(IKL)")
+        for delivery in NotificationDelivery.objects.filter(
+            recipient_role="admin",
+            metadata__event_status="technical_review_completed",
+            user=ku_user,
+        ):
+            self.assertIn(f"Remark: {ikl_remark}", delivery.message)
+            self.assertIn(f"Remark: {ikl_remark}", delivery.metadata["message_en"])
+            self.assertNotIn(old_ku_remark, delivery.message)
+
+        client = APIClient()
+        client.force_authenticate(user=ku_user)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["latest_remark"], ikl_remark)
 
     def test_ikl_technical_not_supported_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Technical review not supported due to site clearance issue."

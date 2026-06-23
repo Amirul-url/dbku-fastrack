@@ -80,6 +80,10 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
 
         if event_status == "technical_review_completed":
             return first_notification_remark(
+                section("technical_review").get("remarks"),
+                section("technical_review").get("comment"),
+                section("technical_review").get("site_remarks"),
+                section("technical_review").get("findings"),
                 section("correction_request").get("remarks"),
                 section("kb_les_verification").get("remarks"),
                 section("management_recommendation").get("remarks"),
