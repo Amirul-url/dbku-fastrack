@@ -5682,6 +5682,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
   const approval = getApplicationSection(app, "approval");
   const approvalLetter = getApplicationSection(app, "approval_letter");
   const payment = getApplicationSection(app, "payment");
+  const selectedTechnicalDepartments = getSelectedTechnicalDepartments(app);
 
   addWorkspaceDecisionLogRow(rows, {
     id: "auto-screening",
@@ -5692,8 +5693,15 @@ function buildWorkspaceDecisionLogRows(app, t) {
     date: getWorkspaceDecisionLogDate(autoScreening, ["checked_at", "reviewed_at", "decided_at"]),
   }, t);
 
-  Object.entries(getTechnicalDepartmentReviews(app))
-    .filter(([, review]) => review && typeof review === "object")
+  Object.entries(getCurrentTechnicalDepartmentReviews(app))
+    .filter(([department, review]) => {
+      const normalizedDepartment = normalizeDepartmentCode(department);
+      return (
+        selectedTechnicalDepartments.includes(normalizedDepartment) &&
+        review &&
+        typeof review === "object"
+      );
+    })
     .forEach(([department, review]) => {
       const remarks = getWorkspaceDecisionLogRemarks(review);
       if (!remarks) return;

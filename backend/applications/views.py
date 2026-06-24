@@ -30,6 +30,23 @@ STAFF_ROLES = ["admin", "supervisor", "staff"]
 MAX_ACTIVITY_LOG_ITEMS = 80
 APPLICANT_CORRECTION_STATUSES = {"incomplete", "rejected", "technical_amendment"}
 APPLICANT_RESUBMIT_STATUSES = {"submitted", "ku_ikl_review", "mphlg_processing"}
+RESUBMIT_WORKFLOW_RESET_FIELDS = [
+    "auto_screening",
+    "correction_request",
+    "technical_referral",
+    "technical_department_selection",
+    "technical_department_reviews",
+    "technical_department_reviews_updated_at",
+    "technical_review",
+    "technical_site_visit",
+    "technical_ku_review",
+    "technical_review_cycle",
+    "kb_les_verification",
+    "management_recommendation",
+    "mphlg_gateway",
+    "sut_approval",
+    "approval",
+]
 
 
 def append_application_activity(application, actor, title, description="", category="user"):
@@ -55,6 +72,39 @@ def append_application_activity(application, actor, title, description="", categ
     form_data["activity_log"] = activity_log[:MAX_ACTIVITY_LOG_ITEMS]
     application.form_data = form_data
     application.save(update_fields=["form_data", "updated_at"])
+
+
+def reset_workflow_on_applicant_resubmit(application, old_status, old_form_data=None):
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
+    old_status_key = str(old_status or "").strip().lower()
+    if old_status_key not in APPLICANT_CORRECTION_STATUSES or status_key not in APPLICANT_RESUBMIT_STATUSES:
+        return
+
+    form_data = deepcopy(application.form_data or {})
+    correction = form_data.get("correction_request")
+    if not isinstance(correction, dict):
+        correction = (old_form_data or {}).get("correction_request") or {}
+    source = normalize_department(correction.get("source"))
+    target = normalize_department(correction.get("target"))
+
+    if status_key == "mphlg_processing" and source == "MPHLG" and target == "APPLICANT":
+        form_data["correction_request"] = None
+        mphlg_gateway = form_data.get("mphlg_gateway") if isinstance(form_data.get("mphlg_gateway"), dict) else {}
+        form_data["mphlg_gateway"] = {
+            **mphlg_gateway,
+            "status": "Pending MPHLG Approval",
+            "decision": "",
+            "remarks": "",
+            "reviewed_at": "",
+        }
+    else:
+        for field in RESUBMIT_WORKFLOW_RESET_FIELDS:
+            form_data[field] = {} if field == "technical_department_reviews" else None
+        form_data["technical_department_reviews_updated_at"] = ""
+
+    application.form_data = form_data
+    application.latest_remark = ""
+    application.save(update_fields=["form_data", "latest_remark", "updated_at"])
 
 
 def get_activity_actor_name(user):
@@ -389,6 +439,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         old_form_data = deepcopy(serializer.instance.form_data or {})
         self.ensure_staff_can_update_workflow(serializer.instance)
         application = serializer.save()
+        if self.request.user.role not in STAFF_ROLES:
+            reset_workflow_on_applicant_resubmit(application, old_status, old_form_data)
         old_status_key = str(old_status or "").strip().lower()
         new_status_key = str(application.status or "").strip().lower()
         remark_changed = str(application.latest_remark or "").strip() != str(old_remark or "").strip()

@@ -1969,6 +1969,7 @@ function getWorkflowResetOnResubmit(applicationRecord, resubmittedAt = "") {
     technical_department_selection: null,
     technical_department_reviews: {},
     technical_department_reviews_updated_at: "",
+    technical_review_cycle: null,
     technical_review: null,
     technical_site_visit: null,
     technical_ku_review: null,

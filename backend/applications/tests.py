@@ -298,6 +298,59 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertNotIn("Status:", staff_message)
         self.assertNotIn("Project:", staff_message)
 
+    def test_applicant_resubmit_clears_stale_technical_workflow(self):
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="Technical correction application",
+            status="rejected",
+            form_data={
+                "correction_request": {
+                    "source": "IKL(TECHNICAL)",
+                    "target": "Applicant",
+                    "remarks": "Please update.",
+                },
+                "technical_review_cycle": 1,
+                "technical_referral": {"cycle_id": 1, "participating_departments": ["BLG"]},
+                "technical_department_selection": {"cycle_id": 1, "departments": ["BLG"]},
+                "technical_department_reviews": {
+                    "BLG": {
+                        "cycle_id": 1,
+                        "decision": "Supported",
+                        "remarks": "Old BLG review.",
+                    }
+                },
+                "technical_review": {"decision": "Not Supported", "remarks": "Old IKL review."},
+                "technical_ku_review": {"decision": "KU(IKL) Request Technical Amendment"},
+                "kb_les_verification": {"decision": "Not Verify"},
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.applicant)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "submitted",
+                "form_data": {
+                    "step_11": {"submitted": True},
+                    "correction_request": None,
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "submitted")
+        self.assertEqual(application.latest_remark, "")
+        self.assertIsNone(application.form_data.get("technical_review_cycle"))
+        self.assertEqual(application.form_data.get("technical_department_reviews"), {})
+        self.assertIsNone(application.form_data.get("technical_department_selection"))
+        self.assertIsNone(application.form_data.get("technical_referral"))
+        self.assertIsNone(application.form_data.get("technical_review"))
+        self.assertIsNone(application.form_data.get("technical_ku_review"))
+        self.assertIsNone(application.form_data.get("kb_les_verification"))
+
     def test_mphlg_reject_resubmit_routes_back_to_mphlg(self):
         User = get_user_model()
         mphlg_user = User.objects.create_user(
