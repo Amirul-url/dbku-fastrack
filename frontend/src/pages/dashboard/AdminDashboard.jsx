@@ -1185,14 +1185,24 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
                     {t("common.valid", "Valid")}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openDashboardPaymentDocument(applicantReceipt.file, t)}
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">visibility</span>
-                  {t("common.view", "View")}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openDashboardPaymentDocument(applicantReceipt.file, t)}
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">visibility</span>
+                    {t("common.view", "View")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadDashboardPaymentDocument(applicantReceipt.file, applicantReceipt.name, t)}
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    {t("common.download", "Download")}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="px-3 py-4 text-sm font-medium text-slate-500">

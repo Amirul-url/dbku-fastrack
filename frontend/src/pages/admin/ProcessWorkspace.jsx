@@ -11539,15 +11539,26 @@ function PaymentDocumentSlot({ label, file, t, canUpload, required = false, savi
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {fileSource && (
-          <Button
-            type="button"
-            variant="secondary"
-            icon="visibility"
-            className="min-h-9 px-3 py-1 text-xs"
-            onClick={() => openPaymentDocument(file, t)}
-          >
-            {t("common.view", "View")}
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => openPaymentDocument(file, t)}
+            >
+              {t("common.view", "View")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => downloadPaymentDocument(file, label, t)}
+            >
+              {t("common.download", "Download")}
+            </Button>
+          </>
         )}
         {canUpload && !fileSource && (
           <>
