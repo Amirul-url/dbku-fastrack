@@ -161,7 +161,6 @@ AUTH_PASSWORD_VALIDATORS = []
 # DRF + JWT
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'config.authentication.QueryParamJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_THROTTLE_CLASSES': (
