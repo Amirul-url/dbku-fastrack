@@ -1122,15 +1122,19 @@ function buildNotificationsFromDeliveries(deliveries, user) {
         role,
         status
       );
-      const localizedCopy = getDeliveryLocalizedCopy(status, reference, delivery.latest_remark);
+      const suppressRemark =
+        Boolean(metadata.suppress_remark) ||
+        /application\s+.+\s+resubmitted/i.test(`${metadata.title_en || metadata.title || delivery.subject || ""}`);
+      const deliveryRemark = suppressRemark ? "" : delivery.latest_remark;
+      const localizedCopy = getDeliveryLocalizedCopy(status, reference, deliveryRemark);
       const titleMs = normalizeApplicantNotificationText(metadata.title_ms || localizedCopy.titleMs || title, role, status);
       const messageMs = normalizeApplicantNotificationText(
         metadata.message_ms || localizedCopy.messageMs || message,
         role,
         status
       );
-      const memoMessage = appendNotificationRemark(message, delivery.latest_remark, status);
-      const memoMessageMs = appendNotificationRemark(messageMs, delivery.latest_remark, status, "Catatan");
+      const memoMessage = appendNotificationRemark(message, deliveryRemark, status);
+      const memoMessageMs = appendNotificationRemark(messageMs, deliveryRemark, status, "Catatan");
       const timestamp = delivery.created_at || delivery.application_updated_at || new Date().toISOString();
       const recipientName = String(delivery.recipient_name || "").trim();
       const recipientEmail = String(delivery.recipient_email || "").trim();

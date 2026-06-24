@@ -448,8 +448,18 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
             self.assertEqual(delivery.metadata["title_en"], f"Application {application.reference_no} resubmitted")
             self.assertEqual(delivery.metadata["from"], "ALiS Notification Center")
             self.assertEqual(delivery.metadata["to"], "MPHLG")
+            self.assertTrue(delivery.metadata["suppress_remark"])
             self.assertNotIn("memo_html", delivery.metadata)
             self.assertNotIn("memo_template", delivery.metadata)
+
+        client.force_authenticate(user=mphlg_user)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        notification = next(
+            item for item in response.data
+            if item["metadata"].get("title_en") == f"Application {application.reference_no} resubmitted"
+        )
+        self.assertEqual(notification["latest_remark"], "")
 
     def test_pt_ikl_letter_bill_submit_routes_directly_to_applicant_payment(self):
         User = get_user_model()

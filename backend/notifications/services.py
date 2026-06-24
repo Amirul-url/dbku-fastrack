@@ -825,6 +825,7 @@ def build_staff_application_resubmitted_message(application):
         "from": "ALiS Notification Center",
         "sender": "ALiS Notification Center",
         "to": review_target,
+        "suppress_remark": True,
     })
     for key in ["memo_html", "memo_template", "display_status"]:
         metadata.pop(key, None)

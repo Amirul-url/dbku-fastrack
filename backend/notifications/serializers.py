@@ -53,6 +53,10 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
         return getattr(user, "department", "") if user else ""
 
     def get_latest_remark(self, obj):
+        metadata = obj.metadata or {}
+        if metadata.get("suppress_remark"):
+            return ""
+
         application = getattr(obj, "application", None)
         form_data = getattr(application, "form_data", None) or {}
 
@@ -60,7 +64,7 @@ class NotificationDeliverySerializer(serializers.ModelSerializer):
             value = form_data.get(name) or {}
             return value if isinstance(value, dict) else {}
 
-        event_status = str((obj.metadata or {}).get("event_status") or getattr(application, "status", "") or "").strip().lower()
+        event_status = str(metadata.get("event_status") or getattr(application, "status", "") or "").strip().lower()
         kb_status = normalize_notification_status(section("kb_les_verification").get("status"))
         support_status = normalize_notification_status(section("management_recommendation").get("status"))
 
