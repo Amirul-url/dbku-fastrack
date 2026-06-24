@@ -5196,6 +5196,7 @@ function isApprovalTaskForDepartment(app, department) {
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
   if (hasApprovalDecisionForDepartment(app, department)) return true;
+  if (APPROVAL_TECHNICAL_REPORT_DEPARTMENTS.includes(department)) return true;
   if (department === "KB(LES)") return stage === "kb" || stage === "kb_support" || isKbLesMonitoredRecord(app);
   if (APPROVAL_SUPPORT_DEPARTMENTS.includes(department)) {
     return stage === "support" || isApprovalSupportMonitoredRecord(app);
