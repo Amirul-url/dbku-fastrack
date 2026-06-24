@@ -806,10 +806,10 @@ def build_applicant_application_resubmitted_message(application):
 
 def build_staff_application_resubmitted_message(application):
     reference = getattr(application, "reference_no", "") or "-"
-    title = "Application resubmitted"
     review_target = "MPHLG" if str(getattr(application, "status", "") or "").strip().lower() == "mphlg_processing" else "KU(IKL)"
+    title = f"Application {reference} resubmitted"
     body = f"Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
-    subject = f"{APP_BRAND_NAME} - {title} ({reference})"
+    subject = f"{APP_BRAND_NAME} - {title}"
     metadata = build_web_metadata(
         application=application,
         title=title,
@@ -817,6 +817,17 @@ def build_staff_application_resubmitted_message(application):
         recipient_role="admin",
         include_remark=False,
     )
+    metadata.update({
+        "title": title,
+        "title_en": title,
+        "message": body,
+        "message_en": body,
+        "from": "ALiS Notification Center",
+        "sender": "ALiS Notification Center",
+        "to": review_target,
+    })
+    for key in ["memo_html", "memo_template", "display_status"]:
+        metadata.pop(key, None)
     message = format_notification_message(
         title=title,
         body=body,

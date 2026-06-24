@@ -444,6 +444,12 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
             self.assertNotIn("Remark:", delivery.metadata["message_en"])
             self.assertNotIn("Please update MPHLG details.", delivery.message)
             self.assertNotIn("Please update MPHLG details.", delivery.metadata["message_en"])
+            self.assertEqual(delivery.subject, f"ALiS - Application {application.reference_no} resubmitted")
+            self.assertEqual(delivery.metadata["title_en"], f"Application {application.reference_no} resubmitted")
+            self.assertEqual(delivery.metadata["from"], "ALiS Notification Center")
+            self.assertEqual(delivery.metadata["to"], "MPHLG")
+            self.assertNotIn("memo_html", delivery.metadata)
+            self.assertNotIn("memo_template", delivery.metadata)
 
     def test_pt_ikl_letter_bill_submit_routes_directly_to_applicant_payment(self):
         User = get_user_model()
