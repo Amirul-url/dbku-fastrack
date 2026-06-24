@@ -2064,6 +2064,12 @@ function getAttachmentHref(attachment, applicationId = "") {
     return normalizeFileUrl(attachment);
   }
 
+  const documentId = getAttachmentDocumentId(attachment);
+
+  if (applicationId && documentId) {
+    return getApplicationDocumentUrl(applicationId, documentId);
+  }
+
   const directUrl = normalizeFileUrl(
     attachment.file_url ||
       attachment.file ||
@@ -2073,12 +2079,6 @@ function getAttachmentHref(attachment, applicationId = "") {
   );
 
   if (directUrl) return directUrl;
-
-  const documentId = getAttachmentDocumentId(attachment);
-
-  if (applicationId && documentId) {
-    return getApplicationDocumentUrl(applicationId, documentId);
-  }
 
   return "";
 }
