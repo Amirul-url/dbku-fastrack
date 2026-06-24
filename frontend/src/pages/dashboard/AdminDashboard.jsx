@@ -321,6 +321,7 @@ function AdminHomeDashboard({ user }) {
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
+  const [activityDateFilter, setActivityDateFilter] = useState("");
   const [resubmissionDrilldown, setResubmissionDrilldown] = useState(null);
   const [resubmissionFilters, setResubmissionFilters] = useState(() => ({
     month: RESUBMISSION_MONTH_ALL,
@@ -380,6 +381,10 @@ function AdminHomeDashboard({ user }) {
   const activities = useMemo(() => {
     return buildAdminRecentActivities(applications, userDepartment, user, t);
   }, [applications, t, user, userDepartment]);
+  const filteredActivities = useMemo(
+    () => filterActivitiesByDate(activities, activityDateFilter),
+    [activities, activityDateFilter]
+  );
   const resubmissionInsights = useMemo(() => {
     return buildInternalResubmissionInsights(applications, t, language, resubmissionFilters);
   }, [applications, language, resubmissionFilters, t]);
@@ -393,13 +398,17 @@ function AdminHomeDashboard({ user }) {
       t
     );
   }, [resubmissionDrilldown, resubmissionInsights, t]);
-  const totalActivityPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
+  const totalActivityPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
-  const visibleActivities = activities.slice(
+  const visibleActivities = filteredActivities.slice(
     currentActivityPage * RECENT_ACTIVITY_PAGE_SIZE,
     (currentActivityPage + 1) * RECENT_ACTIVITY_PAGE_SIZE
   );
-  const showActivityPagination = activities.length > RECENT_ACTIVITY_PAGE_SIZE;
+  const showActivityPagination = filteredActivities.length > 0;
+
+  useEffect(() => {
+    setActivityPage(0);
+  }, [activityDateFilter]);
 
   if (resubmissionDrilldown) {
     return (
@@ -434,9 +443,11 @@ function AdminHomeDashboard({ user }) {
       />
 
       <RecentActivitiesPanel
-        activities={activities}
+        activities={filteredActivities}
+        dateFilter={activityDateFilter}
         currentPage={currentActivityPage}
         loading={loading}
+        onDateFilterChange={setActivityDateFilter}
         onPageChange={setActivityPage}
         showPagination={showActivityPagination}
         t={t}
@@ -450,7 +461,9 @@ function AdminHomeDashboard({ user }) {
 function RecentActivitiesPanel({
   activities,
   currentPage,
+  dateFilter,
   loading,
+  onDateFilterChange,
   onPageChange,
   showPagination,
   t,
@@ -466,6 +479,26 @@ function RecentActivitiesPanel({
         <p className="mt-1 text-sm text-slate-500">
           {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
         </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            {t("common.date", "Date")}
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(event) => onDateFilterChange(event.target.value)}
+              className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-10 px-3"
+            onClick={() => onDateFilterChange("")}
+            disabled={!dateFilter}
+          >
+            {t("common.reset", "Reset")}
+          </Button>
+        </div>
       </div>
 
       <div className="divide-y divide-slate-100">
@@ -1364,6 +1397,23 @@ function buildAdminRecentActivities(applications, userDepartment, user, t) {
     const aTime = new Date(a.createdAt || 0).getTime();
     return bTime - aTime;
   });
+}
+
+function filterActivitiesByDate(activities, dateFilter) {
+  if (!dateFilter) return activities;
+
+  return activities.filter((activity) => getActivityDateKey(activity.createdAt) === dateFilter);
+}
+
+function getActivityDateKey(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function buildStatusRecentActivity(application, userDepartment, t) {

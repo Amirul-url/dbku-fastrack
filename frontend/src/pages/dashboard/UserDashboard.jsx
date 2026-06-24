@@ -1597,20 +1597,29 @@ function getApplicationRemark(app) {
 
 function RecentActivities({ activities, loading, t }) {
   const [page, setPage] = useState(0);
-  const totalPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
+  const [dateFilter, setDateFilter] = useState("");
+  const filteredActivities = useMemo(
+    () => filterActivitiesByDate(activities, dateFilter),
+    [activities, dateFilter]
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages - 1);
-  const visibleActivities = activities.slice(
+  const visibleActivities = filteredActivities.slice(
     currentPage * RECENT_ACTIVITY_PAGE_SIZE,
     (currentPage + 1) * RECENT_ACTIVITY_PAGE_SIZE
   );
-  const showPagination = activities.length > RECENT_ACTIVITY_PAGE_SIZE;
+  const showPagination = filteredActivities.length > 0;
 
   useEffect(() => {
     setPage((current) => {
-      const nextTotalPages = Math.max(1, Math.ceil(activities.length / RECENT_ACTIVITY_PAGE_SIZE));
+      const nextTotalPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
       return Math.min(current, nextTotalPages - 1);
     });
-  }, [activities.length]);
+  }, [filteredActivities.length]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [dateFilter]);
 
   return (
     <section className="rounded-md border border-slate-200 bg-white">
@@ -1621,12 +1630,32 @@ function RecentActivities({ activities, loading, t }) {
         <p className="mt-1 text-sm text-slate-500">
           {t("applicant.recentActivitiesDesc", "Latest actions you performed on your applications.")}
         </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
+            {t("common.date", "Date")}
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(event) => setDateFilter(event.target.value)}
+              className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="secondary"
+            className="min-h-10 px-3"
+            onClick={() => setDateFilter("")}
+            disabled={!dateFilter}
+          >
+            {t("common.reset", "Reset")}
+          </Button>
+        </div>
       </div>
 
       <div className="divide-y divide-slate-100">
         {loading ? (
           <p className="px-4 py-4 text-sm text-slate-500">{t("common.loading", "Loading...")}</p>
-        ) : activities.length === 0 ? (
+        ) : filteredActivities.length === 0 ? (
           <p className="px-4 py-4 text-sm text-slate-500">
             {t("applicant.noRecentActivities", "No recent activities yet.")}
           </p>
@@ -1918,6 +1947,23 @@ function isApplicantOwnActivity(activity, currentUser) {
     title.endsWith(" uploaded") ||
     title.endsWith(" removed")
   );
+}
+
+function filterActivitiesByDate(activities, dateFilter) {
+  if (!dateFilter) return activities;
+
+  return activities.filter((activity) => getActivityDateKey(activity.createdAt) === dateFilter);
+}
+
+function getActivityDateKey(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function isApplicantRejectedActivity(activity) {
