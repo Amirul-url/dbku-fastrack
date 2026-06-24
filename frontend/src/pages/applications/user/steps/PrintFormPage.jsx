@@ -1863,6 +1863,14 @@ function AttachmentLinkList({
 async function openAttachmentPreview(url, title = "Attachment") {
   if (!url) return;
 
+  const previewWindow = window.open("about:blank", "_blank");
+  if (previewWindow) {
+    previewWindow.document.title = title;
+    previewWindow.document.body.style.fontFamily = "Arial, sans-serif";
+    previewWindow.document.body.style.padding = "24px";
+    previewWindow.document.body.textContent = "Opening attachment...";
+  }
+
   try {
     const blob =
       url.startsWith("blob:") || url.startsWith("data:")
@@ -1870,11 +1878,19 @@ async function openAttachmentPreview(url, title = "Attachment") {
         : await fetchAuthenticatedBlob(url);
     const objectUrl = URL.createObjectURL(blob);
 
-    window.open(objectUrl, "_blank");
+    if (previewWindow && !previewWindow.closed) {
+      previewWindow.location.href = objectUrl;
+    } else {
+      window.open(objectUrl, "_blank");
+    }
 
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
   } catch (error) {
     console.error("Failed to open attachment:", error);
+    if (previewWindow && !previewWindow.closed) {
+      previewWindow.document.body.textContent =
+        "Unable to open this attachment. Please refresh and try again.";
+    }
   }
 }
 
