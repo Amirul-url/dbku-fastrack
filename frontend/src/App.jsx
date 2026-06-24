@@ -58,7 +58,7 @@ import {
   getAccessTokenExpiryMs,
   getStoredUser,
   getUserRedirectPath,
-  hasRefreshToken,
+  hasActiveAccessToken,
   isAdminUser,
   isApplicantUser,
   isSuperAdminUser,
@@ -75,7 +75,7 @@ function getUser() {
 }
 
 function isAuthenticated() {
-  return !!localStorage.getItem("fastrack_access_token");
+  return hasActiveAccessToken();
 }
 
 function isAdmin(user) {
@@ -227,21 +227,16 @@ function SessionManager() {
       return;
     }
 
+    if (expiryMs <= Date.now()) {
+      setModalOpen(false);
+      clearAuthSession();
+      navigate("/login/malaysian", { replace: true });
+      return;
+    }
+
     const timeUntilWarning = expiryMs - Date.now() - SESSION_WARNING_MS;
 
     if (timeUntilWarning <= 0) {
-      if (expiryMs <= Date.now() && hasRefreshToken()) {
-        refreshAccessToken().then((token) => {
-          if (token) {
-            setModalOpen(false);
-            scheduleSessionWarning();
-          } else {
-            setModalOpen(true);
-          }
-        });
-        return;
-      }
-
       setModalOpen(true);
       return;
     }
@@ -249,7 +244,7 @@ function SessionManager() {
     timerRef.current = window.setTimeout(() => {
       setModalOpen(true);
     }, timeUntilWarning);
-  }, [clearSessionTimer, location.pathname]);
+  }, [clearSessionTimer, location.pathname, navigate]);
 
   const clearResponseTimer = useCallback(() => {
     if (responseTimerRef.current) {
@@ -270,6 +265,7 @@ function SessionManager() {
 
     window.addEventListener("fastrack:auth-changed", scheduleSessionWarning);
     window.addEventListener("focus", scheduleSessionWarning);
+    document.addEventListener("visibilitychange", scheduleSessionWarning);
 
     return () => {
       window.clearTimeout(initialCheckId);
@@ -277,6 +273,7 @@ function SessionManager() {
       clearResponseTimer();
       window.removeEventListener("fastrack:auth-changed", scheduleSessionWarning);
       window.removeEventListener("focus", scheduleSessionWarning);
+      document.removeEventListener("visibilitychange", scheduleSessionWarning);
     };
   }, [clearResponseTimer, clearSessionTimer, scheduleSessionWarning]);
 

@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import TopBar from "../../layout/TopBar";
 import { useLanguage } from "../../context/LanguageContext";
-import { getStoredUser, getUserRedirectPath } from "../../services/api";
+import { getStoredUser, getUserRedirectPath, hasActiveAccessToken } from "../../services/api";
 
 const faqItems = [
   {
@@ -30,10 +30,7 @@ function FaqPage() {
   const { t } = useLanguage();
   const location = useLocation();
   const source = new URLSearchParams(location.search).get("from");
-  const hasSession = Boolean(
-    localStorage.getItem("fastrack_access_token") ||
-      localStorage.getItem("fastrack_refresh_token")
-  );
+  const hasSession = hasActiveAccessToken();
   const storedUser = getStoredUser();
   const userDashboardPath = getUserRedirectPath(storedUser);
   const backPath = hasSession || source === "dashboard"

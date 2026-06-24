@@ -4,6 +4,7 @@ import {
   fetchApplicationList,
   getNormalizedRole,
   getStoredUser,
+  hasActiveAccessToken,
   isAdminUser,
   isApplicantUser,
   isSuperAdminUser,
@@ -1207,10 +1208,12 @@ export function NotificationProvider({ children }) {
       return;
     }
 
-    const token = localStorage.getItem("fastrack_access_token");
     const user = getStoredUser();
 
-    if (!token || (!isSuperAdminUser(user) && !isAdminUser(user) && !isApplicantUser(user))) {
+    if (
+      !hasActiveAccessToken() ||
+      (!isSuperAdminUser(user) && !isAdminUser(user) && !isApplicantUser(user))
+    ) {
       setNotifications([]);
       setError("");
       setLastSyncedAt("");

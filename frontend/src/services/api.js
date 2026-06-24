@@ -19,6 +19,11 @@ const SIDEBAR_SESSION_KEYS = [
   "fastrack_admin_e_licenses_menu_open",
   "fastrack_admin_applications_menu_open",
 ];
+const ACCESS_TOKEN_KEY = "fastrack_access_token";
+const REFRESH_TOKEN_KEY = "fastrack_refresh_token";
+const USER_KEY = "fastrack_user";
+const REMEMBER_ME_KEY = "fastrack_remember_me";
+const LOGIN_SESSION_ID_KEY = "fastrack_login_session_id";
 let refreshTokenPromise = null;
 
 function clearSidebarSessionState() {
@@ -244,7 +249,7 @@ export function normalizeFileUrl(url) {
 }
 
 export async function fetchAuthenticatedBlob(url) {
-  let token = localStorage.getItem("fastrack_access_token");
+  let token = localStorage.getItem(ACCESS_TOKEN_KEY);
 
   const makeRequest = async (accessToken) =>
     fetch(url, {
@@ -260,6 +265,12 @@ export async function fetchAuthenticatedBlob(url) {
   let response = await makeRequest(token);
 
   if (response.status === 401 && token) {
+    if (getAccessTokenExpiryMs() <= Date.now()) {
+      clearAuthSession();
+      window.location.href = "/login/malaysian";
+      throw new Error("Session expired");
+    }
+
     const newAccessToken = await refreshAccessToken();
 
     if (!newAccessToken) {
@@ -281,7 +292,7 @@ export async function fetchAuthenticatedBlob(url) {
 
 export function getStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem("fastrack_user") || "null");
+    return JSON.parse(localStorage.getItem(USER_KEY) || "null");
   } catch {
     return null;
   }
@@ -343,20 +354,32 @@ function normalizeStoredFullName(value) {
   return String(value || "").trim().replace(/\s+/g, " ").toUpperCase();
 }
 
+function getStoredRefreshToken() {
+  return (
+    localStorage.getItem(REFRESH_TOKEN_KEY) ||
+    sessionStorage.getItem(REFRESH_TOKEN_KEY) ||
+    ""
+  );
+}
+
 export function saveAuthSession(data, rememberMe = false) {
   clearSidebarSessionState();
 
   if (data?.access) {
-    localStorage.setItem("fastrack_access_token", data.access);
+    localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
   }
 
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+
   if (data?.refresh) {
-    localStorage.setItem("fastrack_refresh_token", data.refresh);
+    const refreshStorage = rememberMe ? localStorage : sessionStorage;
+    refreshStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
   }
 
   if (data?.user) {
     localStorage.setItem(
-      "fastrack_user",
+      USER_KEY,
       JSON.stringify({
         ...data.user,
         full_name: normalizeStoredFullName(data.user.full_name),
@@ -366,26 +389,27 @@ export function saveAuthSession(data, rememberMe = false) {
   }
 
   if (data?.login_session_id) {
-    localStorage.setItem("fastrack_login_session_id", String(data.login_session_id));
+    localStorage.setItem(LOGIN_SESSION_ID_KEY, String(data.login_session_id));
   }
 
-  localStorage.setItem("fastrack_remember_me", rememberMe ? "true" : "false");
+  localStorage.setItem(REMEMBER_ME_KEY, rememberMe ? "true" : "false");
   window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
 
 export function clearAuthSession() {
-  localStorage.removeItem("fastrack_access_token");
-  localStorage.removeItem("fastrack_refresh_token");
-  localStorage.removeItem("fastrack_user");
-  localStorage.removeItem("fastrack_remember_me");
-  localStorage.removeItem("fastrack_login_session_id");
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(REMEMBER_ME_KEY);
+  localStorage.removeItem(LOGIN_SESSION_ID_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
   clearSidebarSessionState();
   window.dispatchEvent(new Event("fastrack:auth-changed"));
 }
 
 export async function recordLogoutSession() {
-  const sessionId = localStorage.getItem("fastrack_login_session_id");
-  if (!localStorage.getItem("fastrack_access_token")) return;
+  const sessionId = localStorage.getItem(LOGIN_SESSION_ID_KEY);
+  if (!localStorage.getItem(ACCESS_TOKEN_KEY)) return;
 
   try {
     await apiRequest("/auth/logout/", {
@@ -400,7 +424,7 @@ export async function recordLogoutSession() {
 }
 
 export function getAccessTokenExpiryMs() {
-  const token = localStorage.getItem("fastrack_access_token");
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
   if (!token) return 0;
 
   try {
@@ -411,12 +435,32 @@ export function getAccessTokenExpiryMs() {
   }
 }
 
+export function hasActiveAccessToken() {
+  if (!localStorage.getItem(ACCESS_TOKEN_KEY)) {
+    return false;
+  }
+
+  const expiryMs = getAccessTokenExpiryMs();
+
+  if (!expiryMs) {
+    clearAuthSession();
+    return false;
+  }
+
+  if (expiryMs <= Date.now()) {
+    clearAuthSession();
+    return false;
+  }
+
+  return true;
+}
+
 export function hasRefreshToken() {
-  return Boolean(localStorage.getItem("fastrack_refresh_token"));
+  return Boolean(getStoredRefreshToken());
 }
 
 async function requestAccessTokenRefresh() {
-  const refresh = localStorage.getItem("fastrack_refresh_token");
+  const refresh = getStoredRefreshToken();
 
   if (!refresh) {
     clearAuthSession();
@@ -444,7 +488,7 @@ async function requestAccessTokenRefresh() {
     const data = await response.json();
 
     if (data?.access) {
-      localStorage.setItem("fastrack_access_token", data.access);
+      localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
       return data.access;
     }
 
@@ -474,7 +518,7 @@ export async function apiRequest(path, options = {}) {
     path.startsWith("/token/");
   let token = isPublicAuthRequest
     ? null
-    : localStorage.getItem("fastrack_access_token");
+    : localStorage.getItem(ACCESS_TOKEN_KEY);
 
   const isFormData = options.body instanceof FormData;
   const canRefreshAuth = Boolean(token) && !isPublicAuthRequest;
@@ -503,6 +547,12 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (response.status === 401 && canRefreshAuth) {
+    if (getAccessTokenExpiryMs() <= Date.now()) {
+      clearAuthSession();
+      window.location.href = "/login/malaysian";
+      throw new Error("Session expired");
+    }
+
     const newAccessToken = await refreshAccessToken();
 
     if (!newAccessToken) {
