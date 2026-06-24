@@ -1525,6 +1525,8 @@ class NotificationRoutingTests(TestCase):
         for delivery in deliveries:
             self.assertIn("Please amend the recommendation.", delivery.message)
             self.assertIn("Please amend the recommendation.", delivery.metadata["message_en"])
+            self.assertEqual(delivery.message.count("Remark:"), 1)
+            self.assertEqual(delivery.metadata["message_en"].count("Remark:"), 1)
         delivery = deliveries.get(channel="web")
         self.assertEqual(
             delivery.metadata["title_en"],

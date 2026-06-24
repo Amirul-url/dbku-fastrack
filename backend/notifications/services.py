@@ -1255,7 +1255,7 @@ def build_web_metadata(application, title, body, recipient_role):
     display_message = body
     memo_html = get_admin_memo_html(application) if recipient_role == "admin" else ""
 
-    if remark:
+    if remark and not re.search(r"\bRemark\s*:", display_message, flags=re.IGNORECASE):
         display_message = f"{display_message}\n\nRemark: {remark}"
 
     metadata = {
