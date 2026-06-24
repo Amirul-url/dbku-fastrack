@@ -242,7 +242,7 @@ function getApplicationRemark(app) {
   const formData = app?.form_data || {};
   const approvalLetter = formData.approval_letter || app?.approval_letter || {};
 
-  if (["invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
+  if (["invoice_generated", "payment_submitted"].includes(status)) {
     return cleanRemark(
       approvalLetter.remarks ||
         approvalLetter.comment ||
@@ -250,6 +250,8 @@ function getApplicationRemark(app) {
         formData.payment?.verification_notes
     );
   }
+
+  if (["payment_verified", "license_issued"].includes(status)) return "";
 
   if (!["incomplete", "rejected"].includes(status)) return "";
 
