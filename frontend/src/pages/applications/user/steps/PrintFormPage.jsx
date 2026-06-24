@@ -5,7 +5,6 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
-  fetchAuthenticatedBlob,
   getApplicationDocumentUrl,
   normalizeFileUrl,
 } from "../../../../services/api";
@@ -1832,23 +1831,21 @@ function AttachmentLinkList({
         return (
           <span key={key}>
             {href ? (
-              <button
-                type="button"
-                onClick={() => openAttachmentPreview(href, label)}
+              <a
+                href={getAuthenticatedAttachmentHref(href)}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
-                  background: "transparent",
-                  border: 0,
                   color: "#005baa",
                   cursor: "pointer",
                   font: "inherit",
-                  padding: 0,
                   textAlign: "left",
                   textDecoration: "underline",
                   textUnderlineOffset: "1px",
                 }}
               >
                 {label}
-              </button>
+              </a>
             ) : (
               label
             )}
@@ -1858,40 +1855,6 @@ function AttachmentLinkList({
       })}
     </span>
   );
-}
-
-async function openAttachmentPreview(url, title = "Attachment") {
-  if (!url) return;
-
-  const previewWindow = window.open("about:blank", "_blank");
-  if (previewWindow) {
-    previewWindow.document.title = title;
-    previewWindow.document.body.style.fontFamily = "Arial, sans-serif";
-    previewWindow.document.body.style.padding = "24px";
-    previewWindow.document.body.textContent = "Opening attachment...";
-  }
-
-  try {
-    const blob =
-      url.startsWith("blob:") || url.startsWith("data:")
-        ? await fetch(url).then((response) => response.blob())
-        : await fetchAuthenticatedBlob(url);
-    const objectUrl = URL.createObjectURL(blob);
-
-    if (previewWindow && !previewWindow.closed) {
-      previewWindow.location.href = objectUrl;
-    } else {
-      window.open(objectUrl, "_blank");
-    }
-
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
-  } catch (error) {
-    console.error("Failed to open attachment:", error);
-    if (previewWindow && !previewWindow.closed) {
-      previewWindow.document.body.textContent =
-        "Unable to open this attachment. Please refresh and try again.";
-    }
-  }
 }
 
 function escapeHtml(value) {
@@ -2081,6 +2044,22 @@ function getAttachmentHref(attachment, applicationId = "") {
   if (directUrl) return directUrl;
 
   return "";
+}
+
+function getAuthenticatedAttachmentHref(url) {
+  if (!url || url.startsWith("blob:") || url.startsWith("data:")) return url || "";
+
+  const token = window.localStorage.getItem("fastrack_access_token");
+  if (!token) return url;
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.set("access_token", token);
+    return parsed.href;
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}access_token=${encodeURIComponent(token)}`;
+  }
 }
 
 function getPdfAttachmentText(attachments, noAttachmentText = "") {
