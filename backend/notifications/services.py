@@ -815,12 +815,14 @@ def build_staff_application_resubmitted_message(application):
         title=title,
         body=body,
         recipient_role="admin",
+        include_remark=False,
     )
     message = format_notification_message(
         title=title,
         body=body,
         application=application,
         recipient_role="admin",
+        include_remark=False,
     )
 
     return subject, message, metadata
@@ -1248,10 +1250,10 @@ def build_notification_subject(title, reference):
     return f"{APP_BRAND_NAME} - {clean_title}"
 
 
-def build_web_metadata(application, title, body, recipient_role):
+def build_web_metadata(application, title, body, recipient_role, include_remark=True):
     status_key = str(application.status or "").strip().lower()
     category, notification_type = STATUS_UI.get(status_key, ("progress", "info"))
-    remark = get_message_remark(application)
+    remark = get_message_remark(application) if include_remark else ""
     display_message = body
     memo_html = get_admin_memo_html(application) if recipient_role == "admin" else ""
 
@@ -1493,12 +1495,12 @@ def get_ku_amendment_source(application):
     return str(correction.get("source") or "").strip()
 
 
-def format_notification_message(title, body, application, recipient_role):
+def format_notification_message(title, body, application, recipient_role, include_remark=True):
     if recipient_role != "applicant":
-        return format_simple_internal_notification_message(body, application)
+        return format_simple_internal_notification_message(body, application, include_remark=include_remark)
 
     message = str(body or "").strip()
-    remark = get_message_remark(application)
+    remark = get_message_remark(application) if include_remark else ""
     if remark and not re.search(r"\bRemark\s*:", message, flags=re.IGNORECASE):
         message = f"{message}\n\nRemark: {remark}" if message else f"Remark: {remark}"
 
@@ -1511,9 +1513,9 @@ def format_notification_message(title, body, application, recipient_role):
     return "\n".join(lines)
 
 
-def format_simple_internal_notification_message(body, application=None):
+def format_simple_internal_notification_message(body, application=None, include_remark=True):
     message = str(body or "").strip()
-    remark = get_message_remark(application) if application is not None else ""
+    remark = get_message_remark(application) if include_remark and application is not None else ""
 
     if remark and not re.search(r"\bRemark\s*:", message, flags=re.IGNORECASE):
         message = f"{message}\n\nRemark: {remark}" if message else f"Remark: {remark}"

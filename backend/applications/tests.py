@@ -434,7 +434,12 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         )
         self.assertEqual(staff_deliveries.count(), 3)
         self.assertEqual(set(staff_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
-        self.assertIn("ready for MPHLG review", staff_deliveries.get(channel="email").message)
+        for delivery in staff_deliveries:
+            self.assertIn("ready for MPHLG review", delivery.message)
+            self.assertNotIn("Remark:", delivery.message)
+            self.assertNotIn("Remark:", delivery.metadata["message_en"])
+            self.assertNotIn("Please update MPHLG details.", delivery.message)
+            self.assertNotIn("Please update MPHLG details.", delivery.metadata["message_en"])
 
     def test_pt_ikl_letter_bill_submit_routes_directly_to_applicant_payment(self):
         User = get_user_model()
