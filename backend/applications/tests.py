@@ -225,6 +225,112 @@ class ApplicationReferenceTests(TestCase):
         self.assertEqual(application.status, "submitted")
 
 
+class ApplicationActivityVisibilityTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.applicant = User.objects.create_user(
+            username="activity-applicant",
+            password="testpass123",
+            role="applicant",
+        )
+        self.ku_ikl = User.objects.create_user(
+            username="activity-ku-ikl",
+            password="testpass123",
+            role="admin",
+            department="KU(IKL)",
+        )
+        self.other_ku_ikl = User.objects.create_user(
+            username="activity-other-ku-ikl",
+            password="testpass123",
+            role="admin",
+            department="KU(IKL)",
+        )
+        self.mphlg = User.objects.create_user(
+            username="activity-mphlg",
+            password="testpass123",
+            role="admin",
+            department="MPHLG",
+        )
+        self.application = Application.objects.create(
+            applicant=self.applicant,
+            title="Scoped activity application",
+            status="license_issued",
+            form_data={
+                "activity_log": [
+                    {
+                        "title": "Application approved",
+                        "description": "Approved by MPHLG.",
+                        "category": "workflow",
+                        "actor_id": self.mphlg.id,
+                        "actor_role": "admin",
+                        "actor_department": "MPHLG",
+                        "created_at": "2026-06-24T01:00:00Z",
+                    },
+                    {
+                        "title": "Application sent to technical review",
+                        "description": "Reviewed by other KU(IKL).",
+                        "category": "workflow",
+                        "actor_id": self.other_ku_ikl.id,
+                        "actor_role": "admin",
+                        "actor_department": "KU(IKL)",
+                        "created_at": "2026-06-24T00:30:00Z",
+                    },
+                    {
+                        "title": "Application sent to technical review",
+                        "description": "Reviewed by KU(IKL).",
+                        "category": "workflow",
+                        "actor_id": self.ku_ikl.id,
+                        "actor_role": "admin",
+                        "actor_department": "KU(IKL)",
+                        "created_at": "2026-06-24T00:20:00Z",
+                    },
+                    {
+                        "title": "Application submitted",
+                        "description": "You sent your application to ALiS for review.",
+                        "category": "user",
+                        "actor_id": self.applicant.id,
+                        "actor_role": "applicant",
+                        "actor_department": self.applicant.username,
+                        "created_at": "2026-06-24T00:10:00Z",
+                    },
+                ],
+            },
+        )
+
+    def get_first_list_item(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        response = client.get("/api/applications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        return data[0]
+
+    def test_applicant_activity_log_hides_internal_workflow_rows(self):
+        item = self.get_first_list_item(self.applicant)
+
+        self.assertEqual(
+            [activity["title"] for activity in item["activity_log"]],
+            ["Application submitted"],
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.applicant)
+        response = client.get(f"/api/applications/{self.application.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [activity["title"] for activity in response.data["form_data"]["activity_log"]],
+            ["Application submitted"],
+        )
+
+    def test_staff_activity_log_hides_other_staff_accounts(self):
+        item = self.get_first_list_item(self.ku_ikl)
+
+        self.assertEqual(
+            [activity["description"] for activity in item["activity_log"]],
+            ["Reviewed by KU(IKL)."],
+        )
+
+
 @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False, NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
 class ApplicantForcedNotificationWorkflowTests(TestCase):
     def setUp(self):

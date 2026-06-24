@@ -378,8 +378,8 @@ function AdminHomeDashboard({ user }) {
   }, [fetchApplications]);
 
   const activities = useMemo(() => {
-    return buildAdminRecentActivities(applications, userDepartment, t);
-  }, [applications, t, userDepartment]);
+    return buildAdminRecentActivities(applications, userDepartment, user, t);
+  }, [applications, t, user, userDepartment]);
   const resubmissionInsights = useMemo(() => {
     return buildInternalResubmissionInsights(applications, t, language, resubmissionFilters);
   }, [applications, language, resubmissionFilters, t]);
@@ -1347,22 +1347,16 @@ function CompleteDocumentRow({ app, document, t }) {
   );
 }
 
-function buildAdminRecentActivities(applications, userDepartment, t) {
+function buildAdminRecentActivities(applications, userDepartment, user, t) {
   const activities = applications.flatMap((application) => {
     const logActivities = getImportantApplicationActivities(
       application,
       userDepartment,
+      user,
       t
     );
-    const hasCurrentStatusLog = logActivities.some((activity) =>
-      isActivityForCurrentStatus(activity, application)
-    );
-    const statusActivity =
-      isRelevantRecentActivity(application, userDepartment) && !hasCurrentStatusLog
-        ? [buildStatusRecentActivity(application, userDepartment, t)]
-        : [];
 
-    return [...logActivities, ...statusActivity];
+    return logActivities;
   });
 
   return dedupeRecentActivities(activities).sort((a, b) => {
@@ -1386,9 +1380,9 @@ function buildStatusRecentActivity(application, userDepartment, t) {
   };
 }
 
-function getImportantApplicationActivities(application, userDepartment, t) {
+function getImportantApplicationActivities(application, userDepartment, user, t) {
   return getApplicationActivityLog(application)
-    .filter((activity) => isImportantAdminActivity(activity, userDepartment, application))
+    .filter((activity) => isImportantAdminActivity(activity, userDepartment, user, application))
     .map((activity) => ({
       id: `activity-${application.id}-${activity.created_at || ""}-${activity.title || ""}`,
       applicationId: application.id,
@@ -2443,13 +2437,14 @@ function formatActivityProjectText(value) {
     .replace(/\s+(\d+\.\s+)/g, "\n$1");
 }
 
-function isImportantAdminActivity(activity, userDepartment, application = null) {
+function isImportantAdminActivity(activity, userDepartment, user, application = null) {
   const title = String(activity?.title || "").trim().toLowerCase();
   const category = String(activity?.category || "").trim().toLowerCase();
   const actorDepartment = getActivityDepartment(activity);
 
   if (!title || title.endsWith(" details saved")) return false;
   if (title.includes("uploaded") || title.includes("removed")) return false;
+  if (!isActivityForCurrentStaffUser(activity, user)) return false;
 
   const important =
     category === "workflow" ||
@@ -3351,6 +3346,17 @@ function isUnitHistoryApplication(application, unit, activeDepartment = "") {
   }
 
   return true;
+}
+
+function isActivityForCurrentStaffUser(activity, user) {
+  const actorId = activity?.actor_id;
+  const userId = user?.id;
+
+  if (actorId !== undefined && actorId !== null && String(actorId) !== "") {
+    return userId !== undefined && userId !== null && String(actorId) === String(userId);
+  }
+
+  return false;
 }
 
 function isApprovalPersonalTaskForDepartment(application, department) {

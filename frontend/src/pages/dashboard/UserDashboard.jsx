@@ -550,9 +550,10 @@ function OverviewSection({ applications, language, loading, t }) {
     () => buildOverviewStatusSummary(applications, t),
     [applications, t]
   );
+  const currentUser = useMemo(() => getStoredUser(), []);
   const recentActivities = useMemo(
-    () => buildRecentActivities(applications, t, language),
-    [applications, language, t]
+    () => buildRecentActivities(applications, t, language, currentUser),
+    [applications, currentUser, language, t]
   );
 
   return (
@@ -1866,12 +1867,12 @@ function getApplicationActivityLog(app) {
   return [];
 }
 
-function buildRecentActivities(applications, t, language = "en") {
+function buildRecentActivities(applications, t, language = "en", currentUser = null) {
   const activities = applications
     .flatMap((app) => {
       const activityLog = getApplicationActivityLog(app);
 
-      return activityLog.map((activity) => {
+      return activityLog.filter((activity) => isApplicantOwnActivity(activity, currentUser)).map((activity) => {
         const friendlyCopy = getApplicantActivityCopy(activity, t);
         const activityRemark = getActivityRemark(activity);
 
@@ -1892,6 +1893,31 @@ function buildRecentActivities(applications, t, language = "en") {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return removeDuplicateSaveActivities(activities);
+}
+
+function isApplicantOwnActivity(activity, currentUser) {
+  const actorId = activity?.actor_id;
+  const userId = currentUser?.id;
+
+  if (actorId !== undefined && actorId !== null && String(actorId) !== "") {
+    return userId !== undefined && userId !== null && String(actorId) === String(userId);
+  }
+
+  const actorRole = String(activity?.actor_role || "").trim().toLowerCase();
+  const category = String(activity?.category || "").trim().toLowerCase();
+  const title = String(activity?.title || "").trim().toLowerCase();
+
+  return (
+    category === "user" ||
+    ["applicant", "user"].includes(actorRole) ||
+    title === "application draft created" ||
+    title === "application submitted" ||
+    title === "application resubmitted" ||
+    title === "payment receipt submitted" ||
+    title.endsWith(" details saved") ||
+    title.endsWith(" uploaded") ||
+    title.endsWith(" removed")
+  );
 }
 
 function isApplicantRejectedActivity(activity) {

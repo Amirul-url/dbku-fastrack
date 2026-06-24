@@ -43,6 +43,78 @@ def merge_dicts(current, updates):
     return merged
 
 
+STAFF_ACTIVITY_ROLES = {"admin", "supervisor", "staff"}
+APPLICANT_ACTIVITY_ROLES = {"applicant", "user"}
+APPLICANT_SAFE_ACTIVITY_TITLES = {
+    "application draft created",
+    "application submitted",
+    "application resubmitted",
+    "payment receipt submitted",
+}
+
+
+def get_request_user(serializer):
+    request = serializer.context.get("request") if hasattr(serializer, "context") else None
+    user = getattr(request, "user", None)
+    return user if getattr(user, "is_authenticated", False) else None
+
+
+def is_applicant_safe_activity(activity):
+    title = str(activity.get("title") or "").strip().lower()
+    category = str(activity.get("category") or "").strip().lower()
+    actor_role = str(activity.get("actor_role") or "").strip().lower()
+
+    return (
+        category == "user"
+        or actor_role in APPLICANT_ACTIVITY_ROLES
+        or title in APPLICANT_SAFE_ACTIVITY_TITLES
+        or title.endswith(" details saved")
+        or title.endswith(" uploaded")
+        or title.endswith(" removed")
+    )
+
+
+def scope_activity_log_for_user(activity_log, user):
+    if not user:
+        return []
+
+    role = str(getattr(user, "role", "") or "").strip().lower()
+    user_id = getattr(user, "id", None)
+
+    scoped = []
+    for activity in activity_log:
+        if not isinstance(activity, dict):
+            continue
+
+        actor_id = activity.get("actor_id")
+        actor_role = str(activity.get("actor_role") or "").strip().lower()
+
+        actor_matches_user = (
+            actor_id not in {None, ""}
+            and user_id not in {None, ""}
+            and str(actor_id) == str(user_id)
+        )
+
+        if role in APPLICANT_ACTIVITY_ROLES:
+            if actor_matches_user or (
+                actor_id in {None, ""}
+                and actor_role in APPLICANT_ACTIVITY_ROLES
+                and is_applicant_safe_activity(activity)
+            ):
+                scoped.append(activity)
+            continue
+
+        if role in STAFF_ACTIVITY_ROLES:
+            if actor_matches_user:
+                scoped.append(activity)
+            continue
+
+        if role == "superadmin":
+            scoped.append(activity)
+
+    return scoped
+
+
 def get_application_applicant_name(application):
     form_data = application.form_data or {}
     step2 = form_data.get("step_2") or {}
@@ -248,7 +320,8 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         if not isinstance(activity_log, list):
             return []
 
-        return enrich_activity_log_with_rejection_remarks(obj, activity_log[:80])
+        scoped_log = scope_activity_log_for_user(activity_log, get_request_user(self))
+        return enrich_activity_log_with_rejection_remarks(obj, scoped_log[:80])
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):
@@ -311,7 +384,14 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data["form_data"] = strip_inline_file_data(data.get("form_data") or {})
+        form_data = strip_inline_file_data(data.get("form_data") or {})
+        activity_log = form_data.get("activity_log")
+        if isinstance(activity_log, list):
+            form_data["activity_log"] = scope_activity_log_for_user(
+                activity_log,
+                get_request_user(self),
+            )
+        data["form_data"] = form_data
         return data
 
     def update(self, instance, validated_data):
