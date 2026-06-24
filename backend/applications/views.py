@@ -96,6 +96,7 @@ def reset_workflow_on_applicant_resubmit(application, old_status, old_form_data=
             "decision": "",
             "remarks": "",
             "reviewed_at": "",
+            "decided_at": "",
         }
     else:
         for field in RESUBMIT_WORKFLOW_RESET_FIELDS:

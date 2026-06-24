@@ -2780,6 +2780,8 @@ function isMphlgReviewComplete(application) {
   const status = String(section?.status || "").trim().toLowerCase();
   const decision = String(section?.decision || section?.recommendation || "").trim();
 
+  if (status.includes("pending mphlg")) return false;
+
   return (
     ["approved", "reviewed", "completed"].includes(status) ||
     Boolean(decision || section?.reviewed_at || section?.decided_at)

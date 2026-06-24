@@ -387,6 +387,7 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
                         "status": "Returned to Applicant",
                         "decision": "Reject",
                         "remarks": "Please update MPHLG details.",
+                        "decided_at": "2026-06-24T01:40:00Z",
                     },
                     "correction_request": {
                         "source": "MPHLG",
@@ -425,6 +426,9 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(application.status, "mphlg_processing")
         self.assertIsNone(application.form_data.get("correction_request"))
         self.assertEqual(application.form_data["mphlg_gateway"]["status"], "Pending MPHLG Approval")
+        self.assertEqual(application.form_data["mphlg_gateway"]["decision"], "")
+        self.assertEqual(application.form_data["mphlg_gateway"]["reviewed_at"], "")
+        self.assertEqual(application.form_data["mphlg_gateway"]["decided_at"], "")
 
         staff_deliveries = NotificationDelivery.objects.filter(
             application=application,
