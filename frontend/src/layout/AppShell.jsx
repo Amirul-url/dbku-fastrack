@@ -243,6 +243,17 @@ function AppShell({ children, role = "admin" }) {
     [role, adminTaskCounts, applicantTaskCounts, user]
   );
 
+  const syncStoredUser = useCallback(() => {
+    const storedUser = getStoredUser();
+    const normalizedUser = normalizeStoredUser(storedUser);
+
+    setUser(normalizedUser);
+
+    if (role === "applicant") {
+      setApplicantSeenAt(getApplicantRecordSeen(normalizedUser));
+    }
+  }, [role]);
+
   const refreshAdminTaskCounts = useCallback(async ({ silent = false } = {}) => {
     if (role !== "admin") return;
 
@@ -299,6 +310,14 @@ function AppShell({ children, role = "admin" }) {
       active = false;
     };
   }, [role]);
+
+  useEffect(() => {
+    window.addEventListener("fastrack:auth-changed", syncStoredUser);
+
+    return () => {
+      window.removeEventListener("fastrack:auth-changed", syncStoredUser);
+    };
+  }, [syncStoredUser]);
 
   useEffect(() => {
     if (role !== "admin") {
@@ -454,11 +473,11 @@ function AppShell({ children, role = "admin" }) {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-          <img src={logo} alt="ALiS Logo" className="h-9 w-auto object-contain" />
+        <div className="flex h-16 items-center gap-2.5 border-b border-slate-200 px-4">
+          <img src={logo} alt="ALiS Logo" className="h-8 w-auto object-contain" />
           <div className="min-w-0">
             <p className="text-base font-semibold text-slate-950">ALiS</p>
-            <p className="text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
+            <p className="whitespace-nowrap text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
           </div>
         </div>
 

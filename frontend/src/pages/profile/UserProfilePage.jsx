@@ -53,6 +53,9 @@ const stateCityOptions = {
   "W.P. Putrajaya": ["Putrajaya"],
 };
 const stateOptions = Object.keys(stateCityOptions);
+const cityOptions = Array.from(
+  new Set(Object.values(stateCityOptions).flat())
+).sort((a, b) => a.localeCompare(b));
 
 function UserProfilePage() {
   const { t } = useLanguage();
@@ -62,7 +65,14 @@ function UserProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [fieldErrors, setFieldErrors] = useState({});
-  const cityOptions = form.state ? stateCityOptions[form.state] || [] : [];
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+  const citySearchTerm = form.city.trim().toLowerCase();
+  const citySuggestions =
+    citySearchTerm.length >= 2
+      ? cityOptions
+          .filter((city) => city.toLowerCase().includes(citySearchTerm))
+          .slice(0, 8)
+      : [];
 
   useEffect(() => {
     let active = true;
@@ -94,7 +104,11 @@ function UserProfilePage() {
   }
 
   function handleStateChange(value) {
-    setForm((current) => ({ ...current, state: value, city: "" }));
+    setForm((current) => ({
+      ...current,
+      state: value,
+      city: value && stateCityOptions[value]?.includes(current.city) ? current.city : "",
+    }));
     setFieldErrors((current) => {
       const next = { ...current };
       delete next.state;
@@ -102,6 +116,37 @@ function UserProfilePage() {
       return next;
     });
     setMessage({ type: "", text: "" });
+  }
+
+  function handleCityChange(value) {
+    const normalizedValue = value.trim().toLowerCase();
+    const matches = Object.entries(stateCityOptions)
+      .flatMap(([state, cities]) =>
+        cities
+          .filter((city) => city.toLowerCase() === normalizedValue)
+          .map((city) => ({ city, state }))
+      );
+    const matchedCity = matches[0]?.city;
+    const nextState = matches.length === 1 ? matches[0].state : form.state;
+
+    setForm((current) => ({
+      ...current,
+      city: matchedCity || value,
+      state: nextState,
+    }));
+    setShowCitySuggestions(Boolean(value.trim()) && !matchedCity);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.city;
+      if (nextState) delete next.state;
+      return next;
+    });
+    setMessage({ type: "", text: "" });
+  }
+
+  function selectCitySuggestion(city) {
+    handleCityChange(city);
+    setShowCitySuggestions(false);
   }
 
   function validateForm() {
@@ -341,6 +386,35 @@ function UserProfilePage() {
               />
             </FormField>
 
+            <FormField label={t("auth.city")} error={fieldErrors.city} required>
+              <div className="relative">
+                <TextInput
+                  disabled={!editing}
+                  autoComplete="off"
+                  value={form.city}
+                  onChange={handleCityChange}
+                  onFocus={() => setShowCitySuggestions(Boolean(form.city.trim()))}
+                  onBlur={() => setShowCitySuggestions(false)}
+                  error={fieldErrors.city}
+                />
+                {editing && showCitySuggestions && citySuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                    {citySuggestions.map((city) => (
+                      <button
+                        key={city}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectCitySuggestion(city)}
+                        className="block w-full px-3 py-2 text-left text-sm text-slate-900 hover:bg-slate-50"
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </FormField>
+
             <FormField label={t("auth.state")} error={fieldErrors.state} required>
               <select
                 disabled={!editing}
@@ -352,24 +426,6 @@ function UserProfilePage() {
                 {stateOptions.map((state) => (
                   <option key={state} value={state}>
                     {state}
-                  </option>
-                ))}
-              </select>
-            </FormField>
-
-            <FormField label={t("auth.city")} error={fieldErrors.city} required>
-              <select
-                disabled={!editing || !form.state}
-                value={form.city}
-                onChange={(event) => updateField("city", event.target.value)}
-                className={getInputClass(Boolean(fieldErrors.city))}
-              >
-                <option value="">
-                  {form.state ? t("auth.selectCity") : t("auth.selectStateFirst")}
-                </option>
-                {cityOptions.map((city) => (
-                  <option key={city} value={city}>
-                    {city}
                   </option>
                 ))}
               </select>
@@ -394,8 +450,8 @@ function UserProfilePage() {
 
 function ProfileSection({ icon, title, children }) {
   return (
-    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-      <div className="h-1 bg-[#07c25f]" />
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="h-1 rounded-t-md bg-[#07c25f]" />
       <div className="px-6 py-6">
         <div className="mb-6 flex items-center gap-3">
           <span className="material-symbols-outlined text-[#006d32]">{icon}</span>
