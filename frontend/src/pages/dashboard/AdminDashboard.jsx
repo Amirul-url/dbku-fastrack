@@ -472,32 +472,34 @@ function RecentActivitiesPanel({
 }) {
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-sm font-semibold text-slate-950">
-          {t("admin.dashboard.recentActivitiesTitle", "Recent Activities")}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">
-          {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
-        </p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
-            {t("common.date", "Date")}
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-slate-950">
+            {t("admin.dashboard.recentActivitiesTitle", "Recent Activities")}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="date"
               value={dateFilter}
               onChange={(event) => onDateFilterChange(event.target.value)}
+              aria-label={t("common.date", "Date")}
               className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
             />
-          </label>
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-10 px-3"
-            onClick={() => onDateFilterChange("")}
-            disabled={!dateFilter}
-          >
-            {t("common.reset", "Reset")}
-          </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="min-h-10 px-3"
+              onClick={() => onDateFilterChange("")}
+              disabled={!dateFilter}
+            >
+              {t("common.reset", "Reset")}
+            </Button>
+          </div>
         </div>
       </div>
 
