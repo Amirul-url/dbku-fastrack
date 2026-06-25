@@ -2980,19 +2980,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )
                   )}
 
-                  <div className={actionGridClass}>
-                    {showBottomFormButton && (
-                      <Button
-                        variant="secondary"
-                        className="min-h-8 w-full px-2.5 py-1 text-[13px] leading-5"
-                        icon="visibility"
-                        onClick={() => openSelectedFormView(selectedRecord.id)}
-                      >
-                        {t("workspace.openForm")}
-                      </Button>
-                    )}
-                    {isApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg ? (
-                      <>
+                  {(canSubmitWorkspaceAction || showBottomFormButton) && (
+                    <div className={actionGridClass}>
+                      {showBottomFormButton && (
+                        <Button
+                          variant="secondary"
+                          className="min-h-8 w-full px-2.5 py-1 text-[13px] leading-5"
+                          icon="visibility"
+                          onClick={() => openSelectedFormView(selectedRecord.id)}
+                        >
+                          {t("workspace.openForm")}
+                        </Button>
+                      )}
+                      {canSubmitWorkspaceAction &&
+                      (isApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg) ? (
                         <Button
                           onClick={() =>
                             submitApprovalSupport(
@@ -3008,75 +3009,75 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         >
                           {saving ? t("workspace.saving") : t("common.submit", "Submit")}
                         </Button>
-                      </>
-                    ) : showPaymentReceiptDecision ? (
-                      <Button
-                        onClick={() => {
-                          if (!selectedPaymentReceiptAction) {
-                            setDecisionError(getWorkspaceDecisionInputPrompt(paymentReceiptDecisionOptions, t));
-                            decisionInputRef.current?.focus();
-                            return;
-                          }
-
-                          if (!cleanRemark(comment)) {
-                            setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
-                            commentRef.current?.focus();
-                            return;
-                          }
-
-                          submitAction(selectedPaymentReceiptAction, {
-                            decision,
-                            comment: cleanRemark(comment),
-                            checkDecisionRemark: false,
-                          });
-                        }}
-                        disabled={saving || !selectedPaymentReceiptActionRequirementsReady}
-                        variant="primary"
-                        icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "qr_code_2"}
-                        className="min-w-40"
-                      >
-                        {saving
-                          ? t("workspace.saving")
-                          : selectedPaymentReceiptAction?.label === "Reject Receipt"
-                            ? t("common.submit", "Submit")
-                            : t("workspace.action.issueLicense", "Issue License")}
-                      </Button>
-                    ) : showApprovalDecisionButtons ? (
-                      <>
+                      ) : canSubmitWorkspaceAction && showPaymentReceiptDecision ? (
                         <Button
-                          onClick={() => submitApprovalDecisionButton("Reject")}
-                          disabled={saving}
-                          variant="danger"
-                          icon="cancel"
-                          className="min-w-40"
-                        >
-                          {t("workspace.decision.notApprove", "Not Approve")}
-                        </Button>
-                        <Button
-                          onClick={() => submitApprovalDecisionButton("Approve")}
-                          disabled={saving}
+                          onClick={() => {
+                            if (!selectedPaymentReceiptAction) {
+                              setDecisionError(getWorkspaceDecisionInputPrompt(paymentReceiptDecisionOptions, t));
+                              decisionInputRef.current?.focus();
+                              return;
+                            }
+
+                            if (!cleanRemark(comment)) {
+                              setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+                              commentRef.current?.focus();
+                              return;
+                            }
+
+                            submitAction(selectedPaymentReceiptAction, {
+                              decision,
+                              comment: cleanRemark(comment),
+                              checkDecisionRemark: false,
+                            });
+                          }}
+                          disabled={saving || !selectedPaymentReceiptActionRequirementsReady}
                           variant="primary"
-                          icon="check_circle"
+                          icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "qr_code_2"}
                           className="min-w-40"
                         >
-                          {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
+                          {saving
+                            ? t("workspace.saving")
+                            : selectedPaymentReceiptAction?.label === "Reject Receipt"
+                              ? t("common.submit", "Submit")
+                              : t("workspace.action.issueLicense", "Issue License")}
                         </Button>
-                      </>
-                    ) : (
-                      workspaceActions.map((action) => (
-                        <Button
-                          key={action.label}
-                          onClick={() => submitWorkspaceAction(action)}
-                          disabled={saving}
-                          variant={action.variant || "primary"}
-                          icon={action.icon}
-                          className={tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "min-w-40" : "w-full"}
-                        >
-                          {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-                        </Button>
-                      ))
-                    )}
-                  </div>
+                      ) : canSubmitWorkspaceAction && showApprovalDecisionButtons ? (
+                        <>
+                          <Button
+                            onClick={() => submitApprovalDecisionButton("Reject")}
+                            disabled={saving}
+                            variant="danger"
+                            icon="cancel"
+                            className="min-w-40"
+                          >
+                            {t("workspace.decision.notApprove", "Not Approve")}
+                          </Button>
+                          <Button
+                            onClick={() => submitApprovalDecisionButton("Approve")}
+                            disabled={saving}
+                            variant="primary"
+                            icon="check_circle"
+                            className="min-w-40"
+                          >
+                            {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
+                          </Button>
+                        </>
+                      ) : canSubmitWorkspaceAction ? (
+                        workspaceActions.map((action) => (
+                          <Button
+                            key={action.label}
+                            onClick={() => submitWorkspaceAction(action)}
+                            disabled={saving}
+                            variant={action.variant || "primary"}
+                            icon={action.icon}
+                            className={tableFirstWorkspace || isDepartmentTechnicalWorkspace ? "min-w-40" : "w-full"}
+                          >
+                            {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+                          </Button>
+                        ))
+                      ) : null}
+                    </div>
+                  )}
                 </>
               )}
               </div>
