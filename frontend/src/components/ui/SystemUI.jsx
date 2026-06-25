@@ -252,7 +252,7 @@ export function StatusPill({ value, size = "md" }) {
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border font-semibold ${sizeClass} ${className}`}
+      className={`inline-flex items-center rounded-md border font-semibold ${sizeClass} ${className}`}
     >
       {value || "Draft"}
     </span>
