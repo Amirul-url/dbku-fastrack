@@ -916,6 +916,20 @@ def apply_managed_account_data(user, data, require_password=False):
     user.mobile_number = clean_mobile_number(data.get("mobile_number", user.mobile_number or ""))
     user.is_active = bool(data.get("is_active", True))
 
+    if role in {"applicant", "user"}:
+        user.gender = str(data.get("gender", user.gender or "")).strip()
+        user.nationality = str(data.get("nationality", user.nationality or "")).strip()
+        user.address_line1 = str(data.get("address_line1", user.address_line1 or "")).strip()
+        user.address_line2 = str(data.get("address_line2", user.address_line2 or "")).strip()
+        user.postcode = str(data.get("postcode", user.postcode or "")).strip()
+        user.city = str(data.get("city", user.city or "")).strip()
+        user.state = str(data.get("state", user.state or "")).strip()
+        user.address = str(data.get("address", build_address_from_parts(data) or user.address or "")).strip()
+
+        if "date_of_birth" in data:
+            raw_date_of_birth = str(data.get("date_of_birth", "")).strip()
+            user.date_of_birth = parse_date(raw_date_of_birth) if raw_date_of_birth else None
+
     if role == "superadmin":
         user.is_staff = True
         user.is_superuser = True

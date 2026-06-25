@@ -366,6 +366,63 @@ class ManagedAccountImportTests(TestCase):
         self.assertTrue(user.is_staff)
         self.assertFalse(user.is_superuser)
 
+    def test_superadmin_can_update_applicant_profile_and_password(self):
+        superadmin = User.objects.get(username="superadmin")
+        superadmin.role = "superadmin"
+        superadmin.is_staff = True
+        superadmin.is_superuser = True
+        superadmin.save(update_fields=["role", "is_staff", "is_superuser"])
+        applicant = User.objects.create_user(
+            username="020215130135",
+            password="OldPassword123",
+            role="applicant",
+            first_name="OLD",
+            last_name="NAME",
+            email="old@example.com",
+        )
+        client = APIClient()
+        client.force_authenticate(user=superadmin)
+
+        response = client.patch(
+            f"/api/auth/accounts/{applicant.id}/",
+            {
+                "username": "020215130135",
+                "mykad_number": "020215130135",
+                "full_name": "Updated Applicant",
+                "email": "new@example.com",
+                "mobile_number": "0175151829",
+                "role": "applicant",
+                "gender": "male",
+                "date_of_birth": "2002-02-15",
+                "nationality": "Malaysian",
+                "address_line1": "Lot 945",
+                "address_line2": "Jalan Sultan Tengah",
+                "postcode": "93050",
+                "city": "Kuching",
+                "state": "Sarawak",
+                "password": "NewPassword123",
+                "password2": "NewPassword123",
+                "is_active": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        applicant.refresh_from_db()
+        self.assertEqual(applicant.first_name, "UPDATED")
+        self.assertEqual(applicant.last_name, "APPLICANT")
+        self.assertEqual(applicant.email, "new@example.com")
+        self.assertEqual(applicant.mobile_number, "0175151829")
+        self.assertEqual(applicant.gender, "male")
+        self.assertEqual(applicant.date_of_birth.isoformat(), "2002-02-15")
+        self.assertEqual(applicant.nationality, "Malaysian")
+        self.assertEqual(applicant.address_line1, "Lot 945")
+        self.assertEqual(applicant.address_line2, "Jalan Sultan Tengah")
+        self.assertEqual(applicant.postcode, "93050")
+        self.assertEqual(applicant.city, "Kuching")
+        self.assertEqual(applicant.state, "Sarawak")
+        self.assertTrue(applicant.check_password("NewPassword123"))
+
     def test_managed_user_list_includes_legacy_user_role(self):
         superadmin = User.objects.get(username="superadmin")
         superadmin.role = "superadmin"

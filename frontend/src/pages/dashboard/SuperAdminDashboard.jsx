@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "../../layout/AppShell";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest } from "../../services/api";
@@ -11,6 +11,14 @@ const emptyForm = {
   department: "",
   mobile_number: "",
   role: "applicant",
+  gender: "",
+  date_of_birth: "",
+  nationality: "Malaysian",
+  address_line1: "",
+  address_line2: "",
+  postcode: "",
+  city: "",
+  state: "",
   password: "",
   password2: "",
   is_active: true,
@@ -30,6 +38,7 @@ const adminDepartments = [
 const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
 const mphlgDepartments = ["MPHLG"];
 const recentActivityPageSize = 5;
+const accountPageSize = 5;
 const adminCsvHeaders = [
   "full_name",
   "nric",
@@ -116,6 +125,7 @@ const screenText = {
     superAdminRole: "SuperAdmin",
     addTitle: "Add Account",
     editTitle: "Edit Account",
+    editUserTitle: "Edit User Account",
     fullName: "Full Name",
     enterFullName: "Enter full name",
     enterNric: "Enter NRIC",
@@ -126,6 +136,7 @@ const screenText = {
     password: "Password",
     newPassword: "New Password",
     confirmPassword: "Confirm Password",
+    passwordResetHelp: "Leave password fields blank to keep the current password.",
     enterPassword: "Enter password",
     confirmPasswordPlaceholder: "Confirm password",
     cancel: "Cancel",
@@ -161,6 +172,8 @@ const screenText = {
     activityDetails: "Activity",
     activityRole: "Role",
     activityDateFilter: "Activity date",
+    page: "Page",
+    of: "of",
     previous: "Previous",
     next: "Next",
     accessSummary: "Access Summary",
@@ -195,6 +208,8 @@ const screenText = {
     mykadNumber: "MyKad Number",
     enterWithoutDashes: "Enter without dashes",
     gender: "Gender",
+    genderMale: "Male",
+    genderFemale: "Female",
     dateOfBirth: "Date of Birth",
     nationality: "Nationality",
     address: "Address",
@@ -261,6 +276,7 @@ const screenText = {
     superAdminRole: "SuperAdmin",
     addTitle: "Tambah Akaun",
     editTitle: "Sunting Akaun",
+    editUserTitle: "Sunting Akaun Pengguna",
     fullName: "Nama Penuh",
     enterFullName: "Masukkan nama penuh",
     enterNric: "Masukkan NRIC",
@@ -271,6 +287,7 @@ const screenText = {
     password: "Kata Laluan",
     newPassword: "Kata Laluan Baharu",
     confirmPassword: "Sahkan Kata Laluan",
+    passwordResetHelp: "Biarkan medan kata laluan kosong untuk mengekalkan kata laluan semasa.",
     enterPassword: "Masukkan kata laluan",
     confirmPasswordPlaceholder: "Sahkan kata laluan",
     cancel: "Batal",
@@ -306,6 +323,8 @@ const screenText = {
     activityDetails: "Aktiviti",
     activityRole: "Peranan",
     activityDateFilter: "Tarikh aktiviti",
+    page: "Halaman",
+    of: "daripada",
     previous: "Sebelum",
     next: "Seterusnya",
     accessSummary: "Ringkasan Akses",
@@ -340,6 +359,8 @@ const screenText = {
     mykadNumber: "Nombor MyKad",
     enterWithoutDashes: "Masukkan tanpa sengkang",
     gender: "Jantina",
+    genderMale: "Lelaki",
+    genderFemale: "Perempuan",
     dateOfBirth: "Tarikh Lahir",
     nationality: "Warganegara",
     address: "Alamat",
@@ -633,8 +654,8 @@ function SuperAdminAccountManagement({ view }) {
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [pendingDeleteAccount, setPendingDeleteAccount] = useState(null);
   const [viewingAccount, setViewingAccount] = useState(null);
+  const [accountPage, setAccountPage] = useState(0);
   const [form, setForm] = useState(emptyForm);
-  const importInputRef = useRef(null);
 
   const roleFilter =
     view === "users"
@@ -736,6 +757,24 @@ function SuperAdminAccountManagement({ view }) {
       .sort(compareAccounts);
   }, [accounts, searchName, departmentFilter, isAdminView, isMphlgAdminView]);
 
+  useEffect(() => {
+    setAccountPage(0);
+  }, [searchName, departmentFilter, view]);
+
+  useEffect(() => {
+    setAccountPage((current) => {
+      const nextTotalPages = Math.max(1, Math.ceil(filteredAccounts.length / accountPageSize));
+      return Math.min(current, nextTotalPages - 1);
+    });
+  }, [filteredAccounts.length]);
+
+  const totalAccountPages = Math.max(1, Math.ceil(filteredAccounts.length / accountPageSize));
+  const currentAccountPage = Math.min(accountPage, totalAccountPages - 1);
+  const visibleAccounts = filteredAccounts.slice(
+    currentAccountPage * accountPageSize,
+    (currentAccountPage + 1) * accountPageSize
+  );
+
   function openCreate() {
     setEditingAccount(null);
     setForm({
@@ -763,11 +802,20 @@ function SuperAdminAccountManagement({ view }) {
       department: account.department || "",
       mobile_number: cleanMobileNumberValue(account.mobile_number),
       role: account.role || "applicant",
+      gender: account.gender || "",
+      date_of_birth: account.date_of_birth || "",
+      nationality: account.nationality || "Malaysian",
+      address_line1: account.address_line1 || "",
+      address_line2: account.address_line2 || "",
+      postcode: account.postcode || "",
+      city: account.city || "",
+      state: account.state || "",
       password: "",
       password2: "",
       is_active: account.is_active !== false,
     });
     setAccountModalOpen(true);
+    setViewingAccount(null);
     setError("");
     setSuccess("");
   }
@@ -802,6 +850,13 @@ function SuperAdminAccountManagement({ view }) {
         department: isSuperadminView ? "" : form.department,
         mykad_number: form.role === "superadmin" ? "" : form.username,
         mobile_number: cleanMobileNumberValue(form.mobile_number),
+        address: [
+          form.address_line1,
+          form.address_line2,
+          form.postcode,
+          form.city,
+          form.state,
+        ].map((value) => String(value || "").trim()).filter(Boolean).join(", "),
       };
       const path = editingAccount
         ? `/auth/accounts/${editingAccount.id}/`
@@ -854,18 +909,39 @@ function SuperAdminAccountManagement({ view }) {
   function exportCsv() {
     const header = isStaffAccountView
       ? ["Full Name", "NRIC", "Email", "Mobile Number", "Department", "Role", "Password", "Confirm Password"]
-      : ["Name", "IC Number", "Email", "Mobile Number", "Last Login"];
+      : [
+          "Full Name",
+          "MyKad Number",
+          "Gender",
+          "Date of Birth",
+          "Nationality",
+          "Mobile Number",
+          "Email Address",
+          "Unit / Floor / Block",
+          "Street & Residential Area",
+          "Postcode",
+          "City",
+          "State",
+          "Status",
+          "Registered",
+          "Last Login",
+        ];
     const staffHeader = isSuperadminView
       ? ["Full Name", "Username / NRIC", "Email", "Mobile Number", "Role", "Password", "Confirm Password"]
       : header;
     const rows = [
       staffHeader,
       ...filteredAccounts.map((account) => {
-        const base = [
-          getAccountDisplayName(account),
-          formatCsvIdentifier(account.username),
-          account.email || "",
-        ];
+        const base = isStaffAccountView
+          ? [
+              getAccountDisplayName(account),
+              formatCsvIdentifier(account.username),
+              account.email || "",
+            ]
+          : [
+              getAccountDisplayName(account),
+              formatCsvIdentifier(account.mykad_number || account.username),
+            ];
 
         if (isStaffAccountView) {
           base.push(formatCsvIdentifier(formatMobileNumber(account.mobile_number)));
@@ -885,7 +961,18 @@ function SuperAdminAccountManagement({ view }) {
 
         return [
           ...base,
+          formatGender(account.gender, language),
+          formatNumericDate(account.date_of_birth, labels),
+          account.nationality || "",
           formatCsvIdentifier(formatMobileNumber(account.mobile_number)),
+          account.email || "",
+          account.address_line1 || "",
+          account.address_line2 || "",
+          formatCsvIdentifier(account.postcode || ""),
+          account.city || "",
+          account.state || "",
+          account.is_active === false ? labels.inactive : labels.active,
+          account.date_joined ? formatDateTime(account.date_joined, labels, language) : "",
           account.last_login ? formatDateTime(account.last_login, labels, language) : "",
         ];
       }),
@@ -992,24 +1079,12 @@ function SuperAdminAccountManagement({ view }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isStaffAccountView && (
-            <>
-              <Button icon="person_add" onClick={openCreate}>{labels.addAccount}</Button>
-              <Button icon="upload" variant="secondary" disabled={saving} onClick={() => importInputRef.current?.click()}>
-                {labels.importCsv}
-              </Button>
-            </>
+            <Button icon="person_add" onClick={openCreate}>{labels.addAccount}</Button>
           )}
-          <Button icon="download" className="bg-teal-700 hover:bg-teal-800" onClick={exportCsv}>
-            {labels.exportCsv}
-          </Button>
-          {isStaffAccountView && (
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="hidden"
-              onChange={importCsv}
-            />
+          {view === "users" && (
+            <Button icon="download" className="bg-teal-700 hover:bg-teal-800" onClick={exportCsv}>
+              {labels.exportCsv}
+            </Button>
           )}
         </div>
       </div>
@@ -1136,7 +1211,7 @@ function SuperAdminAccountManagement({ view }) {
                   </td>
                 </tr>
               ) : (
-                filteredAccounts.map((account) => (
+                visibleAccounts.map((account) => (
                   <tr key={account.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-semibold text-slate-950">
                       <span className="block truncate">{getAccountDisplayName(account)}</span>
@@ -1189,7 +1264,7 @@ function SuperAdminAccountManagement({ view }) {
                             {labels.view}
                           </Button>
                         )}
-                        {isStaffAccountView && (
+                        {(isStaffAccountView || view === "users") && (
                           <Button icon="edit" className="bg-blue-700 hover:bg-blue-800" onClick={() => openEdit(account)}>
                             {labels.edit}
                           </Button>
@@ -1210,21 +1285,60 @@ function SuperAdminAccountManagement({ view }) {
             </tbody>
           </table>
         </div>
+
+        {!loading && filteredAccounts.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-500">
+              {labels.page} {currentAccountPage + 1} {labels.of} {totalAccountPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setAccountPage((current) => Math.max(current - 1, 0))}
+                disabled={currentAccountPage === 0}
+              >
+                <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                {labels.previous}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setAccountPage((current) => Math.min(current + 1, totalAccountPages - 1))}
+                disabled={currentAccountPage >= totalAccountPages - 1}
+              >
+                {labels.next}
+                <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
 
-      {isStaffAccountView && accountModalOpen && (
-        <AccountModal
-          form={form}
-          isEditing={Boolean(editingAccount)}
-          saving={saving}
-          labels={labels}
-          departmentOptions={departmentOptions}
-          roleOptions={getStaffRoleOptions(view, labels)}
-          showDepartment={hasDepartmentField}
-          onChange={(next) => setForm((current) => ({ ...current, ...next }))}
-          onClose={closeForm}
-          onSubmit={saveAccount}
-        />
+      {accountModalOpen && (
+        isStaffAccountView ? (
+          <AccountModal
+            form={form}
+            isEditing={Boolean(editingAccount)}
+            saving={saving}
+            labels={labels}
+            departmentOptions={departmentOptions}
+            roleOptions={getStaffRoleOptions(view, labels)}
+            showDepartment={hasDepartmentField}
+            onChange={(next) => setForm((current) => ({ ...current, ...next }))}
+            onClose={closeForm}
+            onSubmit={saveAccount}
+          />
+        ) : (
+          <ApplicantAccountModal
+            form={form}
+            saving={saving}
+            labels={labels}
+            onChange={(next) => setForm((current) => ({ ...current, ...next }))}
+            onClose={closeForm}
+            onSubmit={saveAccount}
+          />
+        )
       )}
 
       {pendingDeleteAccount && (
@@ -1243,6 +1357,7 @@ function SuperAdminAccountManagement({ view }) {
           labels={labels}
           language={language}
           onClose={closeView}
+          onEdit={() => openEdit(viewingAccount)}
         />
       )}
     </AppShell>
@@ -1409,6 +1524,11 @@ function AccountModal({
               required={!isEditing || Boolean(form.password)}
             />
           </FormField>
+          {isEditing && (
+            <p className="md:col-span-2 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+              {labels.passwordResetHelp}
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
@@ -1420,10 +1540,204 @@ function AccountModal({
   );
 }
 
-function RegistrationInfoModal({ account, labels, language, onClose }) {
+function ApplicantAccountModal({
+  form,
+  saving,
+  labels,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  const inputClassName = "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
-      <div className="w-full max-w-5xl rounded-md bg-white shadow-2xl">
+      <form onSubmit={onSubmit} className="w-full max-w-6xl rounded-md bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">{labels.editUserTitle}</h2>
+            <p className="mt-1 text-sm text-slate-500">{normalizeNameValue(form.full_name)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
+            aria-label={labels.close}
+          >
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+
+        <div className="max-h-[76vh] space-y-6 overflow-y-auto bg-slate-50 p-5">
+          <RegistrationSection icon="person" title={labels.personalInformation}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label={`${labels.fullNameMyKad} *`}>
+                <input
+                  value={form.full_name}
+                  onChange={(event) => onChange({ full_name: uppercaseNameInput(event.target.value) })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+              <FormField label={`${labels.gender} *`}>
+                <select
+                  value={form.gender}
+                  onChange={(event) => onChange({ gender: event.target.value })}
+                  className={inputClassName}
+                  required
+                >
+                  <option value="">{labels.gender}</option>
+                  <option value="male">{labels.genderMale}</option>
+                  <option value="female">{labels.genderFemale}</option>
+                </select>
+              </FormField>
+              <FormField label={`${labels.dateOfBirth} *`}>
+                <input
+                  type="date"
+                  value={form.date_of_birth}
+                  onChange={(event) => onChange({ date_of_birth: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+              <FormField label={`${labels.nationality} *`}>
+                <input
+                  value={form.nationality}
+                  onChange={(event) => onChange({ nationality: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+              <FormField label={`${labels.mykadNumber} *`}>
+                <input
+                  value={form.username}
+                  onChange={(event) => onChange({ username: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+            </div>
+          </RegistrationSection>
+
+          <RegistrationSection icon="contact_mail" title={labels.contactInformation}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label={`${labels.mobileNumber} *`}>
+                <div className="flex overflow-hidden rounded-md border border-slate-300 bg-white focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-100">
+                  <span className="inline-flex h-11 items-center border-r border-slate-200 bg-slate-50 px-3 text-sm text-slate-500">
+                    +60
+                  </span>
+                  <input
+                    type="tel"
+                    value={stripMalaysiaDialCode(form.mobile_number)}
+                    onChange={(event) => onChange({ mobile_number: event.target.value })}
+                    className="h-11 min-w-0 flex-1 px-3 text-sm outline-none"
+                    required
+                  />
+                </div>
+              </FormField>
+              <FormField label={`${labels.emailAddress} *`}>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(event) => onChange({ email: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+            </div>
+
+            <div className="mt-5 border-t border-slate-100 pt-3">
+              <h3 className="text-sm font-bold text-slate-700">{labels.address}</h3>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label={`${labels.addressLine1} *`}>
+                <input
+                  value={form.address_line1}
+                  onChange={(event) => onChange({ address_line1: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+              <FormField label={`${labels.addressLine2} *`}>
+                <input
+                  value={form.address_line2}
+                  onChange={(event) => onChange({ address_line2: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <FormField label={`${labels.postcode} *`}>
+                <input
+                  value={form.postcode}
+                  onChange={(event) => onChange({ postcode: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+              <FormField label={`${labels.city} *`}>
+                <input
+                  value={form.city}
+                  onChange={(event) => onChange({ city: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+              <FormField label={`${labels.state} *`}>
+                <input
+                  value={form.state}
+                  onChange={(event) => onChange({ state: event.target.value })}
+                  className={inputClassName}
+                  required
+                />
+              </FormField>
+            </div>
+          </RegistrationSection>
+
+          <RegistrationSection icon="lock_reset" title={labels.newPassword}>
+            <p className="mb-4 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+              {labels.passwordResetHelp}
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label={labels.newPassword}>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(event) => onChange({ password: event.target.value })}
+                  placeholder={labels.enterPassword}
+                  className={inputClassName}
+                />
+              </FormField>
+              <FormField label={labels.confirmPassword}>
+                <input
+                  type="password"
+                  value={form.password2}
+                  onChange={(event) => onChange({ password2: event.target.value })}
+                  placeholder={labels.confirmPasswordPlaceholder}
+                  className={inputClassName}
+                  required={Boolean(form.password)}
+                />
+              </FormField>
+            </div>
+          </RegistrationSection>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <Button type="button" variant="secondary" onClick={onClose}>{labels.cancel}</Button>
+          <Button type="submit" disabled={saving}>{saving ? labels.saving : labels.save}</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function RegistrationInfoModal({ account, labels, language, onClose, onEdit }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+      <div className="w-full max-w-6xl rounded-md bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-950">{labels.registrationInfo}</h2>
@@ -1439,18 +1753,17 @@ function RegistrationInfoModal({ account, labels, language, onClose }) {
           </button>
         </div>
 
-        <div className="max-h-[72vh] space-y-7 overflow-y-auto p-5">
+        <div className="max-h-[76vh] space-y-6 overflow-y-auto bg-slate-50 p-5">
           <RegistrationSection icon="person" title={labels.personalInformation}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <ReadonlyField label={labels.fullNameMyKad} required value={getAccountDisplayName(account)} />
               <ReadonlyField label={labels.gender} required value={formatGender(account.gender, language)} />
-              <ReadonlyField label={labels.dateOfBirth} required value={formatDateOnly(account.date_of_birth, labels, language)} />
+              <ReadonlyField label={labels.dateOfBirth} required value={formatNumericDate(account.date_of_birth, labels)} />
               <ReadonlyField label={labels.nationality} required value={account.nationality} />
               <ReadonlyField
                 className="md:col-span-1"
                 label={labels.mykadNumber}
                 required
-                hint={labels.enterWithoutDashes}
                 value={account.mykad_number || account.username}
               />
             </div>
@@ -1473,13 +1786,14 @@ function RegistrationInfoModal({ account, labels, language, onClose }) {
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
               <ReadonlyField label={labels.postcode} required value={account.postcode} />
-              <ReadonlyField label={labels.state} required value={account.state} />
               <ReadonlyField label={labels.city} required value={account.city} />
+              <ReadonlyField label={labels.state} required value={account.state} />
             </div>
           </RegistrationSection>
         </div>
 
-        <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+          <Button type="button" icon="edit" onClick={onEdit}>{labels.edit}</Button>
           <Button type="button" variant="secondary" onClick={onClose}>{labels.close}</Button>
         </div>
       </div>
@@ -1489,12 +1803,15 @@ function RegistrationInfoModal({ account, labels, language, onClose }) {
 
 function RegistrationSection({ icon, title, children }) {
   return (
-    <section>
-      <div className="mb-5 flex items-center gap-3">
-        <span className="material-symbols-outlined text-[24px] text-emerald-700">{icon}</span>
-        <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="h-1 rounded-t-md bg-[#07c25f]" />
+      <div className="px-6 py-6">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="material-symbols-outlined text-[24px] text-emerald-700">{icon}</span>
+          <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
+        </div>
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -1822,6 +2139,24 @@ function formatDateOnly(value, labels = screenText.en, language = "en") {
     : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function formatNumericDate(value, labels = screenText.en) {
+  if (!value) return labels.never;
+
+  const text = String(value);
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return labels.never;
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${date.getFullYear()}`;
 }
 
 function formatGender(value, language = "en") {
