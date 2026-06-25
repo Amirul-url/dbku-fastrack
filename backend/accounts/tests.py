@@ -1,7 +1,9 @@
 from unittest.mock import patch
+from datetime import timedelta
 
 from django.contrib.auth.hashers import identify_hasher
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from .models import LoginSession, User
@@ -180,6 +182,53 @@ class ManagedAccountImportTests(TestCase):
         self.assertIsNotNone(first_session.duration_seconds)
         self.assertIsNone(second_session.logout_at)
         self.assertIsNone(second_session.duration_seconds)
+
+    @override_settings(LOGIN_SESSION_TIMEOUT_SECONDS=3600)
+    def test_login_again_caps_stale_session_duration_at_timeout(self):
+        user = User.objects.create_user(
+            username="stalelogin",
+            password="Password123",
+            role="applicant",
+        )
+        stale_login_at = timezone.now() - timedelta(hours=15)
+        stale_session = LoginSession.objects.create(user=user, login_at=stale_login_at)
+
+        response = APIClient().post(
+            "/api/auth/login/",
+            {"username": "stalelogin", "password": "Password123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        stale_session.refresh_from_db()
+        self.assertEqual(stale_session.logout_at, stale_login_at + timedelta(hours=1))
+        self.assertEqual(stale_session.duration_seconds, 3600)
+
+    @override_settings(LOGIN_SESSION_TIMEOUT_SECONDS=3600)
+    def test_superadmin_account_list_closes_stale_open_sessions(self):
+        superadmin = User.objects.create_user(
+            username="sessionadmin",
+            password="Password123",
+            role="superadmin",
+            is_staff=True,
+            is_superuser=True,
+        )
+        user = User.objects.create_user(
+            username="listedstale",
+            password="Password123",
+            role="applicant",
+        )
+        stale_login_at = timezone.now() - timedelta(hours=2)
+        stale_session = LoginSession.objects.create(user=user, login_at=stale_login_at)
+        client = APIClient()
+        client.force_authenticate(user=superadmin)
+
+        response = client.get("/api/auth/accounts/")
+
+        self.assertEqual(response.status_code, 200)
+        stale_session.refresh_from_db()
+        self.assertEqual(stale_session.logout_at, stale_login_at + timedelta(hours=1))
+        self.assertEqual(stale_session.duration_seconds, 3600)
 
     @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
     def test_registration_rejects_existing_mykad_number(self):

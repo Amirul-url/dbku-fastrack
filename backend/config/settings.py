@@ -195,13 +195,16 @@ REST_FRAMEWORK = {
     },
 }
 
+JWT_ACCESS_TOKEN_HOURS = int(os.getenv("JWT_ACCESS_TOKEN_HOURS", "1"))
+JWT_REFRESH_TOKEN_MINUTES = int(os.getenv("JWT_REFRESH_TOKEN_MINUTES", str(JWT_ACCESS_TOKEN_HOURS * 60)))
+LOGIN_SESSION_TIMEOUT_SECONDS = int(
+    os.getenv("LOGIN_SESSION_TIMEOUT_SECONDS", str(JWT_ACCESS_TOKEN_HOURS * 60 * 60))
+)
+
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(
-        hours=int(os.getenv("JWT_ACCESS_TOKEN_HOURS", "1"))
-    ),
-    'REFRESH_TOKEN_LIFETIME': timedelta(
-        days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "1"))
-    ),
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=JWT_ACCESS_TOKEN_HOURS),
+    'REFRESH_TOKEN_LIFETIME': timedelta(minutes=JWT_REFRESH_TOKEN_MINUTES),
+    'ROTATE_REFRESH_TOKENS': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 

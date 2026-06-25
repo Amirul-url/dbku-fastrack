@@ -362,6 +362,16 @@ function getStoredRefreshToken() {
   );
 }
 
+function saveRefreshToken(refresh, rememberMe = localStorage.getItem(REMEMBER_ME_KEY) === "true") {
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+
+  if (!refresh) return;
+
+  const refreshStorage = rememberMe ? localStorage : sessionStorage;
+  refreshStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+}
+
 export function saveAuthSession(data, rememberMe = false) {
   clearSidebarSessionState();
 
@@ -369,13 +379,7 @@ export function saveAuthSession(data, rememberMe = false) {
     localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
   }
 
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-
-  if (data?.refresh) {
-    const refreshStorage = rememberMe ? localStorage : sessionStorage;
-    refreshStorage.setItem(REFRESH_TOKEN_KEY, data.refresh);
-  }
+  saveRefreshToken(data?.refresh || "", rememberMe);
 
   if (data?.user) {
     localStorage.setItem(
@@ -486,6 +490,10 @@ async function requestAccessTokenRefresh() {
     }
 
     const data = await response.json();
+
+    if (data?.refresh) {
+      saveRefreshToken(data.refresh);
+    }
 
     if (data?.access) {
       localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
