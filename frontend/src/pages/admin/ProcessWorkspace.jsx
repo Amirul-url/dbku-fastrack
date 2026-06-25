@@ -3163,7 +3163,11 @@ function WorkspaceDecisionLogReport({ app, t }) {
                     <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <DecisionLogSignatureCell signature={log.signature} t={t} />
+                    <DecisionLogSignatureCell
+                      department={log.department}
+                      signature={log.signature}
+                      t={t}
+                    />
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                     {formatCompactDateTime(log.date)}
@@ -3182,11 +3186,21 @@ function WorkspaceDecisionLogReport({ app, t }) {
   );
 }
 
-function DecisionLogSignatureCell({ signature, t }) {
+function DecisionLogSignatureCell({ department, signature, t }) {
   const signatureSource = getDecisionLogSignatureSource(signature);
 
   if (!signatureSource) {
     return <span className="text-slate-400">-</span>;
+  }
+
+  if (isApprovalSupportDecisionLogDepartment(department)) {
+    return (
+      <DecisionLogSignatureConfirmation
+        signature={signature}
+        signatureSource={signatureSource}
+        t={t}
+      />
+    );
   }
 
   return (
@@ -3200,6 +3214,106 @@ function DecisionLogSignatureCell({ signature, t }) {
         className="max-h-10 max-w-28 object-contain"
       />
     </span>
+  );
+}
+
+function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
+  const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
+  const drawPreviewDataUrl =
+    signatureDetails.drawDataUrl ||
+    (signatureDetails.mode === "draw" ? signatureSource : "");
+  const shouldRenderComposedUpload =
+    !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
+  const rows = [
+    {
+      key: "name",
+      label: t("workspace.signature.name", "NAME"),
+      prefix: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+    },
+    {
+      key: "position",
+      label: t("workspace.signature.position", "POSITION"),
+    },
+    {
+      key: "agency",
+      label: t("workspace.signature.agency", "AGENCY"),
+    },
+  ];
+
+  return (
+    <div className="h-[188px] w-[380px] overflow-hidden">
+      <div
+        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[14px] font-semibold uppercase leading-5 text-slate-950"
+        style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
+      >
+        <p className="text-[15px] font-bold">
+          {t("workspace.signature.confirmationTitle", "CONFIRMATION:")}
+        </p>
+
+        <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4">
+          {(uploadedItems.length > 0 || shouldRenderComposedUpload) && (
+            <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-4 overflow-hidden">
+              {uploadedItems.length > 0 ? (
+                uploadedItems.map((item, index) => (
+                  <img
+                    key={item.id || `${item.fileName || "signature"}-${index}`}
+                    src={item.dataUrl || signatureSource}
+                    alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                    className="absolute max-h-full max-w-full select-none object-contain"
+                    draggable={false}
+                    style={{
+                      left: `${item.x ?? 50}%`,
+                      top: `${item.y ?? 50}%`,
+                      width: `${item.width ?? 38}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  />
+                ))
+              ) : (
+                <img
+                  src={signatureSource}
+                  alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                  className="absolute inset-0 h-full w-full select-none object-fill"
+                  draggable={false}
+                />
+              )}
+            </div>
+          )}
+
+          <div className="relative col-start-3 row-start-1 border-b border-slate-900">
+            {drawPreviewDataUrl && (
+              <img
+                src={drawPreviewDataUrl}
+                alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                className="absolute inset-0 z-30 h-full w-full select-none object-fill"
+                draggable={false}
+              />
+            )}
+          </div>
+
+          {rows.map((row, index) => (
+            <Fragment key={row.key}>
+              <div className="col-start-1" style={{ gridRow: index + 2 }}>
+                {row.prefix && (
+                  <p className="text-[13px] font-semibold leading-4">
+                    ({row.prefix})
+                  </p>
+                )}
+                <p>{row.label}</p>
+              </div>
+              <span className="col-start-2 pb-1" style={{ gridRow: index + 2 }}>:</span>
+              <div
+                className="col-start-3 flex min-w-0 items-end border-b border-slate-900 pb-1"
+                style={{ gridRow: index + 2 }}
+              >
+                <span className="min-w-0 truncate">{signatureDetails[row.key] || ""}</span>
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -6094,6 +6208,10 @@ function getDecisionLogSignatureSource(signature) {
       signature.source ||
       ""
   ).trim();
+}
+
+function isApprovalSupportDecisionLogDepartment(department) {
+  return APPROVAL_SUPPORT_DEPARTMENTS.includes(normalizeDepartmentCode(department));
 }
 
 function getWorkspaceAutoScreeningDecisionDepartment(section = {}) {
