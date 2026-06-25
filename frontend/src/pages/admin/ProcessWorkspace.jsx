@@ -3522,9 +3522,11 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   const drawingRef = useRef(false);
   const hasDrawingRef = useRef(false);
   const uploadDragRef = useRef(null);
+  const uploadResizeRef = useRef(null);
   const suppressUploadClickUntilRef = useRef(0);
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(value?.mode !== "upload");
+  const [activeUploadItemId, setActiveUploadItemId] = useState("");
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
   const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
   const uploadedItems = useMemo(() => {
@@ -3545,6 +3547,10 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     }
     return [];
   }, [value]);
+  const activeUploadedItem = useMemo(
+    () => uploadedItems.find((item) => item.id === activeUploadItemId) || null,
+    [activeUploadItemId, uploadedItems]
+  );
 
   useEffect(() => {
     if (value?.mode === "upload") {
@@ -3556,6 +3562,17 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       setMode("draw");
     }
   }, [value?.mode]);
+
+  useEffect(() => {
+    if (!uploadedItems.length) {
+      setActiveUploadItemId("");
+      return;
+    }
+
+    if (activeUploadItemId && !uploadedItems.some((item) => item.id === activeUploadItemId)) {
+      setActiveUploadItemId("");
+    }
+  }, [activeUploadItemId, uploadedItems]);
 
   useEffect(() => {
     if (!isDrawingEnabled) return;
@@ -3750,6 +3767,78 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     });
   }
 
+  async function updateUploadedItemWidth(itemId, width, { commit = false } = {}) {
+    const nextWidth = Math.min(200, Math.max(12, Number(width) || 38));
+    const nextItems = uploadedItems.map((item) =>
+      item.id === itemId ? { ...item, width: nextWidth } : item
+    );
+
+    if (commit) {
+      await commitUploadedItems(nextItems);
+      return;
+    }
+
+    onChange({
+      ...(value || {}),
+      mode: "upload",
+      items: nextItems,
+      dataUrl: value?.dataUrl || nextItems[0]?.dataUrl || "",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function beginUploadResize(event, itemId, corner) {
+    if (!uploadedItems.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = uploadAreaRef.current?.getBoundingClientRect();
+    const item = uploadedItems.find((candidate) => candidate.id === itemId);
+    if (!rect || !item) return;
+
+    setActiveUploadItemId(itemId);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    uploadResizeRef.current = {
+      itemId,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: Number(item.width) || 38,
+      direction: corner.includes("right") ? 1 : -1,
+      containerWidth: rect.width,
+    };
+  }
+
+  function moveUploadResize(event) {
+    const resize = uploadResizeRef.current;
+    if (!resize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const deltaPercent =
+      ((event.clientX - resize.startX) / Math.max(resize.containerWidth, 1)) *
+      100 *
+      2 *
+      resize.direction;
+    void updateUploadedItemWidth(resize.itemId, resize.startWidth + deltaPercent);
+  }
+
+  async function finishUploadResize(event) {
+    const resize = uploadResizeRef.current;
+    if (!resize) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.releasePointerCapture?.(resize.pointerId);
+    uploadResizeRef.current = null;
+
+    const deltaPercent =
+      ((event.clientX - resize.startX) / Math.max(resize.containerWidth, 1)) *
+      100 *
+      2 *
+      resize.direction;
+    await updateUploadedItemWidth(resize.itemId, resize.startWidth + deltaPercent, {
+      commit: true,
+    });
+  }
+
   async function handleFileChange(event) {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
@@ -3772,6 +3861,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       }));
       setMode("upload");
       setIsDrawingEnabled(false);
+      setActiveUploadItemId(newItems[newItems.length - 1]?.id || "");
       await commitUploadedItems([...baseItems, ...newItems]);
     } catch (err) {
       console.error("Failed to read signature file:", err);
@@ -3803,12 +3893,32 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     };
   }
 
+  function clearUploadSelection(event) {
+    if (
+      event.target.closest("[data-signature-upload-item]") ||
+      event.target.closest("[data-signature-upload-handle]")
+    ) {
+      return;
+    }
+
+    setActiveUploadItemId("");
+  }
+
   function beginUploadDrag(event, itemId) {
     if (!uploadedItems.length) return;
     event.preventDefault();
     event.stopPropagation();
+    const item = uploadedItems.find((candidate) => candidate.id === itemId);
+    const point = getUploadPointerPosition(event);
+    if (!item) return;
+    setActiveUploadItemId(itemId);
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    uploadDragRef.current = { itemId, pointerId: event.pointerId };
+    uploadDragRef.current = {
+      itemId,
+      pointerId: event.pointerId,
+      offsetX: point.x - (Number(item.x) || 50),
+      offsetY: point.y - (Number(item.y) || 50),
+    };
   }
 
   function moveUploadDrag(event) {
@@ -3817,8 +3927,10 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     event.preventDefault();
     event.stopPropagation();
     const point = getUploadPointerPosition(event);
+    const nextX = Math.min(100, Math.max(0, point.x - (Number(drag.offsetX) || 0)));
+    const nextY = Math.min(100, Math.max(0, point.y - (Number(drag.offsetY) || 0)));
     const nextItems = uploadedItems.map((item) =>
-      item.id === drag.itemId ? { ...item, x: point.x, y: point.y } : item
+      item.id === drag.itemId ? { ...item, x: nextX, y: nextY } : item
     );
     onChange({
       ...(value || {}),
@@ -3837,8 +3949,10 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     event.currentTarget.releasePointerCapture?.(drag.pointerId);
     uploadDragRef.current = null;
     const point = getUploadPointerPosition(event);
+    const nextX = Math.min(100, Math.max(0, point.x - (Number(drag.offsetX) || 0)));
+    const nextY = Math.min(100, Math.max(0, point.y - (Number(drag.offsetY) || 0)));
     const nextItems = uploadedItems.map((item) =>
-      item.id === drag.itemId ? { ...item, x: point.x, y: point.y } : item
+      item.id === drag.itemId ? { ...item, x: nextX, y: nextY } : item
     );
     await commitUploadedItems(nextItems);
   }
@@ -3860,6 +3974,12 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     },
   ];
   const drawPreviewDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
+  const uploadResizeHandles = [
+    { corner: "top-left", className: "-left-1.5 -top-1.5 cursor-nwse-resize" },
+    { corner: "top-right", className: "-right-1.5 -top-1.5 cursor-nesw-resize" },
+    { corner: "bottom-left", className: "-bottom-1.5 -left-1.5 cursor-nesw-resize" },
+    { corner: "bottom-right", className: "-bottom-1.5 -right-1.5 cursor-nwse-resize" },
+  ];
 
   return (
     <div>
@@ -3917,19 +4037,20 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
             {t("workspace.signature.confirmationTitle", "CONFIRMATION:")}
           </p>
 
-          <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4 text-[14px] font-semibold uppercase leading-5 text-slate-950">
+          <div
+            className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4 text-[14px] font-semibold uppercase leading-5 text-slate-950"
+            onPointerDown={clearUploadSelection}
+          >
             {uploadedItems.length > 0 && (
               <div
                 ref={uploadAreaRef}
                 className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-4 overflow-hidden"
               >
                 {uploadedItems.map((item) => (
-                  <img
+                  <div
                     key={item.id}
-                    src={item.dataUrl}
-                    alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                    className="pointer-events-auto absolute max-h-full max-w-full cursor-move touch-none select-none object-contain"
-                    draggable={false}
+                    data-signature-upload-item
+                    className="pointer-events-auto absolute cursor-move touch-none select-none"
                     style={{
                       left: `${item.x}%`,
                       top: `${item.y}%`,
@@ -3940,7 +4061,34 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
                     onPointerMove={moveUploadDrag}
                     onPointerUp={finishUploadDrag}
                     onPointerCancel={finishUploadDrag}
-                  />
+                  >
+                    <img
+                      src={item.dataUrl}
+                      alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                      className="block h-auto w-full max-w-none select-none object-contain"
+                      draggable={false}
+                    />
+
+                    {item.id === activeUploadedItem?.id && (
+                      <>
+                        <span className="pointer-events-none absolute inset-0 border-2 border-emerald-600/70" />
+                        {uploadResizeHandles.map((handle) => (
+                          <span
+                            key={handle.corner}
+                            data-signature-upload-handle
+                            aria-hidden="true"
+                            className={`absolute h-3 w-3 rounded-sm border border-emerald-700 bg-white shadow-sm ${handle.className}`}
+                            onPointerDown={(event) =>
+                              beginUploadResize(event, item.id, handle.corner)
+                            }
+                            onPointerMove={moveUploadResize}
+                            onPointerUp={finishUploadResize}
+                            onPointerCancel={finishUploadResize}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
