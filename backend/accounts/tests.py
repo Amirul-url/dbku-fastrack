@@ -1,10 +1,20 @@
 from unittest.mock import patch
 
+from django.contrib.auth.hashers import identify_hasher
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from .models import LoginSession, User
 from .views import apply_managed_account_data, build_user_payload, get_password_reset_user
+
+
+class PasswordHashingTests(TestCase):
+    def test_new_passwords_are_stored_as_bcrypt_hashes(self):
+        user = User.objects.create_user(username="bcryptuser", password="Password123")
+
+        self.assertNotEqual(user.password, "Password123")
+        self.assertEqual(identify_hasher(user.password).algorithm, "bcrypt_sha256")
+        self.assertTrue(user.check_password("Password123"))
 
 
 class ManagedAccountImportTests(TestCase):
