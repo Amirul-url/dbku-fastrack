@@ -37,8 +37,8 @@ function UserViewStepControls({ applicationId, currentStep, language, className 
       path: "/user/dashboard?tab=applications",
     },
     status: {
-      label: "backToApplicationStatus",
-      path: "/user/dashboard?tab=status",
+      label: "backToELicenseDetails",
+      path: `/user/dashboard?tab=status&id=${encodeURIComponent(applicationId)}`,
     },
   };
   const backToList = backToListConfig[returnTab] || {

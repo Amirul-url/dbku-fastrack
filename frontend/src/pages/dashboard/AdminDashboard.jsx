@@ -472,7 +472,7 @@ function RecentActivitiesPanel({
 }) {
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-950">
             {t("admin.dashboard.recentActivitiesTitle", "Recent Activities")}
@@ -481,25 +481,45 @@ function RecentActivitiesPanel({
             {t("admin.dashboard.recentActivitiesDesc", "Latest application updates for your unit.")}
           </p>
         </div>
-        <div className="flex flex-col gap-1 sm:items-end">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(event) => onDateFilterChange(event.target.value)}
-              aria-label={t("common.date", "Date")}
-              className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-10 px-3"
-              onClick={() => onDateFilterChange("")}
-              disabled={!dateFilter}
-            >
-              {t("common.reset", "Reset")}
-            </Button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 w-9 p-0"
+            onClick={() => onPageChange(Math.max(currentPage - 1, 0))}
+            disabled={loading || !showPagination || currentPage === 0}
+            aria-label={t("common.previous", "Previous")}
+            title={t("common.previous", "Previous")}
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 w-9 p-0"
+            onClick={() => onPageChange(Math.min(currentPage + 1, totalPages - 1))}
+            disabled={loading || !showPagination || currentPage >= totalPages - 1}
+            aria-label={t("common.next", "Next")}
+            title={t("common.next", "Next")}
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+          </Button>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(event) => onDateFilterChange(event.target.value)}
+            aria-label={t("common.date", "Date")}
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 px-3"
+            onClick={() => onDateFilterChange("")}
+            disabled={!dateFilter}
+          >
+            {t("common.reset", "Reset")}
+          </Button>
         </div>
       </div>
 
@@ -545,33 +565,6 @@ function RecentActivitiesPanel({
         )}
       </div>
 
-      {!loading && showPagination && (
-        <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500">
-            {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => onPageChange(Math.max(currentPage - 1, 0))}
-              disabled={currentPage === 0}
-            >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-              {t("common.previous", "Previous")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => onPageChange(Math.min(currentPage + 1, totalPages - 1))}
-              disabled={currentPage >= totalPages - 1}
-            >
-              {t("common.next", "Next")}
-              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-            </Button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

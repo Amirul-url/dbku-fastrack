@@ -11197,15 +11197,32 @@ function PaymentDetails({
         </div>
 
         {receiptSource && (
-          <Button
-            type="button"
-            variant="secondary"
-            icon="visibility"
-            className="min-h-9 px-3 py-1 text-xs"
-            onClick={viewReceipt}
-          >
-            {t("common.view", "View")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={viewReceipt}
+            >
+              {t("common.view", "View")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() =>
+                downloadPaymentDocument(
+                  receiptFile,
+                  payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
+                  t
+                )
+              }
+            >
+              {t("common.download", "Download")}
+            </Button>
+          </div>
         )}
       </div>
     </section>
