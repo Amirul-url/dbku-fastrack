@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
@@ -3402,12 +3402,34 @@ function ApprovalDecisionMemoPreview({ memoHtml, t }) {
 
 function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   const canvasRef = useRef(null);
+  const uploadAreaRef = useRef(null);
   const fileInputRef = useRef(null);
   const drawingRef = useRef(false);
   const hasDrawingRef = useRef(false);
+  const uploadDragRef = useRef(null);
   const suppressUploadClickUntilRef = useRef(0);
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
+  const [isDrawingEnabled, setIsDrawingEnabled] = useState(value?.mode !== "upload");
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
+  const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
+  const uploadedItems = useMemo(() => {
+    if (Array.isArray(value?.items)) return value.items;
+    if (value?.mode === "upload" && value?.dataUrl) {
+      return [
+        {
+          id: "legacy-upload",
+          dataUrl: value.dataUrl,
+          fileName: value.fileName || "signature.png",
+          type: value.type || "image/png",
+          size: value.size || 0,
+          x: 50,
+          y: 50,
+          width: 38,
+        },
+      ];
+    }
+    return [];
+  }, [value]);
 
   useEffect(() => {
     if (value?.mode === "upload") {
@@ -3421,7 +3443,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   }, [value?.mode]);
 
   useEffect(() => {
-    if (mode !== "draw") return;
+    if (!isDrawingEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ratio = Math.max(window.devicePixelRatio || 1, 2);
@@ -3436,7 +3458,8 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     context.strokeStyle = "#0f172a";
     hasDrawingRef.current = false;
 
-    if (!value?.dataUrl || value.mode !== "draw") return;
+    const drawDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
+    if (!drawDataUrl) return;
 
     const image = new Image();
     image.onload = () => {
@@ -3444,8 +3467,8 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       context.drawImage(image, 0, 0, signatureCanvasSize.width, signatureCanvasSize.height);
       hasDrawingRef.current = true;
     };
-    image.src = value.dataUrl;
-  }, [mode, signatureCanvasSize, value?.dataUrl, value?.mode]);
+    image.src = drawDataUrl;
+  }, [isDrawingEnabled, signatureCanvasSize, value?.dataUrl, value?.drawDataUrl, value?.mode]);
 
   function getCanvasPoint(event) {
     const canvas = canvasRef.current;
@@ -3456,20 +3479,24 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     };
   }
 
-  function getSignatureDataUrl() {
+  function getSignatureDataUrl({ fillBackground = false } = {}) {
     const sourceCanvas = canvasRef.current;
     const outputCanvas = document.createElement("canvas");
     outputCanvas.width = signatureCanvasSize.width * 2;
     outputCanvas.height = signatureCanvasSize.height * 2;
     const outputContext = outputCanvas.getContext("2d");
-    outputContext.fillStyle = "#ffffff";
-    outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+    if (fillBackground) {
+      outputContext.fillStyle = "#ffffff";
+      outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+    } else {
+      outputContext.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+    }
     outputContext.drawImage(sourceCanvas, 0, 0, outputCanvas.width, outputCanvas.height);
     return outputCanvas.toDataURL("image/png");
   }
 
   function beginDraw(event) {
-    if (mode !== "draw") return;
+    if (!isDrawingEnabled) return;
     event.preventDefault();
     event.stopPropagation();
     const canvas = canvasRef.current;
@@ -3483,7 +3510,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   }
 
   function continueDraw(event) {
-    if (!drawingRef.current || mode !== "draw") return;
+    if (!drawingRef.current || !isDrawingEnabled) return;
     event.preventDefault();
     event.stopPropagation();
     const canvas = canvasRef.current;
@@ -3493,8 +3520,8 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     context.stroke();
   }
 
-  function finishDraw(event) {
-    if (!drawingRef.current || mode !== "draw") return;
+  async function finishDraw(event) {
+    if (!drawingRef.current || !isDrawingEnabled) return;
     event.preventDefault();
     event.stopPropagation();
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
@@ -3502,9 +3529,17 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     suppressUploadClickUntilRef.current = Date.now() + 500;
 
     if (!hasDrawingRef.current) return;
+    const drawDataUrl = getSignatureDataUrl();
+    if (uploadedItems.length) {
+      await commitUploadedItems(uploadedItems, { drawDataUrl });
+      return;
+    }
+
     onChange({
+      ...(value || {}),
       mode: "draw",
-      dataUrl: getSignatureDataUrl(),
+      dataUrl: drawDataUrl,
+      drawDataUrl,
       fileName: "digital_signature.png",
       type: "image/png",
       updatedAt: new Date().toISOString(),
@@ -3523,38 +3558,193 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     onChange(null);
   }
 
-  function handleFileChange(event) {
-    const [file] = Array.from(event.target.files || []);
-    if (!file) return;
+  function readSignatureFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve({
+          dataUrl: String(reader.result || ""),
+          fileName: file.name,
+          type: file.type,
+          size: file.size,
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
-    if (!file.type.startsWith("image/")) {
+  function loadSignatureImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = dataUrl;
+    });
+  }
+
+  async function composeUploadedSignature(items, drawDataUrl = "") {
+    if (!items.length && !drawDataUrl) return "";
+
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = uploadCanvasSize.width;
+    outputCanvas.height = uploadCanvasSize.height;
+    const outputContext = outputCanvas.getContext("2d");
+    outputContext.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+
+    if (items.length) {
+      await Promise.all(
+        items.map(async (item) => {
+          const image = await loadSignatureImage(item.dataUrl);
+          const width = outputCanvas.width * ((Number(item.width) || 38) / 100);
+          const height = width * (image.naturalHeight / image.naturalWidth);
+          const x = outputCanvas.width * ((Number(item.x) || 50) / 100) - width / 2;
+          const y = outputCanvas.height * ((Number(item.y) || 50) / 100) - height / 2;
+          outputContext.drawImage(image, x, y, width, height);
+        })
+      );
+    }
+
+    if (drawDataUrl) {
+      const drawingImage = await loadSignatureImage(drawDataUrl);
+      outputContext.drawImage(
+        drawingImage,
+        0,
+        0,
+        outputCanvas.width,
+        signatureCanvasSize.height
+      );
+    }
+
+    return outputCanvas.toDataURL("image/png");
+  }
+
+  async function commitUploadedItems(items, overrides = {}) {
+    const drawDataUrl = overrides.drawDataUrl ?? value?.drawDataUrl ?? "";
+    const dataUrl = await composeUploadedSignature(items, drawDataUrl);
+    onChange({
+      ...(value || {}),
+      ...overrides,
+      mode: "upload",
+      items,
+      dataUrl,
+      drawDataUrl,
+      fileName: items.map((item) => item.fileName).join(", "),
+      type: "image/png",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async function handleFileChange(event) {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    if (files.some((file) => !file.type.startsWith("image/"))) {
       onError(t("workspace.signature.imageOnly", "Please upload an image file for the signature."));
       event.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
+    try {
+      const readFiles = await Promise.all(files.map(readSignatureFile));
+      const baseItems = value?.mode === "upload" ? uploadedItems : [];
+      const newItems = readFiles.map((file, index) => ({
+        ...file,
+        id: `${Date.now()}-${index}-${file.fileName}`,
+        x: Math.min(70, 42 + index * 8),
+        y: Math.min(70, 42 + index * 8),
+        width: 38,
+      }));
       setMode("upload");
-      onChange({
-        mode: "upload",
-        dataUrl: String(reader.result || ""),
-        fileName: file.name,
-        type: file.type,
-        size: file.size,
-        updatedAt: new Date().toISOString(),
-      });
-    };
-    reader.onerror = () => {
+      setIsDrawingEnabled(false);
+      await commitUploadedItems([...baseItems, ...newItems]);
+    } catch (err) {
+      console.error("Failed to read signature file:", err);
       onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
-    };
-    reader.readAsDataURL(file);
+    } finally {
+      event.target.value = "";
+    }
   }
 
   function openSignatureFilePicker() {
     if (Date.now() < suppressUploadClickUntilRef.current) return;
     fileInputRef.current?.click();
   }
+
+  function updateSignatureText(field, text) {
+    onChange({
+      ...(value || {}),
+      mode: value?.mode || mode,
+      [field]: text,
+    });
+  }
+
+  function getUploadPointerPosition(event) {
+    const rect = uploadAreaRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 50, y: 50 };
+    return {
+      x: Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100)),
+      y: Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100)),
+    };
+  }
+
+  function beginUploadDrag(event, itemId) {
+    if (!uploadedItems.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    uploadDragRef.current = { itemId, pointerId: event.pointerId };
+  }
+
+  function moveUploadDrag(event) {
+    const drag = uploadDragRef.current;
+    if (!drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const point = getUploadPointerPosition(event);
+    const nextItems = uploadedItems.map((item) =>
+      item.id === drag.itemId ? { ...item, x: point.x, y: point.y } : item
+    );
+    onChange({
+      ...(value || {}),
+      mode: "upload",
+      items: nextItems,
+      dataUrl: value?.dataUrl || nextItems[0]?.dataUrl || "",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async function finishUploadDrag(event) {
+    const drag = uploadDragRef.current;
+    if (!drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.releasePointerCapture?.(drag.pointerId);
+    uploadDragRef.current = null;
+    const point = getUploadPointerPosition(event);
+    const nextItems = uploadedItems.map((item) =>
+      item.id === drag.itemId ? { ...item, x: point.x, y: point.y } : item
+    );
+    await commitUploadedItems(nextItems);
+  }
+
+  const confirmationRows = [
+    {
+      key: "name",
+      label: t("workspace.signature.name", "NAME"),
+      prefix: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+      capture: true,
+    },
+    {
+      key: "position",
+      label: t("workspace.signature.position", "POSITION"),
+    },
+    {
+      key: "agency",
+      label: t("workspace.signature.agency", "AGENCY"),
+    },
+  ];
+  const drawPreviewDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
 
   return (
     <div>
@@ -3563,13 +3753,13 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
           <span className="ml-1 text-red-600">*</span>
       </span>
       <div
-        className={`max-w-xl rounded border bg-white p-3 ${error ? "border-red-300 shadow-[0_0_0_3px_rgba(220,38,38,0.08)]" : "border-slate-200"}`}
+        className={`max-w-3xl rounded border bg-white p-3 ${error ? "border-red-300 shadow-[0_0_0_3px_rgba(220,38,38,0.08)]" : "border-slate-200"}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant={mode === "upload" ? "primary" : "secondary"}
+            variant="secondary"
             icon="upload_file"
             className="min-h-8 px-3 py-1.5 text-[13px]"
             onClick={openSignatureFilePicker}
@@ -3578,10 +3768,13 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
           </Button>
           <Button
             type="button"
-            variant={mode === "draw" ? "primary" : "secondary"}
+            variant={isDrawingEnabled ? "primary" : "secondary"}
             icon="draw"
             className="min-h-8 px-3 py-1.5 text-[13px]"
-            onClick={() => setMode("draw")}
+            onClick={() => {
+              setMode("draw");
+              setIsDrawingEnabled((current) => !current);
+            }}
           >
             {t("workspace.signature.draw", "Draw Signature")}
           </Button>
@@ -3598,34 +3791,94 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             onChange={handleFileChange}
           />
         </div>
 
-        {mode === "upload" && value?.dataUrl ? (
-          <div className="flex aspect-[4/1] w-full items-center justify-center rounded border border-dashed border-slate-300 bg-slate-50 p-3">
-            <img
-              src={value.dataUrl}
-              alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-              className="max-h-24 max-w-full object-contain"
-            />
+        <div className={`rounded border border-dashed bg-white px-5 py-6 ${error ? "border-red-300" : "border-slate-300"}`}>
+          <p className="text-[15px] font-bold uppercase tracking-wide text-slate-950">
+            {t("workspace.signature.confirmationTitle", "CONFIRMATION:")}
+          </p>
+
+          <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4 text-[14px] font-semibold uppercase leading-5 text-slate-950">
+            {uploadedItems.length > 0 && (
+              <div
+                ref={uploadAreaRef}
+                className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-4 overflow-hidden"
+              >
+                {uploadedItems.map((item) => (
+                  <img
+                    key={item.id}
+                    src={item.dataUrl}
+                    alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                    className="pointer-events-auto absolute max-h-full max-w-full cursor-move touch-none select-none object-contain"
+                    draggable={false}
+                    style={{
+                      left: `${item.x}%`,
+                      top: `${item.y}%`,
+                      width: `${item.width}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    onPointerDown={(event) => beginUploadDrag(event, item.id)}
+                    onPointerMove={moveUploadDrag}
+                    onPointerUp={finishUploadDrag}
+                    onPointerCancel={finishUploadDrag}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="relative col-start-3 row-start-1 border-b border-slate-900">
+              {!isDrawingEnabled && drawPreviewDataUrl && (
+                <img
+                  src={drawPreviewDataUrl}
+                  alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                  className="pointer-events-none absolute inset-0 z-30 h-full w-full select-none object-fill"
+                  draggable={false}
+                />
+              )}
+              {isDrawingEnabled && (
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 z-30 h-full w-full touch-none bg-transparent"
+                    onPointerDown={beginDraw}
+                    onPointerMove={continueDraw}
+                    onPointerUp={finishDraw}
+                    onPointerCancel={finishDraw}
+                    onPointerLeave={finishDraw}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                  />
+              )}
+            </div>
+
+            {confirmationRows.map((row, index) => (
+              <Fragment key={row.key}>
+                <div className="col-start-1" style={{ gridRow: index + 2 }}>
+                  {row.prefix && (
+                    <p className="text-[13px] font-semibold leading-4">
+                      ({row.prefix})
+                    </p>
+                  )}
+                  <p>{row.label}</p>
+                </div>
+                <span className="col-start-2 pb-1" style={{ gridRow: index + 2 }}>:</span>
+                <input
+                  type="text"
+                  value={value?.[row.key] || ""}
+                  onChange={(event) => updateSignatureText(row.key, event.target.value)}
+                  aria-label={row.label}
+                  className="col-start-3 h-8 w-full border-0 border-b border-slate-900 bg-transparent px-0 text-[14px] font-semibold uppercase text-slate-950 outline-none focus:border-emerald-700 focus:ring-0"
+                  style={{ gridRow: index + 2 }}
+                />
+              </Fragment>
+            ))}
           </div>
-        ) : (
-          <canvas
-            ref={canvasRef}
-            className={`aspect-[4/1] w-full touch-none rounded border border-dashed bg-white ${error ? "border-red-300" : "border-slate-300"}`}
-            onPointerDown={beginDraw}
-            onPointerMove={continueDraw}
-            onPointerUp={finishDraw}
-            onPointerCancel={finishDraw}
-            onPointerLeave={finishDraw}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-          />
-        )}
+        </div>
 
         {value?.fileName && (
           <p className="mt-2 text-[13px] leading-5 text-slate-500">{value.fileName}</p>
