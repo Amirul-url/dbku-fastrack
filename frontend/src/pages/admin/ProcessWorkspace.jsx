@@ -3880,9 +3880,6 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
           </div>
         </div>
 
-        {value?.fileName && (
-          <p className="mt-2 text-[13px] leading-5 text-slate-500">{value.fileName}</p>
-        )}
         {error && (
           <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">{error}</p>
         )}
