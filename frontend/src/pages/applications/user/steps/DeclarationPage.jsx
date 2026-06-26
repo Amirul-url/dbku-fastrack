@@ -66,13 +66,15 @@ function DeclarationPage({
       setApplicationRecord(data);
       setStep1(formData.step_1 || {});
       setStep3(formData.step_3 || {});
+      const savedStep11 = formData.step_11 || {};
       setStep11({
-        title: "Declaration",
-        status: formData.step_11?.status || "Draft",
-        agreed: formData.step_11?.agreed || false,
-        submitted: formData.step_11?.submitted || false,
-        submitted_at: formData.step_11?.submitted_at || "",
-        saved_at: formData.step_11?.saved_at || "",
+        ...savedStep11,
+        title: savedStep11.title || "Declaration",
+        status: savedStep11.status || "Draft",
+        agreed: savedStep11.agreed || false,
+        submitted: savedStep11.submitted || false,
+        submitted_at: savedStep11.submitted_at || "",
+        saved_at: savedStep11.saved_at || "",
       });
     } catch (err) {
       console.error("Load declaration failed:", err);
@@ -107,6 +109,7 @@ function DeclarationPage({
         submitted: step11.submitted || false,
         submitted_at: step11.submitted_at || "",
         saved_at: now,
+        declaration_values: declarationValues,
       };
 
       const savedApplication = await apiRequest(`/applications/${applicationId}/`, {
@@ -163,33 +166,55 @@ function DeclarationPage({
       Boolean(applicationId) &&
       (!applicationRecord || !canEditApplicationForm(applicationRecord)));
 
-  const applicantName =
-    step3.full_name ||
-    step1.applicant ||
-    user?.name ||
-    user?.full_name ||
-    "Applicant";
+  const savedDeclarationValues = step11.declaration_values || {};
+  const applicantProfile = applicationRecord?.applicant_profile || {};
+  const currentUserProfile = isAdminReview ? {} : user || {};
+  const currentUserAddress = joinAddress([
+    currentUserProfile.address_line1,
+    currentUserProfile.address_line2,
+    currentUserProfile.postcode,
+    currentUserProfile.city,
+    currentUserProfile.state,
+  ]);
+  const applicantProfileAddress = joinAddress([
+    applicantProfile.address_line1,
+    applicantProfile.address_line2,
+    applicantProfile.postcode,
+    applicantProfile.city,
+    applicantProfile.state,
+  ]);
 
-  const organisationName =
-    step3.org_name ||
-    step1.applicant ||
-    step1.department_name ||
-    step1.agency_name ||
-    "-";
+  const applicantName = getFirstValue(
+    step3.full_name,
+    step1.applicant,
+    savedDeclarationValues.name,
+    applicantProfile.full_name,
+    currentUserProfile.name,
+    currentUserProfile.full_name,
+    "Applicant"
+  );
+
+  const organisationName = getFirstValue(
+    step3.org_name,
+    step1.applicant,
+    step1.department_name,
+    step1.agency_name,
+    savedDeclarationValues.companyName
+  );
   const applicantAddress = getFirstValue(
-    user?.address,
-    joinAddress([
-      user?.address_line1,
-      user?.address_line2,
-      user?.postcode,
-      user?.city,
-      user?.state,
-    ])
+    savedDeclarationValues.address,
+    applicantProfile.address,
+    applicantProfileAddress,
+    currentUserProfile.address,
+    currentUserAddress
   );
   const identityCardNo = getFirstValue(
     step3.identity_card_no,
-    user?.mykad_number,
-    user?.username
+    savedDeclarationValues.icNumber,
+    applicantProfile.mykad_number,
+    applicantProfile.username,
+    currentUserProfile.mykad_number,
+    currentUserProfile.username
   );
   const companyAddress = joinAddress([
     step3.postal_address,
@@ -200,13 +225,14 @@ function DeclarationPage({
     step3.city,
     step3.state,
   ]);
-  const declarationParagraphs = buildDeclarationParagraphs(language, {
+  const declarationValues = {
     name: applicantName,
     icNumber: identityCardNo,
     address: applicantAddress,
     companyName: organisationName,
-    companyAddress,
-  });
+    companyAddress: getFirstValue(companyAddress, savedDeclarationValues.companyAddress),
+  };
+  const declarationParagraphs = buildDeclarationParagraphs(language, declarationValues);
 
   return (
     <Layout>
@@ -390,7 +416,10 @@ function buildDeclarationParagraphs(language, values) {
 }
 
 function getFirstValue(...values) {
-  return values.find((value) => String(value || "").trim()) || "-";
+  return values.find((value) => {
+    const normalized = String(value || "").trim();
+    return normalized && normalized !== "-";
+  }) || "-";
 }
 
 function joinAddress(parts) {

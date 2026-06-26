@@ -163,6 +163,44 @@ def get_application_registered_applicant_name(application):
     return name or ""
 
 
+def join_user_address(user):
+    if not user:
+        return ""
+
+    parts = [
+        getattr(user, "address_line1", ""),
+        getattr(user, "address_line2", ""),
+        getattr(user, "postcode", ""),
+        getattr(user, "city", ""),
+        getattr(user, "state", ""),
+    ]
+    address = ", ".join(str(part or "").strip() for part in parts if str(part or "").strip())
+    return address or str(getattr(user, "address", "") or "").strip()
+
+
+def get_application_applicant_profile(application):
+    user = getattr(application, "applicant", None)
+    if not user:
+        return {}
+
+    full_name = " ".join(
+        part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
+    ).strip()
+
+    return {
+        "id": getattr(user, "id", None),
+        "username": getattr(user, "username", ""),
+        "full_name": full_name,
+        "mykad_number": getattr(user, "mykad_number", "") or getattr(user, "username", ""),
+        "address": join_user_address(user),
+        "address_line1": getattr(user, "address_line1", ""),
+        "address_line2": getattr(user, "address_line2", ""),
+        "postcode": getattr(user, "postcode", ""),
+        "city": getattr(user, "city", ""),
+        "state": getattr(user, "state", ""),
+    }
+
+
 class SupportingDocumentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
     size = serializers.SerializerMethodField()
@@ -331,6 +369,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     )
     applicant_full_name = serializers.SerializerMethodField()
     applicant_registered_name = serializers.SerializerMethodField()
+    applicant_profile = serializers.SerializerMethodField()
 
     supporting_documents = SupportingDocumentSerializer(
         many=True,
@@ -346,6 +385,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant_username",
             "applicant_full_name",
             "applicant_registered_name",
+            "applicant_profile",
             "application_type",
             "project_location",
             "title",
@@ -364,6 +404,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant_username",
             "applicant_full_name",
             "applicant_registered_name",
+            "applicant_profile",
             "project_location",
             "supporting_documents",
             "created_at",
@@ -375,6 +416,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 
     def get_applicant_registered_name(self, obj):
         return get_application_registered_applicant_name(obj)
+
+    def get_applicant_profile(self, obj):
+        return get_application_applicant_profile(obj)
 
     def create(self, validated_data):
         instance = Application(**validated_data)
