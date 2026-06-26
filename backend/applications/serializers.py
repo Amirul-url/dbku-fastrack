@@ -174,8 +174,10 @@ def join_user_address(user):
         getattr(user, "city", ""),
         getattr(user, "state", ""),
     ]
-    address = ", ".join(str(part or "").strip() for part in parts if str(part or "").strip())
-    return address or str(getattr(user, "address", "") or "").strip()
+    address = ", ".join(
+        str(part or "").strip().upper() for part in parts if str(part or "").strip()
+    )
+    return address or str(getattr(user, "address", "") or "").strip().upper()
 
 
 def get_application_applicant_profile(application):
@@ -193,11 +195,11 @@ def get_application_applicant_profile(application):
         "full_name": full_name,
         "mykad_number": getattr(user, "mykad_number", "") or getattr(user, "username", ""),
         "address": join_user_address(user),
-        "address_line1": getattr(user, "address_line1", ""),
-        "address_line2": getattr(user, "address_line2", ""),
-        "postcode": getattr(user, "postcode", ""),
-        "city": getattr(user, "city", ""),
-        "state": getattr(user, "state", ""),
+        "address_line1": str(getattr(user, "address_line1", "") or "").strip().upper(),
+        "address_line2": str(getattr(user, "address_line2", "") or "").strip().upper(),
+        "postcode": str(getattr(user, "postcode", "") or "").strip().upper(),
+        "city": str(getattr(user, "city", "") or "").strip().upper(),
+        "state": str(getattr(user, "state", "") or "").strip().upper(),
     }
 
 

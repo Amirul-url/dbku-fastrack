@@ -40,6 +40,10 @@ function UserViewStepControls({ applicationId, currentStep, language, className 
       label: "backToELicenseDetails",
       path: `/user/dashboard?tab=status&id=${encodeURIComponent(applicationId)}`,
     },
+    statusList: {
+      label: "backToStatusELicenses",
+      path: "/user/dashboard?tab=status",
+    },
   };
   const backToList = backToListConfig[returnTab] || {
     label: "backToDashboard",

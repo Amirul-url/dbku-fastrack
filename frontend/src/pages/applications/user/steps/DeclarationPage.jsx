@@ -169,20 +169,26 @@ function DeclarationPage({
   const savedDeclarationValues = step11.declaration_values || {};
   const applicantProfile = applicationRecord?.applicant_profile || {};
   const currentUserProfile = isAdminReview ? {} : user || {};
-  const currentUserAddress = joinAddress([
-    currentUserProfile.address_line1,
-    currentUserProfile.address_line2,
-    currentUserProfile.postcode,
-    currentUserProfile.city,
-    currentUserProfile.state,
-  ]);
-  const applicantProfileAddress = joinAddress([
-    applicantProfile.address_line1,
-    applicantProfile.address_line2,
-    applicantProfile.postcode,
-    applicantProfile.city,
-    applicantProfile.state,
-  ]);
+  const currentUserAddress = joinAddress(
+    [
+      currentUserProfile.address_line1,
+      currentUserProfile.address_line2,
+      currentUserProfile.postcode,
+      currentUserProfile.city,
+      currentUserProfile.state,
+    ],
+    { uppercaseState: true }
+  );
+  const applicantProfileAddress = joinAddress(
+    [
+      applicantProfile.address_line1,
+      applicantProfile.address_line2,
+      applicantProfile.postcode,
+      applicantProfile.city,
+      applicantProfile.state,
+    ],
+    { uppercaseState: true }
+  );
 
   const applicantName = getFirstValue(
     step3.full_name,
@@ -201,13 +207,13 @@ function DeclarationPage({
     step1.agency_name,
     savedDeclarationValues.companyName
   );
-  const applicantAddress = getFirstValue(
+  const applicantAddress = normalizeAddressState(getFirstValue(
     savedDeclarationValues.address,
     applicantProfile.address,
     applicantProfileAddress,
     currentUserProfile.address,
     currentUserAddress
-  );
+  ));
   const identityCardNo = getFirstValue(
     step3.identity_card_no,
     savedDeclarationValues.icNumber,
@@ -216,21 +222,26 @@ function DeclarationPage({
     currentUserProfile.mykad_number,
     currentUserProfile.username
   );
-  const companyAddress = joinAddress([
-    step3.postal_address,
-    step3.address_2,
-    step3.address_3,
-    step3.address_4,
-    step3.postcode,
-    step3.city,
-    step3.state,
-  ]);
+  const companyAddress = joinAddress(
+    [
+      step3.postal_address,
+      step3.address_2,
+      step3.address_3,
+      step3.address_4,
+      step3.postcode,
+      step3.city,
+      step3.state,
+    ],
+    { uppercaseState: true }
+  );
   const declarationValues = {
     name: applicantName,
     icNumber: identityCardNo,
     address: applicantAddress,
     companyName: organisationName,
-    companyAddress: getFirstValue(companyAddress, savedDeclarationValues.companyAddress),
+    companyAddress: normalizeAddressState(
+      getFirstValue(companyAddress, savedDeclarationValues.companyAddress)
+    ),
   };
   const declarationParagraphs = buildDeclarationParagraphs(language, declarationValues);
 
@@ -422,11 +433,53 @@ function getFirstValue(...values) {
   }) || "-";
 }
 
-function joinAddress(parts) {
-  const address = parts
+const MALAYSIAN_STATE_NAMES = new Set([
+  "JOHOR",
+  "KEDAH",
+  "KELANTAN",
+  "MELAKA",
+  "NEGERI SEMBILAN",
+  "PAHANG",
+  "PENANG",
+  "PULAU PINANG",
+  "PERAK",
+  "PERLIS",
+  "SABAH",
+  "SARAWAK",
+  "SELANGOR",
+  "TERENGGANU",
+  "WILAYAH PERSEKUTUAN KUALA LUMPUR",
+  "WILAYAH PERSEKUTUAN LABUAN",
+  "WILAYAH PERSEKUTUAN PUTRAJAYA",
+]);
+
+function normalizeStateName(value) {
+  const text = String(value || "").trim();
+  const uppercase = text.toUpperCase();
+  return MALAYSIAN_STATE_NAMES.has(uppercase) ? uppercase : text;
+}
+
+function normalizeAddressState(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "-") return "-";
+
+  const parts = text.split(",").map((part) => part.trim());
+  parts[parts.length - 1] = normalizeStateName(parts[parts.length - 1]);
+  return parts.filter(Boolean).join(", ");
+}
+
+function joinAddress(parts, { uppercaseState = false } = {}) {
+  const cleanedParts = parts
     .map((part) => String(part || "").trim())
-    .filter(Boolean)
-    .join(", ");
+    .filter(Boolean);
+
+  if (uppercaseState && cleanedParts.length) {
+    cleanedParts[cleanedParts.length - 1] = normalizeStateName(
+      cleanedParts[cleanedParts.length - 1]
+    );
+  }
+
+  const address = cleanedParts.join(", ");
 
   return address || "-";
 }

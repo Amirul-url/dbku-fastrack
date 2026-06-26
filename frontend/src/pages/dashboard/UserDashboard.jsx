@@ -253,7 +253,7 @@ function UserDashboard() {
   function openApplication(app) {
     const params = new URLSearchParams({ id: String(app.id) });
     if (activeSection === "status") {
-      params.set("returnTab", "status");
+      params.set("returnTab", "statusList");
     }
     navigate(`/applications/${app.id}/${getApplicantApplicationRoute(app)}?${params.toString()}`);
   }
