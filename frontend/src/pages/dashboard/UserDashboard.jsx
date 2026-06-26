@@ -1580,11 +1580,20 @@ function getApplicationRemark(app) {
       approvalLetter.remarks ||
         approvalLetter.comment ||
         approvalLetter.notes ||
-        formData.payment?.verification_notes
+        formData.payment?.verification_notes ||
+        app?.display_remark
     );
   }
 
-  if (["payment_verified", "license_issued"].includes(status)) return "";
+  if (["payment_verified", "license_issued"].includes(status)) {
+    return cleanRemark(
+      formData.payment?.verification_notes ||
+        formData.license?.remarks ||
+        formData.license?.notes ||
+        app?.display_remark ||
+        app?.latest_remark
+    );
+  }
 
   if (!["incomplete", "rejected"].includes(status)) return "";
 

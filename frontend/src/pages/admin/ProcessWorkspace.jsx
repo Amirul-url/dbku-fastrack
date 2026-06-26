@@ -829,7 +829,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     selectedPaymentReceiptAction &&
     (!selectedPaymentReceiptAction.requiresPaymentDocuments || hasUploadedPaymentDocuments(selectedRecord)) &&
     (!selectedPaymentReceiptAction.requiresOfficialReceipt ||
-      getPaymentDocumentSource(selectedRecord?.form_data?.approval_letter?.official_receipt_file)) &&
+      getPaymentDocumentSource(getStoredPaymentDocument(selectedRecord, "official_receipt"))) &&
     (!selectedPaymentReceiptAction.requiresLicenseDocument ||
       getPaymentDocumentSource(selectedRecord?.form_data?.license?.license_file))
   );
@@ -1614,7 +1614,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if (
       action.requiresOfficialReceipt &&
-      !getPaymentDocumentSource(selectedRecord.form_data?.approval_letter?.official_receipt_file)
+      !getPaymentDocumentSource(getStoredPaymentDocument(selectedRecord, "official_receipt"))
     ) {
       setError(t("workspace.payment.officialReceiptRequired", "Please upload the official receipt before submitting."));
       return;
@@ -7216,13 +7216,24 @@ const configs = {
           const timestamp = new Date().toISOString();
           const decision = data.decision || "Generate Approval Letter & Bill";
           const remarks = cleanRemark(data.comment);
+          const savedApprovalLetter = app.form_data?.approval_letter || {};
+          const letterFile = getStoredPaymentDocument(app, "letter");
+          const billFile = getStoredPaymentDocument(app, "bill");
 
           return {
             status: "invoice_generated",
             latest_remark: remarks,
             form_data: mergeFormData(app, {
               approval_letter: {
-                ...(app.form_data?.approval_letter || {}),
+                ...savedApprovalLetter,
+                letter_file:
+                  stripLocalPaymentDocumentPreview(letterFile) ||
+                  savedApprovalLetter.letter_file ||
+                  null,
+                bill_file:
+                  stripLocalPaymentDocumentPreview(billFile) ||
+                  savedApprovalLetter.bill_file ||
+                  null,
                 status: "Sent to Applicant",
                 recommendation: decision,
                 letter_bill_decision: decision,
@@ -7249,6 +7260,7 @@ const configs = {
         icon: "verified",
         success: "Payment verified and e-license issued.",
         successKey: "workspace.message.paymentVerified",
+        requiresComment: true,
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
         requiresPaymentDocuments: true,
@@ -7260,7 +7272,10 @@ const configs = {
           const now = new Date();
           const timestamp = now.toISOString();
           const savedApprovalLetter = app.form_data?.approval_letter || {};
-          const savedOfficialReceipt = savedApprovalLetter.official_receipt_file || {};
+          const savedOfficialReceipt =
+            getStoredPaymentDocument(app, "official_receipt") ||
+            savedApprovalLetter.official_receipt_file ||
+            {};
           const savedLicense = app.form_data?.license || {};
           const validityYears = Number(savedLicense.validity_years) || 1;
           const issueDate = parseDateOrFallback(savedLicense.issue_date, now);
@@ -7277,7 +7292,7 @@ const configs = {
               approval_letter: {
                 ...savedApprovalLetter,
                 official_receipt_file: {
-                  ...savedOfficialReceipt,
+                  ...stripLocalPaymentDocumentPreview(savedOfficialReceipt),
                   status: "Sent to Applicant",
                   sent_at: timestamp,
                 },
@@ -10336,9 +10351,12 @@ function PaymentDetails({
   const license = app.form_data?.license || {};
   const receiptFile = payment.receipt_file;
   const receiptSource = getPaymentReceiptSource(receiptFile);
-  const letterFile = approvalLetter.letter_file;
-  const billFile = approvalLetter.bill_file;
-  const officialReceiptFile = approvalLetter.official_receipt_file || null;
+  const letterFile = getStoredPaymentDocument(app, "letter");
+  const billFile = getStoredPaymentDocument(app, "bill");
+  const officialReceiptFile =
+    getStoredPaymentDocument(app, "official_receipt") ||
+    approvalLetter.official_receipt_file ||
+    null;
   const licenseFile = license.license_file || null;
   const status = normalizeStatus(app?.status);
   const letterReady = Boolean(letterFile);
@@ -10949,6 +10967,105 @@ function getPaymentDocumentFieldName(kind) {
   return "letter_file";
 }
 
+function getPaymentDocumentTitleAliases(kind) {
+  if (kind === "bill") return ["bill", "bil"];
+  if (kind === "official_receipt") return ["official receipt", "resit rasmi"];
+  return ["approval letter", "surat kelulusan"];
+}
+
+function normalizePaymentDocumentTitle(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function getPaymentDocumentTimestamp(file) {
+  const timestamp = Date.parse(file?.uploaded_at || file?.lastModified || "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function getPaymentDocumentFromSupportingDocuments(app, kind) {
+  const aliases = new Set(getPaymentDocumentTitleAliases(kind));
+  const documents = Array.isArray(app?.supporting_documents)
+    ? app.supporting_documents
+    : [];
+  const document = documents
+    .filter((item) => aliases.has(normalizePaymentDocumentTitle(item?.title)))
+    .sort((a, b) => {
+      const timestampDiff = getPaymentDocumentTimestamp(b) - getPaymentDocumentTimestamp(a);
+      if (timestampDiff) return timestampDiff;
+      return Number(b?.id || 0) - Number(a?.id || 0);
+    })[0];
+
+  if (!document) return null;
+
+  return {
+    ...document,
+    document_id: document.document_id || document.id,
+    name:
+      document.name ||
+      getFileNameFromUrl(document.file_url || document.file) ||
+      document.title ||
+      "",
+    url: getApplicationDocumentUrl(app?.id, document.document_id || document.id),
+    file_url: document.file_url || document.file || "",
+    file: document.file || document.file_url || "",
+  };
+}
+
+function getStoredPaymentDocument(app, kind) {
+  const fieldName = getPaymentDocumentFieldName(kind);
+  const savedFile = app?.form_data?.approval_letter?.[fieldName] || null;
+
+  if (getPaymentDocumentSource(savedFile)) return savedFile;
+
+  const documentId = savedFile?.document_id || savedFile?.id;
+  if (documentId && app?.id) {
+    return {
+      ...savedFile,
+      url: getApplicationDocumentUrl(app.id, documentId),
+    };
+  }
+
+  return getPaymentDocumentFromSupportingDocuments(app, kind);
+}
+
+function withLocalPaymentDocumentPreview(_applicationId, _kind, uploaded, file) {
+  return {
+    ...(uploaded || {}),
+    name: uploaded?.name || file?.name || "",
+    size: uploaded?.size || file?.size || 0,
+    type: uploaded?.type || file?.type || "",
+    lastModified: uploaded?.lastModified || file?.lastModified || null,
+  };
+}
+
+function stripLocalPaymentDocumentPreview(file) {
+  if (!file || typeof file !== "object") return file;
+
+  const {
+    dataUrl: _dataUrl,
+    previewUrl: _previewUrl,
+    localPreviewUrl: _localPreviewUrl,
+    ...savedFile
+  } = file;
+
+  return savedFile;
+}
+
+function mergeLocalPaymentDocumentPreview(app, fieldName, file) {
+  return {
+    ...(app || {}),
+    form_data: {
+      ...(app?.form_data || {}),
+      approval_letter: {
+        ...(app?.form_data?.approval_letter || {}),
+        [fieldName]: file,
+      },
+    },
+  };
+}
+
+function forgetLocalPaymentDocumentPreview() {}
+
 async function openPaymentDocument(file, t) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
@@ -11064,10 +11181,9 @@ function hasPaymentDocuments(app) {
 }
 
 function hasUploadedPaymentDocuments(app) {
-  const approvalLetter = app?.form_data?.approval_letter || {};
   return Boolean(
-    getPaymentDocumentSource(approvalLetter.letter_file) &&
-    getPaymentDocumentSource(approvalLetter.bill_file)
+    getPaymentDocumentSource(getStoredPaymentDocument(app, "letter")) &&
+    getPaymentDocumentSource(getStoredPaymentDocument(app, "bill"))
   );
 }
 

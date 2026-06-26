@@ -255,6 +255,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     sut_approval = serializers.SerializerMethodField()
     approval = serializers.SerializerMethodField()
     approval_letter = serializers.SerializerMethodField()
+    display_remark = serializers.SerializerMethodField()
     activity_log = serializers.SerializerMethodField()
 
     class Meta:
@@ -285,6 +286,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "sut_approval",
             "approval",
             "approval_letter",
+            "display_remark",
             "activity_log",
             "created_at",
             "updated_at",
@@ -355,6 +357,12 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             return {}
 
         return strip_inline_file_data(approval_letter)
+
+    def get_display_remark(self, obj):
+        return (
+            get_latest_remark_from_form_data(obj.form_data, obj.status)
+            or clean_remark(obj.latest_remark)
+        )
 
     def get_activity_log(self, obj):
         activity_log = (obj.form_data or {}).get("activity_log", [])
@@ -489,6 +497,27 @@ def get_latest_remark_from_form_data(form_data, status=""):
     def section(name):
         value = form_data.get(name) or {}
         return value if isinstance(value, dict) else {}
+
+    if status_key in {"invoice_generated", "payment_submitted"}:
+        approval_letter = section("approval_letter")
+        remark = clean_remark(
+            approval_letter.get("remarks")
+            or approval_letter.get("comment")
+            or approval_letter.get("notes")
+            or section("payment").get("verification_notes")
+        )
+        if remark:
+            return remark
+
+    if status_key in {"payment_verified", "license_issued"}:
+        license_data = section("license")
+        remark = clean_remark(
+            section("payment").get("verification_notes")
+            or license_data.get("remarks")
+            or license_data.get("notes")
+        )
+        if remark:
+            return remark
 
     if status_key == "mphlg_processing":
         remark = clean_remark(
