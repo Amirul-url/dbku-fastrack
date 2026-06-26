@@ -53,11 +53,11 @@ const VALID_SECTIONS = ["applications", "status"];
 const RECENT_ACTIVITY_PAGE_SIZE = 5;
 const TABLE_PAGE_SIZE = 5;
 const APPLICANT_STATUS_FILTER_OPTIONS = [
-  "Draft",
-  "Submitted",
-  "Under Review",
-  "Rejected",
-  "Approved",
+  "draft",
+  "submitted",
+  "under_review",
+  "rejected",
+  "approved",
 ];
 
 function UserDashboard() {
@@ -1797,7 +1797,7 @@ function filterDashboardApplications(applications, filters) {
       getApplicationReference(app),
       getProjectName(app, language),
       getApplicationRemark(app),
-      translatedStatus(t, app.status),
+      translatedStatus(t, displayStatus),
     ]
       .join(" ")
       .toLowerCase()
@@ -1818,23 +1818,23 @@ function getApplicantFilterStatus(app) {
   const status = normalizeStatus(app?.status);
 
   if (status === "draft") {
-    return "Draft";
+    return "draft";
   }
 
   if (isApprovedApplication(app)) {
-    return "Approved";
+    return "approved";
   }
 
   if (isRejectedApplication(app)) {
-    return "Rejected";
+    return "rejected";
   }
 
   if (status === "submitted") {
-    return "Submitted";
+    return "submitted";
   }
 
   if (status && status !== "draft") {
-    return "Under Review";
+    return "under_review";
   }
 
   return "";
