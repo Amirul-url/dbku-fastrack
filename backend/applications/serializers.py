@@ -105,7 +105,8 @@ def scope_activity_log_for_user(activity_log, user):
             continue
 
         if role in STAFF_ACTIVITY_ROLES:
-            if actor_matches_user:
+            title = str(activity.get("title") or "").strip().lower()
+            if actor_matches_user or title in APPLICANT_SAFE_ACTIVITY_TITLES or is_rejected_activity(activity):
                 scoped.append(activity)
             continue
 

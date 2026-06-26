@@ -2202,7 +2202,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     <p className="mt-1 text-sky-900">
                       {t(
                         "workspace.approval.readOnlyGuide",
-                        "Use View Form to inspect the application, Log Decision to review recorded decisions, or Verification Report to view technical verification details. Submit actions are available from Personal Task."
+                        "View the application, decisions, and verification report."
                       )}
                     </p>
                   </div>
