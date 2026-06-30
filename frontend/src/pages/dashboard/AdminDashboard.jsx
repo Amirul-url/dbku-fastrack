@@ -3643,20 +3643,21 @@ function hasTechnicalDepartmentReview(app, department) {
 
 function getDashboardTaskStatusLabel(application, unit, t) {
   const status = normalizeStatus(application?.status);
+  const department = unit?.department;
 
-  if (unit?.department === "KU(IKL)" && status === "submitted") {
+  if (department === "KU(IKL)" && status === "submitted") {
     return t("status.ku_ikl_review", "KU(IKL) Review");
   }
 
-  if (unit?.department === "KU(IKL)" && status === "technical_review_completed") {
+  if (department === "KU(IKL)" && status === "technical_review_completed") {
     return t("status.technical_ku_review", "Pending KU(IKL) Final Check");
   }
 
-  if (unit?.department === "IKL (TECHNICAL)" && status === "technical_review_completed") {
+  if (department === "IKL (TECHNICAL)" && status === "technical_review_completed") {
     return t("admin.dashboard.statusReviewSubmitted", "Review Submitted");
   }
 
-  if (unit?.department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
+  if (department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
     return t("status.ikl_technical_review", "IKL(TECH) Review");
   }
 
@@ -3664,8 +3665,8 @@ function getDashboardTaskStatusLabel(application, unit, t) {
     return t("status.receipt_review", "Receipt Review");
   }
 
-  if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit?.department) && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
-    if (hasTechnicalDepartmentReview(application, unit.department)) {
+  if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(department) && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
+    if (hasTechnicalDepartmentReview(application, department)) {
       if (status === "technical_site_visit") {
         return t("admin.dashboard.statusSentToIklTechnical", "Sent to IKL(TECH)");
       }
@@ -3675,8 +3676,22 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
     return t("admin.dashboard.statusUnitReview", "{department} Review").replace(
       "{department}",
-      unit.department
+      department
     );
+  }
+
+  if (status === "management_review") {
+    if (department === "KB(LES)" && !isKbLesVerified(application)) {
+      return t("workspace.approval.stageKbVerification", "Pending KB(LES) Verification");
+    }
+
+    if (
+      APPROVAL_SUPPORT_DEPARTMENTS.has(department) &&
+      isKbLesVerified(application) &&
+      !hasManagementSupport(application)
+    ) {
+      return t("workspace.approval.stageSupport", "Pending TP(RES)/PGH Final Approval");
+    }
   }
 
   return t(`status.${status}`, formatWorkflowStatus(status));
