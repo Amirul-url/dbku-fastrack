@@ -107,7 +107,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
             fallback: "Awaiting Approval",
             path: "/dashboard/admin?view=approval",
             view: "approval",
-            badge: approvalBadge,
           },
         ].filter(Boolean),
       },
@@ -121,7 +120,6 @@ function buildAdminNav(taskCounts = {}, user = null) {
       fallback: "Awaiting Approval",
       path: "/dashboard/admin?view=approval",
       view: "approval",
-      badge: approvalBadge,
     },
   ].filter(Boolean);
   const dashboardBadge = isApprovalDepartment
