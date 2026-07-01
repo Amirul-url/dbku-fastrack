@@ -1511,7 +1511,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const requiresSignature = isSignedApprovalSupportDecision(decisionValue);
     const supportSignature = requiresSignature ? approvalSupportSignature : null;
 
-    if (requiresSignature && !supportSignature?.dataUrl) {
+    if (requiresSignature && !hasDigitalSignatureContent(supportSignature)) {
       setApprovalSupportSignatureError(
         t("workspace.signature.required", "Digital signature is required.")
       );
@@ -1694,6 +1694,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
         approvalSupportSignature: overrides.approvalSupportSignature || null,
+        screeningSignature: overrides.screeningSignature || null,
         kuChecks: overrides.kuChecks,
         officialReceiptMode: "upload",
       });
@@ -2171,8 +2172,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       onClick={() => setShowDecisionLog((visible) => !visible)}
                     >
                       {showDecisionLog
-                        ? t("workspace.decisionLog.hide", "Hide Log Decision")
-                        : t("workspace.decisionLog.show", "Log Decision")}
+                        ? t("workspace.decisionLog.hideReport", "Hide Report")
+                        : t("workspace.decisionLog.showReport", "Show Report")}
                     </Button>
                   )}
 
@@ -2463,7 +2464,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         />
                       )}
                       <div className="max-w-[56rem]">
-                        <span className="mb-1 block text-[14px] font-semibold leading-5 text-slate-900">
+                        <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
                           {t("common.decision", "Your Recommendation")}
                         </span>
                         <input
@@ -2496,7 +2497,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               );
                             }
                           }}
-                          className={`form-input form-input-sm w-full max-w-[17rem] bg-white ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                           placeholder={
                             isFinalApprovalSupportWorkspace
                               ? getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t)
@@ -2514,7 +2515,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <div className="max-w-[56rem]">
                         <label
                           htmlFor="approval-support-remarks"
-                          className="mb-1 block text-[14px] font-semibold leading-5 text-slate-900"
+                          className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
                         >
                           {t("workspace.comment.approvalRemarks", "Remarks")}
                           <span className="ml-1 text-red-600">*</span>
@@ -2523,7 +2524,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
                           style={{
                             backgroundImage:
-                              "repeating-linear-gradient(to bottom, transparent 0, transparent 29px, #1f2937 30px, transparent 31px)",
+                              "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
                           }}
                         >
                           <textarea
@@ -2538,9 +2539,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             required
                             aria-required
                             aria-invalid={Boolean(commentError)}
-                            className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[14px] font-medium leading-[30px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                            className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
                             placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks.")}
-                            style={{ lineHeight: "30px" }}
+                            style={{ lineHeight: "26px" }}
                           />
                         </div>
                         {commentError && (
@@ -2754,65 +2755,158 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 }
 
 function WorkspaceDecisionLogReport({ app, t }) {
+  const [selectedLog, setSelectedLog] = useState(null);
   const logs = buildWorkspaceDecisionLogRows(app, t);
 
   return (
-    <section className="rounded-md border border-slate-300 bg-white">
-      {logs.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-left text-sm">
-            <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
-              <tr>
-                <th className="border-b border-slate-200 px-4 py-3">
-                  {t("common.department", "Department")}
-                </th>
-                <th className="border-b border-slate-200 px-4 py-3">
-                  {t("admin.dashboard.decisionLogRecommendation", "Your Recommendation")}
-                </th>
-                <th className="border-b border-slate-200 px-4 py-3">
-                  {t("common.remarks", "Remarks")}
-                </th>
-                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
-                  {t("workspace.signature.title", "Digital Signature")}
-                </th>
-                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-3">
-                  {t("common.date", "Date")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {logs.map((log) => (
-                <tr key={log.id} className="align-top">
-                  <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">
-                    {log.department}
-                  </td>
-                  <td className="px-4 py-3">
-                    {log.decision ? <StatusPill value={log.decision} /> : null}
-                  </td>
-                  <td className="min-w-[320px] px-4 py-3 text-slate-700">
-                    <p className="whitespace-pre-line leading-5">{log.remarks || "-"}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <DecisionLogSignatureCell
-                      department={log.department}
-                      signature={log.signature}
-                      t={t}
-                    />
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                    {formatCompactDateTime(log.date)}
-                  </td>
+    <>
+      <section className="rounded-md border border-slate-300 bg-white">
+        {logs.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-fixed border-collapse text-left text-sm">
+              <colgroup>
+                <col className="w-[28%]" />
+                <col className="w-[34%]" />
+                <col className="w-[38%]" />
+              </colgroup>
+              <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
+                <tr>
+                  <th className="border-b border-slate-200 px-4 py-2">
+                    {t("common.department", "Department")}
+                  </th>
+                  <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2">
+                    {t("common.date", "Date")}
+                  </th>
+                  <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2 text-right">
+                    {t("common.action", "Action")}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="px-4 py-4 text-sm font-medium text-slate-500">
-          {t("admin.dashboard.noDecisionLogs", "No DBKU or MPHLG decision records found.")}
-        </p>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {logs.map((log) => (
+                  <tr key={log.id} className="align-middle">
+                    <td className="whitespace-nowrap px-4 py-2 font-semibold text-slate-900">
+                      {log.department}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-600">
+                      {formatCompactDateTime(log.date)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon="visibility"
+                        className="min-h-8 px-2.5 py-1 text-sm"
+                        onClick={() => setSelectedLog(log)}
+                      >
+                        {t("common.view", "View")}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="px-4 py-4 text-sm font-medium text-slate-500">
+            {t("admin.dashboard.noDecisionLogs", "No DBKU or MPHLG decision records found.")}
+          </p>
+        )}
+      </section>
+
+      {selectedLog && (
+        <DecisionLogTemplateModal
+          log={selectedLog}
+          t={t}
+          onClose={() => setSelectedLog(null)}
+        />
       )}
-    </section>
+    </>
+  );
+}
+
+function DecisionLogTemplateModal({ log, t, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <p className="text-[13px] font-semibold leading-5 text-slate-950">
+              {t("workspace.decisionLog.recordedTemplate", "Recorded Template")}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-slate-500">
+              {log.department} · {formatCompactDateTime(log.date)}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            icon="close"
+            className="min-h-8 px-2.5 py-1"
+            onClick={onClose}
+          >
+            {t("common.close", "Close")}
+          </Button>
+        </div>
+
+        <div className="max-h-[calc(92vh-64px)] overflow-y-auto px-4 py-4">
+          <DecisionLogRecordedTemplate log={log} t={t} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DecisionLogRecordedTemplate({ log, t }) {
+  const signatureSource = getDecisionLogSignatureSource(log.signature);
+
+  return (
+    <div className="space-y-4 text-[13px] leading-5 text-slate-950">
+      <div className="max-w-[17rem]">
+        <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+          {t("common.decision", "Your Recommendation")}
+        </span>
+        <input
+          type="text"
+          value={log.decision || ""}
+          readOnly
+          className="form-input form-input-sm w-full bg-white text-[13px]"
+        />
+      </div>
+
+      <div>
+        <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+          {t("common.remarks", "Remarks")}
+        </span>
+        <div
+          className="relative min-h-[300px] bg-white"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+          }}
+        >
+          <p className="whitespace-pre-line px-2 py-0 text-[13px] font-medium leading-[26px] text-slate-950">
+            {log.remarks || ""}
+          </p>
+        </div>
+      </div>
+
+      {signatureSource && (
+        <div>
+          <span className="mb-1.5 block text-[13px] font-semibold leading-5 text-slate-700">
+            {t("workspace.signature.title", "Digital Signature")}
+          </span>
+          <div className="bg-white">
+            <DecisionLogSignatureConfirmation
+              signature={log.signature}
+              signatureSource={signatureSource}
+              t={t}
+              fullSize
+            />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2847,7 +2941,7 @@ function DecisionLogSignatureCell({ department, signature, t }) {
   );
 }
 
-function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
+function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullSize = false }) {
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
   const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
   const drawPreviewDataUrl =
@@ -2858,37 +2952,44 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
   const rows = [
     {
       key: "signatureStamp",
-      label: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+      label: t("workspace.signature.signatureAndStamp", "Signature & Stamp"),
     },
     {
       key: "name",
-      label: t("workspace.signature.name", "NAME"),
+      label: t("workspace.signature.name", "Name"),
     },
     {
       key: "position",
-      label: t("workspace.signature.position", "POSITION"),
+      label: t("workspace.signature.position", "Position"),
     },
     {
       key: "agency",
-      label: t("workspace.signature.agency", "AGENCY"),
+      label: t("workspace.signature.agency", "Agency"),
     },
     {
       key: "date",
-      label: t("workspace.signature.date", "DATE"),
+      label: t("workspace.signature.date", "Date"),
     },
   ];
+  const confirmationGridClass = fullSize
+    ? "relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4"
+    : "relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4";
+  const getUploadedItemWidth = (item) => {
+    const width = Number(item?.width ?? 38);
+    return Number.isFinite(width) ? width : 38;
+  };
 
   return (
-    <div className="h-[200px] w-[380px] overflow-hidden">
+    <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
       <div
-        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold uppercase leading-5 text-slate-950"
-        style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
+        className="w-full rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950"
+        style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
       >
-        <p className="text-[14px] font-bold">
+        <p className="text-[13px] font-bold uppercase leading-5">
           {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
         </p>
 
-        <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4">
+        <div className={confirmationGridClass}>
           {(uploadedItems.length > 0 || shouldRenderComposedUpload) && (
             <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
               {uploadedItems.length > 0 ? (
@@ -2902,7 +3003,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
                     style={{
                       left: `${item.x ?? 50}%`,
                       top: `${item.y ?? 50}%`,
-                      width: `${item.width ?? 38}%`,
+                      width: `${getUploadedItemWidth(item)}%`,
                       transform: "translate(-50%, -50%)",
                     }}
                   />
@@ -2939,7 +3040,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
                 className="col-start-3 flex min-w-0 items-end border-b border-slate-900 pb-1"
                 style={{ gridRow: index + 1 }}
               >
-                <span className="min-w-0 truncate">{signatureDetails[row.key] || ""}</span>
+                <span className="min-w-0 truncate uppercase">{signatureDetails[row.key] || ""}</span>
               </div>
             </Fragment>
           ))}
@@ -3536,24 +3637,24 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   const confirmationRows = [
     {
       key: "signatureStamp",
-      label: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+      label: t("workspace.signature.signatureAndStamp", "Signature & Stamp"),
     },
     {
       key: "name",
-      label: t("workspace.signature.name", "NAME"),
+      label: t("workspace.signature.name", "Name"),
       capture: true,
     },
     {
       key: "position",
-      label: t("workspace.signature.position", "POSITION"),
+      label: t("workspace.signature.position", "Position"),
     },
     {
       key: "agency",
-      label: t("workspace.signature.agency", "AGENCY"),
+      label: t("workspace.signature.agency", "Agency"),
     },
     {
       key: "date",
-      label: t("workspace.signature.date", "DATE"),
+      label: t("workspace.signature.date", "Date"),
     },
   ];
   const drawPreviewDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
@@ -3566,7 +3667,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
 
   return (
     <div>
-      <span className="mb-1.5 block text-[14px] font-semibold leading-5 text-slate-700">
+      <span className="mb-1.5 block text-[13px] font-semibold leading-5 text-slate-700">
           {t("workspace.signature.title", "Digital Signature")}
           <span className="ml-1 text-red-600">*</span>
       </span>
@@ -3616,12 +3717,12 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
         </div>
 
         <div className={`rounded border border-dashed bg-white px-5 py-6 ${error ? "border-red-300" : "border-slate-300"}`}>
-          <p className="text-[14px] font-bold uppercase tracking-wide text-slate-950">
+          <p className="text-[13px] font-bold uppercase leading-5 text-slate-950">
             {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
           </p>
 
           <div
-            className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4 text-[13px] font-semibold uppercase leading-5 text-slate-950"
+            className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4 text-[13px] font-semibold leading-5 text-slate-950"
             onPointerDown={clearUploadSelection}
           >
             {uploadedItems.length > 0 && (
@@ -5042,14 +5143,16 @@ function buildWorkspaceDecisionLogRows(app, t) {
   const payment = getApplicationSection(app, "payment");
   const selectedTechnicalDepartments = getSelectedTechnicalDepartments(app);
 
-  addWorkspaceDecisionLogRow(rows, {
-    id: "auto-screening",
-    department: getWorkspaceAutoScreeningDecisionDepartment(autoScreening) || "PT(IKL)",
-    section: autoScreening,
-    decision: getWorkspaceDecisionLogValue(autoScreening),
-    remarks: getWorkspaceDecisionLogRemarks(autoScreening),
-    date: getWorkspaceDecisionLogDate(autoScreening, ["checked_at", "reviewed_at", "decided_at"]),
-  }, t);
+  if (shouldShowAutoScreeningDecisionLog(autoScreening)) {
+    addWorkspaceDecisionLogRow(rows, {
+      id: "auto-screening",
+      department: getWorkspaceAutoScreeningDecisionDepartment(autoScreening) || "PT(IKL)",
+      section: autoScreening,
+      decision: getWorkspaceDecisionLogValue(autoScreening),
+      remarks: getWorkspaceDecisionLogRemarks(autoScreening),
+      date: getWorkspaceDecisionLogDate(autoScreening, ["checked_at", "reviewed_at", "decided_at"]),
+    }, t);
+  }
 
   Object.entries(getCurrentTechnicalDepartmentReviews(app))
     .filter(([department, review]) => {
@@ -5188,6 +5291,16 @@ function addWorkspaceDecisionLogRow(rows, row, t) {
   });
 }
 
+function shouldShowAutoScreeningDecisionLog(section = {}) {
+  if (!section || typeof section !== "object") return false;
+
+  const normalizedDecision = cleanRemark(getWorkspaceDecisionLogValue(section)).toLowerCase();
+  return ![
+    "pt(ikl) send to ku(ikl)",
+    "pt(ikl) hantar kepada ku(ikl)",
+  ].includes(normalizedDecision);
+}
+
 function getDecisionLogSignatureSource(signature) {
   if (!signature) return "";
   if (typeof signature === "string") return signature;
@@ -5202,6 +5315,31 @@ function getDecisionLogSignatureSource(signature) {
       signature.source ||
       ""
   ).trim();
+}
+
+function hasDigitalSignatureContent(signature) {
+  if (!signature) return false;
+  if (typeof signature === "string") return Boolean(signature.trim());
+  if (typeof signature !== "object") return false;
+
+  if (
+    Array.isArray(signature.items) &&
+    signature.items.some((item) => String(item?.dataUrl || "").trim())
+  ) {
+    return true;
+  }
+
+  if (String(signature.drawDataUrl || "").trim()) return true;
+
+  if (signature.mode === "draw") {
+    return Boolean(String(signature.dataUrl || "").trim());
+  }
+
+  if (signature.mode === "upload") {
+    return false;
+  }
+
+  return Boolean(getDecisionLogSignatureSource(signature));
 }
 
 function isApprovalSupportDecisionLogDepartment(department) {
@@ -5853,6 +5991,7 @@ function buildIklScreeningPayload(app, data) {
         recommendation: data.decision,
         result: correctionRequired ? "Rejected to Applicant" : data.decision,
         remarks: data.comment,
+        digital_signature: data.screeningSignature || app.form_data?.auto_screening?.digital_signature || null,
         memo_html:
           data.decision === "PT(IKL) Send to KU(IKL)"
             ? data.memoHtml || previousAutoScreening.memo_html || ""
@@ -7706,6 +7845,8 @@ function IklWorkspaceSections({
   );
   const [screeningDecisionInput, setScreeningDecisionInput] = useState("");
   const [screeningDecisionError, setScreeningDecisionError] = useState("");
+  const [screeningSignature, setScreeningSignature] = useState(null);
+  const [screeningSignatureError, setScreeningSignatureError] = useState("");
   const [kuDecisionInput, setKuDecisionInput] = useState("");
   const [kuDecisionError, setKuDecisionError] = useState("");
   const [kuRemarks, setKuRemarks] = useState("");
@@ -7733,6 +7874,15 @@ function IklWorkspaceSections({
     [config.decisions, userDepartment]
   );
   const screeningCopy = getIklScreeningCopy(userDepartment);
+  const useKuIklDecisionTemplate = userDepartment === "KU(IKL)" && showScreeningDecision;
+  const showKuIklScreeningSignature =
+    useKuIklDecisionTemplate &&
+    getIklScreeningDecisionFromInput(
+      screeningDecisionInput,
+      screeningDecisionOptions,
+      userDepartment,
+      t
+    ) === "KU(IKL) Confirm - Send to Technical Units";
   const selectedTechnicalAction = config.technicalActions.find(
     (action) => action.decision === technicalDecision
   );
@@ -7762,6 +7912,27 @@ function IklWorkspaceSections({
     );
     setScreeningDecisionError("");
   }, [decision, screeningDecisionOptions, setDecision, t, userDepartment]);
+
+  useEffect(() => {
+    if (!useKuIklDecisionTemplate) {
+      setScreeningSignature(null);
+      setScreeningSignatureError("");
+      return;
+    }
+
+    setScreeningSignature(selectedRecord.form_data?.auto_screening?.digital_signature || null);
+    setScreeningSignatureError("");
+  }, [
+    selectedRecord.id,
+    selectedRecord.form_data?.auto_screening?.digital_signature,
+    useKuIklDecisionTemplate,
+  ]);
+
+  useEffect(() => {
+    if (!showKuIklScreeningSignature && screeningSignatureError) {
+      setScreeningSignatureError("");
+    }
+  }, [screeningSignatureError, showKuIklScreeningSignature]);
 
   useEffect(() => {
     const savedDecision =
@@ -7955,23 +8126,63 @@ function IklWorkspaceSections({
   }
 
   return (
-    <div className="space-y-4 text-sm leading-5">
+    <div className="space-y-4 text-[13px] leading-5">
       {showScreeningDecision && (
-        <section className="rounded-md border border-slate-200 bg-white p-2.5 text-sm leading-5">
+        <section className="rounded-md border border-slate-200 bg-white p-2.5 text-[13px] leading-5">
           <div className="mb-2.5">
-            <h3 className="text-[14px] font-semibold leading-5 text-slate-950">
+            <h3 className="text-[13px] font-semibold leading-5 text-slate-950">
               {t(screeningCopy.titleKey, screeningCopy.title)}
             </h3>
-            <p className="mt-1 text-sm leading-5 text-slate-500">
+            <p className="mt-1 text-[13px] leading-5 text-slate-500">
               {t(screeningCopy.descriptionKey, screeningCopy.description)}
             </p>
           </div>
 
           <div className="space-y-3">
-            <Field
-              label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")}
-              labelClassName="!text-sm"
-            >
+            {useKuIklDecisionTemplate ? (
+              <div className="max-w-[56rem]">
+                <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                  {t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")}
+                </span>
+                <input
+                  ref={screeningDecisionInputRef}
+                  type="text"
+                  value={screeningDecisionInput}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    const nextDecision = getIklScreeningDecisionFromInput(
+                      nextValue,
+                      screeningDecisionOptions,
+                      userDepartment,
+                      t
+                    );
+                    setScreeningDecisionInput(nextValue);
+                    setDecision(nextDecision);
+                    if (screeningDecisionError) setScreeningDecisionError("");
+                  }}
+                  onBlur={() => {
+                    if (decision) {
+                      setScreeningDecisionInput(
+                        getIklScreeningDecisionInput(decision, screeningDecisionOptions, userDepartment, t)
+                      );
+                    }
+                  }}
+                  className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${screeningDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  placeholder={t("workspace.decision.typeApproveOrReject", "Type Approve or Reject")}
+                  inputMode="text"
+                  aria-invalid={Boolean(screeningDecisionError)}
+                />
+                {screeningDecisionError && (
+                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                    {screeningDecisionError}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Field
+                label={t(config.decisionLabelKey || "common.decision", config.decisionLabel || "Your Recommendation")}
+                labelClassName="!text-sm"
+              >
               <input
                 ref={screeningDecisionInputRef}
                 type="text"
@@ -8005,36 +8216,90 @@ function IklWorkspaceSections({
                   {screeningDecisionError}
                 </p>
               )}
-            </Field>
+              </Field>
+            )}
 
-            <Field
-              label={
-                <>
+            {useKuIklDecisionTemplate ? (
+              <div className="max-w-[56rem]">
+                <label
+                  htmlFor="ku-ikl-screening-remarks"
+                  className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
+                >
                   {t(config.commentLabelKey, config.commentLabel || "Notes")}
                   <span className="ml-1 text-red-600">*</span>
-                </>
-              }
-              labelClassName="!text-sm"
-            >
-              <textarea
-                ref={screeningRemarksRef}
-                value={comment}
-                onChange={(event) => {
-                  setComment(event.target.value);
-                  if (commentError) setCommentError("");
+                </label>
+                <div
+                  className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+                  }}
+                >
+                  <textarea
+                    id="ku-ikl-screening-remarks"
+                    ref={screeningRemarksRef}
+                    value={comment}
+                    onChange={(event) => {
+                      setComment(event.target.value);
+                      if (commentError) setCommentError("");
+                    }}
+                    rows="12"
+                    required
+                    aria-required="true"
+                    className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                    placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
+                    style={{ lineHeight: "26px" }}
+                  />
+                </div>
+                {commentError && (
+                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                    {commentError}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Field
+                label={
+                  <>
+                    {t(config.commentLabelKey, config.commentLabel || "Notes")}
+                    <span className="ml-1 text-red-600">*</span>
+                  </>
+                }
+                labelClassName="!text-sm"
+              >
+                <textarea
+                  ref={screeningRemarksRef}
+                  value={comment}
+                  onChange={(event) => {
+                    setComment(event.target.value);
+                    if (commentError) setCommentError("");
+                  }}
+                  rows="3"
+                  required
+                  aria-required="true"
+                  className={`form-input form-input-sm ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
+                />
+                {commentError && (
+                  <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                    {commentError}
+                  </p>
+                )}
+              </Field>
+            )}
+
+            {showKuIklScreeningSignature && (
+              <ApprovalSupportSignatureBox
+                t={t}
+                value={screeningSignature}
+                error={screeningSignatureError}
+                onChange={(nextSignature) => {
+                  setScreeningSignature(nextSignature);
+                  if (screeningSignatureError) setScreeningSignatureError("");
                 }}
-                rows="3"
-                required
-                aria-required="true"
-                className={`form-input form-input-sm ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
+                onError={setScreeningSignatureError}
               />
-              {commentError && (
-                <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
-                  {commentError}
-                </p>
-              )}
-            </Field>
+            )}
 
             <div className="flex justify-end">
               <Button
@@ -8048,6 +8313,9 @@ function IklWorkspaceSections({
                     t
                   );
                   const cleanedComment = cleanRemark(comment);
+                  const requiresScreeningSignature =
+                    useKuIklDecisionTemplate &&
+                    typedDecision === "KU(IKL) Confirm - Send to Technical Units";
 
                   if (!typedDecision) {
                     setScreeningDecisionError(
@@ -8063,11 +8331,19 @@ function IklWorkspaceSections({
                     return;
                   }
 
+                  if (requiresScreeningSignature && !hasDigitalSignatureContent(screeningSignature)) {
+                    setScreeningSignatureError(
+                      t("workspace.signature.required", "Digital signature is required.")
+                    );
+                    return;
+                  }
+
                   setDecision(typedDecision);
                   submitAction(config.screeningAction, {
                     decision: typedDecision,
                     comment: cleanedComment,
                     checkDecisionRemark: false,
+                    screeningSignature: requiresScreeningSignature ? screeningSignature : null,
                   });
                 }}
                 className="min-h-8 px-2.5 py-1 text-sm sm:w-auto"

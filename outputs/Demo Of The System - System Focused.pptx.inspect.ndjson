@@ -1,0 +1,343 @@
+{"kind":"deck","id":"pr/wz5i8k","name":"Deck"}
+{"kind":"layout","layoutId":"43c171fd-dbb5-4e33-8c73-fd0bb8adbf51","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"99e16937-f43a-466d-87b1-412979e2f601","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/nw66dh","slide":1,"title":"ALiS","textShapes":7}
+{"kind":"textbox","id":"sh/g3ex0nux","slide":1,"text":"ALiS","textPreview":"ALiS","textChars":4,"textLines":1,"bbox":[70,92,520,92]}
+{"kind":"textbox","id":"sh/5o7qpg3e","slide":1,"text":"Advertisement License Application System","textPreview":"Advertisement License Application System","textChars":40,"textLines":1,"bbox":[74,190,590,76]}
+{"kind":"textbox","id":"sh/ylc7u54z","slide":1,"text":"A role-based platform for DBKU advertisement licensing, technical review, approval, payment, and QR e-license issuance.","textPreview":"A role-based platform for DBKU advertisement licensing, technical review, approval, payment, and QR e-license issuance.","textChars":119,"textLines":1,"bbox":[76,310,545,126]}
+{"kind":"shape","id":"sh/r65wjudg","slide":1,"bbox":[76,488,336,50]}
+{"kind":"textbox","id":"sh/gr2p8nqx","slide":1,"text":"System-focused presentation","textPreview":"System-focused presentation","textChars":27,"textLines":1,"bbox":[96,503,296,24]}
+{"kind":"textbox","id":"sh/9cvixcze","slide":1,"text":"Condensed from the demo deck and verified against the current ALiS repository","textPreview":"Condensed from the demo deck and verified against the current ALiS repository","textChars":77,"textLines":1,"bbox":[76,564,670,28]}
+{"kind":"shape","id":"sh/yd0z6103","slide":1,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/rytsvu9k","slide":1,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/bi9s36hc","slide":1,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"image","id":"im/e9cvixcz","slide":1,"name":"","geometry":"rect","alt":"ALiS logo artwork","bbox":[678,76,520,284]}
+{"kind":"notes","id":"nt/nw66dh","slide":1,"text":""}
+{"kind":"slide","id":"sl/5ozjay","slide":2,"title":"SYSTEM PURPOSE","textShapes":16}
+{"kind":"textbox","id":"sh/orytsvu9","slide":2,"text":"SYSTEM PURPOSE","textPreview":"SYSTEM PURPOSE","textChars":14,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/z61032ls","slide":2,"text":"What ALiS is built to solve","textPreview":"What ALiS is built to solve","textChars":27,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/al87ed8b","slide":2,"bbox":[54,150,1168,2]}
+{"kind":"textbox","id":"sh/h0fepkzu","slide":2,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[70,200,230,62]}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":2,"text":"single source of truth for advertisement license applications","textPreview":"single source of truth for advertisement license applications","textChars":61,"textLines":1,"bbox":[70,264,250,54]}
+{"kind":"textbox","id":"sh/zupwb2hw","slide":2,"text":"11+","textPreview":"11+","textChars":3,"textLines":1,"bbox":[390,200,230,62]}
+{"kind":"textbox","id":"sh/a9w3m94f","slide":2,"text":"internal and approval roles participating in one workflow","textPreview":"internal and approval roles participating in one workflow","textChars":57,"textLines":1,"bbox":[390,264,250,54]}
+{"kind":"textbox","id":"sh/hwfyxobm","slide":2,"text":"QR","textPreview":"QR","textChars":2,"textLines":1,"bbox":[710,200,230,62]}
+{"kind":"textbox","id":"sh/obm58z25","slide":2,"text":"e-license output for applicant download and verification","textPreview":"e-license output for applicant download and verification","textChars":56,"textLines":1,"bbox":[710,264,250,54]}
+{"kind":"shape","id":"sh/e1w7mp0b","slide":2,"bbox":[90,442,9,9]}
+{"kind":"textbox","id":"sh/7mp0bi9s","slide":2,"text":"Replace fragmented handoffs","textPreview":"Replace fragmented handoffs","textChars":27,"textLines":1,"bbox":[114,432,980,25]}
+{"kind":"textbox","id":"sh/w7mp0bi9","slide":2,"text":"Tasks move through named units with visible ownership and status.","textPreview":"Tasks move through named units with visible ownership and status.","textChars":65,"textLines":1,"bbox":[114,461,980,38]}
+{"kind":"shape","id":"sh/psfil0rq","slide":2,"bbox":[90,498,9,9]}
+{"kind":"textbox","id":"sh/epkzupwb","slide":2,"text":"Make decisions traceable","textPreview":"Make decisions traceable","textChars":24,"textLines":1,"bbox":[114,488,980,25]}
+{"kind":"textbox","id":"sh/7adsji5s","slide":2,"text":"Recommendations, remarks, signatures, dates, and generated documents stay with the application.","textPreview":"Recommendations, remarks, signatures, dates, and generated documents stay with the application.","textChars":95,"textLines":1,"bbox":[114,517,980,38]}
+{"kind":"shape","id":"sh/wval87ed","slide":2,"bbox":[90,554,9,9]}
+{"kind":"textbox","id":"sh/pg3ex0nu","slide":2,"text":"Close the loop with applicants","textPreview":"Close the loop with applicants","textChars":30,"textLines":1,"bbox":[114,544,980,25]}
+{"kind":"textbox","id":"sh/eloj2t83","slide":2,"text":"Applicants receive documents, upload receipts, and download the QR e-license from ALiS.","textPreview":"Applicants receive documents, upload receipts, and download the QR e-license from ALiS.","textChars":87,"textLines":1,"bbox":[114,573,980,38]}
+{"kind":"shape","id":"sh/36hcrmhk","slide":2,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/zupwb2hw","slide":2,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/a9w3m94f","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/5ozjay","slide":2,"text":""}
+{"kind":"slide","id":"sl/i8uv98","slide":3,"title":"USERS","textShapes":20}
+{"kind":"textbox","id":"sh/re1w7mp0","slide":3,"text":"USERS","textPreview":"USERS","textChars":5,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/kzupwb2h","slide":3,"text":"Role-based workspaces","textPreview":"Role-based workspaces","textChars":21,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/9knih4by","slide":3,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/25kb6xkf","slide":3,"bbox":[78,190,505,70]}
+{"kind":"textbox","id":"sh/rqd4vmtw","slide":3,"text":"Applicant","textPreview":"Applicant","textChars":9,"textLines":1,"bbox":[100,202,185,24]}
+{"kind":"textbox","id":"sh/kb6xkf6d","slide":3,"text":"Submit application, upload documents, pay, download QR.","textPreview":"Submit application, upload documents, pay, download QR.","textChars":55,"textLines":1,"bbox":[298,202,258,42]}
+{"kind":"shape","id":"sh/9w3m94fu","slide":3,"bbox":[653,190,505,70]}
+{"kind":"textbox","id":"sh/2hwfyxob","slide":3,"text":"PT(IKL)","textPreview":"PT(IKL)","textChars":7,"textLines":1,"bbox":[675,202,185,24]}
+{"kind":"textbox","id":"sh/r2p8nqxs","slide":3,"text":"Returned cases, letters, bills, receipts, e-license.","textPreview":"Returned cases, letters, bills, receipts, e-license.","textChars":52,"textLines":1,"bbox":[873,202,258,42]}
+{"kind":"shape","id":"sh/7ed8bat4","slide":3,"bbox":[78,282,505,70]}
+{"kind":"textbox","id":"sh/itgfmlkj","slide":3,"text":"KU(IKL)","textPreview":"KU(IKL)","textChars":7,"textLines":1,"bbox":[100,294,185,24]}
+{"kind":"textbox","id":"sh/pkzupwb2","slide":3,"text":"Initial screening and final technical checking.","textPreview":"Initial screening and final technical checking.","textChars":47,"textLines":1,"bbox":[298,294,258,42]}
+{"kind":"shape","id":"sh/0z61032l","slide":3,"bbox":[653,282,505,70]}
+{"kind":"textbox","id":"sh/72x4nap4","slide":3,"text":"IKL Technical","textPreview":"IKL Technical","textChars":13,"textLines":1,"bbox":[675,294,185,24]}
+{"kind":"textbox","id":"sh/ih4byhgn","slide":3,"text":"Site visit, fee/deposit calculation, recommendation.","textPreview":"Site visit, fee/deposit calculation, recommendation.","textChars":52,"textLines":1,"bbox":[873,294,258,42]}
+{"kind":"shape","id":"sh/p8nqxs72","slide":3,"bbox":[78,374,505,70]}
+{"kind":"textbox","id":"sh/0nuxc3yl","slide":3,"text":"Technical Units","textPreview":"Technical Units","textChars":15,"textLines":1,"bbox":[100,386,185,24]}
+{"kind":"textbox","id":"sh/7y1kre1w","slide":3,"text":"BLG, GPM, MNE, IMT, LNP, and ENG specialist reviews.","textPreview":"BLG, GPM, MNE, IMT, LNP, and ENG specialist reviews.","textChars":52,"textLines":1,"bbox":[298,386,258,42]}
+{"kind":"shape","id":"sh/ed8v6psf","slide":3,"bbox":[653,374,505,70]}
+{"kind":"textbox","id":"sh/mlkjm1cf","slide":3,"text":"KB(LES)","textPreview":"KB(LES)","textChars":7,"textLines":1,"bbox":[675,386,185,24]}
+{"kind":"textbox","id":"sh/f6dcbulw","slide":3,"text":"Verification and unit support before approval.","textPreview":"Verification and unit support before approval.","textChars":46,"textLines":1,"bbox":[873,386,258,42]}
+{"kind":"shape","id":"sh/4r65wjud","slide":3,"bbox":[78,466,505,70]}
+{"kind":"textbox","id":"sh/xc3ylc7u","slide":3,"text":"TP(RES)/PGH","textPreview":"TP(RES)/PGH","textChars":11,"textLines":1,"bbox":[100,478,185,24]}
+{"kind":"textbox","id":"sh/mtwra5gb","slide":3,"text":"Final approval recommendation and management decision.","textPreview":"Final approval recommendation and management decision.","textChars":54,"textLines":1,"bbox":[298,478,258,42]}
+{"kind":"shape","id":"sh/fepkzupw","slide":3,"bbox":[653,466,505,70]}
+{"kind":"textbox","id":"sh/4zidonyd","slide":3,"text":"MPHLG","textPreview":"MPHLG","textChars":5,"textLines":1,"bbox":[675,478,185,24]}
+{"kind":"textbox","id":"sh/xkf6dcbu","slide":3,"text":"External review or approval stage where required.","textPreview":"External review or approval stage where required.","textChars":49,"textLines":1,"bbox":[873,478,258,42]}
+{"kind":"shape","id":"sh/qxs72x4n","slide":3,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/fil0rqd4","slide":3,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/1orytsvu","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/i8uv98","slide":3,"text":""}
+{"kind":"slide","id":"sl/9vfjx4","slide":4,"title":"OPERATIONAL FLOW","textShapes":21}
+{"kind":"textbox","id":"sh/j6tovaho","slide":4,"text":"OPERATIONAL FLOW","textPreview":"OPERATIONAL FLOW","textChars":16,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/crmhk3q5","slide":4,"text":"End-to-end license workflow","textPreview":"End-to-end license workflow","textChars":27,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/1cfa9w3m","slide":4,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/uxc3ylc7","slide":4,"bbox":[78,226,240,3]}
+{"kind":"shape","id":"sh/ji5snelo","slide":4,"bbox":[78,214,42,42]}
+{"kind":"textbox","id":"sh/c3ylc7u5","slide":4,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[78,222,42,22]}
+{"kind":"textbox","id":"sh/1kre1w7m","slide":4,"text":"Applicant submits form","textPreview":"Applicant submits form","textChars":22,"textLines":1,"bbox":[78,272,240,58]}
+{"kind":"shape","id":"sh/q5o7qpg3","slide":4,"bbox":[370,226,240,3]}
+{"kind":"shape","id":"sh/jqh0fepk","slide":4,"bbox":[370,214,42,42]}
+{"kind":"textbox","id":"sh/fmlkjm1c","slide":4,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[370,222,42,22]}
+{"kind":"textbox","id":"sh/q1orytsv","slide":4,"text":"KU(IKL) screens","textPreview":"KU(IKL) screens","textChars":15,"textLines":1,"bbox":[370,272,240,58]}
+{"kind":"shape","id":"sh/xs72x4na","slide":4,"bbox":[662,226,240,3]}
+{"kind":"shape","id":"sh/87ed8bat","slide":4,"bbox":[662,214,42,42]}
+{"kind":"textbox","id":"sh/je9cvixc","slide":4,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[662,222,42,22]}
+{"kind":"textbox","id":"sh/qtcj6tov","slide":4,"text":"Technical review","textPreview":"Technical review","textChars":16,"textLines":1,"bbox":[662,272,240,58]}
+{"kind":"shape","id":"sh/1gvy90je","slide":4,"bbox":[954,226,240,3]}
+{"kind":"shape","id":"sh/8z25kb6x","slide":4,"bbox":[954,214,42,42]}
+{"kind":"textbox","id":"sh/fa9w3m94","slide":4,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[954,222,42,22]}
+{"kind":"textbox","id":"sh/qpg3ex0n","slide":4,"text":"KU(IKL) final check","textPreview":"KU(IKL) final check","textChars":19,"textLines":1,"bbox":[954,272,240,58]}
+{"kind":"shape","id":"sh/ytsvu9kn","slide":4,"bbox":[78,420,240,3]}
+{"kind":"shape","id":"sh/neloj2t8","slide":4,"bbox":[78,408,42,42]}
+{"kind":"textbox","id":"sh/czed8v6p","slide":4,"text":"5","textPreview":"5","textChars":1,"textLines":1,"bbox":[78,416,42,22]}
+{"kind":"textbox","id":"sh/5kb6xkf6","slide":4,"text":"KB(LES) verifies","textPreview":"KB(LES) verifies","textChars":16,"textLines":1,"bbox":[78,466,240,58]}
+{"kind":"shape","id":"sh/u54zidon","slide":4,"bbox":[370,420,240,3]}
+{"kind":"shape","id":"sh/nqxs72x4","slide":4,"bbox":[370,408,42,42]}
+{"kind":"textbox","id":"sh/cbulwval","slide":4,"text":"6","textPreview":"6","textChars":1,"textLines":1,"bbox":[370,416,42,22]}
+{"kind":"textbox","id":"sh/5sneloj2","slide":4,"text":"TP(RES)/PGH approves","textPreview":"TP(RES)/PGH approves","textChars":20,"textLines":1,"bbox":[370,466,240,58]}
+{"kind":"shape","id":"sh/y90je9cv","slide":4,"bbox":[662,420,240,3]}
+{"kind":"shape","id":"sh/nuxc3ylc","slide":4,"bbox":[662,408,42,42]}
+{"kind":"textbox","id":"sh/d0z61032","slide":4,"text":"7","textPreview":"7","textChars":1,"textLines":1,"bbox":[662,416,42,22]}
+{"kind":"textbox","id":"sh/kf6dcbul","slide":4,"text":"PT(IKL) bill and receipt","textPreview":"PT(IKL) bill and receipt","textChars":24,"textLines":1,"bbox":[662,466,240,58]}
+{"kind":"shape","id":"sh/vu9knih4","slide":4,"bbox":[954,420,240,3]}
+{"kind":"shape","id":"sh/29gr2p8n","slide":4,"bbox":[954,408,42,42]}
+{"kind":"textbox","id":"sh/d8bat47y","slide":4,"text":"8","textPreview":"8","textChars":1,"textLines":1,"bbox":[954,416,42,22]}
+{"kind":"textbox","id":"sh/knih4byh","slide":4,"text":"QR e-license issued","textPreview":"QR e-license issued","textChars":19,"textLines":1,"bbox":[954,466,240,58]}
+{"kind":"textbox","id":"sh/v6psfil0","slide":4,"text":"Every step is linked to a status label, task queue, decision log, and department permission.","textPreview":"Every step is linked to a status label, task queue, decision log, and department permission.","textChars":92,"textLines":1,"bbox":[86,576,900,42]}
+{"kind":"shape","id":"sh/2lszqtcj","slide":4,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/dcbulwva","slide":4,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/kre1w7mp","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/9vfjx4","slide":4,"text":""}
+{"kind":"slide","id":"sl/d4ox6l","slide":5,"title":"TASK MANAGEMENT","textShapes":13}
+{"kind":"textbox","id":"sh/54zidony","slide":5,"text":"TASK MANAGEMENT","textPreview":"TASK MANAGEMENT","textChars":15,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/udg7adsj","slide":5,"text":"Dashboards show the next action clearly","textPreview":"Dashboards show the next action clearly","textChars":39,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/nyd0z610","slide":5,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/5gbq1ory","slide":5,"bbox":[76,215,9,9]}
+{"kind":"textbox","id":"sh/upwb2hwf","slide":5,"text":"Process list","textPreview":"Process list","textChars":12,"textLines":1,"bbox":[100,205,430,25]}
+{"kind":"textbox","id":"sh/nap4r65w","slide":5,"text":"Users see their unit and task count before opening the queue.","textPreview":"Users see their unit and task count before opening the queue.","textChars":61,"textLines":1,"bbox":[100,234,430,52]}
+{"kind":"shape","id":"sh/c7u54zid","slide":5,"bbox":[76,303,9,9]}
+{"kind":"textbox","id":"sh/1orytsvu","slide":5,"text":"Personal task queue","textPreview":"Personal task queue","textChars":19,"textLines":1,"bbox":[100,293,430,25]}
+{"kind":"textbox","id":"sh/l0rqd4vm","slide":5,"text":"Only records waiting for the current unit are actionable.","textPreview":"Only records waiting for the current unit are actionable.","textChars":57,"textLines":1,"bbox":[100,322,430,52]}
+{"kind":"shape","id":"sh/wfyxobm5","slide":5,"bbox":[76,391,9,9]}
+{"kind":"textbox","id":"sh/7u54zido","slide":5,"text":"Stage-aware statuses","textPreview":"Stage-aware statuses","textChars":20,"textLines":1,"bbox":[100,381,430,25]}
+{"kind":"textbox","id":"sh/ed8bat47","slide":5,"text":"For example, after KB(LES) verifies, PGH sees Pending TP(RES)/PGH Final Approval.","textPreview":"For example, after KB(LES) verifies, PGH sees Pending TP(RES)/PGH Final Approval.","textChars":81,"textLines":1,"bbox":[100,410,430,52]}
+{"kind":"shape","id":"sh/lc7u54zi","slide":5,"bbox":[610,500,150,38]}
+{"kind":"textbox","id":"sh/wra5gbq1","slide":5,"text":"Personal Task","textPreview":"Personal Task","textChars":13,"textLines":1,"bbox":[622,508,126,22]}
+{"kind":"shape","id":"sh/36hcrmhk","slide":5,"bbox":[780,500,190,38]}
+{"kind":"textbox","id":"sh/eloj2t83","slide":5,"text":"Awaiting Approval","textPreview":"Awaiting Approval","textChars":17,"textLines":1,"bbox":[792,508,166,22]}
+{"kind":"shape","id":"sh/pg3ex0nu","slide":5,"bbox":[990,500,130,38]}
+{"kind":"textbox","id":"sh/wval87ed","slide":5,"text":"View Form","textPreview":"View Form","textChars":9,"textLines":1,"bbox":[1002,508,106,22]}
+{"kind":"shape","id":"sh/w3m94fu1","slide":5,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/loj2t83i","slide":5,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/ex0nuxc3","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"image","id":"im/tovahoza","slide":5,"name":"","geometry":"rect","alt":"Awaiting approval screenshot","bbox":[596,188,600,285]}
+{"kind":"notes","id":"nt/d4ox6l","slide":5,"text":""}
+{"kind":"slide","id":"sl/unm8sv","slide":6,"title":"TECHNICAL ROUTE","textShapes":24}
+{"kind":"textbox","id":"sh/3q5o7qpg","slide":6,"text":"TECHNICAL ROUTE","textPreview":"TECHNICAL ROUTE","textChars":15,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/wb2hwfyx","slide":6,"text":"Technical review converts site evidence into decisions","textPreview":"Technical review converts site evidence into decisions","textChars":54,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/lwval87e","slide":6,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/ex0nuxc3","slide":6,"bbox":[76,202,330,326]}
+{"kind":"textbox","id":"sh/3itgfmlk","slide":6,"text":"IKL Technical","textPreview":"IKL Technical","textChars":13,"textLines":1,"bbox":[106,230,250,34]}
+{"kind":"shape","id":"sh/w3m94fu1","slide":6,"bbox":[112,296,9,9]}
+{"kind":"textbox","id":"sh/loj2t83i","slide":6,"text":"Site visit","textPreview":"Site visit","textChars":10,"textLines":1,"bbox":[136,286,240,25]}
+{"kind":"textbox","id":"sh/at47y1kr","slide":6,"text":"Record visit details, location evidence, and site photo.","textPreview":"Record visit details, location evidence, and site photo.","textChars":56,"textLines":1,"bbox":[136,315,240,40]}
+{"kind":"shape","id":"sh/3ex0nuxc","slide":6,"bbox":[112,366,9,9]}
+{"kind":"textbox","id":"sh/3itgfmlk","slide":6,"text":"Fee calculation","textPreview":"Fee calculation","textChars":15,"textLines":1,"bbox":[136,356,240,25]}
+{"kind":"textbox","id":"sh/ex0nuxc3","slide":6,"text":"Capture advertisement size, license fee, deposit, and processing fee.","textPreview":"Capture advertisement size, license fee, deposit, and processing fee.","textChars":69,"textLines":1,"bbox":[136,385,240,40]}
+{"kind":"shape","id":"sh/loj2t83i","slide":6,"bbox":[112,436,9,9]}
+{"kind":"textbox","id":"sh/w3m94fu1","slide":6,"text":"Final technical recommendation","textPreview":"Final technical recommendation","textChars":30,"textLines":1,"bbox":[136,426,240,25]}
+{"kind":"textbox","id":"sh/3q5o7qpg","slide":6,"text":"Compile department feedback before KU(IKL) final checking.","textPreview":"Compile department feedback before KU(IKL) final checking.","textChars":58,"textLines":1,"bbox":[136,455,240,40]}
+{"kind":"shape","id":"sh/e9cvixcz","slide":6,"bbox":[492,222,160,92]}
+{"kind":"textbox","id":"sh/lwval87e","slide":6,"text":"BLG","textPreview":"BLG","textChars":3,"textLines":1,"bbox":[492,242,160,28]}
+{"kind":"textbox","id":"sh/wb2hwfyx","slide":6,"text":"Support / condition / reject","textPreview":"Support / condition / reject","textChars":28,"textLines":1,"bbox":[506,278,132,26]}
+{"kind":"shape","id":"sh/32lszqtc","slide":6,"bbox":[702,222,160,92]}
+{"kind":"textbox","id":"sh/ahoza1gv","slide":6,"text":"GPM","textPreview":"GPM","textChars":3,"textLines":1,"bbox":[702,242,160,28]}
+{"kind":"textbox","id":"sh/il0rqd4v","slide":6,"text":"Support / condition / reject","textPreview":"Support / condition / reject","textChars":28,"textLines":1,"bbox":[716,278,132,26]}
+{"kind":"shape","id":"sh/b6xkf6dc","slide":6,"bbox":[912,222,160,92]}
+{"kind":"textbox","id":"sh/0rqd4vmt","slide":6,"text":"MNE","textPreview":"MNE","textChars":3,"textLines":1,"bbox":[912,242,160,28]}
+{"kind":"textbox","id":"sh/tcj6tova","slide":6,"text":"Support / condition / reject","textPreview":"Support / condition / reject","textChars":28,"textLines":1,"bbox":[926,278,132,26]}
+{"kind":"shape","id":"sh/idonyd0z","slide":6,"bbox":[492,362,160,92]}
+{"kind":"textbox","id":"sh/byhgn29g","slide":6,"text":"IMT","textPreview":"IMT","textChars":3,"textLines":1,"bbox":[492,382,160,28]}
+{"kind":"textbox","id":"sh/0je9cvix","slide":6,"text":"Support / condition / reject","textPreview":"Support / condition / reject","textChars":28,"textLines":1,"bbox":[506,418,132,26]}
+{"kind":"shape","id":"sh/t47y1kre","slide":6,"bbox":[702,362,160,92]}
+{"kind":"textbox","id":"sh/i9s36hcr","slide":6,"text":"LNP","textPreview":"LNP","textChars":3,"textLines":1,"bbox":[702,382,160,28]}
+{"kind":"textbox","id":"sh/bulwval8","slide":6,"text":"Support / condition / reject","textPreview":"Support / condition / reject","textChars":28,"textLines":1,"bbox":[716,418,132,26]}
+{"kind":"shape","id":"sh/hcrmhk3q","slide":6,"bbox":[912,362,160,92]}
+{"kind":"textbox","id":"sh/orytsvu9","slide":6,"text":"ENG","textPreview":"ENG","textChars":3,"textLines":1,"bbox":[912,382,160,28]}
+{"kind":"textbox","id":"sh/z61032ls","slide":6,"text":"Support / condition / reject","textPreview":"Support / condition / reject","textChars":28,"textLines":1,"bbox":[926,418,132,26]}
+{"kind":"textbox","id":"sh/al87ed8b","slide":6,"text":"External technical units record scoped remarks; IKL Technical consolidates the full site review.","textPreview":"External technical units record scoped remarks; IKL Technical consolidates the full site review.","textChars":96,"textLines":1,"bbox":[502,526,630,46]}
+{"kind":"shape","id":"sh/h0fepkzu","slide":6,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":6,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/zupwb2hw","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/unm8sv","slide":6,"text":""}
+{"kind":"slide","id":"sl/wok3gg","slide":7,"title":"VERIFICATION AND APPROVAL","textShapes":11}
+{"kind":"textbox","id":"sh/c3ylc7u5","slide":7,"text":"VERIFICATION AND APPROVAL","textPreview":"VERIFICATION AND APPROVAL","textChars":25,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/ji5snelo","slide":7,"text":"Approval governance is visible and auditable","textPreview":"Approval governance is visible and auditable","textChars":44,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/uxc3ylc7","slide":7,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/crmhk3q5","slide":7,"bbox":[78,208,440,76]}
+{"kind":"textbox","id":"sh/j6tovaho","slide":7,"text":"KB(LES)","textPreview":"KB(LES)","textChars":7,"textLines":1,"bbox":[102,222,160,24]}
+{"kind":"textbox","id":"sh/ulwval87","slide":7,"text":"Verify","textPreview":"Verify","textChars":6,"textLines":1,"bbox":[280,222,200,42]}
+{"kind":"shape","id":"sh/18jqh0fe","slide":7,"bbox":[78,312,440,76]}
+{"kind":"textbox","id":"sh/8nqxs72x","slide":7,"text":"TP(RES)/PGH","textPreview":"TP(RES)/PGH","textChars":11,"textLines":1,"bbox":[102,326,160,24]}
+{"kind":"textbox","id":"sh/al87ed8b","slide":7,"text":"Final approval","textPreview":"Final approval","textChars":14,"textLines":1,"bbox":[280,326,200,42]}
+{"kind":"shape","id":"sh/z61032ls","slide":7,"bbox":[78,416,440,76]}
+{"kind":"textbox","id":"sh/orytsvu9","slide":7,"text":"MPHLG","textPreview":"MPHLG","textChars":5,"textLines":1,"bbox":[102,430,160,24]}
+{"kind":"textbox","id":"sh/hcrmhk3q","slide":7,"text":"Review when required","textPreview":"Review when required","textChars":20,"textLines":1,"bbox":[280,430,200,42]}
+{"kind":"textbox","id":"sh/a9w3m94f","slide":7,"text":"Decision log captures department, recommendation, remarks, date, and signature reference.","textPreview":"Decision log captures department, recommendation, remarks, date, and signature reference.","textChars":89,"textLines":1,"bbox":[82,540,990,42]}
+{"kind":"shape","id":"sh/zupwb2hw","slide":7,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":7,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/h0fepkzu","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"image","id":"im/0je9cvix","slide":7,"name":"","geometry":"rect","alt":"Action panel decision log screenshot","bbox":[628,182,565,310]}
+{"kind":"notes","id":"nt/wok3gg","slide":7,"text":""}
+{"kind":"slide","id":"sl/gwpcla","slide":8,"title":"DOCUMENTS","textShapes":13}
+{"kind":"textbox","id":"sh/ed8v6psf","slide":8,"text":"DOCUMENTS","textPreview":"DOCUMENTS","textChars":9,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/p4r65wju","slide":8,"text":"Payment and e-license complete the applicant journey","textPreview":"Payment and e-license complete the applicant journey","textChars":52,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/wjudg7ad","slide":8,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/7qpg3ex0","slide":8,"bbox":[80,216,9,9]}
+{"kind":"textbox","id":"sh/i5sneloj","slide":8,"text":"Approval letter and bill","textPreview":"Approval letter and bill","textChars":24,"textLines":1,"bbox":[104,206,470,25]}
+{"kind":"textbox","id":"sh/pwb2hwfy","slide":8,"text":"PT(IKL) uploads approved documents for applicant action.","textPreview":"PT(IKL) uploads approved documents for applicant action.","textChars":56,"textLines":1,"bbox":[104,235,470,48]}
+{"kind":"shape","id":"sh/0bi9s36h","slide":8,"bbox":[80,308,9,9]}
+{"kind":"textbox","id":"sh/7ed8bat4","slide":8,"text":"Receipt proof","textPreview":"Receipt proof","textChars":13,"textLines":1,"bbox":[104,298,470,25]}
+{"kind":"textbox","id":"sh/itgfmlkj","slide":8,"text":"Applicant uploads payment receipt; PT(IKL) verifies valid or rejected payment.","textPreview":"Applicant uploads payment receipt; PT(IKL) verifies valid or rejected payment.","textChars":78,"textLines":1,"bbox":[104,327,470,48]}
+{"kind":"shape","id":"sh/cvixczed","slide":8,"bbox":[80,400,9,9]}
+{"kind":"textbox","id":"sh/5gbq1ory","slide":8,"text":"Official receipt and advertisement license","textPreview":"Official receipt and advertisement license","textChars":42,"textLines":1,"bbox":[104,390,470,25]}
+{"kind":"textbox","id":"sh/upwb2hwf","slide":8,"text":"Once verified, PT(IKL) uploads final documents and issues the QR e-license.","textPreview":"Once verified, PT(IKL) uploads final documents and issues the QR e-license.","textChars":75,"textLines":1,"bbox":[104,419,470,48]}
+{"kind":"shape","id":"sh/nap4r65w","slide":8,"bbox":[690,210,306,306]}
+{"kind":"shape","id":"sh/cj6tovah","slide":8,"bbox":[730,250,226,150]}
+{"kind":"textbox","id":"sh/udg7adsj","slide":8,"text":"Issued document package","textPreview":"Issued document package","textChars":23,"textLines":1,"bbox":[722,424,244,28]}
+{"kind":"textbox","id":"sh/nyd0z610","slide":8,"text":"QR e-license","textPreview":"QR e-license","textChars":12,"textLines":1,"bbox":[690,540,306,32]}
+{"kind":"textbox","id":"sh/cfa9w3m9","slide":8,"text":"Downloadable by applicant after license issuance.","textPreview":"Downloadable by applicant after license issuance.","textChars":49,"textLines":1,"bbox":[640,580,410,28]}
+{"kind":"shape","id":"sh/1032lszq","slide":8,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/5sneloj2","slide":8,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/cbulwval","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"image","id":"im/i9s36hcr","slide":8,"name":"","geometry":"rect","alt":"ALiS document mark","bbox":[752,274,182,102]}
+{"kind":"notes","id":"nt/gwpcla","slide":8,"text":""}
+{"kind":"slide","id":"sl/51l4qc","slide":9,"title":"MONITORING","textShapes":16}
+{"kind":"textbox","id":"sh/gr2p8nqx","slide":9,"text":"MONITORING","textPreview":"MONITORING","textChars":10,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/r65wjudg","slide":9,"text":"Controls continue after the license is issued","textPreview":"Controls continue after the license is issued","textChars":45,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/ylc7u54z","slide":9,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/5o7qpg3e","slide":9,"bbox":[72,210,240,304]}
+{"kind":"textbox","id":"sh/g3ex0nux","slide":9,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[96,236,70,42]}
+{"kind":"textbox","id":"sh/nih4byhg","slide":9,"text":"Decision history","textPreview":"Decision history","textChars":16,"textLines":1,"bbox":[96,302,190,54]}
+{"kind":"textbox","id":"sh/yxobm58z","slide":9,"text":"Every DBKU and MPHLG decision is retained with remarks, officer, date, and document context.","textPreview":"Every DBKU and MPHLG decision is retained with remarks, officer, date, and document context.","textChars":92,"textLines":1,"bbox":[96,376,190,112]}
+{"kind":"shape","id":"sh/9s36hcrm","slide":9,"bbox":[364,210,240,304]}
+{"kind":"textbox","id":"sh/g7adsji5","slide":9,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[388,236,70,42]}
+{"kind":"textbox","id":"sh/y1kre1w7","slide":9,"text":"Notifications","textPreview":"Notifications","textChars":13,"textLines":1,"bbox":[388,302,190,54]}
+{"kind":"textbox","id":"sh/rmhk3q5o","slide":9,"text":"The system supports web notifications and can release renewal reminders by email and WhatsApp.","textPreview":"The system supports web notifications and can release renewal reminders by email and WhatsApp.","textChars":94,"textLines":1,"bbox":[388,376,190,112]}
+{"kind":"shape","id":"sh/g7adsji5","slide":9,"bbox":[656,210,240,304]}
+{"kind":"textbox","id":"sh/9s36hcrm","slide":9,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[680,236,70,42]}
+{"kind":"textbox","id":"sh/yd0z6103","slide":9,"text":"Renewal monitoring","textPreview":"Renewal monitoring","textChars":18,"textLines":1,"bbox":[680,302,190,54]}
+{"kind":"textbox","id":"sh/rytsvu9k","slide":9,"text":"Issued licenses are monitored at 3, 2, and 1 months before expiry.","textPreview":"Issued licenses are monitored at 3, 2, and 1 months before expiry.","textChars":66,"textLines":1,"bbox":[680,376,190,112]}
+{"kind":"shape","id":"sh/gfmlkjm1","slide":9,"bbox":[948,210,240,304]}
+{"kind":"textbox","id":"sh/90je9cvi","slide":9,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[972,236,70,42]}
+{"kind":"textbox","id":"sh/ylc7u54z","slide":9,"text":"Cancellation route","textPreview":"Cancellation route","textChars":18,"textLines":1,"bbox":[972,302,190,54]}
+{"kind":"textbox","id":"sh/r65wjudg","slide":9,"text":"After expiry without payment, PT(IKL) prepares notice, supervisor confirms, KB(LES) supports, applicant is notified.","textPreview":"After expiry without payment, PT(IKL) prepares notice, supervisor confirms, KB(LES) supports, applicant is notified.","textChars":116,"textLines":1,"bbox":[972,376,190,112]}
+{"kind":"shape","id":"sh/fa9w3m94","slide":9,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/qpg3ex0n","slide":9,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/xczed8v6","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/51l4qc","slide":9,"text":""}
+{"kind":"slide","id":"sl/ibgsg4","slide":10,"title":"TECHNOLOGY STACK","textShapes":26}
+{"kind":"textbox","id":"sh/gbq1oryt","slide":10,"text":"TECHNOLOGY STACK","textPreview":"TECHNOLOGY STACK","textChars":16,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/nuxc3ylc","slide":10,"text":"Framework and technical architecture","textPreview":"Framework and technical architecture","textChars":36,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/y90je9cv","slide":10,"bbox":[54,150,1168,2]}
+{"kind":"shape","id":"sh/58z25kb6","slide":10,"bbox":[74,202,336,330]}
+{"kind":"textbox","id":"sh/gn29gr2p","slide":10,"text":"Frontend","textPreview":"Frontend","textChars":8,"textLines":1,"bbox":[104,232,260,34]}
+{"kind":"shape","id":"sh/n29gr2p8","slide":10,"bbox":[112,298,9,9]}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":10,"text":"React 19 + Vite 8","textPreview":"React 19 + Vite 8","textChars":17,"textLines":1,"bbox":[136,288,248,25]}
+{"kind":"textbox","id":"sh/5kb6xkf6","slide":10,"text":"Single-page web application with fast build tooling.","textPreview":"Single-page web application with fast build tooling.","textChars":52,"textLines":1,"bbox":[136,317,248,38]}
+{"kind":"shape","id":"sh/czed8v6p","slide":10,"bbox":[112,368,9,9]}
+{"kind":"textbox","id":"sh/2hwfyxob","slide":10,"text":"React Router","textPreview":"React Router","textChars":12,"textLines":1,"bbox":[136,358,248,25]}
+{"kind":"textbox","id":"sh/r2p8nqxs","slide":10,"text":"Role-based navigation for applicant, admin, and supervisor journeys.","textPreview":"Role-based navigation for applicant, admin, and supervisor journeys.","textChars":68,"textLines":1,"bbox":[136,387,248,38]}
+{"kind":"shape","id":"sh/kjm1cfa9","slide":10,"bbox":[112,438,9,9]}
+{"kind":"textbox","id":"sh/94fu18jq","slide":10,"text":"UI and document tools","textPreview":"UI and document tools","textChars":21,"textLines":1,"bbox":[136,428,248,25]}
+{"kind":"textbox","id":"sh/2p8nqxs7","slide":10,"text":"CKEditor, qrcode.react, jsPDF/html2canvas, Mapbox/MapLibre.","textPreview":"CKEditor, qrcode.react, jsPDF/html2canvas, Mapbox/MapLibre.","textChars":59,"textLines":1,"bbox":[136,457,248,38]}
+{"kind":"shape","id":"sh/ra5gbq1o","slide":10,"bbox":[472,202,336,330]}
+{"kind":"textbox","id":"sh/gvy90je9","slide":10,"text":"Backend","textPreview":"Backend","textChars":7,"textLines":1,"bbox":[502,232,260,34]}
+{"kind":"shape","id":"sh/9gr2p8nq","slide":10,"bbox":[510,298,9,9]}
+{"kind":"textbox","id":"sh/2t83itgf","slide":10,"text":"Django 5.2 + DRF 3.17","textPreview":"Django 5.2 + DRF 3.17","textChars":21,"textLines":1,"bbox":[534,288,248,25]}
+{"kind":"textbox","id":"sh/re1w7mp0","slide":10,"text":"REST API layer for applications, accounts, and notifications.","textPreview":"REST API layer for applications, accounts, and notifications.","textChars":61,"textLines":1,"bbox":[534,317,248,38]}
+{"kind":"shape","id":"sh/nap4r65w","slide":10,"bbox":[510,368,9,9]}
+{"kind":"textbox","id":"sh/upwb2hwf","slide":10,"text":"SimpleJWT","textPreview":"SimpleJWT","textChars":9,"textLines":1,"bbox":[534,358,248,25]}
+{"kind":"textbox","id":"sh/5gbq1ory","slide":10,"text":"Bearer-token authentication with rotating refresh tokens.","textPreview":"Bearer-token authentication with rotating refresh tokens.","textChars":57,"textLines":1,"bbox":[534,387,248,38]}
+{"kind":"shape","id":"sh/cvixczed","slide":10,"bbox":[510,438,9,9]}
+{"kind":"textbox","id":"sh/nyd0z610","slide":10,"text":"PostgreSQL-ready","textPreview":"PostgreSQL-ready","textChars":16,"textLines":1,"bbox":[534,428,248,25]}
+{"kind":"textbox","id":"sh/udg7adsj","slide":10,"text":"psycopg2-binary dependency, media/static handling with WhiteNoise.","textPreview":"psycopg2-binary dependency, media/static handling with WhiteNoise.","textChars":66,"textLines":1,"bbox":[534,457,248,38]}
+{"kind":"shape","id":"sh/54zidony","slide":10,"bbox":[870,202,336,330]}
+{"kind":"textbox","id":"sh/cj6tovah","slide":10,"text":"Runtime","textPreview":"Runtime","textChars":7,"textLines":1,"bbox":[900,232,260,34]}
+{"kind":"shape","id":"sh/judg7ads","slide":10,"bbox":[908,298,9,9]}
+{"kind":"textbox","id":"sh/u9knih4b","slide":10,"text":"Gunicorn and Docker","textPreview":"Gunicorn and Docker","textChars":19,"textLines":1,"bbox":[932,288,248,25]}
+{"kind":"textbox","id":"sh/83itgfml","slide":10,"text":"Backend can run as a production WSGI service.","textPreview":"Backend can run as a production WSGI service.","textChars":45,"textLines":1,"bbox":[932,317,248,38]}
+{"kind":"shape","id":"sh/xobm58z2","slide":10,"bbox":[908,368,9,9]}
+{"kind":"textbox","id":"sh/qxs72x4n","slide":10,"text":"Nginx frontend","textPreview":"Nginx frontend","textChars":14,"textLines":1,"bbox":[932,358,248,25]}
+{"kind":"textbox","id":"sh/fil0rqd4","slide":10,"text":"Frontend includes nginx config for static delivery.","textPreview":"Frontend includes nginx config for static delivery.","textChars":51,"textLines":1,"bbox":[932,387,248,38]}
+{"kind":"shape","id":"sh/4fu18jqh","slide":10,"bbox":[908,438,9,9]}
+{"kind":"textbox","id":"sh/x0nuxc3y","slide":10,"text":"CORS configured","textPreview":"CORS configured","textChars":15,"textLines":1,"bbox":[932,428,248,25]}
+{"kind":"textbox","id":"sh/m94fu18j","slide":10,"text":"Allowed origins include localhost and fastrack.sapotlokal.my.","textPreview":"Allowed origins include localhost and fastrack.sapotlokal.my.","textChars":61,"textLines":1,"bbox":[932,457,248,38]}
+{"kind":"textbox","id":"sh/fu18jqh0","slide":10,"text":"Architecture pattern: React client -> authenticated REST API -> Django domain modules -> database, media, and notification services.","textPreview":"Architecture pattern: React client -> authenticated REST API -> Django domain modules -> database, media, and notification services.","textChars":132,"textLines":1,"bbox":[86,568,1030,40]}
+{"kind":"shape","id":"sh/4r65wjud","slide":10,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/xc3ylc7u","slide":10,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/tcj6tova","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/ibgsg4","slide":10,"text":""}
+{"kind":"slide","id":"sl/5g211b","slide":11,"title":"SECURITY CONTROLS","textShapes":30}
+{"kind":"textbox","id":"sh/g3ex0nux","slide":11,"text":"SECURITY CONTROLS","textPreview":"SECURITY CONTROLS","textChars":17,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/nih4byhg","slide":11,"text":"Rate limiting as backend traffic rules","textPreview":"Rate limiting as backend traffic rules","textChars":38,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/yxobm58z","slide":11,"bbox":[54,150,1168,2]}
+{"kind":"textbox","id":"sh/9cvixcze","slide":11,"text":"If a user, browser, or IP sends too many requests, Django temporarily blocks the request with 429 Too Many Requests.","textPreview":"If a user, browser, or IP sends too many requests, Django temporarily blocks the request with 429 Too Many Requests.","textChars":116,"textLines":1,"bbox":[76,174,1080,34]}
+{"kind":"shape","id":"sh/gr2p8nqx","slide":11,"bbox":[76,238,520,146]}
+{"kind":"shape","id":"sh/r65wjudg","slide":11,"bbox":[76,238,8,146]}
+{"kind":"textbox","id":"sh/ylc7u54z","slide":11,"text":"Normal API traffic","textPreview":"Normal API traffic","textChars":18,"textLines":1,"bbox":[104,254,450,26]}
+{"kind":"textbox","id":"sh/90je9cvi","slide":11,"text":"Anonymous API: 120/min","textPreview":"Anonymous API: 120/min","textChars":22,"textLines":1,"bbox":[104,290,182,20]}
+{"kind":"textbox","id":"sh/gfmlkjm1","slide":11,"text":"Public pages, register, and login-page API calls before the user signs in.","textPreview":"Public pages, register, and login-page API calls before the user signs in.","textChars":74,"textLines":1,"bbox":[294,290,266,24]}
+{"kind":"textbox","id":"sh/65wjudg7","slide":11,"text":"Logged-in API: 1000/min","textPreview":"Logged-in API: 1000/min","textChars":23,"textLines":1,"bbox":[104,318,182,20]}
+{"kind":"textbox","id":"sh/zqtcj6to","slide":11,"text":"High enough for normal staff/applicant work, but still stops loops or spam clicks.","textPreview":"High enough for normal staff/applicant work, but still stops loops or spam clicks.","textChars":82,"textLines":1,"bbox":[294,318,266,24]}
+{"kind":"shape","id":"sh/obm58z25","slide":11,"bbox":[660,238,520,146]}
+{"kind":"shape","id":"sh/hwfyxobm","slide":11,"bbox":[660,238,8,146]}
+{"kind":"textbox","id":"sh/6xkf6dcb","slide":11,"text":"Login protection","textPreview":"Login protection","textChars":16,"textLines":1,"bbox":[688,254,450,26]}
+{"kind":"textbox","id":"sh/zed8v6ps","slide":11,"text":"Login per IP: 120/min","textPreview":"Login per IP: 120/min","textChars":21,"textLines":1,"bbox":[688,290,182,20]}
+{"kind":"textbox","id":"sh/oza1gvy9","slide":11,"text":"Blocks obvious login flooding from one internet address.","textPreview":"Blocks obvious login flooding from one internet address.","textChars":56,"textLines":1,"bbox":[878,290,266,24]}
+{"kind":"textbox","id":"sh/hk3q5o7q","slide":11,"text":"Login username+IP: 10/min","textPreview":"Login username+IP: 10/min","textChars":25,"textLines":1,"bbox":[688,318,182,20]}
+{"kind":"textbox","id":"sh/al87ed8b","slide":11,"text":"Example: someone keeps guessing the password for ptikl from the same computer.","textPreview":"Example: someone keeps guessing the password for ptikl from the same computer.","textChars":78,"textLines":1,"bbox":[878,318,266,24]}
+{"kind":"shape","id":"sh/z61032ls","slide":11,"bbox":[76,414,520,166]}
+{"kind":"shape","id":"sh/bi9s36hc","slide":11,"bbox":[76,414,8,166]}
+{"kind":"textbox","id":"sh/ixczed8v","slide":11,"text":"Account recovery","textPreview":"Account recovery","textChars":16,"textLines":1,"bbox":[104,430,450,26]}
+{"kind":"textbox","id":"sh/tovahoza","slide":11,"text":"Register: 20/hour","textPreview":"Register: 20/hour","textChars":17,"textLines":1,"bbox":[104,466,182,20]}
+{"kind":"textbox","id":"sh/032lszqt","slide":11,"text":"Helps stop fake account creation from one IP.","textPreview":"Helps stop fake account creation from one IP.","textChars":45,"textLines":1,"bbox":[294,466,266,24]}
+{"kind":"textbox","id":"sh/bulwval8","slide":11,"text":"Reset request: 5/hour","textPreview":"Reset request: 5/hour","textChars":21,"textLines":1,"bbox":[104,492,182,20]}
+{"kind":"textbox","id":"sh/i9s36hcr","slide":11,"text":"Stops email or WhatsApp OTP spam.","textPreview":"Stops email or WhatsApp OTP spam.","textChars":33,"textLines":1,"bbox":[294,492,266,24]}
+{"kind":"textbox","id":"sh/p0bi9s36","slide":11,"text":"OTP verify: 30/hour","textPreview":"OTP verify: 30/hour","textChars":19,"textLines":1,"bbox":[104,518,182,20]}
+{"kind":"textbox","id":"sh/0fepkzup","slide":11,"text":"Limits repeated OTP guessing attempts.","textPreview":"Limits repeated OTP guessing attempts.","textChars":38,"textLines":1,"bbox":[294,518,266,24]}
+{"kind":"textbox","id":"sh/byhgn29g","slide":11,"text":"Reset confirm: 10/hour","textPreview":"Reset confirm: 10/hour","textChars":22,"textLines":1,"bbox":[104,544,182,20]}
+{"kind":"textbox","id":"sh/idonyd0z","slide":11,"text":"Limits final password changes.","textPreview":"Limits final password changes.","textChars":30,"textLines":1,"bbox":[294,544,266,24]}
+{"kind":"shape","id":"sh/wb2hwfyx","slide":11,"bbox":[660,414,520,146]}
+{"kind":"shape","id":"sh/lwval87e","slide":11,"bbox":[660,414,8,146]}
+{"kind":"textbox","id":"sh/e9cvixcz","slide":11,"text":"File upload protection","textPreview":"File upload protection","textChars":22,"textLines":1,"bbox":[688,430,450,26]}
+{"kind":"textbox","id":"sh/3q5o7qpg","slide":11,"text":"Upload: 60/hour","textPreview":"Upload: 60/hour","textChars":15,"textLines":1,"bbox":[688,466,182,20]}
+{"kind":"textbox","id":"sh/w3m94fu1","slide":11,"text":"A logged-in user can upload files up to 60 times per hour.","textPreview":"A logged-in user can upload files up to 60 times per hour.","textChars":58,"textLines":1,"bbox":[878,466,266,24]}
+{"kind":"textbox","id":"sh/loj2t83i","slide":11,"text":"Why it matters","textPreview":"Why it matters","textChars":14,"textLines":1,"bbox":[688,494,182,20]}
+{"kind":"textbox","id":"sh/ex0nuxc3","slide":11,"text":"Protects storage and server resources from repeated upload spam.","textPreview":"Protects storage and server resources from repeated upload spam.","textChars":64,"textLines":1,"bbox":[878,494,266,24]}
+{"kind":"textbox","id":"sh/3itgfmlk","slide":11,"text":"For ALiS, the defaults are balanced: strict on login/reset, generous for normal logged-in usage.","textPreview":"For ALiS, the defaults are balanced: strict on login/reset, generous for normal logged-in usage.","textChars":96,"textLines":1,"bbox":[88,594,1030,34]}
+{"kind":"shape","id":"sh/szqtcj6t","slide":11,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/lkjm1cfa","slide":11,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/d8v6psfi","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"notes","id":"nt/5g211b","slide":11,"text":""}
+{"kind":"slide","id":"sl/ucmpua","slide":12,"title":"IMPACT","textShapes":12}
+{"kind":"textbox","id":"sh/zupwb2hw","slide":12,"text":"IMPACT","textPreview":"IMPACT","textChars":6,"textLines":1,"bbox":[54,38,300,28]}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":12,"text":"System value and presentation close","textPreview":"System value and presentation close","textChars":35,"textLines":1,"bbox":[54,72,890,72]}
+{"kind":"shape","id":"sh/h0fepkzu","slide":12,"bbox":[54,150,1168,2]}
+{"kind":"textbox","id":"sh/z61032ls","slide":12,"text":"ALiS gives DBKU an auditable operating model for advertisement licensing.","textPreview":"ALiS gives DBKU an auditable operating model for advertisement licensing.","textChars":73,"textLines":1,"bbox":[76,205,500,118]}
+{"kind":"shape","id":"sh/orytsvu9","slide":12,"bbox":[96,384,9,9]}
+{"kind":"textbox","id":"sh/hcrmhk3q","slide":12,"text":"Confirm standard operating ownership","textPreview":"Confirm standard operating ownership","textChars":36,"textLines":1,"bbox":[120,374,470,25]}
+{"kind":"textbox","id":"sh/6xkf6dcb","slide":12,"text":"Validate each queue, permission, and status label with department leads.","textPreview":"Validate each queue, permission, and status label with department leads.","textChars":72,"textLines":1,"bbox":[120,403,470,38]}
+{"kind":"shape","id":"sh/zed8v6ps","slide":12,"bbox":[96,454,9,9]}
+{"kind":"textbox","id":"sh/n29gr2p8","slide":12,"text":"Train by real user journey","textPreview":"Train by real user journey","textChars":26,"textLines":1,"bbox":[120,444,470,25]}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":12,"text":"Run one sample application from submission to QR e-license.","textPreview":"Run one sample application from submission to QR e-license.","textChars":59,"textLines":1,"bbox":[120,473,470,38]}
+{"kind":"shape","id":"sh/58z25kb6","slide":12,"bbox":[96,524,9,9]}
+{"kind":"textbox","id":"sh/gn29gr2p","slide":12,"text":"Track operational metrics","textPreview":"Track operational metrics","textChars":25,"textLines":1,"bbox":[120,514,470,25]}
+{"kind":"textbox","id":"sh/nuxc3ylc","slide":12,"text":"Monitor pending tasks, resubmissions, approval duration, payment completion, and renewals.","textPreview":"Monitor pending tasks, resubmissions, approval duration, payment completion, and renewals.","textChars":90,"textLines":1,"bbox":[120,543,470,38]}
+{"kind":"textbox","id":"sh/y90je9cv","slide":12,"text":"Use the live system screenshots during the talk to anchor discussion in actual DBKU workflows.","textPreview":"Use the live system screenshots during the talk to anchor discussion in actual DBKU workflows.","textChars":94,"textLines":1,"bbox":[654,490,486,62]}
+{"kind":"shape","id":"sh/5wjudg7a","slide":12,"bbox":[54,654,1080,2]}
+{"kind":"textbox","id":"sh/gbq1oryt","slide":12,"text":"DBKU Advertisement License Application System","textPreview":"DBKU Advertisement License Application System","textChars":45,"textLines":1,"bbox":[54,668,520,24]}
+{"kind":"textbox","id":"sh/nqxs72x4","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1174,668,48,24]}
+{"kind":"image","id":"im/z25kb6xk","slide":12,"name":"","geometry":"rect","alt":"ALiS brand visual","bbox":[650,190,500,274]}
+{"kind":"notes","id":"nt/ucmpua","slide":12,"text":""}

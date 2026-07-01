@@ -1347,33 +1347,33 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
   const rows = [
     {
       key: "signatureStamp",
-      label: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+      label: t("workspace.signature.signatureAndStamp", "Signature & Stamp"),
     },
     {
       key: "name",
-      label: t("workspace.signature.name", "NAME"),
+      label: t("workspace.signature.name", "Name"),
     },
     {
       key: "position",
-      label: t("workspace.signature.position", "POSITION"),
+      label: t("workspace.signature.position", "Position"),
     },
     {
       key: "agency",
-      label: t("workspace.signature.agency", "AGENCY"),
+      label: t("workspace.signature.agency", "Agency"),
     },
     {
       key: "date",
-      label: t("workspace.signature.date", "DATE"),
+      label: t("workspace.signature.date", "Date"),
     },
   ];
 
   return (
     <div className="h-[200px] w-[380px] overflow-hidden">
       <div
-        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold uppercase leading-5 text-slate-950"
+        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950"
         style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
       >
-        <p className="text-[14px] font-bold">
+        <p className="text-[13px] font-bold uppercase leading-5">
           {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
         </p>
 
@@ -1428,7 +1428,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
                 className="col-start-3 flex min-w-0 items-end border-b border-slate-900 pb-1"
                 style={{ gridRow: index + 1 }}
               >
-                <span className="min-w-0 truncate">{signatureDetails[row.key] || ""}</span>
+                <span className="min-w-0 truncate uppercase">{signatureDetails[row.key] || ""}</span>
               </div>
             </div>
           ))}
