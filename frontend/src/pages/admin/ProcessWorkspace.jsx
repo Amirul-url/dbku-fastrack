@@ -295,6 +295,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     site_remarks: "",
     digital_signature: null,
   });
+  const technicalSiteRef = useRef(technicalSite);
+
+  useEffect(() => {
+    technicalSiteRef.current = technicalSite;
+  }, [technicalSite]);
 
   useEffect(() => {
     fetchApplications();
@@ -1444,6 +1449,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     const saveId = technicalSiteDraftSaveIdRef.current + 1;
     technicalSiteDraftSaveIdRef.current = saveId;
+    const hasNextSignature = Object.prototype.hasOwnProperty.call(
+      nextSite || {},
+      "digital_signature"
+    );
     const applicationSubtype =
       nextSite.application_subtype || getApplicationSubtypeFromApplication(selectedRecord);
     const preparedSite = mergeTechnicalFeeRowsCalculation({
@@ -1480,6 +1489,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
       processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
       site_remarks: preparedSite.site_remarks || saved.site_remarks || "",
+      digital_signature: hasNextSignature
+        ? nextSite.digital_signature
+        : technicalSiteRef.current?.digital_signature !== undefined
+          ? technicalSiteRef.current.digital_signature
+          : saved.digital_signature || null,
       officer_role: saved.officer_role || "PT/PO/KP Unit Iklan",
       draft_saved_at: new Date().toISOString(),
     };
@@ -2186,33 +2200,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   }
                 />
 
-              {(showWorkspaceDecisionLog || showWorkspaceVerificationReport) && (
+              {showWorkspaceDecisionLog && (
                 <div className="flex flex-wrap justify-end gap-2">
-                  {showWorkspaceDecisionLog && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      icon="assignment"
-                      onClick={() => setShowDecisionLog((visible) => !visible)}
-                    >
-                      {showDecisionLog
-                        ? t("workspace.decisionLog.hideReport", "Hide Report")
-                        : t("workspace.decisionLog.showReport", "Show Report")}
-                    </Button>
-                  )}
-
-                  {showWorkspaceVerificationReport && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      icon={showVerificationReport ? "visibility_off" : "visibility"}
-                      onClick={() => setShowVerificationReport((visible) => !visible)}
-                    >
-                      {showVerificationReport
-                        ? t("workspace.approval.hideVerificationReport", "Hide Verification Report")
-                        : t("workspace.approval.verificationReport", "Verification Report")}
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="assignment"
+                    onClick={() => setShowDecisionLog((visible) => !visible)}
+                  >
+                    {showDecisionLog
+                      ? t("workspace.decisionLog.hideReport", "Hide Report")
+                      : t("workspace.decisionLog.showReport", "Show Report")}
+                  </Button>
                 </div>
               )}
 
@@ -2289,6 +2288,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   setCommentError={setCommentError}
                   technicalSizeError={technicalSizeError}
                   setTechnicalSizeError={setTechnicalSizeError}
+                  technicalSignatureError={technicalSignatureError}
+                  setTechnicalSignatureError={setTechnicalSignatureError}
                   userDepartment={userDepartment}
                   showKuVerificationReport={showVerificationReport}
                 />
@@ -2901,18 +2902,6 @@ function WorkspaceDecisionLogReport({ app, t }) {
                         >
                           {t("common.view", "View")}
                         </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          icon="download"
-                          className="min-h-8 px-2.5 py-1 text-sm"
-                          disabled={downloadingLogId === log.id}
-                          onClick={() => handleDownloadReport(log)}
-                        >
-                          {downloadingLogId === log.id
-                            ? t("common.downloading", "Downloading...")
-                            : t("common.download", "Download")}
-                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -3062,6 +3051,165 @@ function buildDecisionLogSnapshotHtml(log) {
           line-height: 20px;
           color: #0f172a;
         }
+        .technical-report {
+          margin-bottom: 18px;
+        }
+        .technical-section {
+          margin-bottom: 12px;
+          border: 1px solid #dbe3ef;
+          border-radius: 4px;
+          background: #ffffff;
+          page-break-inside: avoid;
+          overflow: hidden;
+        }
+        .technical-section-header {
+          border-bottom: 1px solid #0f172a;
+          background: #f8fafc;
+          padding: 9px 12px;
+        }
+        .technical-section-title {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 700;
+          line-height: 20px;
+          color: #0f172a;
+        }
+        .technical-section-body {
+          padding: 10px 12px;
+        }
+        .technical-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+          line-height: 18px;
+        }
+        .technical-table th {
+          background: #f8fafc;
+          border-bottom: 1px solid #dbe3ef;
+          color: #334155;
+          font-weight: 700;
+          padding: 7px 8px;
+          text-align: left;
+        }
+        .technical-table td {
+          border-top: 1px solid #eef2f7;
+          color: #0f172a;
+          padding: 8px;
+          vertical-align: top;
+        }
+        .technical-departments {
+          margin: 9px 0 0;
+          color: #0f172a;
+          font-size: 13px;
+          line-height: 20px;
+        }
+        .technical-photo-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 44px;
+          border: 1px solid #dbe3ef;
+          border-radius: 4px;
+          background: #f8fafc;
+          padding: 8px 10px;
+        }
+        .technical-photo-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          border: 1px solid #94a3b8;
+          color: #475569;
+          font-size: 11px;
+          font-weight: 700;
+        }
+        .technical-photo-name {
+          margin: 0;
+          font-size: 13px;
+          font-weight: 600;
+          line-height: 18px;
+          color: #0f172a;
+        }
+        .technical-photo-meta {
+          margin: 0;
+          color: #475569;
+          font-size: 11px;
+          line-height: 16px;
+        }
+        .technical-empty {
+          border: 1px dashed #cbd5e1;
+          border-radius: 4px;
+          background: #f8fafc;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 14px;
+          text-align: center;
+        }
+        .fee-schedule {
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          padding: 10px;
+          page-break-inside: avoid;
+        }
+        .fee-schedule-heading {
+          margin: 0 0 8px;
+          text-align: center;
+          font-size: 13px;
+          line-height: 18px;
+        }
+        .fee-schedule-title {
+          display: block;
+          font-size: 16px;
+          font-weight: 700;
+          line-height: 20px;
+        }
+        .fee-schedule-grid {
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
+          gap: 5px 12px;
+          font-size: 11px;
+          line-height: 16px;
+        }
+        .fee-schedule-grid .fee-heading {
+          font-style: italic;
+          text-align: center;
+        }
+        .fee-card {
+          margin-top: 10px;
+          border: 1px solid #dbe3ef;
+          border-radius: 4px;
+          padding: 8px;
+          page-break-inside: avoid;
+        }
+        .fee-card-title {
+          margin: 0 0 8px;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 20px;
+        }
+        .fee-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 8px 12px;
+        }
+        .fee-field-label {
+          display: block;
+          margin-bottom: 3px;
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 17px;
+        }
+        .fee-input {
+          min-height: 30px;
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          padding: 5px 8px;
+          font-size: 12px;
+          line-height: 18px;
+          color: #0f172a;
+        }
         .remarks-label,
         .signature-label {
           margin: 0 0 8px;
@@ -3207,6 +3355,7 @@ function buildDecisionLogSnapshotHtml(log) {
         <p class="download-subtitle">${escapeHtml(formatDecisionLogDepartmentLabel(log.department))} · ${escapeHtml(formatCompactDateTimeBm(log.date))}</p>
       </div>
       <div class="download-body">
+        ${log.technicalReport ? buildDecisionLogTechnicalReportSnapshotHtml(log.technicalReport) : ""}
         ${decisionHtml}
         <div class="remarks-section">
           <p class="remarks-label">${escapeHtml(labels.remarks)}</p>
@@ -3216,6 +3365,228 @@ function buildDecisionLogSnapshotHtml(log) {
           </div>
         </div>
         ${signatureSource ? buildDecisionLogSignatureSnapshotHtml(log.signature, signatureSource, labels) : ""}
+      </div>
+    </div>
+  `;
+}
+
+function buildDecisionLogTechnicalReportSnapshotHtml(report) {
+  const technicalSite = report?.technicalSite || {};
+  const rows = getTechnicalFeeRowsFromSite(technicalSite);
+  const departmentsText = Array.isArray(report?.derivedDepartments)
+    ? report.derivedDepartments.join(", ")
+    : String(report?.derivedDepartments || "").trim();
+  const sitePhotos = Array.isArray(report?.sitePhotos) ? report.sitePhotos : [];
+  const scheduleNumbers = Array.from(
+    new Set(
+      rows
+        .map((row) =>
+          calculateTechnicalFee({
+            application_subtype: row.subtype,
+            width_ft: row.width_ft || row.widthFt || "",
+            height_ft: row.height_ft || row.heightFt || "",
+            area_sqm: row.area_sqm || row.areaSqm || row.areaRequired || row.area_required || "",
+          }).scheduleNumber
+        )
+        .filter(Boolean)
+    )
+  );
+
+  return `
+    <div class="technical-report">
+      <div class="technical-section">
+        <div class="technical-section-header">
+          <p class="technical-section-title">List of Application &amp; Project</p>
+        </div>
+        <div class="technical-section-body">
+          <table class="technical-table">
+            <thead>
+              <tr>
+                <th style="width:42px;">No.</th>
+                <th style="width:100px;">Category</th>
+                <th style="width:120px;">Display Type</th>
+                <th style="width:160px;">Advertisement Type</th>
+                <th>Title</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((row, index) => buildDecisionLogTechnicalProjectRowHtml(row, index)).join("")}
+            </tbody>
+          </table>
+          ${departmentsText ? `<p class="technical-departments"><strong>Departments involved:</strong> ${escapeHtml(departmentsText)}</p>` : ""}
+        </div>
+      </div>
+
+      <div class="technical-section">
+        <div class="technical-section-body">
+          <p class="technical-section-title">Advertisement Unit Site Visit</p>
+          <p style="margin:2px 0 10px;color:#334155;">Upload the site photo, enter the advertisement size, and record site findings.</p>
+          <p style="margin:0 0 6px;font-weight:700;">Site Photo</p>
+          ${sitePhotos.length > 0
+            ? `<div style="display:grid;gap:6px;">${sitePhotos.map(buildDecisionLogTechnicalPhotoHtml).join("")}</div>`
+            : '<div class="technical-empty">No site photo uploaded.</div>'
+          }
+        </div>
+      </div>
+
+      <div class="technical-section">
+        <div class="technical-section-body">
+          <p class="technical-section-title">Advertisement Size &amp; Fee Calculation</p>
+          ${buildDecisionLogFeeScheduleHtml(scheduleNumbers)}
+          <div style="display:grid;gap:8px;margin-top:10px;">
+            ${rows.map((row, index) => buildDecisionLogTechnicalFeeRowHtml(row, index)).join("")}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildDecisionLogTechnicalProjectRowHtml(row, index) {
+  const rowType =
+    normalizeApplicationTypeOptions(row?.applicationType || row?.application_type)[0] ||
+    getApplicationTypeFromSubtype(row?.subtype);
+  const displayType = row?.displayType || row?.display_type || getTechnicalDisplayTypeFromSubtype(row?.subtype);
+  const advertisementLabel =
+    row?.customLabel ||
+    row?.custom_label ||
+    getApplicationSubtypeLabel(rowType, row?.subtype, "en") ||
+    "";
+
+  return `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(getApplicationTypeOptionLabel(rowType, "en") || "-")}</td>
+      <td>${escapeHtml(getTechnicalDisplayTypeLabel(displayType, "en") || "-")}</td>
+      <td>${escapeHtml(getTechnicalAdvertisementOptionLabel(advertisementLabel, "en") || "-")}</td>
+      <td>${escapeHtml(buildTechnicalProjectNameLine("en", row, rowType) || "-")}</td>
+    </tr>
+  `;
+}
+
+function buildDecisionLogTechnicalPhotoHtml(photo) {
+  const name = photo?.name || photo?.title || photo?.fileName || "Site Photo";
+  const format = getTechnicalSitePhotoFormat(photo);
+  const size = formatTechnicalSitePhotoSize(photo?.size);
+  const meta = [format, size].filter(Boolean).join(" - ");
+
+  return `
+    <div class="technical-photo-row">
+      <span class="technical-photo-icon">IMG</span>
+      <div>
+        <p class="technical-photo-name">${escapeHtml(name)}</p>
+        ${meta ? `<p class="technical-photo-meta">${escapeHtml(meta)}</p>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function buildDecisionLogFeeScheduleHtml(scheduleNumbers = []) {
+  const visibleSchedules = scheduleNumbers.length > 0 ? scheduleNumbers : ["1"];
+
+  return `
+    <div class="fee-schedule">
+      <p class="fee-schedule-heading">
+        <em>SECOND SCHEDULE</em>
+        <span class="fee-schedule-title">LICENCE FEES</span>
+        <strong>(By-laws 9 and 10)</strong>
+      </p>
+      <div class="fee-schedule-grid">
+        <span></span>
+        <span class="fee-heading">Type of Advertisement</span>
+        <span class="fee-heading">Fee Payable</span>
+        <span class="fee-heading">City/Municipal Council</span>
+        <span class="fee-heading">District Council</span>
+        ${visibleSchedules.map(buildDecisionLogFeeScheduleBlockHtml).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function buildDecisionLogFeeScheduleBlockHtml(scheduleNumber) {
+  const isLedSchedule = String(scheduleNumber) === "6";
+  const typeDescription = isLedSchedule
+    ? "Advertisement by means of electronic or any non-print device"
+    : "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support";
+  const firstAreaText = isLedSchedule
+    ? "For the first 10 square metre or part thereof"
+    : "For the first 20 square metre or part thereof";
+  const additionalAreaText = isLedSchedule
+    ? "For every additional square metre"
+    : "For every additional square metre or part thereof";
+  const firstCityRate = isLedSchedule ? "RM2,000.00 per year" : "RM100.00 for every square metre per year";
+  const firstDistrictRate = isLedSchedule ? "RM1,500.00 per year" : "RM70.00 for every square metre per year";
+  const additionalCityRate = isLedSchedule ? "RM50.00 per year" : "RM70.00 per year";
+  const additionalDistrictRate = isLedSchedule ? "RM35.00 per year" : "RM50.00 per year";
+
+  return `
+    <span>${escapeHtml(scheduleNumber)}.</span>
+    <span>${escapeHtml(typeDescription)}</span>
+    <span>
+      (a) ${escapeHtml(firstAreaText)}<br>
+      (b) ${escapeHtml(additionalAreaText)}
+      ${isLedSchedule ? "<br>(c) For every set of device producing non-measurable advertisement" : ""}
+    </span>
+    <span>
+      ${escapeHtml(firstCityRate)}<br>
+      ${escapeHtml(additionalCityRate)}
+      ${isLedSchedule ? "<br>RM1,000.00 per year" : ""}
+    </span>
+    <span>
+      ${escapeHtml(firstDistrictRate)}<br>
+      ${escapeHtml(additionalDistrictRate)}
+      ${isLedSchedule ? "<br>RM750.00 per year" : ""}
+    </span>
+  `;
+}
+
+function buildDecisionLogTechnicalFeeRowHtml(row, index) {
+  const applicationType =
+    row.applicationType || row.application_type || getApplicationTypeFromSubtype(row.subtype);
+  const typeLabel = getApplicationTypeOptionLabel(applicationType, "en");
+  const displayType = row.displayType || row.display_type || getTechnicalDisplayTypeFromSubtype(row.subtype);
+  const displayLabel = getTechnicalDisplayTypeLabel(displayType, "en");
+  const advertisementLabel = getTechnicalAdvertisementOptionLabel(
+    row.customLabel || row.custom_label,
+    "en"
+  );
+  const widthValue = row.width_ft || row.widthFt || "";
+  const heightValue = row.height_ft || row.heightFt || "";
+  const fee = calculateTechnicalFee({
+    application_subtype: row.subtype,
+    width_ft: widthValue,
+    height_ft: heightValue,
+    area_sqm: "",
+  });
+  const hasCompleteSize = parseTechnicalNumber(widthValue) > 0 && parseTechnicalNumber(heightValue) > 0;
+  const areaValue = hasCompleteSize ? fee.areaSqm : 0;
+  const totalPayable = hasCompleteSize && fee.feeTotal ? fee.totalPayable : 0;
+
+  return `
+    <div class="fee-card">
+      <p class="fee-card-title">${index + 1}. ${escapeHtml(typeLabel)}: ${escapeHtml(displayLabel)} - ${escapeHtml(advertisementLabel || "-")}</p>
+      <div class="fee-grid">
+        <label>
+          <span class="fee-field-label">Advertisement Size (W x H)</span>
+          <div class="fee-input">${escapeHtml(widthValue || "-")} ft &nbsp; x &nbsp; ${escapeHtml(heightValue || "-")} ft</div>
+        </label>
+        <label>
+          <span class="fee-field-label">Area Required (Sq. m)</span>
+          <div class="fee-input">${escapeHtml(formatTechnicalDecimal(areaValue))}</div>
+        </label>
+        <label>
+          <span class="fee-field-label">Total Payable, (RM)</span>
+          <div class="fee-input">${escapeHtml(formatTechnicalAmountInput(totalPayable))}</div>
+        </label>
+        <label>
+          <span class="fee-field-label">Calculation breakdown</span>
+          <div class="fee-input">
+            ${escapeHtml(formatTechnicalDecimal(widthValue || 0))} ft x ${escapeHtml(formatTechnicalDecimal(heightValue || 0))} ft,
+            ${escapeHtml(formatTechnicalCurrency(fee.feeTotal))} fee +
+            ${escapeHtml(formatTechnicalCurrency(fee.deposit))} deposit +
+            ${escapeHtml(formatTechnicalCurrency(fee.processingFee))} processing
+          </div>
+        </label>
       </div>
     </div>
   `;
@@ -3608,9 +3979,11 @@ function sanitizeFilenamePart(value) {
 }
 
 function DecisionLogTemplateModal({ log, t, onClose }) {
+  const modalWidthClass = log?.technicalReport ? "max-w-[min(96vw,92rem)]" : "max-w-4xl";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
-      <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-md bg-white shadow-xl">
+      <div className={`max-h-[92vh] w-full ${modalWidthClass} overflow-hidden rounded-md bg-white shadow-xl`}>
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div>
             <p className="text-[13px] font-semibold leading-5 text-slate-950">
@@ -3651,6 +4024,10 @@ function DecisionLogRecordedTemplate({ log, t }) {
 
   return (
     <div className="space-y-4 text-[13px] leading-5 text-slate-950">
+      {log.technicalReport && (
+        <DecisionLogTechnicalReportView report={log.technicalReport} t={t} />
+      )}
+
       {log.decision && (
         <div className="max-w-[17rem]">
           <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
@@ -3695,6 +4072,107 @@ function DecisionLogRecordedTemplate({ log, t }) {
               fullSize
             />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DecisionLogTechnicalReportView({ report, t }) {
+  const technicalSite = report?.technicalSite || {};
+  const sitePhotos = Array.isArray(report?.sitePhotos) ? report.sitePhotos : [];
+
+  return (
+    <div className="space-y-4">
+      <TechnicalApplicationTypePanel
+        t={t}
+        language="en"
+        selectedTypes={report?.selectedTypes || []}
+        selectedSubtype={report?.selectedSubtype || technicalSite.application_subtype || ""}
+        derivedDepartments={report?.derivedDepartments || []}
+        step1={report?.step1 || {}}
+        saving={false}
+        onSubtypeChange={() => {}}
+        readOnly
+      />
+
+      <DecisionLogSitePhotoList
+        t={t}
+        title={t("workspace.technical.sitePhoto", "Site Photo")}
+        emptyText={t("workspace.info.notSubmitted", "Not submitted")}
+        applicationId={report?.applicationId}
+        photos={sitePhotos}
+      />
+
+      <div className="rounded-md border border-slate-200 bg-white p-3">
+        <TechnicalFeeCalculationSheet
+          t={t}
+          language="en"
+          value={technicalSite}
+          readOnly
+        />
+      </div>
+    </div>
+  );
+}
+
+function DecisionLogSitePhotoList({ t, title, emptyText, applicationId, photos }) {
+  const reportPhotos = Array.isArray(photos) ? photos : [];
+
+  async function viewPhoto(photo) {
+    try {
+      const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
+      if (!url) return;
+
+      window.open(url, "_blank");
+
+      if (revoke) {
+        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+      }
+    } catch (error) {
+      console.error("Failed to open site photo:", error);
+      window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <h4 className="text-[15px] font-semibold leading-6 text-slate-950">
+        {title}
+      </h4>
+      {reportPhotos.length === 0 ? (
+        <p className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+          {emptyText}
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {reportPhotos.map((photo, index) => (
+            <div
+              key={`${photo.name || photo.title || "site-photo"}-${index}`}
+              className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <Icon name="image" className="shrink-0 text-xl text-slate-500" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium leading-5 text-slate-700">
+                    {photo.name || photo.title || `${title} ${index + 1}`}
+                  </p>
+                  <p className="text-xs leading-5 text-slate-500">
+                    {getTechnicalSitePhotoMeta(photo)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                icon="visibility"
+                className="min-h-8 shrink-0 px-2.5 py-1 text-sm"
+                onClick={() => viewPhoto(photo)}
+              >
+                {t("common.view", "View")}
+              </Button>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -3773,7 +4251,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullS
   return (
     <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
       <div
-        className="w-full rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950"
+        className={`${fullSize ? "w-full max-w-[760px]" : "w-full"} rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950`}
         style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
       >
         <p className="text-[13px] font-bold uppercase leading-5">
@@ -5977,6 +6455,8 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(technicalReview),
     remarks: getWorkspaceDecisionLogRemarks(technicalReview),
     date: getWorkspaceDecisionLogDate(technicalReview, ["reviewed_at", "submitted_at"]),
+    signature: technicalReview.digital_signature || getApplicationSection(app, "technical_site_visit").digital_signature,
+    technicalReport: buildDecisionLogTechnicalReport(app),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -6080,7 +6560,31 @@ function addWorkspaceDecisionLogRow(rows, row, t) {
     remarks,
     date,
     signature: row.signature || section.digital_signature || null,
+    technicalReport: row.technicalReport || null,
   });
+}
+
+function buildDecisionLogTechnicalReport(app) {
+  if (!app) return null;
+
+  const formData = app.form_data || {};
+  const savedTechnicalSite = formData.technical_site_visit || {};
+  const selectedTypes = getApplicationTypeOptionsFromApplication(app);
+  const selectedSubtype = getApplicationSubtypeFromApplication(app);
+  const technicalSite = getReviewTechnicalSite(savedTechnicalSite, app);
+  const sitePhotos = Array.isArray(technicalSite.site_photos)
+    ? technicalSite.site_photos
+    : [];
+
+  return {
+    applicationId: app.id,
+    step1: formData.step_1 || {},
+    selectedTypes,
+    selectedSubtype,
+    derivedDepartments: getApplicationTypeTechnicalDepartmentsFromTypes(selectedTypes),
+    technicalSite,
+    sitePhotos,
+  };
 }
 
 function shouldShowAutoScreeningDecisionLog(section = {}) {
@@ -6861,6 +7365,7 @@ function buildIklTechnicalDecisionPayload(app, data) {
         final_decision: data.decision,
         decision: data.decision,
         comment: data.comment,
+        digital_signature: notSupported ? null : data.technicalSite?.digital_signature || null,
         department: "IKL (TECHNICAL)",
         reviewed_by: "PT/PO/KP Unit Iklan",
         reviewed_at: now,
@@ -6922,6 +7427,7 @@ function buildKuTechnicalReviewPayload(app, data) {
         decision: data.decision,
         remarks: data.comment,
         checks: createKuTechnicalChecks(data.kuChecks),
+        digital_signature: amendmentRequired ? null : data.kuSignature || null,
         memo_html: data.memoHtml || app.form_data?.technical_ku_review?.memo_html || "",
         reviewed_by: "KU(IKL)",
         reviewed_at: now,
@@ -8612,6 +9118,8 @@ function IklWorkspaceSections({
   setCommentError,
   technicalSizeError,
   setTechnicalSizeError,
+  technicalSignatureError,
+  setTechnicalSignatureError,
   userDepartment,
   showKuVerificationReport = false,
 }) {
@@ -8643,6 +9151,8 @@ function IklWorkspaceSections({
   const [kuDecisionInput, setKuDecisionInput] = useState("");
   const [kuDecisionError, setKuDecisionError] = useState("");
   const [kuRemarks, setKuRemarks] = useState("");
+  const [kuSignature, setKuSignature] = useState(null);
+  const [kuSignatureError, setKuSignatureError] = useState("");
   const [technicalDecision, setTechnicalDecision] = useState(
     config.technicalActions?.[0]?.decision || ""
   );
@@ -8676,9 +9186,15 @@ function IklWorkspaceSections({
       userDepartment,
       t
     ) === "KU(IKL) Confirm - Send to Technical Units";
+  const requiresKuTechnicalSignature =
+    showKuTechnicalReview &&
+    kuDecision === "KU(IKL) Confirm - Send to KB(LES)";
   const selectedTechnicalAction = config.technicalActions.find(
     (action) => action.decision === technicalDecision
   );
+  const requiresTechnicalFinalSignature =
+    selectedTechnicalAction?.buildPayload === buildIklTechnicalDecisionPayload &&
+    selectedTechnicalAction?.decision === "Supported";
   const technicalDecisionMustWait =
     selectedTechnicalAction &&
     (!hasSavedDepartmentSelection || !allDepartmentReviewsComplete) &&
@@ -8728,6 +9244,27 @@ function IklWorkspaceSections({
   }, [screeningSignatureError, showKuIklScreeningSignature]);
 
   useEffect(() => {
+    if (!showKuTechnicalReview) {
+      setKuSignature(null);
+      setKuSignatureError("");
+      return;
+    }
+
+    setKuSignature(selectedRecord.form_data?.technical_ku_review?.digital_signature || null);
+    setKuSignatureError("");
+  }, [
+    selectedRecord.id,
+    selectedRecord.form_data?.technical_ku_review?.digital_signature,
+    showKuTechnicalReview,
+  ]);
+
+  useEffect(() => {
+    if (!requiresKuTechnicalSignature && kuSignatureError) {
+      setKuSignatureError("");
+    }
+  }, [kuSignatureError, requiresKuTechnicalSignature]);
+
+  useEffect(() => {
     const savedDecision =
       selectedRecord.form_data?.technical_review?.final_decision ||
       selectedRecord.form_data?.technical_review?.decision ||
@@ -8747,6 +9284,33 @@ function IklWorkspaceSections({
         : ""
     );
   }, [config.technicalActions, selectedRecord.id, selectedRecord.form_data?.technical_review]);
+
+  useEffect(() => {
+    const savedReview = selectedRecord.form_data?.technical_ku_review || {};
+    const savedDecision = savedReview.decision || savedReview.recommendation || "";
+    const hasSavedDecision = config.kuTechnicalReview?.decisions?.some(
+      (action) => action.value === savedDecision
+    );
+
+    setKuDecision(hasSavedDecision ? savedDecision : "");
+    setKuDecisionInput(
+      hasSavedDecision
+        ? getKuTechnicalReviewDecisionInput(
+            savedDecision,
+            config.kuTechnicalReview.decisions,
+            t
+          )
+        : ""
+    );
+    setKuRemarks(savedReview.remarks || savedReview.comment || "");
+    setKuChecks(createKuTechnicalChecks(savedReview.checks));
+    setKuDecisionError("");
+  }, [
+    config.kuTechnicalReview,
+    selectedRecord.id,
+    selectedRecord.form_data?.technical_ku_review,
+    t,
+  ]);
 
   useEffect(() => {
     latestTechnicalSiteRef.current = technicalSite;
@@ -8815,16 +9379,52 @@ function IklWorkspaceSections({
     );
   }
 
+  function mergeTechnicalSiteWithCurrentSignature(nextSite, fallbackSite = latestTechnicalSiteRef.current) {
+    if (!nextSite) return nextSite;
+    if (Object.prototype.hasOwnProperty.call(nextSite, "digital_signature")) {
+      return nextSite;
+    }
+
+    return {
+      ...nextSite,
+      digital_signature: fallbackSite?.digital_signature || null,
+    };
+  }
+
+  function setTechnicalSitePreservingSignature(update) {
+    setTechnicalSite((prev) => {
+      const nextSite =
+        typeof update === "function" ? update(prev) : update;
+      const mergedSite = mergeTechnicalSiteWithCurrentSignature(nextSite, prev);
+      latestTechnicalSiteRef.current = mergedSite;
+      return mergedSite;
+    });
+  }
+
   function scheduleTechnicalSiteVisitDraftSave(nextSite) {
-    latestTechnicalSiteRef.current = nextSite;
+    const siteWithSignature = mergeTechnicalSiteWithCurrentSignature(nextSite);
+    latestTechnicalSiteRef.current = siteWithSignature;
 
     if (technicalSiteSaveTimerRef.current) {
       window.clearTimeout(technicalSiteSaveTimerRef.current);
     }
 
     technicalSiteSaveTimerRef.current = window.setTimeout(() => {
-      saveTechnicalSiteVisitDraft(nextSite);
+      saveTechnicalSiteVisitDraft(siteWithSignature);
     }, 600);
+  }
+
+  function handleTechnicalFinalSignatureChange(nextSignature) {
+    const nextSite = {
+      ...latestTechnicalSiteRef.current,
+      digital_signature: nextSignature,
+    };
+    latestTechnicalSiteRef.current = nextSite;
+    setTechnicalSite((prev) => ({
+      ...prev,
+      digital_signature: nextSignature,
+    }));
+    scheduleTechnicalSiteVisitDraftSave(nextSite);
   }
 
   async function handleSitePhotoUpload(files) {
@@ -8885,9 +9485,17 @@ function IklWorkspaceSections({
       return;
     }
 
+    if (requiresKuTechnicalSignature && !hasDigitalSignatureContent(kuSignature)) {
+      setKuSignatureError(
+        t("workspace.signature.required", "Digital signature is required.")
+      );
+      return;
+    }
+
     submitAction(config.kuTechnicalReview.action, {
       decision: kuDecision,
       comment: kuRemarks,
+      kuSignature,
       kuChecks,
       checkDecisionRemark: true,
     });
@@ -8909,6 +9517,16 @@ function IklWorkspaceSections({
     if (!cleanedRemarks) {
       setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
       technicalRemarksRef.current?.focus();
+      return;
+    }
+
+    if (
+      requiresTechnicalFinalSignature &&
+      !hasDigitalSignatureContent(technicalSite.digital_signature)
+    ) {
+      setTechnicalSignatureError(
+        t("workspace.signature.required", "Digital signature is required.")
+      );
       return;
     }
 
@@ -9170,8 +9788,6 @@ function IklWorkspaceSections({
                 onToggle={handleTechnicalApplicationTypeToggle}
                 onSubtypeChange={handleTechnicalApplicationSubtypeChange}
               />
-
-              <TechnicalDepartmentRemarks app={selectedRecord} t={t} compact />
             </>
           )}
 
@@ -9180,7 +9796,7 @@ function IklWorkspaceSections({
             language={language}
             applicationId={selectedRecord.id}
             value={technicalSite}
-            onChange={setTechnicalSite}
+            onChange={setTechnicalSitePreservingSignature}
             onFileChange={handleSitePhotoUpload}
             onDraftChange={scheduleTechnicalSiteVisitDraftSave}
             sizeError={technicalSizeError}
@@ -9209,11 +9825,11 @@ function IklWorkspaceSections({
           )}
 
           <div className="rounded-md border border-slate-200 bg-white p-3">
-            <div className="space-y-2.5">
-              <Field
-                label={t("workspace.technical.supportQuestion", "Your Recommendation")}
-                labelClassName="!mb-1 !text-[13px] !leading-4"
-              >
+            <div className="space-y-4">
+              <div className="max-w-[56rem]">
+                <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                  {t("workspace.technical.supportQuestion", "Your Recommendation")}
+                </span>
                 <input
                   ref={technicalDecisionInputRef}
                   type="text"
@@ -9222,9 +9838,10 @@ function IklWorkspaceSections({
                     const nextValue = event.target.value;
                     setTechnicalDecisionInput(nextValue);
                     if (technicalDecisionError) setTechnicalDecisionError("");
+                    if (technicalSignatureError) setTechnicalSignatureError("");
                     setTechnicalDecision(getTechnicalRecommendationDecision(nextValue));
                   }}
-                  className={`form-input form-input-sm max-w-sm ${technicalDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${technicalDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t("workspace.technical.recommendationPlaceholder", "Type Yes or No")}
                   inputMode="text"
                   aria-invalid={Boolean(technicalDecisionError)}
@@ -9234,40 +9851,62 @@ function IklWorkspaceSections({
                     {technicalDecisionError}
                   </p>
                 )}
-              </Field>
+              </div>
 
-              <Field
-                label={
-                  <>
+              <div className="max-w-[56rem]">
+                <label
+                  htmlFor="ikl-technical-final-remarks"
+                  className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
+                >
                     {t("workspace.comment.remarks", "Remarks")}
                     <span className="ml-1 text-red-600">*</span>
-                  </>
-                }
-                labelClassName="!mb-1 !text-[13px] !leading-4"
-              >
-                <textarea
-                  ref={technicalRemarksRef}
-                  value={technicalSite.site_remarks}
-                  onChange={(event) => {
-                    if (commentError) setCommentError("");
-                    setTechnicalSite((prev) => ({
-                      ...prev,
-                      site_remarks: event.target.value,
-                    }));
+                </label>
+                <div
+                  className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
                   }}
-                  rows="2"
-                  required
-                  aria-required="true"
-                  aria-invalid={Boolean(commentError)}
-                  className={`form-input form-input-sm !min-h-[58px] ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                  placeholder={t("workspace.technical.siteRemarksPlaceholder")}
-                />
+                >
+                  <textarea
+                    id="ikl-technical-final-remarks"
+                    ref={technicalRemarksRef}
+                    value={technicalSite.site_remarks}
+                    onChange={(event) => {
+                      if (commentError) setCommentError("");
+                      setTechnicalSite((prev) => ({
+                        ...prev,
+                        site_remarks: event.target.value,
+                      }));
+                    }}
+                    rows="12"
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(commentError)}
+                    className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                    placeholder={t("workspace.technical.siteRemarksPlaceholder")}
+                    style={{ lineHeight: "26px" }}
+                  />
+                </div>
                 {commentError && (
                   <p className="mt-1.5 text-sm font-medium leading-5 text-red-600">
                     {commentError}
                   </p>
                 )}
-              </Field>
+              </div>
+
+              {requiresTechnicalFinalSignature && (
+                <ApprovalSupportSignatureBox
+                  t={t}
+                  value={technicalSite.digital_signature}
+                  error={technicalSignatureError}
+                  onChange={(nextSignature) => {
+                    handleTechnicalFinalSignatureChange(nextSignature);
+                    if (technicalSignatureError) setTechnicalSignatureError("");
+                  }}
+                  onError={setTechnicalSignatureError}
+                />
+              )}
 
               <div className="flex justify-end border-t border-slate-100 pt-3">
                 <Button
@@ -9324,8 +9963,12 @@ function IklWorkspaceSections({
             </>
           )}
 
-          <section className="space-y-3">
-              <Field label={t("common.decision")}>
+          <section className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="space-y-4">
+              <div className="max-w-[56rem]">
+                <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                  {t("workspace.technical.supportQuestion", "Your Recommendation")}
+                </span>
                 <input
                   ref={kuDecisionInputRef}
                   type="text"
@@ -9334,6 +9977,7 @@ function IklWorkspaceSections({
                     const nextValue = event.target.value;
                     setKuDecisionInput(nextValue);
                     if (kuDecisionError) setKuDecisionError("");
+                    if (kuSignatureError) setKuSignatureError("");
                     setKuDecision(
                       getKuTechnicalReviewDecisionFromInput(
                         nextValue,
@@ -9353,7 +9997,7 @@ function IklWorkspaceSections({
                       );
                     }
                   }}
-                  className={`form-input w-full max-w-[28rem] ${kuDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${kuDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t(
                     "workspace.decision.typeApproveOrRequestAmendment",
                     "Type Approve or Request Amendment"
@@ -9366,38 +10010,61 @@ function IklWorkspaceSections({
                     {kuDecisionError}
                   </p>
                 )}
-              </Field>
+              </div>
 
-              <Field
-                label={
-                  <>
+              <div className="max-w-[56rem]">
+                <label
+                  htmlFor="ku-technical-review-remarks"
+                  className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
+                >
                     {t("workspace.comment.remarks")}
                     <span className="ml-1 text-red-600">*</span>
-                  </>
-                }
-              >
-                <textarea
-                  ref={kuRemarksRef}
-                  value={kuRemarks}
-                  onChange={(event) => {
-                    setKuRemarks(event.target.value);
-                    if (commentError) setCommentError("");
+                </label>
+                <div
+                  className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
                   }}
-                  rows="4"
-                  required
-                  aria-required="true"
-                  aria-invalid={Boolean(commentError)}
-                  className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                  placeholder={t("workspace.technical.kuReviewPlaceholder")}
-                />
+                >
+                  <textarea
+                    id="ku-technical-review-remarks"
+                    ref={kuRemarksRef}
+                    value={kuRemarks}
+                    onChange={(event) => {
+                      setKuRemarks(event.target.value);
+                      if (commentError) setCommentError("");
+                    }}
+                    rows="12"
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(commentError)}
+                    className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                    placeholder={t("workspace.technical.kuReviewPlaceholder")}
+                    style={{ lineHeight: "26px" }}
+                  />
+                </div>
                 {commentError && (
                   <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
                     {commentError}
                   </p>
                 )}
-              </Field>
+              </div>
 
-              <div className="flex justify-end">
+              {requiresKuTechnicalSignature && (
+                <ApprovalSupportSignatureBox
+                  t={t}
+                  value={kuSignature}
+                  error={kuSignatureError}
+                  onChange={(nextSignature) => {
+                    setKuSignature(nextSignature);
+                    if (kuSignatureError) setKuSignatureError("");
+                  }}
+                  onError={setKuSignatureError}
+                />
+              )}
+
+              <div className="flex justify-end border-t border-slate-100 pt-3">
                 <Button
                   icon={config.kuTechnicalReview.action.icon}
                   disabled={saving}
@@ -9409,6 +10076,7 @@ function IklWorkspaceSections({
                     : t("common.submit", "Submit")}
                 </Button>
               </div>
+            </div>
           </section>
         </>
       )}
@@ -10280,6 +10948,30 @@ function ReportPhotoGrid({ t, title, emptyText, applicationId, photos }) {
   );
 }
 
+function SitePhotoPreview({ photo, applicationId, alt }) {
+  const source = getSitePhotoSource(photo, applicationId);
+  const format = getTechnicalSitePhotoFormat(photo);
+  const isImage = source && format !== "PDF";
+
+  return (
+    <div className="flex aspect-video items-center justify-center bg-slate-50">
+      {isImage ? (
+        <img
+          src={source}
+          alt={alt}
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-500">
+          <Icon name={format === "PDF" ? "picture_as_pdf" : "image"} className="text-3xl" />
+          <span className="text-xs font-semibold">{format || "File"}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getApplicantSitePhotos(app) {
   const step1 = app?.form_data?.step_1 || {};
   const documents = Array.isArray(app?.supporting_documents)
@@ -10592,8 +11284,8 @@ function getIklScreeningDecisionOptions(decisions, department) {
 
 function getTechnicalRecommendationDecision(value) {
   const normalized = String(value || "").trim().toLowerCase();
-  if (["yes", "y", "ya"].includes(normalized)) return "Supported";
-  if (["no", "n", "tidak"].includes(normalized)) return "Not Supported";
+  if (["yes", "ya"].includes(normalized)) return "Supported";
+  if (["no", "tidak"].includes(normalized)) return "Not Supported";
   if (normalized === "supported") return "Supported";
   if (normalized === "not supported") return "Not Supported";
   return "";
