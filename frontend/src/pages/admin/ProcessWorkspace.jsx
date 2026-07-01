@@ -3813,12 +3813,18 @@ function MphlgDocumentTableCell({ children, center = false, colSpan }) {
 
 function getMphlgSupportingDocuments(app) {
   const rows = app?.form_data?.mphlg_gateway?.supporting_documents;
+  return normalizeMphlgSupportingDocumentRows(rows);
+}
+
+function normalizeMphlgSupportingDocumentRows(rows) {
   return Array.isArray(rows)
-    ? rows.map((row) => ({
-        description: row?.description || "",
-        format: row?.format || "PDF",
-        attachment: row?.attachment || null,
-      }))
+    ? rows
+        .map((row) => ({
+          description: row?.description || "",
+          format: row?.format || "PDF",
+          attachment: row?.attachment || null,
+        }))
+        .filter((row) => row.description || row.attachment)
     : [];
 }
 
@@ -4091,6 +4097,53 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
         }
         .technical-report {
           margin-bottom: 18px;
+        }
+        .mphlg-documents {
+          margin-bottom: 18px;
+          border: 1px solid #dbe3ef;
+          border-radius: 4px;
+          background: #ffffff;
+          overflow: hidden;
+        }
+        .mphlg-documents-title {
+          margin: 0;
+          border-left: 4px solid #18b36b;
+          padding: 10px 12px;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 18px;
+          color: #334155;
+          text-transform: uppercase;
+        }
+        .mphlg-documents-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 11px;
+          line-height: 16px;
+          color: #0f172a;
+        }
+        .mphlg-documents-table th {
+          border: 1px solid #e2e8f0;
+          background: #f1f5f4;
+          padding: 8px 10px;
+          font-weight: 700;
+          text-align: left;
+        }
+        .mphlg-documents-table td {
+          border: 1px solid #e2e8f0;
+          background: #e4f4df;
+          padding: 8px 10px;
+          vertical-align: top;
+        }
+        .mphlg-documents-file {
+          color: #00843d;
+          font-weight: 700;
+        }
+        .mphlg-documents-meta {
+          margin-top: 3px;
+          color: #64748b;
+          font-size: 10px;
+          font-weight: 600;
         }
         .technical-section {
           margin-bottom: 12px;
@@ -4394,6 +4447,7 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
       </div>
       <div class="download-body">
         ${log.technicalReport ? buildDecisionLogTechnicalReportSnapshotHtml(log.technicalReport) : ""}
+        ${buildDecisionLogMphlgSupportingDocumentsSnapshotHtml(log.supportingDocuments, labels)}
         ${decisionHtml}
         <div class="remarks-section">
           <p class="remarks-label">${escapeHtml(labels.remarks)}</p>
@@ -4404,6 +4458,46 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
         </div>
         ${signatureSource ? buildDecisionLogSignatureSnapshotHtml(log.signature, signatureSource, labels) : ""}
       </div>
+    </div>
+  `;
+}
+
+function buildDecisionLogMphlgSupportingDocumentsSnapshotHtml(documents, labels) {
+  const rows = normalizeMphlgSupportingDocumentRows(documents);
+  if (!rows.length) return "";
+
+  return `
+    <div class="mphlg-documents">
+      <p class="mphlg-documents-title">${escapeHtml(labels.supportingDocumentsTitle)}</p>
+      <table class="mphlg-documents-table">
+        <thead>
+          <tr>
+            <th style="width:44px;">#</th>
+            <th style="width:34%;">${escapeHtml(labels.description)}</th>
+            <th style="width:90px;">${escapeHtml(labels.format)}</th>
+            <th style="width:310px;">${escapeHtml(labels.attachment)}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row, index) => {
+            const attachment = row.attachment || {};
+            const filename = attachment.name || attachment.title || attachment.filename || "";
+            const size = formatMphlgDocumentFileSize(attachment.size);
+            return `
+              <tr>
+                <td>${String.fromCharCode(65 + index)}</td>
+                <td>${escapeHtml(row.description || "-")}</td>
+                <td>${escapeHtml(row.format || "PDF")}</td>
+                <td>
+                  <div class="mphlg-documents-file">${escapeHtml(filename || labels.noAttachment)}</div>
+                  ${size ? `<div class="mphlg-documents-meta">${escapeHtml(size)}</div>` : ""}
+                  <div class="mphlg-documents-meta">${escapeHtml(labels.attachmentLimit)}</div>
+                </td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -4635,6 +4729,12 @@ function getDecisionLogDownloadLabels(language = "en") {
     return {
       decision: "Cadangan Anda",
       remarks: "Ulasan",
+      supportingDocumentsTitle: "Dokumen Sokongan Berkaitan Lain (Jika Ada)",
+      description: "Keterangan",
+      format: "Format",
+      attachment: "Lampiran",
+      noAttachment: "Tiada lampiran",
+      attachmentLimit: "Saiz fail maksimum 15MB. PDF sahaja.",
       signatureTitle: "Tandatangan Digital",
       confirmation: "PENGESAHAN",
       signatureAndStamp: "Tandatangan & Cop",
@@ -4649,6 +4749,12 @@ function getDecisionLogDownloadLabels(language = "en") {
   return {
     decision: "Your Recommendation",
     remarks: "Remarks",
+    supportingDocumentsTitle: "Other Relevant Supporting Documents (If Any)",
+    description: "Description",
+    format: "Format",
+    attachment: "Attachment",
+    noAttachment: "No attachment",
+    attachmentLimit: "Maximum file size 15MB. PDF only.",
     signatureTitle: "Digital Signature",
     confirmation: "CONFIRMATION",
     signatureAndStamp: "Signature & Stamp",
@@ -5047,7 +5153,12 @@ function sanitizeFilenamePart(value) {
 }
 
 function DecisionLogTemplateModal({ log, t, language = "en", onClose }) {
-  const modalWidthClass = log?.technicalReport ? "max-w-[min(96vw,92rem)]" : "max-w-4xl";
+  const hasSupportingDocuments = Array.isArray(log?.supportingDocuments) && log.supportingDocuments.length > 0;
+  const modalWidthClass = log?.technicalReport
+    ? "max-w-[min(96vw,92rem)]"
+    : hasSupportingDocuments
+      ? "max-w-[min(96vw,78rem)]"
+      : "max-w-4xl";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
@@ -5136,6 +5247,10 @@ function DecisionLogRecordedTemplate({ log, t }) {
         <DecisionLogTechnicalReportView report={log.technicalReport} t={t} />
       )}
 
+      {Array.isArray(log.supportingDocuments) && log.supportingDocuments.length > 0 && (
+        <DecisionLogMphlgSupportingDocumentsView documents={log.supportingDocuments} t={t} />
+      )}
+
       {log.decision && (
         <div className="max-w-[17rem]">
           <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
@@ -5183,6 +5298,79 @@ function DecisionLogRecordedTemplate({ log, t }) {
         </div>
       )}
     </div>
+  );
+}
+
+function DecisionLogMphlgSupportingDocumentsView({ documents, t }) {
+  const rows = normalizeMphlgSupportingDocumentRows(documents);
+  if (!rows.length) return null;
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center gap-2 border-l-4 border-[#18b36b] bg-white px-4 py-3">
+        <h2 className="text-sm font-bold uppercase leading-5 text-slate-700">
+          {t(
+            "workspace.mphlg.supportingDocumentsTitle",
+            "Other Relevant Supporting Documents (If Any)"
+          )}
+        </h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] table-fixed border-collapse text-[11px]">
+          <thead className="bg-[#f1f5f4] text-left font-bold text-slate-700">
+            <tr>
+              <MphlgDocumentTableHead className="w-[44px]">#</MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[34%]">
+                {t("workspace.mphlg.documentDescription", "Description")}
+              </MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[95px]">
+                {t("workspace.mphlg.documentFormat", "Format")}
+              </MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[320px]">
+                {t("workspace.mphlg.documentAttachment", "Attachment")}
+              </MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[90px] text-center">
+                {t("common.action", "Action")}
+              </MphlgDocumentTableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const attachment = row.attachment || null;
+              const hasAttachment = Boolean(getPaymentDocumentSource(attachment));
+              return (
+                <tr
+                  key={`decision-log-mphlg-supporting-${index}`}
+                  className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
+                >
+                  <MphlgDocumentTableCell>{String.fromCharCode(65 + index)}</MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>
+                    <span className="font-medium text-slate-950">{row.description || "-"}</span>
+                  </MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>{row.format || "PDF"}</MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>
+                    <MphlgDocumentAttachment attachment={attachment} t={t} />
+                  </MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell center>
+                    <button
+                      type="button"
+                      onClick={() => downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t)}
+                      disabled={!hasAttachment}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-[#00843d] shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      title={t("workspace.mphlg.download", "Download")}
+                    >
+                      <span className="material-symbols-outlined text-[18px] leading-none">
+                        file_download
+                      </span>
+                    </button>
+                  </MphlgDocumentTableCell>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -7607,6 +7795,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     remarks: getWorkspaceDecisionLogRemarks(mphlgGateway),
     date: getWorkspaceDecisionLogDate(mphlgGateway, ["reviewed_at", "decided_at"]),
     signature: getWorkspaceDecisionLogSignature(mphlgGateway),
+    supportingDocuments: normalizeMphlgSupportingDocumentRows(mphlgGateway.supporting_documents),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -7674,6 +7863,7 @@ function addWorkspaceDecisionLogRow(rows, row, t) {
     date,
     signature: row.signature || section.digital_signature || null,
     technicalReport: row.technicalReport || null,
+    supportingDocuments: row.supportingDocuments || null,
   });
 }
 
@@ -13354,8 +13544,15 @@ function PaymentDetails({
     }
   }
 
-  const showOfficialReceiptSection = showVerificationUploads || Boolean(officialReceiptFile);
-  const showLicenseDocumentSection = showVerificationUploads || Boolean(licenseFile);
+  const canShowSavedIssueDocuments =
+    readOnly ||
+    isIssuedLicenseView ||
+    isReceiptVerification ||
+    ["payment_verified", "license_issued", "license_revoked"].includes(status);
+  const showOfficialReceiptSection =
+    showVerificationUploads || (canShowSavedIssueDocuments && Boolean(officialReceiptFile));
+  const showLicenseDocumentSection =
+    showVerificationUploads || (canShowSavedIssueDocuments && Boolean(licenseFile));
   const showQrPanel = true;
 
   const officialReceiptUploadSection = showOfficialReceiptSection ? (
@@ -13980,7 +14177,7 @@ function getStoredPaymentDocument(app, kind) {
     };
   }
 
-  return getPaymentDocumentFromSupportingDocuments(app, kind);
+  return null;
 }
 
 function withLocalPaymentDocumentPreview(_applicationId, _kind, uploaded, file) {
