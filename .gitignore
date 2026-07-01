@@ -10,6 +10,7 @@ backend/media/
 backend/staticfiles/
 backend/venv/
 backend/env/
+backend/backups/
 
 # =========================
 # Frontend
@@ -19,6 +20,7 @@ frontend/dist/
 frontend/.env
 frontend/.chrome-review-profile/
 frontend/login-review.png
+outputs/
 
 # =========================
 # General
