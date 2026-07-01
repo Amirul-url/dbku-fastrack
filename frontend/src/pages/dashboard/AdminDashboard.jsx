@@ -1133,6 +1133,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
           logs={decisionLogs}
           reference={reference}
           t={t}
+          language={language}
         />
       )}
 
@@ -1244,7 +1245,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
   );
 }
 
-function DecisionLogReport({ app, logs, reference, t }) {
+function DecisionLogReport({ app, logs, reference, t, language = "en" }) {
   return (
     <section className="mt-3 rounded-md border border-slate-300 bg-white">
       {logs.length > 0 ? (
@@ -1273,7 +1274,7 @@ function DecisionLogReport({ app, logs, reference, t }) {
               {logs.map((log) => (
                 <tr key={log.id} className="align-top">
                   <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">
-                    {formatDecisionLogDepartmentLabel(log.department)}
+                    {formatDecisionLogDepartmentLabel(log.department, language)}
                   </td>
                   <td className="px-4 py-3">
                     {log.decision ? <StatusPill value={log.decision} /> : null}
@@ -1305,12 +1306,51 @@ function DecisionLogReport({ app, logs, reference, t }) {
   );
 }
 
-function formatDecisionLogDepartmentLabel(department) {
+function formatDecisionLogDepartmentLabel(department, language = "") {
+  const labels = getDecisionLogDepartmentLabels(language);
   const normalizedDepartment = normalizeDepartmentCode(department);
-  if (normalizedDepartment === "KU(IKL)") return "Ketua Unit (Iklan)";
-  if (normalizedDepartment === "BLG") return "Bangunan (BLG)";
-  if (normalizedDepartment === "IKL (TECHNICAL)") return "Iklan Teknikal";
+  if (labels[normalizedDepartment]) return labels[normalizedDepartment];
   return department || "-";
+}
+
+function getDecisionLogDepartmentLabels(language = "") {
+  if (getDecisionLogLanguage(language) === "ms") {
+    return {
+      "KU(IKL)": "Ketua Unit (Iklan)",
+      BLG: "Bangunan (BLG)",
+      GPM: "Pengurusan Geoinformasi Dan Hartanah (GPM)",
+      MNE: "Mekanikal & Elektrik (MNE)",
+      IMT: "Penyelenggaraan Infrastruktur (IMT)",
+      LNP: "Landskap (LNP)",
+      ENG: "Projek Kejuruteraan (ENG)",
+      "IKL (TECHNICAL)": "Iklan Teknikal",
+      "KB(LES)": "Ketua Bahagian Pelesenan (LES)",
+      PGH: "Pengarah",
+      "TP(RES)": "Timbalan Pengarah Jabatan Perkhidmatan Kawalselia (RES)",
+    };
+  }
+
+  return {
+    "KU(IKL)": "Advertising Unit Head (IKL)",
+    BLG: "Building (BLG)",
+    GPM: "Geoinformation And Properties Management (GPM)",
+    MNE: "MECHANICAL & ELECTRICAL (MNE)",
+    IMT: "INFRASTRUCTURE MAINTENANCE (IMT)",
+    LNP: "Landscape (LNP)",
+    ENG: "Engineering Project (ENG)",
+    "IKL (TECHNICAL)": "Technical Advertising",
+    "KB(LES)": "Licensing Division Head (LES)",
+    PGH: "Director",
+    "TP(RES)": "Deputy Director Regulatory Services (RES)",
+  };
+}
+
+function getDecisionLogLanguage(language = "") {
+  if (language === "ms" || language === "en") return language;
+  if (typeof document !== "undefined" && document.documentElement.lang?.startsWith("ms")) {
+    return "ms";
+  }
+  return "en";
 }
 
 function DecisionLogSignatureCell({ department, signature, t }) {

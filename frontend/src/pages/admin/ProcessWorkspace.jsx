@@ -80,6 +80,7 @@ const TECHNICAL_DEFAULT_ADVERTISEMENT_TYPES = [
 const SQFT_TO_SQM = 0.092903;
 const TECHNICAL_FIXED_DEPOSIT = 5000;
 const TECHNICAL_PROCESSING_FEE = 10;
+const MPHLG_SUPPORTING_DOCUMENT_MAX_FILE_SIZE = 15 * 1024 * 1024;
 const WORKSPACE_TABLE_PAGE_SIZE = 5;
 const TECHNICAL_LED_SUBTYPES = new Set([
   "open_space_led_billboard",
@@ -256,6 +257,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [approvalSupportSignature, setApprovalSupportSignature] = useState(null);
   const [approvalSupportSignatureError, setApprovalSupportSignatureError] = useState("");
+  const [mphlgSupportingDocuments, setMphlgSupportingDocuments] = useState([]);
+  const [mphlgSupportingDocumentError, setMphlgSupportingDocumentError] = useState("");
   const [technicalSignatureError, setTechnicalSignatureError] = useState("");
   const [adminApprovalSeenAt, setAdminApprovalSeenAt] = useState(() =>
     getAdminApprovalRecordSeen(getStoredUser())
@@ -663,12 +666,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     approvalStageKey === "kb" &&
     userDepartment === "KB(LES)";
-  const useApprovalSignatureTemplate =
-    isApprovalSupportWorkspace || isKbVerificationTemplateWorkspace;
   const isMphlgApprovalWorkspace =
     isApprovalWorkspace &&
     approvalStageKey === "mphlg" &&
     MPHLG_REVIEW_DEPARTMENTS.includes(userDepartment);
+  const useApprovalSignatureTemplate =
+    isApprovalSupportWorkspace || isKbVerificationTemplateWorkspace || isMphlgApprovalWorkspace;
   const showApprovalDecisionButtons = false;
   const decisionOptions = useMemo(
     () => getWorkspaceDecisionOptions(config, selectedRecord, userDepartment),
@@ -762,11 +765,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     () =>
       isKbVerificationTemplateWorkspace
         ? getWorkspaceDecisionOptions(config, selectedRecord, userDepartment)
+        : isMphlgApprovalWorkspace
+          ? getWorkspaceDecisionOptions(config, selectedRecord, userDepartment)
         : getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace),
     [
       config,
       isFinalApprovalSupportWorkspace,
       isKbVerificationTemplateWorkspace,
+      isMphlgApprovalWorkspace,
       selectedRecord?.id,
       selectedRecord?.status,
       selectedRecord?.updated_at,
@@ -816,7 +822,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
     !isApprovalLicenseManagement &&
-    !isApprovalSupportWorkspace &&
+    !useApprovalSignatureTemplate &&
     !showApprovalDecisionButtons &&
     !showPaymentTypedDecision;
   const workspaceCommentRequired =
@@ -940,6 +946,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     setApprovalSupportSignature(savedSignature);
     setApprovalSupportSignatureError("");
   }, [selectedRecord?.id]);
+
+  useEffect(() => {
+    setMphlgSupportingDocuments(getMphlgSupportingDocuments(selectedRecord));
+    setMphlgSupportingDocumentError("");
+  }, [selectedRecord?.id, selectedRecord?.updated_at]);
 
   useEffect(() => {
     if (useApprovalSignatureTemplate) {
@@ -1290,6 +1301,88 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     } finally {
       setSaving(false);
     }
+  }
+
+  function addMphlgSupportingDocument() {
+    setMphlgSupportingDocumentError("");
+    setMphlgSupportingDocuments((prev) => [
+      ...prev,
+      {
+        description: "",
+        format: "PDF",
+        attachment: null,
+      },
+    ]);
+  }
+
+  function updateMphlgSupportingDocument(index, field, value) {
+    if (mphlgSupportingDocumentError) setMphlgSupportingDocumentError("");
+    setMphlgSupportingDocuments((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
+  }
+
+  async function uploadMphlgSupportingDocument(index, file) {
+    if (!selectedRecord?.id || !file) return;
+
+    const validationMessage = getMphlgSupportingDocumentValidationMessage(file, t);
+    if (validationMessage) {
+      setMphlgSupportingDocumentError(validationMessage);
+      return;
+    }
+
+    const row = mphlgSupportingDocuments[index] || {};
+    const documentTitle = row.description || t(
+      "workspace.mphlg.supportingDocument",
+      "MPHLG Supporting Document"
+    );
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+      setMphlgSupportingDocumentError("");
+
+      const uploaded = await uploadApplicationDocument(
+        selectedRecord.id,
+        documentTitle,
+        file
+      );
+      const attachment = normalizeMphlgSupportingDocumentAttachment(
+        selectedRecord.id,
+        uploaded,
+        file
+      );
+
+      setMphlgSupportingDocuments((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index ? { ...item, attachment } : item
+        )
+      );
+      setSuccess(t("workspace.payment.documentUploaded", "Document uploaded."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.documentUploadFailed", "Document upload failed."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function removeMphlgSupportingDocumentFile(index) {
+    if (mphlgSupportingDocumentError) setMphlgSupportingDocumentError("");
+    setMphlgSupportingDocuments((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, attachment: null } : item
+      )
+    );
+  }
+
+  function removeMphlgSupportingDocument(index) {
+    if (mphlgSupportingDocumentError) setMphlgSupportingDocumentError("");
+    setMphlgSupportingDocuments((prev) =>
+      prev.filter((_, itemIndex) => itemIndex !== index)
+    );
   }
 
   async function uploadLicenseDocument(file) {
@@ -1753,6 +1846,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
         approvalSupportSignature: overrides.approvalSupportSignature || null,
+        mphlgSupportingDocuments,
         screeningSignature: overrides.screeningSignature || null,
         kuSignature: overrides.kuSignature ?? null,
         kuChecks: overrides.kuChecks,
@@ -2258,6 +2352,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 <WorkspaceDecisionLogReport
                   app={selectedRecord}
                   t={t}
+                  language={language}
                 />
               )}
 
@@ -2317,11 +2412,36 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 />
               ) : (
                 <>
+                  {isMphlgApprovalWorkspace && canSubmitWorkspaceAction && (
+                    <div className="space-y-5">
+                      <div className="flex items-center gap-3 pt-6">
+                        <span className="text-base font-medium leading-6 text-slate-950">1.</span>
+                        <button
+                          type="button"
+                          className="min-h-10 rounded-md border border-slate-300 bg-white px-6 text-sm font-medium leading-5 text-slate-950 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                        >
+                          {t("workspace.mphlg.viewChecklist", "View Check List")}
+                        </button>
+                      </div>
+
+                      <MphlgSupportingDocumentsTable
+                        rows={mphlgSupportingDocuments}
+                        t={t}
+                        saving={saving}
+                        error={mphlgSupportingDocumentError}
+                        onAdd={addMphlgSupportingDocument}
+                        onUpdate={updateMphlgSupportingDocument}
+                        onRemove={removeMphlgSupportingDocument}
+                        onFileChange={uploadMphlgSupportingDocument}
+                        onRemoveFile={removeMphlgSupportingDocumentFile}
+                      />
+                    </div>
+                  )}
+
                   {config.showDecision &&
                     canSubmitWorkspaceAction &&
                     !isApprovalLicenseManagement &&
-                    !isApprovalSupportWorkspace &&
-                    !isKbVerificationTemplateWorkspace &&
+                    !useApprovalSignatureTemplate &&
                     !showApprovalDecisionButtons && (
                     <Field
                       label={
@@ -2607,6 +2727,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               ? getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t)
                               : isKbVerificationTemplateWorkspace
                                 ? t("workspace.decision.typeVerifyOrNotVerify", "Type Verify or Not Verify")
+                                : isMphlgApprovalWorkspace
+                                  ? t("workspace.decision.typeYesOrNo", "Type Yes or No")
                                 : t("workspace.decision.typeSupportOrNotSupport", "Type Support or Not Support")
                           }
                           inputMode="text"
@@ -2860,7 +2982,308 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
 }
 
-function WorkspaceDecisionLogReport({ app, t }) {
+function MphlgSupportingDocumentsTable({
+  rows,
+  t,
+  saving,
+  error,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onFileChange,
+  onRemoveFile,
+}) {
+  const documents = Array.isArray(rows) ? rows : [];
+
+  return (
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex items-center justify-between border-l-4 border-[#18b36b] bg-white px-4 py-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-bold uppercase leading-5 text-slate-700">
+            {t(
+              "workspace.mphlg.supportingDocumentsTitle",
+              "Other Relevant Supporting Documents (If Any)"
+            )}
+          </h2>
+          <span className="group relative inline-flex">
+            <button
+              type="button"
+              className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-[#18b36b] bg-white text-[12px] font-bold leading-none text-[#00843d] focus:outline-none focus:ring-2 focus:ring-[#18b36b] focus:ring-offset-1"
+              aria-label={t(
+                "workspace.mphlg.supportingDocumentsHelp",
+                "PDF only. Maximum file size 15MB."
+              )}
+            >
+              i
+            </button>
+            <span className="pointer-events-none absolute left-7 top-1/2 z-20 hidden w-56 -translate-y-1/2 rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold normal-case leading-5 text-slate-700 shadow-lg group-hover:block group-focus-within:block">
+              {t(
+                "workspace.mphlg.supportingDocumentsHelp",
+                "PDF only. Maximum file size 15MB."
+              )}
+            </span>
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={saving}
+          className="rounded bg-[#18b36b] px-3 py-1.5 text-[10px] font-bold leading-4 text-white shadow-sm transition hover:bg-[#128a53] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {t("workspace.mphlg.addDocument", "+ Add Document")}
+        </button>
+      </div>
+      {error && (
+        <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-[12px] font-semibold leading-5 text-red-700">
+          {error}
+        </p>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[820px] border-collapse text-[11px]">
+          <thead className="bg-[#f1f5f4] text-left font-bold text-slate-700">
+            <tr>
+              <MphlgDocumentTableHead className="w-[44px]">#</MphlgDocumentTableHead>
+              <MphlgDocumentTableHead>
+                {t("workspace.mphlg.documentDescription", "Description")}
+              </MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[110px]">
+                {t("workspace.mphlg.documentFormat", "Format")}
+              </MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[280px]">
+                {t("workspace.mphlg.documentAttachment", "Attachment")}
+              </MphlgDocumentTableHead>
+              <MphlgDocumentTableHead className="w-[150px] text-center">
+                {t("common.action", "Action")}
+              </MphlgDocumentTableHead>
+            </tr>
+          </thead>
+          <tbody>
+            {documents.length === 0 ? (
+              <tr className="bg-[#e4f4df]">
+                <MphlgDocumentTableCell colSpan={5} center>
+                  {t("workspace.mphlg.noDocumentRecord", "--No record--")}
+                </MphlgDocumentTableCell>
+              </tr>
+            ) : (
+              documents.map((row, index) => (
+                <tr
+                  key={`mphlg-supporting-${index}`}
+                  className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
+                >
+                  <MphlgDocumentTableCell>{index + 1}</MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>
+                    <input
+                      type="text"
+                      value={row.description || ""}
+                      onChange={(event) => onUpdate(index, "description", event.target.value)}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#18b36b] focus:ring-1 focus:ring-[#18b36b]"
+                      placeholder={t(
+                        "workspace.mphlg.documentDescriptionPlaceholder",
+                        "Enter document description"
+                      )}
+                    />
+                  </MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>
+                    <span className="font-semibold text-slate-700">
+                      {row.format || "PDF"}
+                    </span>
+                  </MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>
+                    <MphlgDocumentAttachment attachment={row.attachment} t={t} />
+                  </MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell center>
+                    <MphlgDocumentActions
+                      index={index}
+                      attachment={row.attachment}
+                      t={t}
+                      saving={saving}
+                      onFileChange={onFileChange}
+                      onRemoveFile={onRemoveFile}
+                      onRemove={onRemove}
+                    />
+                  </MphlgDocumentTableCell>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function MphlgDocumentAttachment({ attachment, t }) {
+  if (!attachment) {
+    return (
+      <div className="space-y-1">
+        <p className="text-slate-500">
+          {t("workspace.mphlg.noAttachment", "No attachment")}
+        </p>
+        <p className="text-[10px] font-semibold text-slate-500">
+          {t("workspace.mphlg.attachmentMaxSize", "Maximum file size 15MB. PDF only.")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="break-all font-semibold text-[#00843d]">
+        {attachment.name || attachment.title || "attachment.pdf"}
+      </p>
+      {attachment.size ? (
+        <p className="text-[10px] text-slate-500">
+          {(Number(attachment.size || 0) / 1024).toFixed(1)} KB
+        </p>
+      ) : null}
+      <p className="text-[10px] font-semibold text-slate-500">
+        {t("workspace.mphlg.attachmentMaxSize", "Maximum file size 15MB. PDF only.")}
+      </p>
+    </div>
+  );
+}
+
+function MphlgDocumentActions({
+  index,
+  attachment,
+  t,
+  saving,
+  onFileChange,
+  onRemoveFile,
+  onRemove,
+}) {
+  const hasAttachment = Boolean(getPaymentDocumentSource(attachment));
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <label
+        className={`inline-flex h-8 w-8 items-center justify-center rounded bg-[#18b36b] text-white shadow-sm hover:bg-[#128a53] ${
+          saving ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        }`}
+        title={t("workspace.mphlg.upload", "Upload")}
+      >
+        <span className="material-symbols-outlined text-[18px] leading-none">
+          upload
+        </span>
+        <input
+          type="file"
+          className="hidden"
+          accept=".pdf,application/pdf"
+          disabled={saving}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            onFileChange(index, file);
+            event.target.value = "";
+          }}
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={() => downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t)}
+        disabled={!hasAttachment || saving}
+        className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-[#00843d] shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+        title={t("workspace.mphlg.download", "Download")}
+      >
+        <span className="material-symbols-outlined text-[18px] leading-none">
+          file_download
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => (hasAttachment ? onRemoveFile(index) : onRemove(index))}
+        disabled={saving}
+        className="inline-flex h-8 w-8 items-center justify-center rounded bg-red-500 text-white shadow-sm hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+        title={
+          hasAttachment
+            ? t("workspace.mphlg.removeFile", "Remove file")
+            : t("workspace.mphlg.deleteRow", "Delete row")
+        }
+      >
+        {hasAttachment ? "X" : (
+          <span className="material-symbols-outlined text-[18px] leading-none">
+            delete
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function MphlgDocumentTableHead({ children, className = "" }) {
+  return (
+    <th className={`border border-slate-200 px-3 py-2 font-bold ${className}`}>
+      {children}
+    </th>
+  );
+}
+
+function MphlgDocumentTableCell({ children, center = false, colSpan }) {
+  return (
+    <td
+      colSpan={colSpan}
+      className={`border border-slate-200 px-3 py-2 align-top ${
+        center ? "text-center align-middle" : "text-left"
+      }`}
+    >
+      {children}
+    </td>
+  );
+}
+
+function getMphlgSupportingDocuments(app) {
+  const rows = app?.form_data?.mphlg_gateway?.supporting_documents;
+  return Array.isArray(rows)
+    ? rows.map((row) => ({
+        description: row?.description || "",
+        format: row?.format || "PDF",
+        attachment: row?.attachment || null,
+      }))
+    : [];
+}
+
+function getMphlgSupportingDocumentValidationMessage(file, t) {
+  if (!file) return "";
+
+  const isPdf =
+    file.type === "application/pdf" ||
+    String(file.name || "").toLowerCase().endsWith(".pdf");
+  if (!isPdf) {
+    return t(
+      "workspace.mphlg.supportingDocumentPdfRequired",
+      "Please upload PDF format only."
+    );
+  }
+
+  if (Number(file.size || 0) > MPHLG_SUPPORTING_DOCUMENT_MAX_FILE_SIZE) {
+    return t(
+      "workspace.mphlg.supportingDocumentMaxSize",
+      "File size exceeds 15MB. Please upload a PDF file up to 15MB."
+    );
+  }
+
+  return "";
+}
+
+function normalizeMphlgSupportingDocumentAttachment(applicationId, uploaded, file) {
+  const documentId = uploaded?.document_id || uploaded?.id || uploaded?.pk || "";
+
+  return {
+    ...(uploaded || {}),
+    document_id: documentId || uploaded?.document_id,
+    id: uploaded?.id || documentId,
+    name: uploaded?.name || uploaded?.filename || file?.name || "attachment.pdf",
+    size: uploaded?.size || file?.size || 0,
+    url:
+      uploaded?.url ||
+      uploaded?.file_url ||
+      (documentId ? getApplicationDocumentUrl(applicationId, documentId) : ""),
+  };
+}
+
+function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const [downloadingLogId, setDownloadingLogId] = useState("");
   const [downloadError, setDownloadError] = useState("");
@@ -2872,7 +3295,7 @@ function WorkspaceDecisionLogReport({ app, t }) {
     setDownloadingLogId(log.id);
 
     try {
-      await downloadDecisionLogReportPdf(log, reference);
+      await downloadDecisionLogReportPdf(log, reference, language);
     } catch (error) {
       console.error("Failed to download decision report:", error);
       setDownloadError(
@@ -2911,7 +3334,7 @@ function WorkspaceDecisionLogReport({ app, t }) {
                 {logs.map((log) => (
                   <tr key={log.id} className="align-middle">
                     <td className="whitespace-nowrap px-4 py-2 font-semibold text-slate-900">
-                      {formatDecisionLogDepartmentLabel(log.department)}
+                      {formatDecisionLogDepartmentLabel(log.department, language)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-600">
                       {formatCompactDateTime(log.date)}
@@ -2949,6 +3372,7 @@ function WorkspaceDecisionLogReport({ app, t }) {
         <DecisionLogTemplateModal
           log={selectedLog}
           t={t}
+          language={language}
           onClose={() => setSelectedLog(null)}
         />
       )}
@@ -2956,7 +3380,7 @@ function WorkspaceDecisionLogReport({ app, t }) {
   );
 }
 
-async function downloadDecisionLogReportPdf(log, reference) {
+async function downloadDecisionLogReportPdf(log, reference, language = "en") {
   const snapshotWidth = 728;
   const reportElement = document.createElement("div");
   reportElement.style.position = "fixed";
@@ -2966,7 +3390,7 @@ async function downloadDecisionLogReportPdf(log, reference) {
   reportElement.style.background = "#ffffff";
   reportElement.style.padding = "0";
   reportElement.style.zIndex = "-1";
-  reportElement.innerHTML = buildDecisionLogSnapshotHtml(log);
+  reportElement.innerHTML = buildDecisionLogSnapshotHtml(log, language);
   document.body.appendChild(reportElement);
 
   try {
@@ -3001,20 +3425,20 @@ async function downloadDecisionLogReportPdf(log, reference) {
         renderedHeight += pageHeight;
       }
     }
-    pdf.save(buildDecisionLogDownloadFilename(reference, log));
+    pdf.save(buildDecisionLogDownloadFilename(reference, log, language));
   } finally {
     reportElement.remove();
   }
 }
 
-function buildDecisionLogSnapshotHtml(log) {
-  const labels = getDecisionLogDownloadBmLabels();
+function buildDecisionLogSnapshotHtml(log, language = "en") {
+  const labels = getDecisionLogDownloadLabels(language);
   const signatureSource = getDecisionLogSignatureSource(log.signature);
   const decisionHtml = log.decision
     ? `
       <div class="decision-field">
         <div class="field-label">${escapeHtml(labels.decision)}</div>
-        <div class="readonly-input">${escapeHtml(formatDecisionLogDecisionBm(log.decision))}</div>
+        <div class="readonly-input">${escapeHtml(formatDecisionLogDecision(log.decision, language))}</div>
       </div>
     `
     : "";
@@ -3377,7 +3801,7 @@ function buildDecisionLogSnapshotHtml(log) {
         }
       </style>
       <div class="download-header">
-        <p class="download-subtitle">${escapeHtml(formatDecisionLogDepartmentLabel(log.department))} · ${escapeHtml(formatCompactDateTimeBm(log.date))}</p>
+        <p class="download-subtitle">${escapeHtml(formatDecisionLogDepartmentLabel(log.department, language))} · ${escapeHtml(formatDecisionLogCompactDateTime(log.date, language))}</p>
       </div>
       <div class="download-body">
         ${log.technicalReport ? buildDecisionLogTechnicalReportSnapshotHtml(log.technicalReport) : ""}
@@ -3617,28 +4041,44 @@ function buildDecisionLogTechnicalFeeRowHtml(row, index) {
   `;
 }
 
-function getDecisionLogDownloadBmLabels() {
+function getDecisionLogDownloadLabels(language = "en") {
+  if (getDecisionLogLanguage(language) === "ms") {
+    return {
+      decision: "Cadangan Anda",
+      remarks: "Ulasan",
+      signatureTitle: "Tandatangan Digital",
+      confirmation: "PENGESAHAN",
+      signatureAndStamp: "Tandatangan & Cop",
+      name: "Nama",
+      position: "Jawatan",
+      agency: "Agensi",
+      date: "Tarikh",
+      signatureAlt: "Pratonton tandatangan digital",
+    };
+  }
+
   return {
-    decision: "Cadangan Anda",
-    remarks: "Ulasan",
-    signatureTitle: "Tandatangan Digital",
-    confirmation: "PENGESAHAN",
-    signatureAndStamp: "Tandatangan & Cop",
-    name: "Nama",
-    position: "Jawatan",
-    agency: "Agensi",
-    date: "Tarikh",
-    signatureAlt: "Pratonton tandatangan digital",
+    decision: "Your Recommendation",
+    remarks: "Remarks",
+    signatureTitle: "Digital Signature",
+    confirmation: "CONFIRMATION",
+    signatureAndStamp: "Signature & Stamp",
+    name: "Name",
+    position: "Position",
+    agency: "Agency",
+    date: "Date",
+    signatureAlt: "Digital signature preview",
   };
 }
 
-function formatDecisionLogDecisionBm(value) {
+function formatDecisionLogDecision(value, language = "en") {
   const text = String(value || "").trim();
   const normalized = text.toLowerCase();
+  const isMalay = getDecisionLogLanguage(language) === "ms";
 
-  if (["approve", "approved", "lulus"].includes(normalized)) return "Lulus";
+  if (["approve", "approved", "lulus"].includes(normalized)) return isMalay ? "Lulus" : "Approve";
   if (["reject", "rejected", "not approve", "not approved", "tidak lulus"].includes(normalized)) {
-    return "Tidak Lulus";
+    return isMalay ? "Tidak Lulus" : "Not Approve";
   }
   if (
     [
@@ -3649,17 +4089,31 @@ function formatDecisionLogDecisionBm(value) {
       "pindaan diperlukan",
     ].includes(normalized)
   ) {
-    return "Mohon Pindaan";
+    return isMalay ? "Mohon Pindaan" : "Request Amendment";
   }
 
   return text;
 }
 
-function formatCompactDateTimeBm(value) {
+function formatDecisionLogCompactDateTime(value, language = "en") {
   if (!value) return "-";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
+
+  if (getDecisionLogLanguage(language) !== "ms") {
+    const datePart = date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const timePart = date.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    return `${datePart}, ${timePart.toUpperCase()}`;
+  }
 
   const months = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
   const day = String(date.getDate()).padStart(2, "0");
@@ -3769,13 +4223,13 @@ async function waitForReportAssets(element) {
   );
 }
 
-async function downloadDecisionLogReportPdfLegacy(log, reference, t) {
+async function downloadDecisionLogReportPdfLegacy(log, reference, t, language = "en") {
   const pdf = new jsPDF("p", "mm", "a4");
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 14;
   const contentWidth = pageWidth - margin * 2;
-  const filename = buildDecisionLogDownloadFilename(reference, log);
+  const filename = buildDecisionLogDownloadFilename(reference, log, language);
   let y = margin;
 
   const ensureSpace = (height) => {
@@ -3793,7 +4247,7 @@ async function downloadDecisionLogReportPdfLegacy(log, reference, t) {
   pdf.setFontSize(8.5);
   pdf.setTextColor(71, 85, 105);
   pdf.text(
-    `${formatDecisionLogDepartmentLabel(log.department)} - ${formatCompactDateTime(log.date)}`,
+    `${formatDecisionLogDepartmentLabel(log.department, language)} - ${formatCompactDateTime(log.date)}`,
     margin,
     y
   );
@@ -3984,10 +4438,10 @@ function getPdfImageFormat(source) {
   return "PNG";
 }
 
-function buildDecisionLogDownloadFilename(reference, log) {
+function buildDecisionLogDownloadFilename(reference, log, language = "en") {
   const parts = [
     reference || "application",
-    formatDecisionLogDepartmentLabel(log.department),
+    formatDecisionLogDepartmentLabel(log.department, language),
     "report",
   ];
 
@@ -4003,7 +4457,7 @@ function sanitizeFilenamePart(value) {
     .replace(/^-|-$/g, "");
 }
 
-function DecisionLogTemplateModal({ log, t, onClose }) {
+function DecisionLogTemplateModal({ log, t, language = "en", onClose }) {
   const modalWidthClass = log?.technicalReport ? "max-w-[min(96vw,92rem)]" : "max-w-4xl";
 
   return (
@@ -4015,7 +4469,7 @@ function DecisionLogTemplateModal({ log, t, onClose }) {
               {t("workspace.decisionLog.recordedTemplate", "Recorded Template")}
             </p>
             <p className="mt-0.5 text-xs font-medium text-slate-500">
-              {formatDecisionLogDepartmentLabel(log.department)} · {formatCompactDateTime(log.date)}
+              {formatDecisionLogDepartmentLabel(log.department, language)} · {formatCompactDateTime(log.date)}
             </p>
           </div>
           <Button
@@ -4037,13 +4491,51 @@ function DecisionLogTemplateModal({ log, t, onClose }) {
   );
 }
 
-function formatDecisionLogDepartmentLabel(department) {
+function formatDecisionLogDepartmentLabel(department, language = "") {
+  const labels = getDecisionLogDepartmentLabels(language);
   const normalizedDepartment = normalizeDepartmentCode(department);
-  if (normalizedDepartment === "KU(IKL)") return "Ketua Unit (Iklan)";
-  if (normalizedDepartment === "BLG") return "Bangunan (BLG)";
-  if (normalizedDepartment === "IKL (TECHNICAL)") return "Iklan Teknikal";
-  if (normalizedDepartment === "KB(LES)") return "Ketua Bahagian Pelesenan (LES)";
+  if (labels[normalizedDepartment]) return labels[normalizedDepartment];
   return department || "-";
+}
+
+function getDecisionLogDepartmentLabels(language = "") {
+  if (getDecisionLogLanguage(language) === "ms") {
+    return {
+      "KU(IKL)": "Ketua Unit (Iklan)",
+      BLG: "Bangunan (BLG)",
+      GPM: "Pengurusan Geoinformasi Dan Hartanah (GPM)",
+      MNE: "Mekanikal & Elektrik (MNE)",
+      IMT: "Penyelenggaraan Infrastruktur (IMT)",
+      LNP: "Landskap (LNP)",
+      ENG: "Projek Kejuruteraan (ENG)",
+      "IKL (TECHNICAL)": "Iklan Teknikal",
+      "KB(LES)": "Ketua Bahagian Pelesenan (LES)",
+      PGH: "Pengarah",
+      "TP(RES)": "Timbalan Pengarah Jabatan Perkhidmatan Kawalselia (RES)",
+    };
+  }
+
+  return {
+    "KU(IKL)": "Advertising Unit Head (IKL)",
+    BLG: "Building (BLG)",
+    GPM: "Geoinformation And Properties Management (GPM)",
+    MNE: "MECHANICAL & ELECTRICAL (MNE)",
+    IMT: "INFRASTRUCTURE MAINTENANCE (IMT)",
+    LNP: "Landscape (LNP)",
+    ENG: "Engineering Project (ENG)",
+    "IKL (TECHNICAL)": "Technical Advertising",
+    "KB(LES)": "Licensing Division Head (LES)",
+    PGH: "Director",
+    "TP(RES)": "Deputy Director Regulatory Services (RES)",
+  };
+}
+
+function getDecisionLogLanguage(language = "") {
+  if (language === "ms" || language === "en") return language;
+  if (typeof document !== "undefined" && document.documentElement.lang?.startsWith("ms")) {
+    return "ms";
+  }
+  return "en";
 }
 
 function DecisionLogRecordedTemplate({ log, t }) {
@@ -6513,7 +7005,9 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(managementRecommendation),
     remarks: getWorkspaceDecisionLogRemarks(managementRecommendation),
     date: getWorkspaceDecisionLogDate(managementRecommendation, ["decided_at", "supported_at", "approval_note_saved_at"]),
-    signature: managementRecommendation.digital_signature,
+    signature:
+      getWorkspaceDecisionLogSignature(managementRecommendation) ||
+      getWorkspaceDecisionLogSignature(approval),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -6523,6 +7017,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(mphlgGateway),
     remarks: getWorkspaceDecisionLogRemarks(mphlgGateway),
     date: getWorkspaceDecisionLogDate(mphlgGateway, ["reviewed_at", "decided_at"]),
+    signature: getWorkspaceDecisionLogSignature(mphlgGateway),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -6633,11 +7128,13 @@ function getDecisionLogSignatureSource(signature) {
 
   return String(
     signature.dataUrl ||
+      signature.drawDataUrl ||
       signature.data_url ||
       signature.url ||
       signature.file_url ||
       signature.preview_url ||
       signature.source ||
+      signature.items?.find?.((item) => String(item?.dataUrl || "").trim())?.dataUrl ||
       ""
   ).trim();
 }
@@ -7641,6 +8138,12 @@ function buildApprovalWorkflowPayload(app, data) {
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department)) {
     const approved = decision === "Approve";
     const rejectRemark = data.comment || getHtmlPlainText(data.memoHtml) || app.latest_remark || "";
+    const mphlgSignature = approved
+      ? data.approvalSupportSignature ||
+        app.form_data?.mphlg_gateway?.digital_signature ||
+        app.form_data?.approval?.digital_signature ||
+        null
+      : null;
 
     return {
       status: approved ? "approved" : "rejected",
@@ -7658,6 +8161,8 @@ function buildApprovalWorkflowPayload(app, data) {
           memo_html: approved
             ? app.form_data?.mphlg_gateway?.memo_html || ""
             : data.memoHtml || app.form_data?.mphlg_gateway?.memo_html || "",
+          digital_signature: mphlgSignature,
+          supporting_documents: data.mphlgSupportingDocuments || [],
           reviewed_at: now,
         },
         correction_request: approved
@@ -7679,6 +8184,7 @@ function buildApprovalWorkflowPayload(app, data) {
               decision,
               remarks: data.comment,
               memo_html: data.memoHtml || app.form_data?.approval?.memo_html || "",
+              digital_signature: mphlgSignature,
               approved_at: now,
             }
           : app.form_data?.approval || null,
