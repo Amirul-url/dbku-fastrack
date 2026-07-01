@@ -265,6 +265,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
   const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
   const [showDecisionLog, setShowDecisionLog] = useState(false);
+  const [showMphlgChecklist, setShowMphlgChecklist] = useState(false);
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -934,6 +935,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     setShowDecisionLog(false);
+    setShowMphlgChecklist(false);
   }, [selectedRecord?.id]);
 
   useEffect(() => {
@@ -2418,6 +2420,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         <span className="text-base font-medium leading-6 text-slate-950">1.</span>
                         <button
                           type="button"
+                          onClick={() => setShowMphlgChecklist(true)}
                           className="min-h-10 rounded-md border border-slate-300 bg-white px-6 text-sm font-medium leading-5 text-slate-950 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
                         >
                           {t("workspace.mphlg.viewChecklist", "View Check List")}
@@ -2978,7 +2981,554 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         </Panel>
       )}
 
+      {showMphlgChecklist && (
+        <MphlgChecklistModal
+          t={t}
+          application={selectedRecord}
+          onClose={() => setShowMphlgChecklist(false)}
+        />
+      )}
+
     </AdminDashboardLayout>
+  );
+}
+
+function MphlgChecklistModal({ t, application, onClose }) {
+  const checklistRef = useRef(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  async function handleDownload() {
+    setDownloadError("");
+    setDownloading(true);
+
+    try {
+      await downloadMphlgChecklistPdf(checklistRef.current, getApplicationReference(application));
+    } catch (error) {
+      console.error(error);
+      setDownloadError(
+        t(
+          "workspace.mphlg.checklistDownloadFailed",
+          "Unable to download the checklist. Please try again."
+        )
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+      <div className="max-h-[92vh] w-full max-w-[min(96vw,72rem)] overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <p className="text-[13px] font-semibold leading-5 text-slate-950">
+              {t("workspace.mphlg.checklistTitle", "View Check List")}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-slate-500">
+              {getApplicationReference(application)} · A4 · 3 pages
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-8 px-2.5 py-1"
+              disabled={downloading}
+              onClick={handleDownload}
+            >
+              {downloading ? t("common.downloading", "Downloading...") : t("common.download", "Download")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="close"
+              className="min-h-8 px-2.5 py-1"
+              onClick={onClose}
+            >
+              {t("common.close", "Close")}
+            </Button>
+          </div>
+        </div>
+
+        <div className="max-h-[calc(92vh-64px)] overflow-y-auto bg-slate-100 px-4 py-5">
+          {downloadError && (
+            <p className="mx-auto mb-3 max-w-[860px] rounded border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              {downloadError}
+            </p>
+          )}
+          <div ref={checklistRef}>
+            <MphlgChecklistTemplate application={application} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+async function downloadMphlgChecklistPdf(rootElement, reference) {
+  if (!rootElement) throw new Error("Checklist content is not ready.");
+
+  await waitForReportAssets(rootElement);
+
+  const pages = Array.from(rootElement.querySelectorAll("[data-mphlg-checklist-page]"));
+  if (!pages.length) throw new Error("Checklist pages were not found.");
+
+  const pdf = new jsPDF({
+    orientation: "p",
+    unit: "mm",
+    format: "a4",
+  });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index];
+    const canvas = await captureMphlgChecklistPage(page);
+
+    if (index > 0) pdf.addPage("a4", "p");
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.98), "JPEG", 0, 0, pageWidth, pageHeight);
+  }
+
+  pdf.save(`${sanitizeFilenamePart(reference || "application")}-MPHLG-checklist.pdf`);
+}
+
+async function captureMphlgChecklistPage(page) {
+  const width = Math.ceil(page.offsetWidth || page.getBoundingClientRect().width);
+  const height = Math.ceil(page.offsetHeight || page.getBoundingClientRect().height);
+  const options = {
+    backgroundColor: "#ffffff",
+    scale: 2.4,
+    useCORS: true,
+    logging: false,
+    width,
+    height,
+    windowWidth: Math.ceil(document.documentElement.clientWidth),
+    windowHeight: Math.ceil(document.documentElement.clientHeight),
+    scrollX: -window.scrollX,
+    scrollY: -window.scrollY,
+    onclone: (clonedDocument) => prepareMphlgChecklistCanvasClone(clonedDocument, page),
+  };
+
+  return html2canvas(page, options);
+}
+
+function prepareMphlgChecklistCanvasClone(clonedDocument, sourcePage) {
+  const pageNo = sourcePage?.getAttribute("data-mphlg-checklist-page");
+  const page = clonedDocument.querySelector(`[data-mphlg-checklist-page="${pageNo}"]`);
+  if (!page) return;
+
+  clonedDocument.documentElement.style.backgroundColor = "#ffffff";
+  clonedDocument.body.style.backgroundColor = "#ffffff";
+  page.style.backgroundColor = "#ffffff";
+  page.style.boxShadow = "none";
+  page.style.outline = "none";
+  page.style.width = "794px";
+  page.style.height = "1123px";
+  page.style.minHeight = "1123px";
+
+  page.querySelectorAll("*").forEach((element) => {
+    const className = String(element.getAttribute("class") || "");
+    element.style.boxShadow = "none";
+    element.style.outline = "none";
+
+    if (className.includes("text-black")) element.style.color = "#000000";
+    if (className.includes("text-slate-950")) element.style.color = "#020617";
+    if (className.includes("text-slate-700")) element.style.color = "#334155";
+    if (className.includes("text-slate-500")) element.style.color = "#64748b";
+    if (className.includes("border-slate-500")) element.style.borderColor = "#64748b";
+    if (className.includes("border-slate-400")) element.style.borderColor = "#94a3b8";
+    if (className.includes("border-slate-300")) element.style.borderColor = "#cbd5e1";
+    if (className.includes("ring-slate-300")) element.style.borderColor = "#cbd5e1";
+    if (className.includes("bg-[#f8e6d9]")) element.style.backgroundColor = "#f8e6d9";
+    if (className.includes("bg-[#d5f4dc]")) element.style.backgroundColor = "#d5f4dc";
+    if (className.includes("bg-slate-100")) element.style.backgroundColor = "#f1f5f9";
+    if (className.includes("bg-slate-50")) element.style.backgroundColor = "#f8fafc";
+    if (className.includes("bg-white")) element.style.backgroundColor = "#ffffff";
+  });
+
+  page.querySelectorAll("[data-mphlg-download-category-row]").forEach((row) => {
+    row.style.height = "22px";
+  });
+  page.querySelectorAll("[data-mphlg-download-category-cell]").forEach((cell) => {
+    cell.style.padding = "0 10px 4px";
+    cell.style.lineHeight = "1.05";
+    cell.style.verticalAlign = "top";
+  });
+
+  const technicalHeader = page.querySelector("[data-mphlg-download-technical-header]");
+  if (technicalHeader) technicalHeader.style.height = "32px";
+
+  const commentHeader = page.querySelector("[data-mphlg-download-comment-header]");
+  if (commentHeader) {
+    commentHeader.style.paddingTop = "2px";
+    commentHeader.style.paddingBottom = "5px";
+    commentHeader.style.lineHeight = "1.18";
+  }
+
+  page.querySelectorAll("[data-mphlg-download-technical-field-row]").forEach((row) => {
+    row.style.height = "38px";
+  });
+  page.querySelectorAll("[data-mphlg-download-technical-field-label]").forEach((cell) => {
+    cell.style.paddingTop = "2px";
+    cell.style.paddingBottom = "2px";
+    cell.style.lineHeight = "1.1";
+  });
+
+  const pageNumber = page.querySelector("[data-mphlg-download-page-number]");
+  if (pageNumber) {
+    pageNumber.style.bottom = "20px";
+  }
+
+  page.querySelectorAll("[data-mphlg-download-three-signature-header-cell]").forEach((cell) => {
+    cell.style.paddingTop = "9px";
+    cell.style.paddingBottom = "9px";
+    cell.style.lineHeight = "1.25";
+    cell.style.verticalAlign = "middle";
+  });
+  page.querySelectorAll("[data-mphlg-download-three-signature-line-cell]").forEach((cell) => {
+    cell.style.paddingTop = "10px";
+  });
+  page.querySelectorAll("[data-mphlg-download-three-signature-details-cell]").forEach((cell) => {
+    cell.style.padding = "10px 10px 12px";
+    cell.style.lineHeight = "1.25";
+  });
+
+}
+
+function MphlgChecklistTemplate({ application }) {
+  return (
+    <div className="mx-auto flex w-full max-w-[860px] flex-col items-center gap-6">
+      <MphlgChecklistPage pageNo={1}>
+        <MphlgChecklistHeader />
+
+        <div className="mt-8 text-center text-[13px] font-extrabold uppercase leading-tight">
+          <p>SENARAI SEMAK</p>
+          <p>PERMOHONAN KELULUSAN PERTAPAKAN STRUKTUR PAPAN IKLAN</p>
+          <p className="italic">(ADVERTISEMENT BILLBOARD)</p>
+        </div>
+
+        <div className="mt-6 grid max-w-[360px] grid-cols-[150px_12px_minmax(0,1fr)] gap-y-3 text-[11px] font-bold">
+          <span>Agensi Pemohon</span>
+          <span>:</span>
+          <span className="border-b border-transparent" />
+          <span>Tajuk Permohonan</span>
+          <span>:</span>
+          <span className="border-b border-transparent" />
+          <span className="mt-5">Tarikh Permohonan</span>
+          <span className="mt-5">:</span>
+          <span />
+        </div>
+
+        <div className="mt-6 text-[11px] font-bold leading-tight">
+          <p>
+            A. <span className="underline">BUTIRAN PERMOHONAN</span>{" "}
+            <span className="font-normal">(perlu di isi oleh agensi pemohon)</span>
+          </p>
+          <p className="pl-4">*Dokumen/lukisan perlu dihantar sebanyak 3 set</p>
+        </div>
+
+        <table className="mt-3 w-full border-collapse text-[9px] leading-[1.15]">
+          <thead>
+            <tr>
+              <MphlgChecklistCell rowSpan={2} className="w-9 bg-slate-100 text-center font-bold">Bil.</MphlgChecklistCell>
+              <MphlgChecklistCell rowSpan={2} className="bg-slate-100 text-center font-bold">Perkara</MphlgChecklistCell>
+              <MphlgChecklistCell colSpan={2} className="h-[48px] w-36 bg-[#f8e6d9] py-3 text-center font-bold leading-[1.25]">
+                Sila Tanda /<br /> (Senarai semak agensi pemohon)
+              </MphlgChecklistCell>
+              <MphlgChecklistCell colSpan={2} className="h-[48px] w-36 bg-[#d5f4dc] py-3 text-center font-bold leading-[1.25]">
+                Senarai semak Kementerian
+              </MphlgChecklistCell>
+            </tr>
+            <tr>
+              <MphlgChecklistCell className="h-[24px] bg-[#f8e6d9] py-2 text-center font-bold">Ada</MphlgChecklistCell>
+              <MphlgChecklistCell className="h-[24px] bg-[#f8e6d9] py-2 text-center font-bold">Tiada</MphlgChecklistCell>
+              <MphlgChecklistCell className="h-[24px] bg-[#d5f4dc] py-2 text-center font-bold">Ada</MphlgChecklistCell>
+              <MphlgChecklistCell className="h-[24px] bg-[#d5f4dc] py-2 text-center font-bold">Tiada</MphlgChecklistCell>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ["1", "Borang Permohonan Pertapakan", "(Siting Form Application)"],
+              ["2", "Salinan dokumen status hak milik tanah", "(Extract of Title)"],
+              ["3", "Pelan Lokality", "(Locality Plan)"],
+            ].map(([no, title, subtitle]) => (
+              <tr key={no} className="h-[36px]">
+                <MphlgChecklistCell className="text-center font-bold">{no}</MphlgChecklistCell>
+                <MphlgChecklistCell className="font-bold">
+                  {title}
+                  <br />
+                  <span className="font-semibold italic">{subtitle}</span>
+                </MphlgChecklistCell>
+                <MphlgChecklistBoxCells count={4} />
+              </tr>
+            ))}
+            <tr className="h-[30px]">
+              <MphlgChecklistCell className="text-center font-bold">4</MphlgChecklistCell>
+              <MphlgChecklistCell colSpan={5} className="py-2 font-bold">
+                Lukisan/ Dokumen Teknikal <span className="italic">(Technical Drawing/ Document):</span>
+              </MphlgChecklistCell>
+            </tr>
+            {[
+              ["A.", "Pelan Lantai beserta ukuran", "(Layout Plan with dimension)"],
+              ["B.", "Lukisan Keratan Rentas beserta ukuran dan spesifikasi", "(Front and side elevation drawing with dimension and specification)"],
+              ["C.", "Pengiraan rekabentuk struktur pengiklanan yang dicadangkan diperakui oleh PE/QP", "(Structural Design and Calculation certified by PE/QP)"],
+              ["D.", "Gambar ilustrasi/ perspektif", "(Illustration/ Perspective view)"],
+            ].map(([letter, title, subtitle]) => (
+              <tr key={letter} className={letter === "C." ? "h-[58px]" : "h-[42px]"}>
+                <MphlgChecklistCell />
+                <MphlgChecklistCell>
+                  <span className="grid grid-cols-[22px_minmax(0,1fr)] gap-1">
+                    <span className="font-bold">{letter}</span>
+                    <span>
+                      {title}
+                      <br />
+                      <span className="italic">{subtitle}</span>
+                    </span>
+                  </span>
+                </MphlgChecklistCell>
+                <MphlgChecklistBoxCells count={4} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </MphlgChecklistPage>
+
+      <MphlgChecklistPage pageNo={2}>
+        <MphlgChecklistHeader compact />
+        <div className="mt-8 text-[11px] font-bold leading-[1.35]">
+          <p>
+            B. <span className="underline">BUTIRAN TEKNIKAL</span>{" "}
+            <span className="font-normal">(perlu di isi oleh agensi pemohon)</span>
+          </p>
+        </div>
+        <table className="mt-4 w-full border-collapse text-[9px] leading-[1.25]">
+          <tbody>
+            <tr className="h-[42px]" data-mphlg-download-technical-header>
+              <MphlgChecklistCell className="w-8 bg-slate-100 py-2 text-center font-bold">Bil.</MphlgChecklistCell>
+              <MphlgChecklistCell className="w-28 bg-slate-100 py-2 text-center font-bold">Perkara</MphlgChecklistCell>
+              <MphlgChecklistCell className="w-44 bg-slate-100 py-2 text-center font-bold">Catatan</MphlgChecklistCell>
+              <MphlgChecklistCell className="bg-slate-100 py-2 text-center font-bold leading-[1.25]" data-mphlg-download-comment-header>
+                Ulasan/Komen<br />
+                <span className="font-semibold italic">(berdasarkan Advertisement Guideline / Advertisement by Laws)</span>
+              </MphlgChecklistCell>
+            </tr>
+            <tr>
+              <MphlgChecklistCell className="text-center font-bold">1</MphlgChecklistCell>
+              <MphlgChecklistCell className="text-center font-bold">Jenis/ Kategori</MphlgChecklistCell>
+              <MphlgChecklistCell colSpan={2}>
+                <MphlgChecklistCategoryTable />
+              </MphlgChecklistCell>
+            </tr>
+            {["Saiz (LxWxH)", "Jenis Bahan/ Material", "Lokasi Pemasangan"].map((label, index) => (
+              <tr key={label} className="h-[38px]" data-mphlg-download-technical-field-row>
+                <MphlgChecklistCell className="text-center font-bold">{index + 2}</MphlgChecklistCell>
+                <MphlgChecklistCell className="py-1 font-bold leading-[1.1]" data-mphlg-download-technical-field-label>{label}</MphlgChecklistCell>
+                <MphlgChecklistCell className="h-9" />
+                <MphlgChecklistCell />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="mt-9 text-[11px] font-bold leading-[1.35]">
+          <p>
+            C. <span className="underline">REKOMENDASI</span>{" "}
+            <span className="font-normal">(perlu di isi oleh agensi pemohon)</span>
+          </p>
+        </div>
+        <div className="mt-4 h-28 border border-slate-500" />
+
+        <div className="mt-9 text-[11px] font-bold leading-[1.35]">
+          <p>
+            D. <span className="underline">PENGESAHAN</span>{" "}
+            <span className="font-normal">(perlu di isi oleh agensi pemohon)</span>
+          </p>
+        </div>
+        <MphlgChecklistTwoSignatureTable className="mt-4" />
+      </MphlgChecklistPage>
+
+      <MphlgChecklistPage pageNo={3}>
+        <MphlgChecklistHeader compact />
+        <div
+          data-mphlg-download-page-three-first-section
+          className="mt-6 text-[11px] font-bold leading-tight"
+        >
+          <p>
+            E. <span className="underline">KOMEN/ ULASAN</span>
+            <span className="font-normal">(untuk diisi Kementerian (penyemak) sahaja)</span>
+          </p>
+        </div>
+        <div className="mt-3 h-48 border border-slate-500" />
+
+        <div className="mt-8 text-[11px] font-bold leading-tight">
+          <p>
+            F. <span className="underline">REKOMENDASI</span>
+            <span className="font-normal">(untuk diisi Kementerian (pengesah) sahaja)</span>
+          </p>
+        </div>
+        <div className="mt-3 h-56 border border-slate-500" />
+
+        <MphlgChecklistThreeSignatureTable className="mt-8" />
+      </MphlgChecklistPage>
+    </div>
+  );
+}
+
+function MphlgChecklistPage({ children, pageNo }) {
+  return (
+    <section
+      data-mphlg-checklist-page={pageNo}
+      className="relative min-h-[1123px] w-[794px] bg-white px-[60px] py-[45px] text-black shadow-lg ring-1 ring-slate-300 print:shadow-none"
+    >
+      {children}
+      {pageNo > 1 && (
+        <div
+          data-mphlg-download-page-number
+          className="absolute bottom-[14px] left-0 right-0 text-center text-[12px] font-semibold"
+        >
+          {pageNo}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MphlgChecklistHeader({ compact = false }) {
+  return (
+    <div className="flex items-start justify-between text-[8px] font-bold italic leading-tight">
+      <img
+        src="/MPHLG.png"
+        alt="MPHLG"
+        className="h-14 w-14 object-contain object-left"
+      />
+      <div className="pt-1 text-right">
+        <p>BORANG PERMOHONAN PERTAPAKAN</p>
+        <p>(ADVERTISEMENT BILLBOARD)</p>
+      </div>
+    </div>
+  );
+}
+
+function MphlgChecklistCell({ children, className = "", colSpan, rowSpan, ...props }) {
+  return (
+    <td
+      colSpan={colSpan}
+      rowSpan={rowSpan}
+      className={`border border-slate-500 px-2 py-1 align-middle ${className}`}
+      {...props}
+    >
+      {children}
+    </td>
+  );
+}
+
+function MphlgChecklistBoxCells({ count }) {
+  return Array.from({ length: count }).map((_, index) => (
+    <MphlgChecklistCell key={index} className="text-center">
+      <span className="mx-auto block h-6 w-11 border-2 border-slate-500" />
+    </MphlgChecklistCell>
+  ));
+}
+
+function MphlgChecklistCategoryTable() {
+  const rows = [
+    ["Landed Advertisement", true],
+    ["Gantry", ""],
+    ["Unipole/Minipole", ""],
+    ["Free Standing Billboard", ""],
+    ["Free Standing panel/ LED", ""],
+    ["Directional sign", ""],
+    ["Directory sign", ""],
+    ["Advertisement on Building", true],
+    ["Projecting Sign", ""],
+    ["Roof Top Sign", ""],
+    ["Advertisement at Overhead Bridge", ""],
+    ["Advertisement mounted on the wall of a building (Wall Sign / Building Wrap, etc)", ""],
+    ["Advertisement at Pillar / Column Wrap", ""],
+    ["Advertisement at Street Furniture (Bus Shelter, etc)", ""],
+    ["Lukisan Mural (Mural Art)", ""],
+  ];
+
+  return (
+    <table className="w-full border-collapse text-[9px] leading-[1.25]">
+      <tbody>
+        {rows.map(([label, isHeading]) => (
+          <tr key={label} className="h-[30px]" data-mphlg-download-category-row>
+            <td
+              colSpan={isHeading ? 2 : undefined}
+              data-mphlg-download-category-cell
+              className={`border border-slate-400 px-2.5 py-2 italic ${
+                isHeading ? "bg-slate-100 font-bold" : ""
+              }`}
+            >
+              {label}
+            </td>
+            {!isHeading && <td className="w-24 border border-slate-400 bg-slate-50" />}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function MphlgChecklistTwoSignatureTable({ className = "" }) {
+  return (
+    <table className={`w-full border-collapse text-[9px] leading-[1.25] ${className}`}>
+      <tbody>
+        <tr className="h-[26px]">
+          <MphlgChecklistCell className="w-1/2 py-2 text-center font-bold">Disediakan oleh:</MphlgChecklistCell>
+          <MphlgChecklistCell className="w-1/2 py-2 text-center font-bold">Disahkan oleh:</MphlgChecklistCell>
+        </tr>
+        <tr className="h-[84px]">
+          <MphlgChecklistCell className="py-4 text-center align-top font-semibold">Tandatangan:</MphlgChecklistCell>
+          <MphlgChecklistCell className="py-4 text-center align-top font-semibold">Tandatangan:</MphlgChecklistCell>
+        </tr>
+        <tr className="h-[54px]">
+          <MphlgChecklistCell className="py-2">Nama :<br />Jawatan :<br />Tarikh :</MphlgChecklistCell>
+          <MphlgChecklistCell className="py-2">Nama :<br />Jawatan :<br />Tarikh :</MphlgChecklistCell>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+function MphlgChecklistThreeSignatureTable({ className = "" }) {
+  return (
+    <table className={`w-full border-collapse text-[10px] leading-tight ${className}`}>
+      <tbody>
+        <tr>
+          {["Disediakan oleh:", "Disemak oleh:", "Disahkan oleh:"].map((label) => (
+            <MphlgChecklistCell
+              key={label}
+              data-mphlg-download-three-signature-header-cell
+              className="w-1/3 text-center font-bold"
+            >
+              {label}
+            </MphlgChecklistCell>
+          ))}
+        </tr>
+        <tr>
+          {[0, 1, 2].map((item) => (
+            <MphlgChecklistCell
+              key={item}
+              data-mphlg-download-three-signature-line-cell
+              className="h-24 text-center align-top font-semibold"
+            >
+              Tandatangan:
+            </MphlgChecklistCell>
+          ))}
+        </tr>
+        <tr>
+          {[0, 1, 2].map((item) => (
+            <MphlgChecklistCell key={item} data-mphlg-download-three-signature-details-cell>
+              Nama :<br />Jawatan :<br />Tarikh :
+            </MphlgChecklistCell>
+          ))}
+        </tr>
+      </tbody>
+    </table>
   );
 }
 
