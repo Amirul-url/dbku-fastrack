@@ -967,6 +967,16 @@ function getMessageSummary(message) {
   return lines.find((line) => !skipPrefixes.some((prefix) => line.startsWith(prefix))) || "";
 }
 
+function isKbLesVerificationNotificationText(value) {
+  const text = String(value || "").toLowerCase();
+  return (
+    text.includes("requires kb(les) verification") ||
+    text.includes("ready for kb(les) verification") ||
+    text.includes("sedia untuk pengesahan kb(les)") ||
+    text.includes("memerlukan pengesahan kb(les)")
+  );
+}
+
 function getNotificationDisplayStatus(role, status, user = null, app = null) {
   const normalizedStatus = normalizeStatus(status);
 
@@ -1110,8 +1120,20 @@ function buildNotificationsFromDeliveries(deliveries, user) {
           management_recommendation: delivery.management_recommendation || {},
         },
       };
+      const notificationText = [
+        metadata.title_en,
+        metadata.title,
+        delivery.subject,
+        metadata.message_en,
+        metadata.message,
+        delivery.message,
+      ].join(" ");
       const displayStatus =
-        metadata.display_status || getNotificationDisplayStatus(role, status, user, deliveryApplication);
+        metadata.display_status ||
+        (metadata.memo_template === "ku_ikl_final_review" ||
+        (status === "management_review" && isKbLesVerificationNotificationText(notificationText))
+          ? "management_review"
+          : getNotificationDisplayStatus(role, status, user, deliveryApplication));
       const reference = delivery.reference_no || metadata.account_username || "-";
       const title = normalizeApplicantNotificationText(
         metadata.title_en || metadata.title || getTitleFromSubject(delivery.subject),

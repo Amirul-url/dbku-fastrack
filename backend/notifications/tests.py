@@ -1307,6 +1307,7 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(delivery.metadata["memo_html"], memo_html)
         self.assertEqual(delivery.metadata["memo_template"], "ku_ikl_final_review")
+        self.assertEqual(delivery.metadata["display_status"], "management_review")
         self.assertEqual(delivery.metadata["from"], "KU(IKL)")
         self.assertEqual(delivery.metadata["to"], "KB(LES)")
         self.assertIn("Remark: proceed next", delivery.message)

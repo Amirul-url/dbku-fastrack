@@ -659,6 +659,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     approvalStageKey === "support" &&
     APPROVAL_SUPPORT_DEPARTMENTS.includes(userDepartment);
+  const isKbVerificationTemplateWorkspace =
+    isApprovalWorkspace &&
+    approvalStageKey === "kb" &&
+    userDepartment === "KB(LES)";
+  const useApprovalSignatureTemplate =
+    isApprovalSupportWorkspace || isKbVerificationTemplateWorkspace;
   const isMphlgApprovalWorkspace =
     isApprovalWorkspace &&
     approvalStageKey === "mphlg" &&
@@ -748,13 +754,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
   const approvalSupportDecision =
-    isApprovalSupportWorkspace && ["Approve", "Support", "Reject"].includes(decision)
+    useApprovalSignatureTemplate && decision
       ? decision
       : "";
   const showApprovalSupportSignature = isSignedApprovalSupportDecision(approvalSupportDecision);
   const approvalSupportDecisionOptions = useMemo(
-    () => getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace),
-    [isFinalApprovalSupportWorkspace]
+    () =>
+      isKbVerificationTemplateWorkspace
+        ? getWorkspaceDecisionOptions(config, selectedRecord, userDepartment)
+        : getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace),
+    [
+      config,
+      isFinalApprovalSupportWorkspace,
+      isKbVerificationTemplateWorkspace,
+      selectedRecord?.id,
+      selectedRecord?.status,
+      selectedRecord?.updated_at,
+      userDepartment,
+    ]
   );
   const approvalOfficerName = getRegisteredUserFullName(currentUser, userDepartment);
   const savedApprovalDecisionHtml =
@@ -810,7 +827,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !isApprovalLicenseManagement &&
     config.showComment &&
     canSubmitWorkspaceAction &&
-    !isApprovalSupportWorkspace &&
+    !useApprovalSignatureTemplate &&
     (
       config.key !== "payment" ||
       workspaceActions.some((action) =>
@@ -915,6 +932,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     const savedSignature =
+      selectedRecord?.form_data?.kb_les_verification?.digital_signature ||
       selectedRecord?.form_data?.management_recommendation?.digital_signature ||
       selectedRecord?.form_data?.approval?.digital_signature ||
       null;
@@ -924,7 +942,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id]);
 
   useEffect(() => {
-    if (isApprovalSupportWorkspace) {
+    if (useApprovalSignatureTemplate) {
       const nextDecision = isFinalApprovalSupportWorkspace ? "Approve" : "";
       setDecision(nextDecision);
       setDecisionInput(
@@ -973,6 +991,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     config,
     decisionOptions,
     isApprovalSupportWorkspace,
+    useApprovalSignatureTemplate,
     selectedRecord?.id,
     showPaymentDocumentDecision,
     showPaymentReceiptDecision,
@@ -1522,13 +1541,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const action = availableAction || (canSendSavedApprovalMemoToMphlg ? config.actions?.[0] : null);
     if (!action) return;
 
+    const cleanedComment = cleanRemark(comment);
+
     if (!decisionValue) {
       setDecisionError(getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t));
       decisionInputRef.current?.focus();
       return;
     }
 
-    if (!cleanRemark(comment)) {
+    if (!cleanedComment) {
       setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
       commentRef.current?.focus();
       return;
@@ -1548,7 +1569,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setDecision("Approve");
       submitAction(action, {
         decision: "Approve",
-        comment: cleanRemark(comment),
+        comment: cleanedComment,
         checkDecisionRemark: false,
         approvalDecisionHtml: "",
         approvalSupportSignature: supportSignature,
@@ -1558,7 +1579,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     submitAction(action, {
       decision: decisionValue,
-      comment: cleanRemark(comment),
+      comment: cleanedComment,
       checkDecisionRemark: decisionValue !== "Approve",
       approvalDecisionHtml: "",
       approvalSupportSignature: supportSignature,
@@ -1733,6 +1754,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
         approvalSupportSignature: overrides.approvalSupportSignature || null,
         screeningSignature: overrides.screeningSignature || null,
+        kuSignature: overrides.kuSignature ?? null,
         kuChecks: overrides.kuChecks,
         officialReceiptMode: "upload",
       });
@@ -2299,6 +2321,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     canSubmitWorkspaceAction &&
                     !isApprovalLicenseManagement &&
                     !isApprovalSupportWorkspace &&
+                    !isKbVerificationTemplateWorkspace &&
                     !showApprovalDecisionButtons && (
                     <Field
                       label={
@@ -2534,7 +2557,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )
                   )}
 
-                  {isApprovalSupportWorkspace && canSubmitWorkspaceAction && (
+                  {useApprovalSignatureTemplate && canSubmitWorkspaceAction && (
                     <>
                       {showApprovalMemoPreviews && (
                         <ApprovalMemoPreview
@@ -2578,11 +2601,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               );
                             }
                           }}
-                          className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          className={`form-input form-input-sm w-full max-w-[30rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                           placeholder={
                             isFinalApprovalSupportWorkspace
                               ? getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t)
-                              : t("workspace.decision.typeSupportOrNotSupport", "Type Support or Not Support")
+                              : isKbVerificationTemplateWorkspace
+                                ? t("workspace.decision.typeVerifyOrNotVerify", "Type Verify or Not Verify")
+                                : t("workspace.decision.typeSupportOrNotSupport", "Type Support or Not Support")
                           }
                           inputMode="text"
                           aria-invalid={Boolean(decisionError)}
@@ -2718,7 +2743,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         </Button>
                       )}
                       {canSubmitWorkspaceAction &&
-                      (isApprovalSupportWorkspace || canSendSavedApprovalMemoToMphlg) ? (
+                      (useApprovalSignatureTemplate || canSendSavedApprovalMemoToMphlg) ? (
                         <Button
                           onClick={() =>
                             submitApprovalSupport(
@@ -5798,7 +5823,7 @@ function getApprovalSupportDecisionOptions(isFinalApprovalSupportWorkspace = fal
 }
 
 function isSignedApprovalSupportDecision(decision) {
-  return ["approve", "support"].includes(String(decision || "").trim().toLowerCase());
+  return ["approve", "support", "verify"].includes(String(decision || "").trim().toLowerCase());
 }
 
 function getWorkspaceDecisionOptions(config, app, department) {
@@ -6466,6 +6491,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(technicalKuReview),
     remarks: getWorkspaceDecisionLogRemarks(technicalKuReview),
     date: getWorkspaceDecisionLogDate(technicalKuReview, ["reviewed_at", "checked_at"]),
+    signature: getWorkspaceDecisionLogSignature(technicalKuReview),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -6475,6 +6501,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: getWorkspaceDecisionLogValue(kbLesVerification),
     remarks: getWorkspaceDecisionLogRemarks(kbLesVerification),
     date: getWorkspaceDecisionLogDate(kbLesVerification, ["verified_at", "reviewed_at"]),
+    signature: getWorkspaceDecisionLogSignature(kbLesVerification),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -6636,6 +6663,18 @@ function hasDigitalSignatureContent(signature) {
   }
 
   return Boolean(getDecisionLogSignatureSource(signature));
+}
+
+function getWorkspaceDecisionLogSignature(section = {}) {
+  if (!section || typeof section !== "object") return null;
+
+  return (
+    section.digital_signature ||
+    section.digitalSignature ||
+    section.signature ||
+    section.signature_data ||
+    null
+  );
 }
 
 function isApprovalSupportDecisionLogDepartment(department) {
@@ -7467,6 +7506,11 @@ function buildApprovalWorkflowPayload(app, data) {
 
   if (department === "KB(LES)") {
     const kbSupportStage = getApprovalStageKey(app) === "kb_support";
+    const kbVerificationSignature = rejected
+      ? null
+      : data.approvalSupportSignature ||
+        app.form_data?.kb_les_verification?.digital_signature ||
+        null;
 
     return {
       status: rejected ? "technical_review_completed" : "management_review",
@@ -7487,6 +7531,7 @@ function buildApprovalWorkflowPayload(app, data) {
           decision,
           remarks: data.comment,
           memo_html: data.memoHtml || app.form_data?.kb_les_verification?.memo_html || "",
+          digital_signature: kbVerificationSignature,
           verified_at: now,
         },
         management_recommendation: rejected
@@ -9997,7 +10042,7 @@ function IklWorkspaceSections({
                       );
                     }
                   }}
-                  className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${kuDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                  className={`form-input form-input-sm w-full max-w-[30rem] bg-white text-[13px] ${kuDecisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                   placeholder={t(
                     "workspace.decision.typeApproveOrRequestAmendment",
                     "Type Approve or Request Amendment"
