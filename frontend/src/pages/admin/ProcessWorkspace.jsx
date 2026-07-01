@@ -2416,28 +2416,53 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 <>
                   {isMphlgApprovalWorkspace && canSubmitWorkspaceAction && (
                     <div className="space-y-5">
-                      <div className="flex items-center gap-3 pt-6">
+                      <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-3 pt-6">
                         <span className="text-base font-medium leading-6 text-slate-950">1.</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowMphlgChecklist(true)}
-                          className="min-h-10 rounded-md border border-slate-300 bg-white px-6 text-sm font-medium leading-5 text-slate-950 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
-                        >
-                          {t("workspace.mphlg.viewChecklist", "View Check List")}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowMphlgChecklist(true)}
+                            className="min-h-10 rounded-md border border-slate-300 bg-white px-6 text-sm font-medium leading-5 text-slate-950 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                          >
+                            {t("workspace.mphlg.viewChecklist", "View Check List")}
+                          </button>
+                          <span className="group relative inline-flex">
+                            <button
+                              type="button"
+                              className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-[#18b36b] bg-white text-[12px] font-bold leading-none text-[#00843d] focus:outline-none focus:ring-2 focus:ring-[#18b36b] focus:ring-offset-1"
+                              aria-label={t(
+                                "workspace.mphlg.checklistHelp",
+                                "Please download this document, fill in all fields, and upload it in the table below."
+                              )}
+                            >
+                              i
+                            </button>
+                            <span className="pointer-events-none absolute left-7 top-1/2 z-20 hidden w-72 -translate-y-1/2 rounded border border-slate-200 bg-white px-3 py-2 text-xs font-semibold normal-case leading-5 text-slate-700 shadow-lg group-hover:block group-focus-within:block">
+                              {t(
+                                "workspace.mphlg.checklistHelp",
+                                "Please download this document, fill in all fields, and upload it in the table below."
+                              )}
+                            </span>
+                          </span>
+                        </div>
                       </div>
 
-                      <MphlgSupportingDocumentsTable
-                        rows={mphlgSupportingDocuments}
-                        t={t}
-                        saving={saving}
-                        error={mphlgSupportingDocumentError}
-                        onAdd={addMphlgSupportingDocument}
-                        onUpdate={updateMphlgSupportingDocument}
-                        onRemove={removeMphlgSupportingDocument}
-                        onFileChange={uploadMphlgSupportingDocument}
-                        onRemoveFile={removeMphlgSupportingDocumentFile}
-                      />
+                      <div className="grid grid-cols-[1.5rem_minmax(0,1fr)] items-start gap-3">
+                        <span className="pt-3 text-base font-medium leading-6 text-slate-950">2.</span>
+                        <div className="min-w-0 flex-1">
+                          <MphlgSupportingDocumentsTable
+                            rows={mphlgSupportingDocuments}
+                            t={t}
+                            saving={saving}
+                            error={mphlgSupportingDocumentError}
+                            onAdd={addMphlgSupportingDocument}
+                            onUpdate={updateMphlgSupportingDocument}
+                            onRemove={removeMphlgSupportingDocument}
+                            onFileChange={uploadMphlgSupportingDocument}
+                            onRemoveFile={removeMphlgSupportingDocumentFile}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -2681,7 +2706,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   )}
 
                   {useApprovalSignatureTemplate && canSubmitWorkspaceAction && (
-                    <>
+                    <div className={isMphlgApprovalWorkspace ? "grid grid-cols-[1.5rem_minmax(0,1fr)] gap-3" : ""}>
+                      {isMphlgApprovalWorkspace && <span aria-hidden="true" />}
+                      <div className={isMphlgApprovalWorkspace ? "min-w-0 space-y-4" : "contents"}>
                       {showApprovalMemoPreviews && (
                         <ApprovalMemoPreview
                           app={selectedRecord}
@@ -2793,7 +2820,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onError={setApprovalSupportSignatureError}
                         />
                       )}
-                    </>
+                      </div>
+                    </div>
                   )}
 
                   {showSiteVisitFields && (
@@ -3095,8 +3123,8 @@ async function downloadMphlgChecklistPdf(rootElement, reference) {
 }
 
 async function captureMphlgChecklistPage(page) {
-  const width = Math.ceil(page.offsetWidth || page.getBoundingClientRect().width);
-  const height = Math.ceil(page.offsetHeight || page.getBoundingClientRect().height);
+  const width = 794;
+  const height = 1123;
   const options = {
     backgroundColor: "#ffffff",
     scale: 2.4,
@@ -3621,7 +3649,7 @@ function MphlgSupportingDocumentsTable({
                   key={`mphlg-supporting-${index}`}
                   className={index % 2 === 0 ? "bg-[#e4f4df]" : "bg-white"}
                 >
-                  <MphlgDocumentTableCell>{index + 1}</MphlgDocumentTableCell>
+                  <MphlgDocumentTableCell>{String.fromCharCode(65 + index)}</MphlgDocumentTableCell>
                   <MphlgDocumentTableCell>
                     <input
                       type="text"
