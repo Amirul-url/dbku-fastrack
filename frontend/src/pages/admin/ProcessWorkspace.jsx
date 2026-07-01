@@ -2968,16 +2968,25 @@ async function downloadDecisionLogReportPdf(log, reference) {
       height: reportElement.scrollHeight,
     });
     const imageData = canvas.toDataURL("image/png");
-    const pdfWidth = reportElement.offsetWidth;
-    const pdfHeight = reportElement.offsetHeight;
     const pdf = new jsPDF({
-      orientation: pdfWidth > pdfHeight ? "l" : "p",
-      unit: "px",
-      format: [pdfWidth, pdfHeight],
-      hotfixes: ["px_scaling"],
+      orientation: "p",
+      unit: "mm",
+      format: "a4",
     });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imageHeight = (canvas.height * pageWidth) / canvas.width;
 
-    pdf.addImage(imageData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    if (imageHeight <= pageHeight) {
+      pdf.addImage(imageData, "PNG", 0, 0, pageWidth, imageHeight);
+    } else {
+      let renderedHeight = 0;
+      while (renderedHeight < imageHeight) {
+        if (renderedHeight > 0) pdf.addPage("a4", "p");
+        pdf.addImage(imageData, "PNG", 0, -renderedHeight, pageWidth, imageHeight);
+        renderedHeight += pageHeight;
+      }
+    }
     pdf.save(buildDecisionLogDownloadFilename(reference, log));
   } finally {
     reportElement.remove();
@@ -3159,7 +3168,7 @@ function buildDecisionLogSnapshotHtml(log) {
           align-items: flex-end;
           border-bottom: 1px solid #0f172a;
           padding-bottom: 4px;
-          overflow: hidden;
+          overflow: visible;
         }
         .signature-row-line-date {
           align-items: flex-end;
@@ -3169,14 +3178,14 @@ function buildDecisionLogSnapshotHtml(log) {
         .signature-row-value {
           width: 100%;
           min-width: 0;
-          color: #5273ff;
+          color: #0f172a;
           font-size: 13px;
-          font-weight: 700;
-          line-height: 16px;
-          overflow: hidden;
-          text-align: center;
+          font-weight: 600;
+          line-height: 20px;
+          overflow: visible;
+          text-align: left;
           text-transform: uppercase;
-          white-space: pre-line;
+          white-space: nowrap;
         }
         .signature-row-value-date {
           color: #0f172a;
@@ -3185,6 +3194,13 @@ function buildDecisionLogSnapshotHtml(log) {
           overflow: visible;
           text-align: left;
           white-space: nowrap;
+        }
+        .signature-grid-upload .signature-row-value:not(.signature-row-value-date) {
+          color: #5273ff;
+          font-weight: 700;
+          line-height: 16px;
+          text-align: center;
+          white-space: pre-line;
         }
       </style>
       <div class="download-header">
@@ -3268,6 +3284,9 @@ function buildDecisionLogRemarkLinesHtml() {
 
 function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, labels) {
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const signatureModeClass = signatureDetails.mode === "upload"
+    ? "signature-grid-upload"
+    : "signature-grid-draw";
   const rows = [
     { key: "signatureStamp", label: labels.signatureAndStamp },
     { key: "name", label: labels.name },
@@ -3281,7 +3300,7 @@ function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, label
       <p class="signature-label">${escapeHtml(labels.signatureTitle)}</p>
       <div class="signature-box">
         <p class="confirmation-title">${escapeHtml(labels.confirmation)}</p>
-        <div class="signature-grid">
+        <div class="signature-grid ${signatureModeClass}">
           ${buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource, labels)}
           ${rows
             .map((row, index) => {
@@ -3623,6 +3642,7 @@ function DecisionLogTemplateModal({ log, t, onClose }) {
 function formatDecisionLogDepartmentLabel(department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   if (normalizedDepartment === "KU(IKL)") return "Ketua Unit (Iklan)";
+  if (normalizedDepartment === "BLG") return "Bangunan (BLG)";
   return department || "-";
 }
 

@@ -1308,6 +1308,7 @@ function DecisionLogReport({ app, logs, reference, t }) {
 function formatDecisionLogDepartmentLabel(department) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   if (normalizedDepartment === "KU(IKL)") return "Ketua Unit (Iklan)";
+  if (normalizedDepartment === "BLG") return "Bangunan (BLG)";
   return department || "-";
 }
 
