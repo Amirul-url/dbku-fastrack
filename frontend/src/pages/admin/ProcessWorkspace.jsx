@@ -2462,7 +2462,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           t={t}
                         />
                       )}
-                      <Field label={t("common.decision", "Your Recommendation")}>
+                      <div className="max-w-[56rem]">
+                        <span className="mb-1 block text-[14px] font-semibold leading-5 text-slate-900">
+                          {t("common.decision", "Your Recommendation")}
+                        </span>
                         <input
                           ref={decisionInputRef}
                           type="text"
@@ -2493,8 +2496,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               );
                             }
                           }}
-                          className={`form-input w-full max-w-[28rem] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                          placeholder={getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t)}
+                          className={`form-input form-input-sm w-full max-w-[17rem] bg-white ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          placeholder={
+                            isFinalApprovalSupportWorkspace
+                              ? getWorkspaceDecisionInputPrompt(approvalSupportDecisionOptions, t)
+                              : t("workspace.decision.typeSupportOrNotSupport", "Type Support or Not Support")
+                          }
                           inputMode="text"
                           aria-invalid={Boolean(decisionError)}
                         />
@@ -2503,35 +2510,45 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             {decisionError}
                           </p>
                         )}
-                      </Field>
-                      <Field
-                        label={
-                          <>
-                            {t("workspace.comment.approvalRemarks", "Remarks")}
-                            <span className="ml-1 text-red-600">*</span>
-                          </>
-                        }
-                      >
-                        <textarea
-                          ref={commentRef}
-                          value={comment}
-                          onChange={(event) => {
-                            setComment(event.target.value);
-                            if (commentError) setCommentError("");
+                      </div>
+                      <div className="max-w-[56rem]">
+                        <label
+                          htmlFor="approval-support-remarks"
+                          className="mb-1 block text-[14px] font-semibold leading-5 text-slate-900"
+                        >
+                          {t("workspace.comment.approvalRemarks", "Remarks")}
+                          <span className="ml-1 text-red-600">*</span>
+                        </label>
+                        <div
+                          className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                          style={{
+                            backgroundImage:
+                              "repeating-linear-gradient(to bottom, transparent 0, transparent 29px, #1f2937 30px, transparent 31px)",
                           }}
-                          rows="5"
-                          required
-                          aria-required
-                          aria-invalid={Boolean(commentError)}
-                          className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                          placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks.")}
-                        />
+                        >
+                          <textarea
+                            id="approval-support-remarks"
+                            ref={commentRef}
+                            value={comment}
+                            onChange={(event) => {
+                              setComment(event.target.value);
+                              if (commentError) setCommentError("");
+                            }}
+                            rows="12"
+                            required
+                            aria-required
+                            aria-invalid={Boolean(commentError)}
+                            className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[14px] font-medium leading-[30px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                            placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks.")}
+                            style={{ lineHeight: "30px" }}
+                          />
+                        </div>
                         {commentError && (
                           <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
                             {commentError}
                           </p>
                         )}
-                      </Field>
+                      </div>
                       {showApprovalSupportSignature && (
                         <ApprovalSupportSignatureBox
                           t={t}
@@ -3554,7 +3571,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
           <span className="ml-1 text-red-600">*</span>
       </span>
       <div
-        className={`max-w-3xl rounded border bg-white p-3 ${error ? "border-red-300 shadow-[0_0_0_3px_rgba(220,38,38,0.08)]" : "border-slate-200"}`}
+        className={`max-w-[56rem] rounded border bg-white p-3 ${error ? "border-red-300 shadow-[0_0_0_3px_rgba(220,38,38,0.08)]" : "border-slate-200"}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
