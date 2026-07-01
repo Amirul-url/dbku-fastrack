@@ -1,4 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
@@ -254,6 +256,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalDecisionEditable, setApprovalDecisionEditable] = useState(false);
   const [approvalSupportSignature, setApprovalSupportSignature] = useState(null);
   const [approvalSupportSignatureError, setApprovalSupportSignatureError] = useState("");
+  const [technicalSignatureError, setTechnicalSignatureError] = useState("");
   const [adminApprovalSeenAt, setAdminApprovalSeenAt] = useState(() =>
     getAdminApprovalRecordSeen(getStoredUser())
   );
@@ -290,6 +293,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     deposit_calculation: "",
     processing_fee_calculation: "",
     site_remarks: "",
+    digital_signature: null,
   });
 
   useEffect(() => {
@@ -402,16 +406,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       deposit_calculation: saved.deposit_calculation || String(TECHNICAL_FIXED_DEPOSIT),
       processing_fee_calculation: saved.processing_fee_calculation || String(TECHNICAL_PROCESSING_FEE),
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
+      digital_signature:
+        getCurrentTechnicalDepartmentReviews(selectedDetail)?.[userDepartment]?.digital_signature ||
+        saved.digital_signature ||
+        selectedDetail?.form_data?.technical_review?.digital_signature ||
+        null,
     });
     setTechnicalApplicationTypeSelection(getApplicationTypeOptionsFromApplication(selectedDetail));
     setTechnicalSizeError("");
+    setTechnicalSignatureError("");
   }, [
     selectedDetail?.id,
     selectedDetail?.status,
     selectedDetail?.updated_at,
     selectedDetail?.form_data?.technical_review_cycle,
     selectedDetail?.form_data?.technical_referral?.cycle_id,
+    selectedDetail?.form_data?.technical_department_reviews,
     selectedDetail?.form_data?.technical_site_visit?.reset_at,
+    userDepartment,
   ]);
 
   async function fetchApplications({ silent = false } = {}) {
@@ -1586,6 +1598,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     setCommentError("");
     setTechnicalSizeError("");
+    setTechnicalSignatureError("");
     const actionDecision = overrides.decision || action.decision || decision;
     const cleanedComment = cleanRemark(overrides.comment ?? comment);
     const requiresDecisionRemark =
@@ -1599,6 +1612,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if ((action.requiresComment || requiresDecisionRemark) && !cleanedComment) {
       setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+      return;
+    }
+
+    if (
+      isDepartmentTechnicalWorkspace &&
+      action.buildPayload === buildDepartmentTechnicalReviewPayload &&
+      !hasDigitalSignatureContent(technicalSite.digital_signature)
+    ) {
+      setTechnicalSignatureError(
+        t("workspace.signature.required", "Digital signature is required.")
+      );
       return;
     }
 
@@ -2413,44 +2437,100 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   )}
 
                   {showWorkspaceCommentField && (
-                    <Field
-                      label={
-                        <>
-                          {useTypedApprovalDecision
-                            || showPaymentTypedDecision
-                            ? t("workspace.comment.remarks", "Remarks")
-                            : t(config.commentLabelKey, config.commentLabel || "Notes")}
-                          {workspaceCommentRequired && (
+                    isDepartmentTechnicalWorkspace ? (
+                      <div className="space-y-4">
+                        <div className="max-w-[56rem]">
+                          <label
+                            htmlFor="technical-department-remarks"
+                            className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
+                          >
+                            {t("workspace.comment.remarks", "Remarks")}
                             <span className="ml-1 text-red-600">*</span>
+                          </label>
+                          <div
+                            className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                            style={{
+                              backgroundImage:
+                                "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+                            }}
+                          >
+                            <textarea
+                              id="technical-department-remarks"
+                              ref={commentRef}
+                              value={comment}
+                              onChange={(event) => {
+                                setComment(event.target.value);
+                                if (commentError) setCommentError("");
+                              }}
+                              rows="12"
+                              required
+                              aria-required="true"
+                              aria-invalid={Boolean(commentError)}
+                              className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                              placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+                              style={{ lineHeight: "26px" }}
+                            />
+                          </div>
+                          {commentError && (
+                            <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                              {commentError}
+                            </p>
                           )}
-                        </>
-                      }
-                      labelClassName={showPaymentTypedDecision ? "!text-[13px]" : ""}
-                    >
-                      <textarea
-                        ref={commentRef}
-                        value={comment}
-                        onChange={(event) => {
-                          setComment(event.target.value);
-                          if (commentError) setCommentError("");
-                        }}
-                        rows="5"
-                        required={workspaceCommentRequired}
-                        aria-required={workspaceCommentRequired}
-                        aria-invalid={Boolean(commentError)}
-                        className={`form-input ${showPaymentTypedDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                        placeholder={
-                          showPaymentTypedDecision
-                            ? t("workspace.comment.approvalPlaceholder", "Add comments")
-                            : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
+                        </div>
+                        <ApprovalSupportSignatureBox
+                          t={t}
+                          value={technicalSite.digital_signature}
+                          error={technicalSignatureError}
+                          onChange={(nextSignature) => {
+                            setTechnicalSite((prev) => ({
+                              ...prev,
+                              digital_signature: nextSignature,
+                            }));
+                            if (technicalSignatureError) setTechnicalSignatureError("");
+                          }}
+                          onError={setTechnicalSignatureError}
+                        />
+                      </div>
+                    ) : (
+                      <Field
+                        label={
+                          <>
+                            {useTypedApprovalDecision
+                              || showPaymentTypedDecision
+                              ? t("workspace.comment.remarks", "Remarks")
+                              : t(config.commentLabelKey, config.commentLabel || "Notes")}
+                            {workspaceCommentRequired && (
+                              <span className="ml-1 text-red-600">*</span>
+                            )}
+                          </>
                         }
-                      />
-                      {commentError && (
-                        <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
-                          {commentError}
-                        </p>
-                      )}
-                    </Field>
+                        labelClassName={showPaymentTypedDecision ? "!text-[13px]" : ""}
+                      >
+                        <textarea
+                          ref={commentRef}
+                          value={comment}
+                          onChange={(event) => {
+                            setComment(event.target.value);
+                            if (commentError) setCommentError("");
+                          }}
+                          rows="5"
+                          required={workspaceCommentRequired}
+                          aria-required={workspaceCommentRequired}
+                          aria-invalid={Boolean(commentError)}
+                          className={`form-input ${showPaymentTypedDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          placeholder={
+                            showPaymentTypedDecision
+                              ? t("workspace.comment.approvalPlaceholder", "Add comments")
+                              : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
+                          }
+                        />
+                        {commentError && (
+                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                            {commentError}
+                          </p>
+                        )}
+                      </Field>
+                    )
                   )}
 
                   {isApprovalSupportWorkspace && canSubmitWorkspaceAction && (
@@ -2756,7 +2836,26 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
 function WorkspaceDecisionLogReport({ app, t }) {
   const [selectedLog, setSelectedLog] = useState(null);
+  const [downloadingLogId, setDownloadingLogId] = useState("");
+  const [downloadError, setDownloadError] = useState("");
   const logs = buildWorkspaceDecisionLogRows(app, t);
+  const reference = getApplicationReference(app);
+
+  async function handleDownloadReport(log) {
+    setDownloadError("");
+    setDownloadingLogId(log.id);
+
+    try {
+      await downloadDecisionLogReportPdf(log, reference);
+    } catch (error) {
+      console.error("Failed to download decision report:", error);
+      setDownloadError(
+        t("workspace.decisionLog.downloadFailed", "Could not download the report. Please try again.")
+      );
+    } finally {
+      setDownloadingLogId("");
+    }
+  }
 
   return (
     <>
@@ -2786,21 +2885,35 @@ function WorkspaceDecisionLogReport({ app, t }) {
                 {logs.map((log) => (
                   <tr key={log.id} className="align-middle">
                     <td className="whitespace-nowrap px-4 py-2 font-semibold text-slate-900">
-                      {log.department}
+                      {formatDecisionLogDepartmentLabel(log.department)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-600">
                       {formatCompactDateTime(log.date)}
                     </td>
                     <td className="px-4 py-2 text-right">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        icon="visibility"
-                        className="min-h-8 px-2.5 py-1 text-sm"
-                        onClick={() => setSelectedLog(log)}
-                      >
-                        {t("common.view", "View")}
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          icon="visibility"
+                          className="min-h-8 px-2.5 py-1 text-sm"
+                          onClick={() => setSelectedLog(log)}
+                        >
+                          {t("common.view", "View")}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          icon="download"
+                          className="min-h-8 px-2.5 py-1 text-sm"
+                          disabled={downloadingLogId === log.id}
+                          onClick={() => handleDownloadReport(log)}
+                        >
+                          {downloadingLogId === log.id
+                            ? t("common.downloading", "Downloading...")
+                            : t("common.download", "Download")}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2814,6 +2927,10 @@ function WorkspaceDecisionLogReport({ app, t }) {
         )}
       </section>
 
+      {downloadError && (
+        <p className="mt-2 text-sm font-medium text-red-600">{downloadError}</p>
+      )}
+
       {selectedLog && (
         <DecisionLogTemplateModal
           log={selectedLog}
@@ -2823,6 +2940,652 @@ function WorkspaceDecisionLogReport({ app, t }) {
       )}
     </>
   );
+}
+
+async function downloadDecisionLogReportPdf(log, reference) {
+  const snapshotWidth = 728;
+  const reportElement = document.createElement("div");
+  reportElement.style.position = "fixed";
+  reportElement.style.left = "-10000px";
+  reportElement.style.top = "0";
+  reportElement.style.width = `${snapshotWidth}px`;
+  reportElement.style.background = "#ffffff";
+  reportElement.style.padding = "0";
+  reportElement.style.zIndex = "-1";
+  reportElement.innerHTML = buildDecisionLogSnapshotHtml(log);
+  document.body.appendChild(reportElement);
+
+  try {
+    await waitForReportAssets(reportElement);
+    const canvas = await html2canvas(reportElement, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: snapshotWidth,
+      windowHeight: reportElement.scrollHeight,
+      width: snapshotWidth,
+      height: reportElement.scrollHeight,
+    });
+    const imageData = canvas.toDataURL("image/png");
+    const pdfWidth = reportElement.offsetWidth;
+    const pdfHeight = reportElement.offsetHeight;
+    const pdf = new jsPDF({
+      orientation: pdfWidth > pdfHeight ? "l" : "p",
+      unit: "px",
+      format: [pdfWidth, pdfHeight],
+      hotfixes: ["px_scaling"],
+    });
+
+    pdf.addImage(imageData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    pdf.save(buildDecisionLogDownloadFilename(reference, log));
+  } finally {
+    reportElement.remove();
+  }
+}
+
+function buildDecisionLogSnapshotHtml(log) {
+  const labels = getDecisionLogDownloadBmLabels();
+  const signatureSource = getDecisionLogSignatureSource(log.signature);
+  const decisionHtml = log.decision
+    ? `
+      <div class="decision-field">
+        <div class="field-label">${escapeHtml(labels.decision)}</div>
+        <div class="readonly-input">${escapeHtml(formatDecisionLogDecisionBm(log.decision))}</div>
+      </div>
+    `
+    : "";
+
+  return `
+    <div class="recorded-template-download">
+      <style>
+        .recorded-template-download {
+          box-sizing: border-box;
+          width: 728px;
+          background: #ffffff;
+          color: #0f172a;
+          font-family: Arial, sans-serif;
+          font-size: 13px;
+          line-height: 20px;
+        }
+        .recorded-template-download * { box-sizing: border-box; }
+        .download-header {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 10px 10px 12px;
+        }
+        .download-subtitle {
+          grid-column: 1;
+          grid-row: 1;
+          margin: 0;
+          font-size: 13px;
+          font-weight: 600;
+          line-height: 18px;
+          color: #64748b;
+        }
+        .download-body {
+          padding: 16px 10px 8px;
+        }
+        .decision-field {
+          width: 222px;
+          margin-bottom: 18px;
+        }
+        .field-label {
+          margin-bottom: 6px;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 20px;
+          color: #0f172a;
+        }
+        .readonly-input {
+          display: flex;
+          align-items: center;
+          width: 100%;
+          height: 38px;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 0 10px;
+          background: #ffffff;
+          font-size: 13px;
+          font-weight: 400;
+          line-height: 20px;
+          color: #0f172a;
+        }
+        .remarks-label,
+        .signature-label {
+          margin: 0 0 8px;
+          font-size: 13px;
+          font-weight: 600;
+          line-height: 20px;
+        }
+        .remarks-label {
+          color: #0f172a;
+        }
+        .signature-label {
+          color: #334155;
+        }
+        .remarks-box {
+          position: relative;
+          height: 266px;
+          margin-bottom: 16px;
+          background: #ffffff;
+          overflow: hidden;
+        }
+        .remarks-lines {
+          position: absolute;
+          inset: 0;
+          z-index: 1;
+        }
+        .remarks-line {
+          height: 25px;
+          border-bottom: 1px solid #1f2937;
+        }
+        .remarks-text {
+          position: relative;
+          z-index: 2;
+          margin: 0;
+          padding: 0 8px;
+          white-space: pre-line;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 25px;
+          color: #000000;
+          transform: translateY(-4px);
+        }
+        .signature-box {
+          border: 1px dashed #cbd5e1;
+          border-radius: 4px;
+          padding: 24px 20px;
+          background: #ffffff;
+        }
+        .confirmation-title {
+          margin: 0;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 20px;
+          color: #0f172a;
+          text-transform: uppercase;
+        }
+        .signature-grid {
+          position: relative;
+          display: grid;
+          grid-template-columns: minmax(145px, 220px) 14px minmax(0, 1fr);
+          grid-template-rows: 144px repeat(4, 32px);
+          column-gap: 8px;
+          row-gap: 16px;
+          margin-top: 16px;
+          font-size: 13px;
+          font-weight: 600;
+          line-height: 20px;
+          color: #0f172a;
+        }
+        .signature-overlay {
+          position: relative;
+          z-index: 2;
+          grid-column: 3;
+          grid-row: 1 / span 5;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .signature-overlay img {
+          position: absolute;
+          object-fit: contain;
+          user-select: none;
+        }
+        .signature-overlay .draw-image,
+        .signature-overlay .single-upload-image {
+          inset: 0;
+          width: 100%;
+          height: 154px;
+          object-fit: fill;
+        }
+        .signature-overlay .single-upload-image {
+          height: 100%;
+        }
+        .signature-row-label {
+          display: flex;
+          align-items: flex-end;
+        }
+        .signature-row-colon {
+          display: flex;
+          align-items: flex-end;
+          padding-bottom: 4px;
+        }
+        .signature-row-line {
+          display: flex;
+          min-width: 0;
+          align-items: flex-end;
+          border-bottom: 1px solid #0f172a;
+          padding-bottom: 4px;
+          overflow: hidden;
+        }
+        .signature-row-line-date {
+          align-items: flex-end;
+          overflow: visible;
+          padding-bottom: 6px;
+        }
+        .signature-row-value {
+          width: 100%;
+          min-width: 0;
+          color: #5273ff;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 16px;
+          overflow: hidden;
+          text-align: center;
+          text-transform: uppercase;
+          white-space: pre-line;
+        }
+        .signature-row-value-date {
+          color: #0f172a;
+          font-weight: 600;
+          line-height: 22px;
+          overflow: visible;
+          text-align: left;
+          white-space: nowrap;
+        }
+      </style>
+      <div class="download-header">
+        <p class="download-subtitle">${escapeHtml(formatDecisionLogDepartmentLabel(log.department))} · ${escapeHtml(formatCompactDateTimeBm(log.date))}</p>
+      </div>
+      <div class="download-body">
+        ${decisionHtml}
+        <div class="remarks-section">
+          <p class="remarks-label">${escapeHtml(labels.remarks)}</p>
+          <div class="remarks-box">
+            <div class="remarks-lines">${buildDecisionLogRemarkLinesHtml()}</div>
+            <p class="remarks-text">${escapeHtml(log.remarks || "")}</p>
+          </div>
+        </div>
+        ${signatureSource ? buildDecisionLogSignatureSnapshotHtml(log.signature, signatureSource, labels) : ""}
+      </div>
+    </div>
+  `;
+}
+
+function getDecisionLogDownloadBmLabels() {
+  return {
+    decision: "Cadangan Anda",
+    remarks: "Ulasan",
+    signatureTitle: "Tandatangan Digital",
+    confirmation: "PENGESAHAN",
+    signatureAndStamp: "Tandatangan & Cop",
+    name: "Nama",
+    position: "Jawatan",
+    agency: "Agensi",
+    date: "Tarikh",
+    signatureAlt: "Pratonton tandatangan digital",
+  };
+}
+
+function formatDecisionLogDecisionBm(value) {
+  const text = String(value || "").trim();
+  const normalized = text.toLowerCase();
+
+  if (["approve", "approved", "lulus"].includes(normalized)) return "Lulus";
+  if (["reject", "rejected", "not approve", "not approved", "tidak lulus"].includes(normalized)) {
+    return "Tidak Lulus";
+  }
+  if (
+    [
+      "request amendment",
+      "amendment required",
+      "technical amendment required",
+      "mohon pindaan",
+      "pindaan diperlukan",
+    ].includes(normalized)
+  ) {
+    return "Mohon Pindaan";
+  }
+
+  return text;
+}
+
+function formatCompactDateTimeBm(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  const months = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ogo", "Sep", "Okt", "Nov", "Dis"];
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = months[date.getMonth()] || "";
+  const year = date.getFullYear();
+  let hour = date.getHours();
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const suffix = hour < 12 ? "PG" : "PTG";
+  hour %= 12;
+  if (hour === 0) hour = 12;
+
+  return `${day} ${month} ${year}, ${String(hour).padStart(2, "0")}:${minute} ${suffix}`;
+}
+
+function buildDecisionLogRemarkLinesHtml() {
+  return Array.from({ length: 11 }, () => '<div class="remarks-line"></div>').join("");
+}
+
+function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, labels) {
+  const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const rows = [
+    { key: "signatureStamp", label: labels.signatureAndStamp },
+    { key: "name", label: labels.name },
+    { key: "position", label: labels.position },
+    { key: "agency", label: labels.agency },
+    { key: "date", label: labels.date },
+  ];
+
+  return `
+    <div class="signature-section">
+      <p class="signature-label">${escapeHtml(labels.signatureTitle)}</p>
+      <div class="signature-box">
+        <p class="confirmation-title">${escapeHtml(labels.confirmation)}</p>
+        <div class="signature-grid">
+          ${buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource, labels)}
+          ${rows
+            .map((row, index) => {
+              const gridRow = index + 1;
+              return `
+                <div class="signature-row-label" style="grid-column:1;grid-row:${gridRow};">${escapeHtml(row.label)}</div>
+                <div class="signature-row-colon" style="grid-column:2;grid-row:${gridRow};">:</div>
+                <div class="signature-row-line signature-row-line-${row.key}" style="grid-column:3;grid-row:${gridRow};">
+                  <div class="signature-row-value signature-row-value-${row.key}">${escapeHtml(signatureDetails[row.key] || "")}</div>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource, labels) {
+  const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
+  const drawPreviewDataUrl =
+    signatureDetails.drawDataUrl ||
+    (signatureDetails.mode === "draw" ? signatureSource : "");
+  const shouldRenderComposedUpload =
+    !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
+  const alt = escapeHtml(labels.signatureAlt);
+  const uploadedImages = uploadedItems
+    .map((item) => {
+      const width = Number(item.width ?? 38);
+      const safeWidth = Number.isFinite(width) ? width : 38;
+      const downloadWidth = Math.min(200, safeWidth * 1.35);
+      return `
+        <img
+          src="${escapeHtml(item.dataUrl || signatureSource)}"
+          alt="${alt}"
+          style="left:${Number(item.x ?? 50)}%;top:${Number(item.y ?? 50)}%;width:${downloadWidth}%;max-height:100%;max-width:100%;transform:translate(-50%, -50%);"
+        />
+      `;
+    })
+    .join("");
+  const singleUploadImage = shouldRenderComposedUpload
+    ? `<img class="single-upload-image" src="${escapeHtml(signatureSource)}" alt="${alt}" />`
+    : "";
+  const drawImage = drawPreviewDataUrl
+    ? `<img class="draw-image" src="${escapeHtml(drawPreviewDataUrl)}" alt="${alt}" />`
+    : "";
+
+  return `
+    <div class="signature-overlay">
+      ${uploadedImages || singleUploadImage}
+      ${drawImage}
+    </div>
+  `;
+}
+
+async function waitForReportAssets(element) {
+  await document.fonts?.ready;
+
+  const images = Array.from(element.querySelectorAll("img"));
+  await Promise.all(
+    images.map((image) => {
+      if (image.complete) return Promise.resolve();
+
+      return new Promise((resolve) => {
+        image.addEventListener("load", resolve, { once: true });
+        image.addEventListener("error", resolve, { once: true });
+      });
+    })
+  );
+}
+
+async function downloadDecisionLogReportPdfLegacy(log, reference, t) {
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 14;
+  const contentWidth = pageWidth - margin * 2;
+  const filename = buildDecisionLogDownloadFilename(reference, log);
+  let y = margin;
+
+  const ensureSpace = (height) => {
+    if (y + height <= pageHeight - margin) return;
+    pdf.addPage();
+    y = margin;
+  };
+
+  pdf.setTextColor(15, 23, 42);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(11);
+  pdf.text(t("workspace.decisionLog.recordedTemplate", "Recorded Template"), margin, y);
+  y += 6;
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(71, 85, 105);
+  pdf.text(
+    `${formatDecisionLogDepartmentLabel(log.department)} - ${formatCompactDateTime(log.date)}`,
+    margin,
+    y
+  );
+  y += 6;
+  pdf.setDrawColor(203, 213, 225);
+  pdf.line(margin, y, pageWidth - margin, y);
+  y += 9;
+
+  if (log.decision) {
+    pdf.setTextColor(15, 23, 42);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(t("common.decision", "Your Recommendation"), margin, y);
+    y += 4;
+    pdf.setDrawColor(203, 213, 225);
+    pdf.roundedRect(margin, y, 62, 9, 1.5, 1.5);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text(String(log.decision), margin + 3, y + 6);
+    y += 15;
+  }
+
+  pdf.setTextColor(15, 23, 42);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.text(t("common.remarks", "Remarks"), margin, y);
+  y += 6;
+
+  const remarkLineHeight = 8;
+  const remarkLines = 12;
+  const remarkTextLines = pdf.splitTextToSize(String(log.remarks || ""), contentWidth - 4);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  remarkTextLines.slice(0, remarkLines).forEach((line, index) => {
+    pdf.text(line, margin + 2, y + index * remarkLineHeight - 2);
+  });
+  pdf.setDrawColor(31, 41, 55);
+  for (let index = 0; index < remarkLines; index += 1) {
+    pdf.line(margin, y + index * remarkLineHeight, pageWidth - margin, y + index * remarkLineHeight);
+  }
+  y += remarkLines * remarkLineHeight + 10;
+
+  const signatureSource = getDecisionLogSignatureSource(log.signature);
+  if (signatureSource) {
+    ensureSpace(126);
+    pdf.setTextColor(51, 65, 85);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(t("workspace.signature.title", "Digital Signature"), margin, y);
+    y += 6;
+    await drawDecisionLogSignaturePdf(pdf, log.signature, signatureSource, t, margin, y, contentWidth);
+  }
+
+  pdf.save(filename);
+}
+
+async function drawDecisionLogSignaturePdf(pdf, signature, signatureSource, t, x, y, width) {
+  const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const rows = [
+    { key: "signatureStamp", label: t("workspace.signature.signatureAndStamp", "Signature & Stamp") },
+    { key: "name", label: t("workspace.signature.name", "Name") },
+    { key: "position", label: t("workspace.signature.position", "Position") },
+    { key: "agency", label: t("workspace.signature.agency", "Agency") },
+    { key: "date", label: t("workspace.signature.date", "Date") },
+  ];
+  const boxY = y;
+  const boxHeight = 116;
+  const titleY = boxY + 12;
+  const firstRowY = boxY + 65;
+  const rowGap = 11.5;
+  const labelX = x + 7;
+  const colonX = x + 72;
+  const lineX = x + 82;
+  const lineWidth = width - 90;
+  const overlayY = boxY + 40;
+  const overlayHeight = 52;
+
+  pdf.setDrawColor(203, 213, 225);
+  pdf.setLineDashPattern([1.2, 1.2], 0);
+  pdf.rect(x, boxY, width, boxHeight);
+  pdf.setLineDashPattern([], 0);
+
+  pdf.setTextColor(15, 23, 42);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.text(t("workspace.signature.confirmationTitle", "CONFIRMATION"), labelX, titleY);
+
+  const overlayImage = await buildDecisionLogSignatureOverlay(signatureDetails, signatureSource);
+  if (overlayImage) {
+    addImageToPdf(pdf, overlayImage, lineX, overlayY, lineWidth, overlayHeight);
+  }
+
+  rows.forEach((row, index) => {
+    const rowY = firstRowY + index * rowGap;
+    const value = signatureDetails[row.key] || "";
+
+    pdf.setTextColor(15, 23, 42);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(row.label, labelX, rowY);
+    pdf.text(":", colonX, rowY);
+    pdf.setDrawColor(15, 23, 42);
+    pdf.line(lineX, rowY + 1.5, lineX + lineWidth, rowY + 1.5);
+
+    if (value) {
+      pdf.setTextColor(82, 115, 255);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8.5);
+      const valueLines = pdf.splitTextToSize(String(value).toUpperCase(), lineWidth - 6);
+      valueLines.slice(0, 2).forEach((line, valueIndex) => {
+        pdf.text(line, lineX + lineWidth / 2, rowY - 1.5 + valueIndex * 4, {
+          align: "center",
+        });
+      });
+    }
+  });
+}
+
+async function buildDecisionLogSignatureOverlay(signatureDetails, signatureSource) {
+  const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
+  const drawPreviewDataUrl =
+    signatureDetails.drawDataUrl ||
+    (signatureDetails.mode === "draw" ? signatureSource : "");
+  const shouldRenderComposedUpload =
+    !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
+
+  if (!uploadedItems.length && !shouldRenderComposedUpload) {
+    return drawPreviewDataUrl || signatureSource;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 420;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (shouldRenderComposedUpload) {
+    const image = await loadImageForPdf(signatureSource);
+    if (image) context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  }
+
+  for (const item of uploadedItems) {
+    const image = await loadImageForPdf(item.dataUrl || signatureSource);
+    if (!image) continue;
+
+    const widthPercent = Number(item.width ?? 38);
+    const imageWidth = canvas.width * (Number.isFinite(widthPercent) ? widthPercent : 38) / 100;
+    const imageHeight = image.naturalHeight && image.naturalWidth
+      ? imageWidth * (image.naturalHeight / image.naturalWidth)
+      : canvas.height * 0.6;
+    const centerX = canvas.width * Number(item.x ?? 50) / 100;
+    const centerY = canvas.height * Number(item.y ?? 50) / 100;
+    context.drawImage(image, centerX - imageWidth / 2, centerY - imageHeight / 2, imageWidth, imageHeight);
+  }
+
+  if (drawPreviewDataUrl && uploadedItems.length) {
+    const image = await loadImageForPdf(drawPreviewDataUrl);
+    if (image) context.drawImage(image, 0, 0, canvas.width, canvas.height * 0.45);
+  }
+
+  return canvas.toDataURL("image/png");
+}
+
+function loadImageForPdf(source) {
+  if (!source) return Promise.resolve(null);
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = source;
+  });
+}
+
+function addImageToPdf(pdf, source, x, y, width, height) {
+  try {
+    pdf.addImage(source, getPdfImageFormat(source), x, y, width, height);
+  } catch (error) {
+    console.error("Failed to add signature image to decision report:", error);
+  }
+}
+
+function getPdfImageFormat(source) {
+  const value = String(source || "").toLowerCase();
+  if (value.startsWith("data:image/jpeg") || value.startsWith("data:image/jpg")) return "JPEG";
+  if (value.startsWith("data:image/webp")) return "WEBP";
+  return "PNG";
+}
+
+function buildDecisionLogDownloadFilename(reference, log) {
+  const parts = [
+    reference || "application",
+    formatDecisionLogDepartmentLabel(log.department),
+    "report",
+  ];
+
+  return `${parts.map(sanitizeFilenamePart).filter(Boolean).join("-")}.pdf`;
+}
+
+function sanitizeFilenamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function DecisionLogTemplateModal({ log, t, onClose }) {
@@ -2835,7 +3598,7 @@ function DecisionLogTemplateModal({ log, t, onClose }) {
               {t("workspace.decisionLog.recordedTemplate", "Recorded Template")}
             </p>
             <p className="mt-0.5 text-xs font-medium text-slate-500">
-              {log.department} · {formatCompactDateTime(log.date)}
+              {formatDecisionLogDepartmentLabel(log.department)} · {formatCompactDateTime(log.date)}
             </p>
           </div>
           <Button
@@ -2857,22 +3620,30 @@ function DecisionLogTemplateModal({ log, t, onClose }) {
   );
 }
 
+function formatDecisionLogDepartmentLabel(department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (normalizedDepartment === "KU(IKL)") return "Ketua Unit (Iklan)";
+  return department || "-";
+}
+
 function DecisionLogRecordedTemplate({ log, t }) {
   const signatureSource = getDecisionLogSignatureSource(log.signature);
 
   return (
     <div className="space-y-4 text-[13px] leading-5 text-slate-950">
-      <div className="max-w-[17rem]">
-        <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
-          {t("common.decision", "Your Recommendation")}
-        </span>
-        <input
-          type="text"
-          value={log.decision || ""}
-          readOnly
-          className="form-input form-input-sm w-full bg-white text-[13px]"
-        />
-      </div>
+      {log.decision && (
+        <div className="max-w-[17rem]">
+          <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+            {t("common.decision", "Your Recommendation")}
+          </span>
+          <input
+            type="text"
+            value={log.decision}
+            readOnly
+            className="form-input form-input-sm w-full bg-white text-[13px]"
+          />
+        </div>
+      )}
 
       <div>
         <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
@@ -5174,6 +5945,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
         decision: "",
         remarks,
         date: getWorkspaceDecisionLogDate(review, ["reviewed_at", "submitted_at", "checked_at"]),
+        signature: review.digital_signature,
         useStatusFallback: false,
       }, t);
     });
@@ -6358,6 +7130,7 @@ function buildDepartmentTechnicalReviewPayload(app, data) {
       cycle_id: cycleId,
       department,
       remarks: data.comment,
+      digital_signature: data.technicalSite?.digital_signature || null,
       reviewed_at: now,
       reviewed_by: department,
     },

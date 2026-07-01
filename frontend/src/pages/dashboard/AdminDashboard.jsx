@@ -1273,7 +1273,7 @@ function DecisionLogReport({ app, logs, reference, t }) {
               {logs.map((log) => (
                 <tr key={log.id} className="align-top">
                   <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">
-                    {log.department}
+                    {formatDecisionLogDepartmentLabel(log.department)}
                   </td>
                   <td className="px-4 py-3">
                     {log.decision ? <StatusPill value={log.decision} /> : null}
@@ -1303,6 +1303,12 @@ function DecisionLogReport({ app, logs, reference, t }) {
       )}
     </section>
   );
+}
+
+function formatDecisionLogDepartmentLabel(department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (normalizedDepartment === "KU(IKL)") return "Ketua Unit (Iklan)";
+  return department || "-";
 }
 
 function DecisionLogSignatureCell({ department, signature, t }) {
@@ -1838,6 +1844,7 @@ function buildDecisionLogReportRows(app, t) {
         remarks: getDecisionLogRemarks(review),
         date: getDecisionLogDate(review, ["reviewed_at", "submitted_at", "checked_at"]),
         officer: getDecisionLogOfficer(review, normalizeDepartmentCode(department) || department),
+        signature: review.digital_signature,
         useStatusFallback: false,
       }, t);
     });
