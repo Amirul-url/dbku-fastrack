@@ -3134,7 +3134,7 @@ function MphlgDocumentAttachment({ attachment, t }) {
       </p>
       {attachment.size ? (
         <p className="text-[10px] text-slate-500">
-          {(Number(attachment.size || 0) / 1024).toFixed(1)} KB
+          {formatMphlgDocumentFileSize(attachment.size)}
         </p>
       ) : null}
       <p className="text-[10px] font-semibold text-slate-500">
@@ -3242,6 +3242,17 @@ function getMphlgSupportingDocuments(app) {
         attachment: row?.attachment || null,
       }))
     : [];
+}
+
+function formatMphlgDocumentFileSize(value) {
+  const bytes = Number(value || 0);
+  if (!bytes) return "";
+
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
 function getMphlgSupportingDocumentValidationMessage(file, t) {
