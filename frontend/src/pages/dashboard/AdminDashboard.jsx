@@ -1346,9 +1346,12 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
     !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
   const rows = [
     {
+      key: "signatureStamp",
+      label: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+    },
+    {
       key: "name",
       label: t("workspace.signature.name", "NAME"),
-      prefix: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
     },
     {
       key: "position",
@@ -1358,21 +1361,25 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
       key: "agency",
       label: t("workspace.signature.agency", "AGENCY"),
     },
+    {
+      key: "date",
+      label: t("workspace.signature.date", "DATE"),
+    },
   ];
 
   return (
-    <div className="h-[188px] w-[380px] overflow-hidden">
+    <div className="h-[200px] w-[380px] overflow-hidden">
       <div
-        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[14px] font-semibold uppercase leading-5 text-slate-950"
+        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold uppercase leading-5 text-slate-950"
         style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
       >
-        <p className="text-[15px] font-bold">
-          {t("workspace.signature.confirmationTitle", "CONFIRMATION:")}
+        <p className="text-[14px] font-bold">
+          {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
         </p>
 
-        <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4">
+        <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4">
           {(uploadedItems.length > 0 || shouldRenderComposedUpload) && (
-            <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-4 overflow-hidden">
+            <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
               {uploadedItems.length > 0 ? (
                 uploadedItems.map((item, index) => (
                   <img
@@ -1400,7 +1407,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
             </div>
           )}
 
-          <div className="relative col-start-3 row-start-1 border-b border-slate-900">
+          <div className="relative col-start-3 row-start-1">
             {drawPreviewDataUrl && (
               <img
                 src={drawPreviewDataUrl}
@@ -1413,18 +1420,13 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
 
           {rows.map((row, index) => (
             <div key={row.key} className="contents">
-              <div className="col-start-1" style={{ gridRow: index + 2 }}>
-                {row.prefix && (
-                  <p className="text-[13px] font-semibold leading-4">
-                    ({row.prefix})
-                  </p>
-                )}
+              <div className="col-start-1 flex items-end" style={{ gridRow: index + 1 }}>
                 <p>{row.label}</p>
               </div>
-              <span className="col-start-2 pb-1" style={{ gridRow: index + 2 }}>:</span>
+              <span className="col-start-2 flex items-end pb-1" style={{ gridRow: index + 1 }}>:</span>
               <div
                 className="col-start-3 flex min-w-0 items-end border-b border-slate-900 pb-1"
-                style={{ gridRow: index + 2 }}
+                style={{ gridRow: index + 1 }}
               >
                 <span className="min-w-0 truncate">{signatureDetails[row.key] || ""}</span>
               </div>

@@ -2840,9 +2840,12 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
     !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
   const rows = [
     {
+      key: "signatureStamp",
+      label: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+    },
+    {
       key: "name",
       label: t("workspace.signature.name", "NAME"),
-      prefix: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
     },
     {
       key: "position",
@@ -2852,21 +2855,25 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
       key: "agency",
       label: t("workspace.signature.agency", "AGENCY"),
     },
+    {
+      key: "date",
+      label: t("workspace.signature.date", "DATE"),
+    },
   ];
 
   return (
-    <div className="h-[188px] w-[380px] overflow-hidden">
+    <div className="h-[200px] w-[380px] overflow-hidden">
       <div
-        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[14px] font-semibold uppercase leading-5 text-slate-950"
+        className="w-[760px] rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold uppercase leading-5 text-slate-950"
         style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
       >
-        <p className="text-[15px] font-bold">
-          {t("workspace.signature.confirmationTitle", "CONFIRMATION:")}
+        <p className="text-[14px] font-bold">
+          {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
         </p>
 
-        <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4">
+        <div className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4">
           {(uploadedItems.length > 0 || shouldRenderComposedUpload) && (
-            <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-4 overflow-hidden">
+            <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
               {uploadedItems.length > 0 ? (
                 uploadedItems.map((item, index) => (
                   <img
@@ -2894,7 +2901,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
             </div>
           )}
 
-          <div className="relative col-start-3 row-start-1 border-b border-slate-900">
+          <div className="relative col-start-3 row-start-1">
             {drawPreviewDataUrl && (
               <img
                 src={drawPreviewDataUrl}
@@ -2907,18 +2914,13 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
 
           {rows.map((row, index) => (
             <Fragment key={row.key}>
-              <div className="col-start-1" style={{ gridRow: index + 2 }}>
-                {row.prefix && (
-                  <p className="text-[13px] font-semibold leading-4">
-                    ({row.prefix})
-                  </p>
-                )}
+              <div className="col-start-1 flex items-end" style={{ gridRow: index + 1 }}>
                 <p>{row.label}</p>
               </div>
-              <span className="col-start-2 pb-1" style={{ gridRow: index + 2 }}>:</span>
+              <span className="col-start-2 flex items-end pb-1" style={{ gridRow: index + 1 }}>:</span>
               <div
                 className="col-start-3 flex min-w-0 items-end border-b border-slate-900 pb-1"
-                style={{ gridRow: index + 2 }}
+                style={{ gridRow: index + 1 }}
               >
                 <span className="min-w-0 truncate">{signatureDetails[row.key] || ""}</span>
               </div>
@@ -3508,11 +3510,20 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     await commitUploadedItems(nextItems);
   }
 
+  async function removeUploadedItem(itemId) {
+    const nextItems = uploadedItems.filter((item) => item.id !== itemId);
+    setActiveUploadItemId(nextItems[nextItems.length - 1]?.id || "");
+    await commitUploadedItems(nextItems);
+  }
+
   const confirmationRows = [
+    {
+      key: "signatureStamp",
+      label: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
+    },
     {
       key: "name",
       label: t("workspace.signature.name", "NAME"),
-      prefix: t("workspace.signature.signatureAndStamp", "SIGNATURE & STAMP"),
       capture: true,
     },
     {
@@ -3522,6 +3533,10 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     {
       key: "agency",
       label: t("workspace.signature.agency", "AGENCY"),
+    },
+    {
+      key: "date",
+      label: t("workspace.signature.date", "DATE"),
     },
   ];
   const drawPreviewDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
@@ -3584,18 +3599,18 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
         </div>
 
         <div className={`rounded border border-dashed bg-white px-5 py-6 ${error ? "border-red-300" : "border-slate-300"}`}>
-          <p className="text-[15px] font-bold uppercase tracking-wide text-slate-950">
-            {t("workspace.signature.confirmationTitle", "CONFIRMATION:")}
+          <p className="text-[14px] font-bold uppercase tracking-wide text-slate-950">
+            {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
           </p>
 
           <div
-            className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(3,2rem)] gap-x-2 gap-y-4 text-[14px] font-semibold uppercase leading-5 text-slate-950"
+            className="relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4 text-[13px] font-semibold uppercase leading-5 text-slate-950"
             onPointerDown={clearUploadSelection}
           >
             {uploadedItems.length > 0 && (
               <div
                 ref={uploadAreaRef}
-                className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-4 overflow-hidden"
+                className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden"
               >
                 {uploadedItems.map((item) => (
                   <div
@@ -3623,6 +3638,24 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
                     {item.id === activeUploadedItem?.id && (
                       <>
                         <span className="pointer-events-none absolute inset-0 border-2 border-emerald-600/70" />
+                        <button
+                          type="button"
+                          data-signature-upload-delete
+                          aria-label={t("workspace.signature.deleteImage", "Delete image")}
+                          title={t("workspace.signature.deleteImage", "Delete image")}
+                          className="absolute -right-2 -top-2 z-40 flex h-5 w-5 items-center justify-center rounded-sm border border-red-700 bg-red-600 text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            removeUploadedItem(item.id);
+                          }}
+                        >
+                          <Icon name="close" className="text-[14px]" />
+                        </button>
                         {uploadResizeHandles.map((handle) => (
                           <span
                             key={handle.corner}
@@ -3644,7 +3677,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
               </div>
             )}
 
-            <div className="relative col-start-3 row-start-1 border-b border-slate-900">
+            <div className="relative col-start-3 row-start-1">
               {!isDrawingEnabled && drawPreviewDataUrl && (
                 <img
                   src={drawPreviewDataUrl}
@@ -3672,23 +3705,25 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
 
             {confirmationRows.map((row, index) => (
               <Fragment key={row.key}>
-                <div className="col-start-1" style={{ gridRow: index + 2 }}>
-                  {row.prefix && (
-                    <p className="text-[13px] font-semibold leading-4">
-                      ({row.prefix})
-                    </p>
-                  )}
+                <div className="col-start-1 flex items-end" style={{ gridRow: index + 1 }}>
                   <p>{row.label}</p>
                 </div>
-                <span className="col-start-2 pb-1" style={{ gridRow: index + 2 }}>:</span>
-                <input
-                  type="text"
-                  value={value?.[row.key] || ""}
-                  onChange={(event) => updateSignatureText(row.key, event.target.value)}
-                  aria-label={row.label}
-                  className="col-start-3 h-8 w-full border-0 border-b border-slate-900 bg-transparent px-0 text-[14px] font-semibold uppercase text-slate-950 outline-none focus:border-emerald-700 focus:ring-0"
-                  style={{ gridRow: index + 2 }}
-                />
+                <span className="col-start-2 flex items-end pb-1" style={{ gridRow: index + 1 }}>:</span>
+                {row.key === "signatureStamp" ? (
+                  <div
+                    className="col-start-3 h-8 w-full self-end border-b border-slate-900"
+                    style={{ gridRow: index + 1 }}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={value?.[row.key] || ""}
+                    onChange={(event) => updateSignatureText(row.key, event.target.value)}
+                    aria-label={row.label}
+                    className="col-start-3 h-8 w-full border-0 border-b border-slate-900 bg-transparent px-0 text-[13px] font-semibold uppercase text-slate-950 outline-none focus:border-emerald-700 focus:ring-0"
+                    style={{ gridRow: index + 1 }}
+                  />
+                )}
               </Fragment>
             ))}
           </div>
