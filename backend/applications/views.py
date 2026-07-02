@@ -3,16 +3,25 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
-from django.http import FileResponse, Http404
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from copy import deepcopy
-import mimetypes
 from .models import Application, SupportingDocument
 from .serializers import (
     ApplicationListSerializer,
     ApplicationDetailSerializer,
     SupportingDocumentSerializer,
+)
+from .services.documents import (
+    build_document_file_response,
+    can_delete_application_document,
+    can_upload_application_document,
+    create_application_document,
+    delete_document_file,
+    get_application_document,
+    get_application_site_image_document,
+    get_document_filename,
 )
 from config.pagination import ApplicationPagination
 from config.throttles import UploadRateThrottle
@@ -665,14 +674,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (
-            request.user.role not in STAFF_ROLES
-            and application.status not in {"draft", "incomplete", "technical_amendment", "rejected"}
-            and not (
-                title == "Payment Receipt"
-                and application.status in {"invoice_generated", "payment_submitted"}
-            )
-        ):
+        if not can_upload_application_document(request.user, application, title):
             return Response(
                 {
                     "error": "Submitted applications can only be viewed unless they are returned for correction."
@@ -680,11 +682,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        document = SupportingDocument.objects.create(
-            application=application,
-            title=title,
-            file=uploaded_file,
-        )
+        document = create_application_document(application, title, uploaded_file)
         if request.user.role not in STAFF_ROLES:
             append_application_activity(
                 application,
@@ -707,11 +705,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     )
     def download_document(self, request, pk=None, document_id=None):
         application = self.get_object()
-        document = get_object_or_404(
-            SupportingDocument,
-            id=document_id,
-            application=application,
-        )
+        document = get_application_document(application, document_id)
 
         return self.file_response(document)
 
@@ -722,23 +716,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     )
     def delete_document(self, request, pk=None, document_id=None):
         application = self.get_object()
-        document = get_object_or_404(
-            SupportingDocument,
-            id=document_id,
-            application=application,
-        )
+        document = get_application_document(application, document_id)
 
-        if (
-            request.user.role not in STAFF_ROLES
-            and application.status not in {
-                "draft",
-                "incomplete",
-                "technical_amendment",
-                "rejected",
-                "invoice_generated",
-                "payment_submitted",
-            }
-        ):
+        if not can_delete_application_document(request.user, application):
             return Response(
                 {
                     "error": "Submitted applications can only be viewed unless they are returned for correction."
@@ -746,10 +726,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        removed_filename = document.file.name.rsplit("/", 1)[-1] if document.file else ""
-
-        if document.file:
-            document.file.delete(save=False)
+        removed_filename = get_document_filename(document)
+        delete_document_file(document)
 
         if request.user.role not in STAFF_ROLES:
             append_application_activity(
@@ -766,51 +744,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="site-image/download")
     def download_site_image(self, request, pk=None):
         application = self.get_object()
-        step_1 = (application.form_data or {}).get("step_1", {})
-        saved_site_image = step_1.get("site_image") or {}
-        saved_document_ids = [
-            step_1.get("site_image_document_id"),
-            saved_site_image.get("document_id") if isinstance(saved_site_image, dict) else None,
-            saved_site_image.get("id") if isinstance(saved_site_image, dict) else None,
-        ]
-        documents = list(
-            application.supporting_documents.filter(title="Site Image").order_by(
-                "-uploaded_at"
-            )
-        )
-
-        for document_id in saved_document_ids:
-            if not document_id:
-                continue
-
-            try:
-                document = application.supporting_documents.get(id=document_id)
-            except (SupportingDocument.DoesNotExist, ValueError, TypeError):
-                continue
-
-            if document not in documents:
-                documents.append(document)
-
-        for document in documents:
-            if document.file and document.file.storage.exists(document.file.name):
-                return self.file_response(document)
-
-        raise Http404("Site image file not found.")
+        document = get_application_site_image_document(application)
+        return self.file_response(document)
 
     def file_response(self, document):
-        try:
-            content_type = (
-                mimetypes.guess_type(document.file.name)[0]
-                or "application/octet-stream"
-            )
-            return FileResponse(
-                document.file.open("rb"),
-                as_attachment=False,
-                filename=document.file.name.rsplit("/", 1)[-1],
-                content_type=content_type,
-            )
-        except FileNotFoundError as exc:
-            raise Http404("File not found.") from exc
+        return build_document_file_response(document)
 
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
