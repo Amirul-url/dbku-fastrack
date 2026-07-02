@@ -58,6 +58,15 @@ import {
 } from "../../utils/adminSeenRecords";
 import { stepText } from "../applications/user/steps/ApplicationStepText";
 
+const RULED_TEXTAREA_STYLE = {
+  lineHeight: "28px",
+  backgroundAttachment: "local",
+  backgroundImage:
+    "repeating-linear-gradient(to bottom, transparent 0, transparent 27px, #1f2937 27px, #1f2937 28px)",
+  backgroundPosition: "0 0",
+  backgroundSize: "100% 28px",
+};
+
 const TECHNICAL_DEPARTMENTS = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)";
 const APPLICATION_TYPE_OPTIONS = ["open_space", "building"];
@@ -942,6 +951,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     const savedSignature =
+      selectedRecord?.form_data?.approval_letter?.digital_signature ||
       selectedRecord?.form_data?.kb_les_verification?.digital_signature ||
       selectedRecord?.form_data?.management_recommendation?.digital_signature ||
       selectedRecord?.form_data?.approval?.digital_signature ||
@@ -1828,6 +1838,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         commentRef.current?.focus();
         return;
       }
+
+      if (!hasDigitalSignatureContent(approvalSupportSignature)) {
+        setApprovalSupportSignatureError(
+          t("workspace.signature.required", "Digital signature is required.")
+        );
+        return;
+      }
+
+      submitAction(action, { approvalSupportSignature });
+      return;
     }
 
     if (useTypedApprovalDecision) {
@@ -2683,58 +2703,99 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   )}
 
                   {showPaymentTypedDecision && (
-                    <Field
-                      label={
-                        showPaymentReceiptDecision ? (
-                          <span className="relative inline-flex items-center gap-1.5">
-                            <span>{t("common.decision", "Your Recommendation")}</span>
-                            <WorkspaceGuidelineHint
-                              text={t(
-                                "workspace.payment.receiptDecisionHint",
-                                "Please view the applicant receipt first, then type a recommendation before submitting."
-                              )}
-                            />
-                          </span>
-                        ) : (
-                          t("common.decision", "Your Recommendation")
-                        )
-                      }
-                      labelClassName="!text-[13px]"
-                    >
-                      <input
-                        ref={decisionInputRef}
-                        type="text"
-                        value={decisionInput}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          const nextDecision = getWorkspaceDecisionFromInput(
-                            nextValue,
-                            paymentTypedDecisionOptions,
-                            t
-                          );
-                          setDecisionInput(nextValue);
-                          setDecision(nextDecision);
-                          if (decisionError) setDecisionError("");
-                          if (commentError) setCommentError("");
-                        }}
-                        onBlur={() => {
-                          if (decision) {
-                            setDecisionInput(
-                              getWorkspaceDecisionInput(decision, paymentTypedDecisionOptions, t)
+                    showPaymentDocumentDecision ? (
+                      <div className="max-w-[56rem]">
+                        <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                          {t("common.decision", "Your Recommendation")}
+                        </span>
+                        <input
+                          ref={decisionInputRef}
+                          type="text"
+                          value={decisionInput}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            const nextDecision = getWorkspaceDecisionFromInput(
+                              nextValue,
+                              paymentTypedDecisionOptions,
+                              t
                             );
-                          }
-                        }}
-                        className={`form-input form-input-sm max-w-xs ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                        placeholder={getWorkspaceDecisionInputPrompt(paymentTypedDecisionOptions, t)}
-                        inputMode="text"
-                        aria-invalid={Boolean(decisionError)}
-                      />
-                      {decisionError && (
-                        <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
-                          {decisionError}
-                        </p>
-                      )}
-                    </Field>
+                            setDecisionInput(nextValue);
+                            setDecision(nextDecision);
+                            if (decisionError) setDecisionError("");
+                            if (commentError) setCommentError("");
+                          }}
+                          onBlur={() => {
+                            if (decision) {
+                              setDecisionInput(
+                                getWorkspaceDecisionInput(decision, paymentTypedDecisionOptions, t)
+                              );
+                            }
+                          }}
+                          className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          placeholder={getWorkspaceDecisionInputPrompt(paymentTypedDecisionOptions, t)}
+                          inputMode="text"
+                          aria-invalid={Boolean(decisionError)}
+                        />
+                        {decisionError && (
+                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                            {decisionError}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <Field
+                        label={
+                          showPaymentReceiptDecision ? (
+                            <span className="relative inline-flex items-center gap-1.5">
+                              <span>{t("common.decision", "Your Recommendation")}</span>
+                              <WorkspaceGuidelineHint
+                                text={t(
+                                  "workspace.payment.receiptDecisionHint",
+                                  "Please view the applicant receipt first, then type a recommendation before submitting."
+                                )}
+                              />
+                            </span>
+                          ) : (
+                            t("common.decision", "Your Recommendation")
+                          )
+                        }
+                        labelClassName="!text-[13px]"
+                      >
+                        <input
+                          ref={decisionInputRef}
+                          type="text"
+                          value={decisionInput}
+                          onChange={(event) => {
+                            const nextValue = event.target.value;
+                            const nextDecision = getWorkspaceDecisionFromInput(
+                              nextValue,
+                              paymentTypedDecisionOptions,
+                              t
+                            );
+                            setDecisionInput(nextValue);
+                            setDecision(nextDecision);
+                            if (decisionError) setDecisionError("");
+                            if (commentError) setCommentError("");
+                          }}
+                          onBlur={() => {
+                            if (decision) {
+                              setDecisionInput(
+                                getWorkspaceDecisionInput(decision, paymentTypedDecisionOptions, t)
+                              );
+                            }
+                          }}
+                          className={`form-input form-input-sm max-w-xs ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          placeholder={getWorkspaceDecisionInputPrompt(paymentTypedDecisionOptions, t)}
+                          inputMode="text"
+                          aria-invalid={Boolean(decisionError)}
+                        />
+                        {decisionError && (
+                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                            {decisionError}
+                          </p>
+                        )}
+                      </Field>
+                    )
                   )}
 
                   {showWorkspaceCommentField && (
@@ -2767,9 +2828,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               required
                               aria-required="true"
                               aria-invalid={Boolean(commentError)}
-                              className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                              className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
                               placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
-                              style={{ lineHeight: "26px" }}
+                              style={RULED_TEXTAREA_STYLE}
                             />
                           </div>
                           {commentError && (
@@ -2791,6 +2852,59 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           }}
                           onError={setTechnicalSignatureError}
                         />
+                      </div>
+                    ) : showPaymentDocumentDecision ? (
+                      <div className="max-w-[56rem]">
+                        <label
+                          htmlFor="payment-document-remarks"
+                          className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
+                        >
+                          {t("workspace.comment.remarks", "Remarks")}
+                          {workspaceCommentRequired && (
+                            <span className="ml-1 text-red-600">*</span>
+                          )}
+                        </label>
+                        <div
+                          className={`relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                          style={{
+                            backgroundImage:
+                              "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+                          }}
+                        >
+                          <textarea
+                            id="payment-document-remarks"
+                            ref={commentRef}
+                            value={comment}
+                            onChange={(event) => {
+                              setComment(event.target.value);
+                              if (commentError) setCommentError("");
+                            }}
+                            rows="12"
+                            required={workspaceCommentRequired}
+                            aria-required={workspaceCommentRequired}
+                            aria-invalid={Boolean(commentError)}
+                            className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                            placeholder={t("workspace.comment.approvalPlaceholder", "Add comments")}
+                            style={RULED_TEXTAREA_STYLE}
+                          />
+                        </div>
+                        {commentError && (
+                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                            {commentError}
+                          </p>
+                        )}
+                        <div className="mt-4">
+                          <ApprovalSupportSignatureBox
+                            t={t}
+                            value={approvalSupportSignature}
+                            error={approvalSupportSignatureError}
+                            onChange={(nextSignature) => {
+                              setApprovalSupportSignature(nextSignature);
+                              if (approvalSupportSignatureError) setApprovalSupportSignatureError("");
+                            }}
+                            onError={setApprovalSupportSignatureError}
+                          />
+                        </div>
                       </div>
                     ) : (
                       <Field
@@ -2926,9 +3040,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             required
                             aria-required
                             aria-invalid={Boolean(commentError)}
-                            className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                            className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
                             placeholder={t("workspace.comment.approvalRemarksPlaceholder", "Enter approval remarks.")}
-                            style={{ lineHeight: "26px" }}
+                            style={RULED_TEXTAREA_STYLE}
                           />
                         </div>
                         {commentError && (
@@ -6549,6 +6663,7 @@ function getDecisionLogDepartmentLabels(language = "") {
   if (getDecisionLogLanguage(language) === "ms") {
     return {
       "KU(IKL)": "Ketua Unit (Iklan)",
+      "PT(IKL)": "Pembantu Tadbir (Iklan)",
       BLG: "Bangunan (BLG)",
       GPM: "Pengurusan Geoinformasi Dan Hartanah (GPM)",
       MNE: "Mekanikal & Elektrik (MNE)",
@@ -6565,6 +6680,7 @@ function getDecisionLogDepartmentLabels(language = "") {
 
   return {
     "KU(IKL)": "Advertising Unit Head (IKL)",
+    "PT(IKL)": "Administrative Assistant (IKL)",
     BLG: "Building (BLG)",
     GPM: "Geoinformation And Properties Management (GPM)",
     MNE: "MECHANICAL & ELECTRICAL (MNE)",
@@ -9173,6 +9289,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
     decision: approvalLetter.letter_bill_decision || approvalLetter.recommendation,
     remarks: getWorkspaceDecisionLogRemarks(approvalLetter),
     date: getWorkspaceDecisionLogDate(approvalLetter, ["sent_to_applicant_at", "submitted_at"]),
+    signature: getWorkspaceDecisionLogSignature(approvalLetter),
   }, t);
 
   return rows
@@ -11391,6 +11508,10 @@ const configs = {
           const letterFile = getStoredPaymentDocument(app, "letter");
           const billFile = getStoredPaymentDocument(app, "bill");
           const manualBill = savedApprovalLetter.manual_bill || null;
+          const digitalSignature =
+            data.approvalSupportSignature ||
+            savedApprovalLetter.digital_signature ||
+            null;
 
           return {
             status: "invoice_generated",
@@ -11411,6 +11532,7 @@ const configs = {
                 recommendation: decision,
                 letter_bill_decision: decision,
                 remarks,
+                digital_signature: digitalSignature,
                 submitted_by: "PT(IKL)",
                 submitted_at: timestamp,
                 sent_to_applicant_at: timestamp,
@@ -12340,9 +12462,9 @@ function IklWorkspaceSections({
                     rows="12"
                     required
                     aria-required="true"
-                    className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                    className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
                     placeholder={t(screeningCopy.placeholderKey, screeningCopy.placeholder)}
-                    style={{ lineHeight: "26px" }}
+                    style={RULED_TEXTAREA_STYLE}
                   />
                 </div>
                 {commentError && (
@@ -12566,9 +12688,9 @@ function IklWorkspaceSections({
                     required
                     aria-required="true"
                     aria-invalid={Boolean(commentError)}
-                    className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                    className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
                     placeholder={t("workspace.technical.siteRemarksPlaceholder")}
-                    style={{ lineHeight: "26px" }}
+                    style={RULED_TEXTAREA_STYLE}
                   />
                 </div>
                 {commentError && (
@@ -12722,9 +12844,9 @@ function IklWorkspaceSections({
                     required
                     aria-required="true"
                     aria-invalid={Boolean(commentError)}
-                    className="h-full min-h-[390px] w-full resize-y border-0 bg-transparent px-2 pb-0 pt-0 text-[13px] font-medium leading-[26px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                    className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
                     placeholder={t("workspace.technical.kuReviewPlaceholder")}
-                    style={{ lineHeight: "26px" }}
+                    style={RULED_TEXTAREA_STYLE}
                   />
                 </div>
                 {commentError && (
@@ -14968,7 +15090,7 @@ function PaymentDetails({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 px-3 py-3">
+      <div className="grid grid-cols-1 gap-3 py-3">
         <ApprovalLetterDocumentSlot
           app={app}
           label={t("workspace.payment.approvalLetter", "Approval Letter")}
@@ -15373,7 +15495,7 @@ function ApprovalLetterDocumentSlot({
     );
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
           {label}
@@ -15458,12 +15580,10 @@ function BillDocumentSlot({
   const manualReady = hasManualBill(app);
   const displayName =
     file?.name ||
-    (manualReady
-      ? t("workspace.payment.billReady", "Generated bill ready.")
-      : t("workspace.payment.billGeneratedWithLetter", "The bill will be prepared with the approval letter."));
+    t("workspace.payment.billGeneratedWithLetter", "The bill will be prepared with the approval letter.");
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
           {label}

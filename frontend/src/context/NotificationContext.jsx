@@ -711,8 +711,8 @@ function buildApplicantNotifications(app, user) {
         "warning",
         "Payment proof required",
         "Bukti bayaran diperlukan",
-        `${reference} has an invoice ready. Please upload your proof of payment.`,
-        `${reference} mempunyai bil yang sedia. Sila muat naik bukti bayaran anda.`,
+        `Bill for application ${reference} is ready. Please upload your proof of payment.`,
+        `Bil untuk permohonan ${reference} telah sedia. Sila muat naik bukti bayaran anda.`,
         user
       )
     );

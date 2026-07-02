@@ -1159,6 +1159,7 @@ def get_management_review_route_key(form_data):
 
 def build_status_messages(application):
     status_key = str(application.status or "").strip().lower()
+    applicant_include_remark = True
     fallback_label = get_notification_status_label(application)
     subject_template, applicant_template, admin_template = STATUS_MESSAGES.get(
         status_key,
@@ -1218,12 +1219,15 @@ def build_status_messages(application):
             "Please review the remark and upload a new proof of payment."
         )
         subject = build_notification_subject(title, application.reference_no)
+    elif status_key == "invoice_generated":
+        applicant_include_remark = False
 
     applicant_metadata = build_web_metadata(
         application=application,
         title=title,
         body=applicant_body,
         recipient_role="applicant",
+        include_remark=applicant_include_remark,
     )
     admin_metadata = build_web_metadata(
         application=application,
@@ -1236,6 +1240,7 @@ def build_status_messages(application):
         body=applicant_body,
         application=application,
         recipient_role="applicant",
+        include_remark=applicant_include_remark,
     )
     admin_message = format_notification_message(
         title=title,
@@ -1282,6 +1287,8 @@ def build_web_metadata(application, title, body, recipient_role, include_remark=
         "recipient_role": recipient_role,
         "event_status": status_key,
     }
+    if not include_remark:
+        metadata["suppress_remark"] = True
     sender = get_web_metadata_sender(application, recipient_role)
     if sender:
         metadata["from"] = sender

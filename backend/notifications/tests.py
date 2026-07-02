@@ -280,8 +280,14 @@ class NotificationRoutingTests(TestCase):
             recipient_role="applicant",
             metadata__event_status="invoice_generated",
         ):
-            self.assertIn("Remark: please download", delivery.message)
-            self.assertIn("Remark: please download", delivery.metadata["message"])
+            self.assertEqual(
+                delivery.message,
+                "ALiS\n\n"
+                "Bill for application ALiS.2026-0001 is ready. Please upload your proof of payment."
+            )
+            self.assertNotIn("please download", delivery.message)
+            self.assertNotIn("please download", delivery.metadata["message"])
+            self.assertTrue(delivery.metadata["suppress_remark"])
 
     def test_pt_ikl_rejection_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Please correct the applicant details."
