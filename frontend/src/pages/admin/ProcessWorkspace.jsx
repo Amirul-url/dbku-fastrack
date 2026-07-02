@@ -4393,6 +4393,7 @@ async function printHtmlDocument(html, title) {
   frameDocument.title = title;
   document.title = title;
 
+  await waitForDocumentImages(frameDocument);
   await new Promise((resolve) => setTimeout(resolve, 250));
 
   const cleanup = () => {
@@ -4404,6 +4405,61 @@ async function printHtmlDocument(html, title) {
 
   frameWindow.focus();
   frameWindow.print();
+}
+
+async function printUrlDocument(url, title) {
+  const originalTitle = document.title;
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+
+  document.body.appendChild(iframe);
+  document.title = title;
+
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+  frameWindow.focus();
+  frameWindow.print();
+}
+
+function waitForDocumentImages(frameDocument) {
+  const images = Array.from(frameDocument.images || []);
+  if (images.length === 0) return Promise.resolve();
+
+  return Promise.all(
+    images.map((image) => {
+      if (image.complete) return Promise.resolve();
+
+      return new Promise((resolve) => {
+        image.onload = resolve;
+        image.onerror = resolve;
+      });
+    })
+  );
 }
 
 function MphlgChecklistModal({ t, application, onClose }) {
@@ -12124,7 +12180,7 @@ function IklWorkspaceSections({
     );
 
     if (nextSelection.length === 0) {
-      setError(t("workspace.technical.applicationTypeRequired", "Please select at least one application type."));
+      setTechnicalDecisionError(t("workspace.technical.applicationTypeRequired", "Please select at least one application type."));
       return;
     }
 
@@ -14977,27 +15033,6 @@ function PaymentDetails({
   const showVerificationUploads = isReceiptVerification && !isRejectReceiptDecision;
   const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
-  async function viewReceipt() {
-    if (!receiptSource) return;
-
-    try {
-      const isInlineFile =
-        receiptSource.startsWith("blob:") || receiptSource.startsWith("data:");
-      const url = isInlineFile
-        ? receiptSource
-        : URL.createObjectURL(await fetchAuthenticatedBlob(receiptSource));
-
-      window.open(url, "_blank");
-
-      if (!isInlineFile) {
-        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
-      }
-    } catch (error) {
-      console.error("Failed to open payment receipt:", error);
-      window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
-    }
-  }
-
   const canShowSavedIssueDocuments =
     readOnly ||
     isIssuedLicenseView ||
@@ -15126,21 +15161,13 @@ function PaymentDetails({
             <Button
               type="button"
               variant="secondary"
-              icon="visibility"
-              className="min-h-9 px-3 py-1 text-xs"
-              onClick={viewReceipt}
-            >
-              {t("common.view", "View")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
               icon="download"
               className="min-h-9 px-3 py-1 text-xs"
               onClick={() =>
-                downloadPaymentDocument(
+                printPaymentReceiptDocument(
                   receiptFile,
                   payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
+                  `${getApplicationReference(app)} ${t("workspace.payment.applicantReceipt", "Applicant Receipt")}`,
                   t
                 )
               }
@@ -15737,6 +15764,50 @@ function getPaymentReceiptSource(receiptFile) {
   );
 }
 
+function isImageReceipt(receipt, source = "") {
+  const mimeType = String(
+    receipt?.type || receipt?.mime_type || receipt?.content_type || ""
+  ).toLowerCase();
+  if (mimeType.startsWith("image/")) return true;
+  if (source.startsWith("data:image/")) return true;
+
+  const filename = String(receipt?.name || receipt?.filename || source)
+    .split("?")[0]
+    .toLowerCase();
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(filename);
+}
+
+function buildPaymentReceiptPrintHtml(receipt, url, title) {
+  const filename = receipt?.name || title;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .page { min-height: calc(100vh - 24mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #fff; }
+    .title { margin: 0; font-size: 14px; font-weight: 700; text-align: center; }
+    img { max-width: 100%; max-height: calc(100vh - 44mm); object-fit: contain; }
+    @media print {
+      body { background: #fff; }
+      .page { min-height: auto; }
+      .title { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="title">${escapeHtml(filename)}</p>
+    <img src="${escapeHtml(url)}" alt="${escapeHtml(filename)}" />
+  </main>
+</body>
+</html>`;
+}
+
 function getPaymentDocumentSource(file) {
   return (
     file?.dataUrl ||
@@ -15892,6 +15963,34 @@ async function downloadPaymentDocument(file, fallbackLabel, t) {
   } catch (error) {
     console.error("Failed to download payment document:", error);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+async function printPaymentReceiptDocument(file, fallbackLabel, title, t) {
+  const source = getPaymentReceiptSource(file);
+  if (!source) return;
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+
+    if (isImageReceipt(file, source)) {
+      await printHtmlDocument(
+        buildPaymentReceiptPrintHtml({ ...(file || {}), name: file?.name || fallbackLabel }, url, title),
+        title
+      );
+    } else {
+      await printUrlDocument(url, title);
+    }
+
+    if (!isInlineFile) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (error) {
+    console.error("Failed to print payment receipt:", error);
+    window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
   }
 }
 
