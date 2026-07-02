@@ -291,6 +291,58 @@ function formatAddressText(value) {
   return String(value || "").toLocaleUpperCase("en-MY");
 }
 
+function formatMapAddressWithPostcode(parts, postcode, city) {
+  const cleanParts = (Array.isArray(parts) ? parts : [])
+    .map((part) => String(part || "").trim())
+    .filter(Boolean);
+  const cleanPostcode = String(postcode || "").trim();
+  const cleanCity = String(city || "").trim();
+
+  if (!cleanPostcode) {
+    return formatAddressText(cleanParts.join(", "));
+  }
+
+  const postcodePattern = new RegExp(`\\b${escapeRegExp(cleanPostcode)}\\b`);
+  const hasPostcode = cleanParts.some((part) => postcodePattern.test(part));
+  if (hasPostcode) {
+    return formatAddressText(cleanParts.join(", "));
+  }
+
+  const cityIndex = cleanCity
+    ? cleanParts.findIndex((part) => new RegExp(`\\b${escapeRegExp(cleanCity)}\\b`, "i").test(part))
+    : -1;
+
+  if (cityIndex >= 0) {
+    cleanParts[cityIndex] = `${cleanPostcode} ${cleanParts[cityIndex]}`;
+  } else {
+    cleanParts.push(cleanPostcode);
+  }
+
+  return formatAddressText(cleanParts.join(", "));
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function formatMapboxPlaceName(feature = {}) {
+  const placeName = String(feature.place_name || "");
+  const context = Array.isArray(feature.context) ? feature.context : [];
+  const postcode =
+    context.find((item) => String(item.id || "").startsWith("postcode"))?.text ||
+    "";
+  const city =
+    context.find((item) => String(item.id || "").startsWith("place"))?.text ||
+    context.find((item) => String(item.id || "").startsWith("district"))?.text ||
+    "";
+
+  if (!postcode || !placeName) {
+    return formatAddressText(placeName);
+  }
+
+  return formatMapAddressWithPostcode(placeName.split(","), postcode, city);
+}
+
 function buildProjectNameLine(language, selectedType, row) {
   const rowType = getAdvertisementRowApplicationType(row, selectedType);
   const displayType =
@@ -1658,17 +1710,16 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
         const suburb = addr.suburb || addr.neighbourhood || addr.quarter || "";
         const city = addr.city || addr.town || addr.village || addr.county || "";
         const state = addr.state || "";
+        const postcode = addr.postcode || "";
 
-        const parts = [
+        const nextAddress = formatMapAddressWithPostcode([
           buildingName,
           road,
           suburb,
           city,
           state,
           "Malaysia",
-        ].filter(Boolean);
-
-        const nextAddress = formatAddressText(parts.join(", ") || data.display_name);
+        ], postcode, city) || formatAddressText(data.display_name);
 
         setAddress(nextAddress);
         pushChange(nextAddress, nextLat, nextLng);
@@ -1710,7 +1761,7 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
     return (data?.features || []).map((feature) => ({
       id: feature.id,
       text: formatAddressText(feature.text || feature.place_name?.split(",")[0] || ""),
-      place_name: formatAddressText(feature.place_name || ""),
+      place_name: formatMapboxPlaceName(feature),
       center: feature.geometry?.coordinates || feature.center,
     }));
   }
@@ -1744,20 +1795,19 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
       const suburb = addr.suburb || addr.neighbourhood || addr.quarter || "";
       const city = addr.city || addr.town || addr.village || addr.county || "";
       const state = addr.state || "";
+      const postcode = addr.postcode || "";
 
       const shortLabel =
         buildingName || road || item.name || item.display_name.split(",")[0];
 
-      const fullLabel = [
+      const fullLabel = formatMapAddressWithPostcode([
         buildingName,
         road,
         suburb,
         city,
         state,
         "Malaysia",
-      ]
-        .filter(Boolean)
-        .join(", ");
+      ], postcode, city);
 
       return {
         id: item.place_id,

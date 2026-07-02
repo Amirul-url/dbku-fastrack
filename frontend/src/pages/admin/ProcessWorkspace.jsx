@@ -266,6 +266,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
   const [showDecisionLog, setShowDecisionLog] = useState(false);
   const [showMphlgChecklist, setShowMphlgChecklist] = useState(false);
+  const [showManualApprovalLetterEditor, setShowManualApprovalLetterEditor] = useState(false);
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -1305,6 +1306,63 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function saveManualApprovalLetterDraft(bodyHtml) {
+    if (!selectedRecord?.id) return;
+
+    const now = new Date().toISOString();
+    const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
+    const nextManualLetter = {
+      ...(savedApprovalLetter.manual_letter || {}),
+      template: "dbku_approval_letter_3_page_blank_v1",
+      name: t("workspace.payment.approvalLetter", "Approval Letter"),
+      editable_body_html: bodyHtml,
+      document_html: buildManualApprovalLetterDocumentHtml(bodyHtml),
+      status: "Draft",
+      saved_by: userDepartment,
+      saved_at: now,
+    };
+    const nextApprovalLetter = {
+      ...savedApprovalLetter,
+      manual_letter: nextManualLetter,
+      generated_by: userDepartment,
+      generated_at: savedApprovalLetter.generated_at || now,
+      updated_at: now,
+    };
+    nextApprovalLetter.status = hasPaymentDocuments({
+      ...selectedRecord,
+      form_data: {
+        ...(selectedRecord.form_data || {}),
+        approval_letter: nextApprovalLetter,
+      },
+    })
+      ? "Ready for KU(IKL) Confirmation"
+      : "Draft";
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            approval_letter: nextApprovalLetter,
+          }),
+        }),
+      });
+
+      setSelectedDetail(response?.data || response || selectedRecord);
+      await fetchApplications({ silent: true });
+      setShowManualApprovalLetterEditor(false);
+      setSuccess(t("workspace.payment.approvalLetterSaved", "Approval letter saved."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.approvalLetterSaveFailed", "Could not save the approval letter."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function addMphlgSupportingDocument() {
     setMphlgSupportingDocumentError("");
     setMphlgSupportingDocuments((prev) => [
@@ -1777,7 +1835,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (action.requiresPaymentDocuments && !hasUploadedPaymentDocuments(selectedRecord)) {
       setError(t(
         "workspace.payment.documentsRequired",
-        "Please upload the approval letter and bill before sending to the applicant."
+        "Please save the approval letter before sending to the applicant."
       ));
       return;
     }
@@ -2544,6 +2602,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           saving={saving}
                           onPaymentDocumentUpload={uploadPaymentDocument}
                           onPaymentDocumentDelete={deletePaymentDocument}
+                          onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                           onLicenseDocumentUpload={uploadLicenseDocument}
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -2875,6 +2934,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         saving={saving}
                         onPaymentDocumentUpload={uploadPaymentDocument}
                         onPaymentDocumentDelete={deletePaymentDocument}
+                        onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                         onLicenseDocumentUpload={uploadLicenseDocument}
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -3017,8 +3077,672 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {showManualApprovalLetterEditor && selectedRecord && (
+        <ManualApprovalLetterEditorModal
+          app={selectedRecord}
+          t={t}
+          saving={saving}
+          onClose={() => setShowManualApprovalLetterEditor(false)}
+          onSave={saveManualApprovalLetterDraft}
+        />
+      )}
+
     </AdminDashboardLayout>
   );
+}
+
+function ManualApprovalLetterEditorModal({ app, t, saving, onClose, onSave }) {
+  const editorRef = useRef(null);
+  const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
+  const initialBodyHtml =
+    syncManualApprovalLetterAutoFields(
+      manualLetter.editable_body_html || buildManualApprovalLetterTemplateBodyHtml(app),
+      app
+    );
+
+  function handleSave() {
+    const bodyHtml = editorRef.current?.innerHTML || initialBodyHtml;
+    onSave?.(bodyHtml);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+      <div className="max-h-[92vh] w-full max-w-[min(96vw,72rem)] overflow-hidden rounded-md bg-white shadow-xl">
+        <style>{getManualApprovalLetterCss({ editor: true })}</style>
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <p className="text-[13px] font-semibold leading-5 text-slate-950">
+              {t("workspace.payment.reviewApprovalLetter", "Review Approval Letter")}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-slate-500">
+              {getApplicationReference(app)}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              icon="save"
+              className="min-h-9 px-3 py-1.5"
+              disabled={saving}
+              onClick={handleSave}
+            >
+              {saving ? t("workspace.saving", "Saving...") : t("common.save", "Save")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="close"
+              className="min-h-9 w-9 px-0 py-0"
+              disabled={saving}
+              onClick={onClose}
+              aria-label={t("common.close", "Close")}
+              title={t("common.close", "Close")}
+            />
+          </div>
+        </div>
+
+        <div className="max-h-[calc(92vh-64px)] overflow-y-auto bg-slate-100 px-4 py-5">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck={false}
+            className="manual-approval-letter-pages outline-none"
+            dangerouslySetInnerHTML={{ __html: initialBodyHtml }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildManualApprovalLetterDocumentHtml(bodyHtml) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Approval Letter</title>
+  <style>${getManualApprovalLetterCss()}</style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">Print</button></div>
+  <main class="manual-approval-letter-pages">
+    ${bodyHtml || buildManualApprovalLetterTemplateBodyHtml()}
+  </main>
+</body>
+</html>`;
+}
+
+function formatManualApprovalLetterDate(value) {
+  const date = value instanceof Date ? value : new Date(value || Date.now());
+  if (Number.isNaN(date.getTime())) return "";
+
+  const months = [
+    "Januari",
+    "Februari",
+    "Mac",
+    "April",
+    "Mei",
+    "Jun",
+    "Julai",
+    "Ogos",
+    "September",
+    "Oktober",
+    "November",
+    "Disember",
+  ];
+
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function syncManualApprovalLetterAutoFields(bodyHtml, app = null) {
+  const dateHtml = `<p>Tarikh: ${escapeHtml(formatManualApprovalLetterDate(new Date()))}</p>`;
+  const addressHtml = `<p class="address-block">${buildManualApprovalLetterAddressHtml(app)}</p>`;
+  const advertisementDetailsHtml = buildManualApprovalLetterAdvertisementDetailsHtml(app);
+  const paymentDetailsHtml = buildManualApprovalLetterPaymentDetailsHtml(app);
+
+  return String(bodyHtml || "")
+    .replace(/<p>Tarikh:[\s\S]*?<\/p>/, dateHtml)
+    .replace(/<p class="address-block">[\s\S]*?<\/p>/, addressHtml)
+    .replace(/<table class="info-table">[\s\S]*?<\/table>/, advertisementDetailsHtml)
+    .replace(/<table class="payment-table">[\s\S]*?<\/table>/, paymentDetailsHtml);
+}
+
+function buildManualApprovalLetterAddressHtml(app = null) {
+  return getManualApprovalLetterAddressLines(app).map(escapeHtml).join("<br />");
+}
+
+function getManualApprovalLetterAddressLines(app = null) {
+  const step1 = app?.form_data?.step_1 || {};
+  const submittingPerson = app?.form_data?.step_3 || {};
+  const projectName = titleCaseAddressLine(
+    submittingPerson.org_name ||
+      submittingPerson.name ||
+      step1.location_name ||
+      step1.premise_name ||
+      step1.building_name ||
+      (!isGeneratedInstallationTitle(step1.project_name) ? step1.project_name : "") ||
+      (!isGeneratedInstallationTitle(app?.project_name) ? app?.project_name : "") ||
+      ""
+  );
+  const fallbackParts = splitAddressParts(
+    step1.locality_address ||
+      step1.map_address ||
+      getApplicationLocation(app) ||
+      ""
+  );
+
+  const line1 = projectName || titleCaseAddressLine(fallbackParts[0] || "");
+  const line2 = titleCaseAddressLine(
+    step1.unit_floor_block ||
+      step1.unit_floor ||
+      step1.unit_floor_block_name ||
+      step1.unit ||
+      step1.address_1 ||
+      submittingPerson.postal_address ||
+      submittingPerson.address ||
+      fallbackParts.find((part) => !isSameAddressText(part, line1)) ||
+      ""
+  );
+  const line3 = titleCaseAddressLine(
+      step1.street_residential_area ||
+      step1.street_address ||
+      step1.address_2 ||
+      submittingPerson.address_2 ||
+      fallbackParts.find((part) => ![line1, line2].some((line) => isSameAddressText(part, line))) ||
+      ""
+  );
+  const postcode = step1.postcode || submittingPerson.postcode || "";
+  const city = step1.city || submittingPerson.city || "";
+  const state = step1.state || submittingPerson.state || "";
+  const postcodeCityState = [
+    [postcode, city].filter(Boolean).join(" "),
+    state,
+  ].filter(Boolean).join(", ");
+  const fallbackTail = fallbackParts
+    .filter((part) => ![line1, line2, line3].some((line) => isSameAddressText(part, line)))
+    .filter((part) => !/^malaysia$/i.test(part));
+  const line4 = titleCaseAddressLine(
+    postcodeCityState ||
+      fallbackTail.slice(-2).join(", ")
+  );
+
+  const lines = [line1, line2, line3, line4].filter(Boolean);
+  return lines.length > 0 ? lines.slice(0, 4) : ["[Alamat Surat Menyurat]"];
+}
+
+function splitAddressParts(value) {
+  return String(value || "")
+    .split(/,|\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function titleCaseAddressLine(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase())
+    .replace(/\b(Led|Dbku|Mphlg|Rm)\b/g, (match) => match.toUpperCase())
+    .replace(/\s+/g, " ");
+}
+
+function isGeneratedInstallationTitle(value) {
+  return /^\s*(?:\d+\.\s*)?installation\s+of\b/i.test(String(value || ""));
+}
+
+function isSameAddressText(left, right) {
+  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+}
+
+function buildManualApprovalLetterAdvertisementDetailsHtml(app = null) {
+  const details = getManualApprovalLetterAdvertisementDetails(app);
+
+  return `
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>Perkara</th>
+            <th colspan="2">Maklumat</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Jenis Iklan</td><td class="info-colon">:</td><td>${escapeHtml(details.adType)}</td></tr>
+          <tr><td>Nama Iklan</td><td class="info-colon">:</td><td>${escapeHtml(details.adName)}</td></tr>
+          <tr><td>Lokasi Iklan</td><td class="info-colon">:</td><td>${escapeHtml(details.adLocation)}</td></tr>
+        </tbody>
+      </table>`;
+}
+
+function getManualApprovalLetterAdvertisementDetails(app = null) {
+  const step1 = app?.form_data?.step_1 || {};
+  const submittingPerson = app?.form_data?.step_3 || {};
+  const rows = getManualApprovalLetterAdvertisementRows(app);
+  const generatedAdName = rows
+    .map((row) => buildTechnicalProjectNameLine("ms", row))
+    .filter(Boolean)
+    .join(", ");
+
+  return {
+    adType: rows.length > 0
+      ? rows.map(formatManualApprovalLetterAdvertisementType).filter(Boolean).join(", ")
+      : titleCaseAddressLine(getApplicationType(app, "ms")),
+    adName: generatedAdName
+      ? titleCaseAddressLine(generatedAdName)
+      : titleCaseAddressLine(
+        submittingPerson.org_name ||
+        step1.advertisement_name ||
+        step1.ad_name ||
+        step1.project_title ||
+        step1.project_name ||
+        getProjectName(app) ||
+        ""
+      ),
+    adLocation: buildManualApprovalLetterLocationLine(app),
+  };
+}
+
+function buildManualApprovalLetterLocationLine(app = null) {
+  const step1 = app?.form_data?.step_1 || {};
+  const submittingPerson = app?.form_data?.step_3 || {};
+  let location =
+    step1.locality_address ||
+    step1.map_address ||
+    getApplicationLocation(app) ||
+    "";
+  const postcode = String(step1.postcode || submittingPerson.postcode || "").trim();
+  const city = String(step1.city || submittingPerson.city || "").trim();
+
+  if (!postcode || !location || new RegExp(`\\b${escapeRegExp(postcode)}\\b`).test(location)) {
+    return titleCaseAddressLine(location);
+  }
+
+  if (city && new RegExp(`\\b${escapeRegExp(city)}\\b`, "i").test(location)) {
+    location = location.replace(
+      new RegExp(`\\b${escapeRegExp(city)}\\b`, "i"),
+      `${postcode} $&`
+    );
+  } else {
+    location = `${location}, ${postcode}`;
+  }
+
+  return titleCaseAddressLine(location);
+}
+
+function getManualApprovalLetterAdvertisementRows(app = null) {
+  const step1 = app?.form_data?.step_1 || {};
+  const selectedTypes = getApplicationTypeOptionsFromApplication(app);
+  const primaryType = selectedTypes[0] || "open_space";
+  const fallbackSubtype =
+    getApplicationSubtypeFromApplication(app) ||
+    getDefaultApplicationSubtype(primaryType);
+
+  return getTechnicalAdvertisementRowsFromStep1(step1, primaryType, fallbackSubtype);
+}
+
+function formatManualApprovalLetterAdvertisementType(row = {}) {
+  const rowType =
+    normalizeApplicationTypeOptions(row.applicationType || row.application_type)[0] ||
+    "";
+  const subtype = normalizeApplicationSubtype(row.subtype, rowType);
+  const customLabel = String(row.customLabel || row.custom_label || "").trim();
+  const advertisementLabel =
+    getTechnicalAdvertisementOptionLabel(customLabel, "ms") ||
+    getApplicationSubtypeLabel(rowType, subtype, "ms") ||
+    customLabel;
+
+  return advertisementLabel;
+}
+
+function buildManualApprovalLetterPaymentDetailsHtml(app = null) {
+  const payment = getManualApprovalLetterPaymentDetails(app);
+
+  return `
+      <table class="payment-table">
+        <thead>
+          <tr>
+            <th>BUTIR BAYARAN</th>
+            <th>TEMPOH LESEN BERKUAT KUASA</th>
+            <th>JUMLAH (RM)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Yuran Lesen Iklan</td><td>${escapeHtml(payment.licensePeriod)}</td><td>${escapeHtml(payment.licenseFee)}</td></tr>
+          <tr><td>Deposit</td><td>Per Permohonan</td><td>${escapeHtml(payment.deposit)}</td></tr>
+          <tr><td>Yuran Pemprosesan Lesen</td><td>Per Permohonan</td><td>${escapeHtml(payment.processingFee)}</td></tr>
+          <tr class="total-row"><td>JUMLAH KESELURUHAN</td><td></td><td>${escapeHtml(payment.total)}</td></tr>
+        </tbody>
+      </table>`;
+}
+
+function getManualApprovalLetterPaymentDetails(app = null) {
+  const technicalSite = getManualApprovalLetterTechnicalReportSite(app);
+  const rows = Array.isArray(technicalSite.advertisement_rows)
+    ? calculateTechnicalFeeRows(technicalSite.advertisement_rows)
+    : [];
+  const calculatedLicenseFee = rows.reduce(
+    (sum, row) => sum + parseTechnicalNumber(row.fee_total),
+    0
+  );
+  const licenseFee =
+    parseMemoAmount(technicalSite.license_fee_calculation) ||
+    parseMemoAmount(technicalSite.fee_total) ||
+    calculatedLicenseFee;
+  const applicationCount = getManualApprovalLetterPaymentApplicationCount(rows);
+  const depositPerApplication =
+    parseMemoAmount(technicalSite.deposit_calculation) ||
+    TECHNICAL_FIXED_DEPOSIT;
+  const processingFeePerApplication =
+    parseMemoAmount(technicalSite.processing_fee_calculation) ||
+    TECHNICAL_PROCESSING_FEE;
+  const deposit = depositPerApplication * applicationCount;
+  const processingFee = processingFeePerApplication * applicationCount;
+  const calculatedRoundedTotal = rows.reduce(
+    (sum, row) => sum + parseTechnicalNumber(row.payable_total),
+    0
+  );
+  const total =
+    calculatedRoundedTotal ||
+    roundTechnicalPayableToFiveSen(licenseFee + deposit + processingFee).roundedAmount;
+
+  return {
+    licensePeriod: getManualApprovalLetterLicensePeriod(app),
+    licenseFee: formatManualApprovalLetterAmount(licenseFee),
+    deposit: formatManualApprovalLetterAmount(deposit),
+    processingFee: formatManualApprovalLetterAmount(processingFee),
+    total: formatManualApprovalLetterAmount(total),
+  };
+}
+
+function getManualApprovalLetterPaymentApplicationCount(rows = []) {
+  const count = (Array.isArray(rows) ? rows : []).filter((row) =>
+    row?.subtype ||
+    row?.customLabel ||
+    row?.custom_label ||
+    row?.displayType ||
+    row?.display_type ||
+    row?.applicationType ||
+    row?.application_type
+  ).length;
+
+  return Math.max(count, 1);
+}
+
+function getManualApprovalLetterTechnicalReportSite(app = null) {
+  const report = buildDecisionLogTechnicalReport(app);
+  if (report?.technicalSite) return report.technicalSite;
+
+  const savedTechnicalSite = app?.form_data?.technical_site_visit || {};
+  return getReviewTechnicalSite(savedTechnicalSite, app);
+}
+
+function getManualApprovalLetterLicensePeriod(app = null) {
+  const license = app?.form_data?.license || {};
+  const validityYears = Number(license.validity_years) || 1;
+  const startDate = new Date();
+  const endDate = addCalendarYears(startDate, validityYears);
+
+  return `${formatManualApprovalLetterDate(startDate)} hingga ${formatManualApprovalLetterDate(endDate)}`;
+}
+
+function formatManualApprovalLetterAmount(value) {
+  return Number(value || 0).toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildManualApprovalLetterTemplateBodyHtml(app = null) {
+  const letterDate = formatManualApprovalLetterDate(new Date());
+  const projectAddressHtml = buildManualApprovalLetterAddressHtml(app);
+
+  return `
+    <section class="manual-approval-letter-page page-one">
+      <div class="letter-top">
+        <div>
+          <p>Bil. Tuan:</p>
+          <p>Bil. Kami:</p>
+        </div>
+        <p>Tarikh: ${escapeHtml(letterDate)}</p>
+      </div>
+
+      <p class="address-block">${projectAddressHtml}</p>
+      <p>Tuan/Puan</p>
+
+      <h1>KELULUSAN PERMOHONAN LESEN PENGIKLANAN</h1>
+
+      <p>Dengan segala hormatnya perkara di atas dirujuk.</p>
+
+      <p class="numbered"><span>2.</span><span>Sukacita dimaklumkan bahawa permohonan tuan/puan bagi pemasangan iklan seperti berikut adalah <strong>DILULUSKAN:</strong></span></p>
+
+      ${buildManualApprovalLetterAdvertisementDetailsHtml(app)}
+
+      <p class="numbered"><span>3.</span><span>Sehubungan itu, tuan/puan adalah dikehendaki menjelaskan bayaran lesen dalam tempoh <strong>EMPAT BELAS (14) HARI BEKERJA</strong> dari tarikh surat ini dikeluarkan. Pembayaran boleh dibuat di Kaunter Bahagian Pelesenan, Aras 1, DBKU@Depo, Jalan Depo, 93050 Kuching atau melalui <em>Electronic Fund Transfer</em> ke akaun berikut:</span></p>
+
+      <div class="bank-details">
+        <p>Bank: Bank Islam Malaysia Berhad</p>
+        <p>Nama Akaun: Dewan Bandaraya Kuching Utara</p>
+        <p>No. Akaun: 11013010028881</p>
+      </div>
+
+      ${buildManualApprovalLetterPaymentDetailsHtml(app)}
+
+      <p class="numbered"><span>4.</span><span>Lesen hanya akan dikeluarkan setelah bayaran diterima sepenuhnya oleh Dewan Bandaraya Kuching Utara (DBKU). Bersama ini juga, disertakan syarat-syarat lesen (Lampiran A) yang hendaklah dipatuhi sepanjang tempoh lesen berkuat kuasa. Kegagalan mematuhi mana-mana syarat yang ditetapkan, DBKU berhak mengambil tindakan seperti termaktub di dalam undang-undang dan garis panduan yang berkuat kuasa.</span></p>
+
+      <p class="numbered"><span>5.</span><span>Sekiranya tuan/puan memerlukan keterangan lanjut, sila hubungi Unit Iklan di talian 082-512955.</span></p>
+
+      <p>Sekian. Terima kasih.</p>
+
+      <p class="motto"><strong><em>"AN HONOUR TO SERVE"</em><br /><em>"TOGETHER WE CARE"</em></strong></p>
+
+      <div class="signature-block">
+        <p><strong>(RAMZI BIN ABDILLAH)</strong></p>
+        <p>Pengarah</p>
+        <p>Dewan Bandaraya Kuching Utara</p>
+      </div>
+    </section>
+
+    <section class="manual-approval-letter-page page-two">
+      <div class="appendix-title">
+        <p><strong>LAMPIRAN A</strong></p>
+        <h2>SYARAT-SYARAT LESEN PENGIKLANAN</h2>
+        <p><strong><em>The Local Authorities (Advertisement) By-Laws, 2012</em></strong></p>
+      </div>
+
+      <p><strong>Pemegang lesen hendaklah mematuhi syarat-syarat berikut:</strong></p>
+
+      <h3>1. Pematuhan Lesen</h3>
+      <ul>
+        <li>Lesen ini hanya sah bagi iklan, lokasi dan tempoh yang diluluskan oleh Dewan Bandaraya Kuching Utara (DBKU).</li>
+        <li>Lesen ini tidak boleh dipindah milik kepada mana-mana individu atau syarikat lain tanpa kelulusan bertulis daripada DBKU.</li>
+        <li>Sebarang perubahan terhadap reka bentuk, kandungan, saiz, struktur, lokasi atau kaedah pemasangan hendaklah mendapat kelulusan bertulis DBKU terlebih dahulu.</li>
+      </ul>
+
+      <h3>2. Keselamatan Struktur</h3>
+      <ul>
+        <li>Pemegang lesen bertanggungjawab memastikan struktur iklan sentiasa kukuh dan selamat.</li>
+        <li>Semua struktur hendaklah direka bentuk, dibina dan disenggara oleh pihak yang kompeten serta mematuhi keperluan teknikal yang berkaitan.</li>
+        <li>Sekiranya DBKU mendapati struktur membahayakan orang awam atau harta benda, pemegang lesen hendaklah mengambil tindakan pembaikan atau menanggalkan struktur tersebut dengan serta-merta.</li>
+      </ul>
+
+      <h3>3. Penyelenggaraan</h3>
+      <ul>
+        <li>Pemegang lesen hendaklah memastikan iklan sentiasa bersih, kemas, tidak rosak, tidak pudar, tidak koyak dan berada dalam keadaan baik sepanjang tempoh lesen.</li>
+        <li>Sebarang kerosakan hendaklah dibaiki dalam tempoh yang diarahkan oleh DBKU.</li>
+      </ul>
+
+      <h3>4. Iklan LED / Digital</h3>
+      <ul>
+        <li>Paparan LED hendaklah dikendalikan supaya tidak mengganggu pengguna jalan raya.</li>
+        <li>Tahap kecerahan hendaklah diselaraskan mengikut keadaan persekitaran dan tidak menyebabkan silau.</li>
+        <li>Kandungan iklan tidak boleh menggunakan kesan visual, animasi atau pertukaran imej yang boleh mengganggu tumpuan pemandu.</li>
+        <li>DBKU boleh mengarahkan pelarasan tahap pencahayaan atau kandungan paparan pada bila-bila masa demi keselamatan awam.</li>
+      </ul>
+
+      <h3>5. Tempoh Lesen</h3>
+      <ul>
+        <li>Lesen adalah sah hanya bagi tempoh yang dinyatakan.</li>
+        <li>Permohonan pembaharuan hendaklah dikemukakan sebelum tamat tempoh lesen.</li>
+        <li>Kegagalan memperbaharui lesen menyebabkan lesen terbatal secara automatik.</li>
+      </ul>
+    </section>
+
+    <section class="manual-approval-letter-page page-three">
+      <h3>6. Deposit</h3>
+      <ul>
+        <li>Deposit yang dikenakan adalah sebagai jaminan pematuhan syarat lesen.</li>
+        <li>Deposit boleh digunakan oleh DBKU bagi menampung kos menanggalkan iklan, membersihkan tapak atau membaiki kerosakan sekiranya pemegang lesen gagal mematuhi arahan DBKU.</li>
+        <li>Baki deposit (jika ada) hanya akan dipulangkan setelah DBKU berpuas hati bahawa semua syarat lesen telah dipatuhi.</li>
+      </ul>
+
+      <h3>7. Pengalihan dan Penanggalan</h3>
+      <ul>
+        <li>Pemegang lesen hendaklah menanggalkan iklan apabila lesen tamat, dibatalkan, diarahkan oleh DBKU atau apabila iklan tidak lagi dibenarkan.</li>
+        <li>Semua kos penanggalan dan pemulihan tapak hendaklah ditanggung oleh pemegang lesen.</li>
+        <li>Sekiranya pemegang lesen gagal menanggalkan iklan dalam tempoh yang ditetapkan, DBKU boleh menanggalkan iklan tersebut dan menuntut semua kos yang terlibat daripada pemegang lesen.</li>
+      </ul>
+
+      <h3>8. Penguatkuasaan</h3>
+      <ul>
+        <li>DBKU berhak menggantung atau membatalkan lesen sekiranya berlaku pelanggaran mana-mana syarat lesen atau peruntukan undang-undang.</li>
+        <li>DBKU boleh mengeluarkan notis pembaikan, pengalihan atau penanggalan iklan pada bila-bila masa.</li>
+        <li>Pemegang lesen hendaklah mematuhi semua arahan yang dikeluarkan oleh DBKU.</li>
+      </ul>
+
+      <h3>9. Liabiliti</h3>
+      <ul>
+        <li>Pemegang lesen bertanggungjawab sepenuhnya terhadap sebarang kerosakan, kemalangan, kecederaan atau tuntutan yang berpunca daripada pemasangan, penyelenggaraan atau pengendalian iklan.</li>
+        <li>DBKU tidak bertanggungjawab terhadap sebarang kehilangan atau kerosakan ke atas iklan yang dipasang.</li>
+      </ul>
+
+      <h3>10. Peruntukan Am</h3>
+      <ul>
+        <li>Lesen ini tertakluk kepada <em>The Local Authorities (Advertisement) By-Laws, 2012</em> serta mana-mana garis panduan atau arahan yang dikeluarkan oleh DBKU dari semasa ke semasa.</li>
+        <li>DBKU berhak meminda syarat-syarat lesen apabila perlu demi kepentingan awam, keselamatan dan kesejahteraan bandar.</li>
+        <li>Kegagalan mematuhi mana-mana syarat lesen ini boleh menyebabkan lesen digantung atau dibatalkan tanpa menjejaskan tindakan penguatkuasaan di bawah undang-undang yang berkuat kuasa.</li>
+      </ul>
+    </section>
+  `;
+}
+
+function getManualApprovalLetterCss({ editor = false } = {}) {
+  return `
+    @page { size: 21.0cm 29.7cm; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: ${editor ? "#f1f5f9" : "#ffffff"}; color: #111; font-family: Arial, sans-serif; }
+    .manual-approval-letter-pages { width: fit-content; margin: 0 auto; }
+    .manual-approval-letter-page {
+      width: 21.0cm;
+      height: 29.7cm;
+      margin: 0 auto 14px;
+      padding: 18mm 24mm 20mm;
+      background: #fff;
+      color: #111;
+      font-family: Arial, sans-serif !important;
+      font-size: 9.5pt !important;
+      line-height: 1.32;
+      box-shadow: ${editor ? "0 1px 8px rgba(15, 23, 42, 0.18)" : "none"};
+      page-break-after: always;
+      position: relative;
+    }
+    .manual-approval-letter-page * {
+      font-family: Arial, sans-serif !important;
+      font-size: 9.5pt !important;
+    }
+    .manual-approval-letter-page::after {
+      content: "Dokumen ini dijana secara elektronik dan sah tanpa tandatangan";
+      position: absolute;
+      left: 24mm;
+      right: 24mm;
+      bottom: 10mm;
+      text-align: center;
+      font-size: 8pt !important;
+      line-height: 1.2;
+      color: #334155;
+    }
+    .manual-approval-letter-page p { margin: 0 0 12px; }
+    .letter-top { display: grid; grid-template-columns: 1fr 44mm; gap: 16mm; align-items: start; margin-bottom: 22px; }
+    .letter-top p { margin-bottom: 2px; }
+    .address-block { margin: 18px 0 26px; }
+    h1 { margin: 0 0 26px; font-size: 9.5pt; line-height: 1.2; font-weight: 800; }
+    .numbered { display: grid; grid-template-columns: 17mm 1fr; gap: 0; text-align: justify; }
+    .info-table, .payment-table { width: 100%; border-collapse: collapse; margin: 18px 0 22px; }
+    .info-table th, .payment-table th { border-bottom: 1.5px solid #111; padding: 0 8px 2px 0; text-align: left; font-size: 9.5pt; }
+    .info-table td, .payment-table td { padding: 1px 8px 1px 0; vertical-align: top; }
+    .info-table th:first-child,
+    .info-table td:first-child { width: 24%; }
+    .info-table th:nth-child(2) { width: 76%; }
+    .info-table td.info-colon { width: 3%; padding-right: 0; text-align: left; }
+    .info-table td:nth-child(3) { width: 73%; }
+    .bank-details { margin: 26px 0 26px; text-align: center; }
+    .bank-details p { margin: 0 0 2px; }
+    .payment-table { margin-top: 18px; }
+    .payment-table th:nth-child(1) { width: 33%; }
+    .payment-table th:nth-child(2) { width: 47%; }
+    .payment-table th:nth-child(3),
+    .payment-table td:nth-child(3) { width: 20%; text-align: right; padding-right: 0; }
+    .payment-table .total-row td { font-weight: 800; }
+    .motto { margin-top: 24px; }
+    .signature-block { margin-top: 46px; }
+    .signature-block p { margin: 0 0 2px; }
+    .appendix-title { margin: 0 0 42px; text-align: center; }
+    .appendix-title h2 { margin: 20px 0; font-size: 9.5pt; letter-spacing: .2px; }
+    .manual-approval-letter-page h3 { margin: 20px 0 14px; font-size: 9.5pt; font-weight: 700; }
+    .manual-approval-letter-page ul { list-style: none; margin: 0 0 24px 16mm; padding: 0; }
+    .manual-approval-letter-page li { position: relative; margin: 0 0 8px; text-align: justify; }
+    .manual-approval-letter-page li::before { content: "\\2713"; position: absolute; left: -10mm; top: 0; }
+    .page-two { padding-top: 18mm; }
+    .page-three { padding-top: 18mm; }
+    .print-actions { position: fixed; right: 18px; top: 18px; z-index: 10; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    @media print {
+      body { background: #fff; }
+      .manual-approval-letter-pages { width: auto; margin: 0; }
+      .manual-approval-letter-page { margin: 0; box-shadow: none; }
+      .print-actions { display: none; }
+    }
+  `;
+}
+
+async function printHtmlDocument(html, title) {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+
+  const frameDocument = iframe.contentDocument;
+  const frameWindow = iframe.contentWindow;
+  if (!frameDocument || !frameWindow) {
+    iframe.remove();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameDocument.open();
+  frameDocument.write(html);
+  frameDocument.close();
+  frameDocument.title = title;
+
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const cleanup = () => {
+    setTimeout(() => iframe.remove(), 500);
+  };
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+
+  frameWindow.focus();
+  frameWindow.print();
 }
 
 function MphlgChecklistModal({ t, application, onClose }) {
@@ -3928,7 +4652,7 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
               <tbody className="divide-y divide-slate-100">
                 {logs.map((log) => (
                   <tr key={log.id} className="align-middle">
-                    <td className="whitespace-nowrap px-4 py-2 font-semibold text-slate-900">
+                    <td className="max-w-[34rem] whitespace-normal px-4 py-2 font-semibold leading-5 text-slate-900">
                       {formatDecisionLogDepartmentLabel(log.department, language)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-600">
@@ -5210,6 +5934,7 @@ function getDecisionLogDepartmentLabels(language = "") {
       ENG: "Projek Kejuruteraan (ENG)",
       "IKL (TECHNICAL)": "Iklan Teknikal",
       "KB(LES)": "Ketua Bahagian Pelesenan (LES)",
+      MPHLG: "Kementerian Kesihatan Awam, Perumahan dan Kerajaan Tempatan (MPHLG)",
       PGH: "Pengarah",
       "TP(RES)": "Timbalan Pengarah Jabatan Perkhidmatan Kawalselia (RES)",
     };
@@ -5225,6 +5950,7 @@ function getDecisionLogDepartmentLabels(language = "") {
     ENG: "Engineering Project (ENG)",
     "IKL (TECHNICAL)": "Technical Advertising",
     "KB(LES)": "Licensing Division Head (LES)",
+    MPHLG: "Ministry of Public Health, Housing and Local Government (MPHLG)",
     PGH: "Director",
     "TP(RES)": "Deputy Director Regulatory Services (RES)",
   };
@@ -7058,7 +7784,7 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
         return t("workspace.payment.ptReceiptAction", "Review the uploaded receipt, then verify or reject it.");
       }
 
-      return t("workspace.payment.ptAction", "Upload the approval letter and bill, send them to the applicant, then verify uploaded payment proof.");
+      return t("workspace.payment.ptAction", "Prepare the approval letter, send it to the applicant, then verify uploaded payment proof.");
     }
 
     return "";
@@ -9331,9 +10057,9 @@ function buildTechnicalProjectNameLine(language, row, fallbackType = "") {
   const customLabel = String(row?.customLabel || row?.custom_label || "").trim();
   const displayLabel = getTechnicalDisplayTypeLabel(displayType, language);
   const advertisementLabel =
-    customLabel ||
+    getTechnicalAdvertisementOptionLabel(customLabel, language) ||
     getApplicationSubtypeLabel(rowType, subtype, language) ||
-    getTechnicalAdvertisementOptionLabel(customLabel, language);
+    customLabel;
 
   if (!rowType || !displayLabel || !advertisementLabel) return "";
 
@@ -9999,17 +10725,17 @@ const configs = {
     listEyebrowKey: "workspace.payment.listEyebrow",
     listTitle: "Approval Letter, Bill & Receipt",
     listTitleKey: "workspace.payment.listTitle",
-    listDescription: "Select an approved application to upload the approval letter and bill or review payment receipts.",
+    listDescription: "Select an approved application to prepare the approval letter or review payment receipts.",
     listDescriptionKey: "workspace.payment.listDescription",
     eyebrow: "Payment",
     eyebrowKey: "workspace.payment.eyebrow",
     title: "Bill and Payment",
     titleKey: "workspace.payment.title",
-    description: "PT(IKL) uploads approval letters and bills, the applicant uploads payment proof, and PT(IKL) verifies the receipt.",
+    description: "PT(IKL) prepares approval letters, the applicant uploads payment proof, and PT(IKL) verifies the receipt.",
     descriptionKey: "workspace.payment.description",
     queueTitle: "Payment Queue",
     queueTitleKey: "workspace.payment.queue",
-    actionDescription: "Upload an approval letter and bill, send them to the applicant, then verify whether the uploaded receipt is valid or fake.",
+    actionDescription: "Prepare an approval letter, send it to the applicant, then verify whether the uploaded receipt is valid or fake.",
     actionDescriptionKey: "workspace.payment.action",
     showComment: true,
     commentLabel: "Receipt Verification Notes",
@@ -13486,6 +14212,7 @@ function PaymentDetails({
   saving,
   onPaymentDocumentUpload,
   onPaymentDocumentDelete,
+  onEditApprovalLetter,
   onLicenseDocumentUpload,
   onLicenseDocumentDelete,
   paymentReceiptDecision = "",
@@ -13497,6 +14224,7 @@ function PaymentDetails({
   const receiptFile = payment.receipt_file;
   const receiptSource = getPaymentReceiptSource(receiptFile);
   const letterFile = getStoredPaymentDocument(app, "letter");
+  const manualLetter = approvalLetter.manual_letter || {};
   const billFile = getStoredPaymentDocument(app, "bill");
   const officialReceiptFile =
     getStoredPaymentDocument(app, "official_receipt") ||
@@ -13504,13 +14232,10 @@ function PaymentDetails({
     null;
   const licenseFile = license.license_file || null;
   const status = normalizeStatus(app?.status);
-  const letterReady = Boolean(letterFile);
-  const billReady = Boolean(billFile);
   const canUploadDocuments =
     !readOnly && userDepartment === "PT(IKL)" && status === "approved";
   const isReceiptVerification =
     !readOnly && userDepartment === "PT(IKL)" && status === "payment_submitted";
-  const uploadReady = letterReady && billReady;
   const showReceiptDetails = Boolean(
     readOnly ||
     receiptFile?.name ||
@@ -13553,7 +14278,7 @@ function PaymentDetails({
     showVerificationUploads || (canShowSavedIssueDocuments && Boolean(officialReceiptFile));
   const showLicenseDocumentSection =
     showVerificationUploads || (canShowSavedIssueDocuments && Boolean(licenseFile));
-  const showQrPanel = true;
+  const showQrPanel = false;
 
   const officialReceiptUploadSection = showOfficialReceiptSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
@@ -13614,38 +14339,32 @@ function PaymentDetails({
   const documentSection = (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
+        <div>
           <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
             {t("workspace.payment.documents", "Approval Letter and Bill")}
           </p>
-          </div>
-
-          {canUploadDocuments && uploadReady && (
-            <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-              {t("workspace.payment.methodReady", "Ready")}
-            </span>
-          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 px-3 py-3">
-        <PaymentDocumentSlot
+        <ApprovalLetterDocumentSlot
+          app={app}
           label={t("workspace.payment.approvalLetter", "Approval Letter")}
           file={letterFile}
           t={t}
           canUpload={canUploadDocuments}
           required={canUploadDocuments}
           saving={saving}
-          onFileChange={(file) => onPaymentDocumentUpload?.("letter", file)}
           onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+          onEditManualLetter={onEditApprovalLetter}
         />
         <PaymentDocumentSlot
           label={t("workspace.payment.billDocument", "Bill")}
           file={billFile}
+          emptyText={t("workspace.payment.billGeneratedWithLetter", "Bill will be prepared with the approval letter.")}
           t={t}
-          canUpload={canUploadDocuments}
-          required={canUploadDocuments}
+          canUpload={false}
+          required={false}
           saving={saving}
           onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
           onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
@@ -14011,7 +14730,98 @@ function PaymentVerificationDocumentRow({ item, t, saving }) {
   );
 }
 
-function PaymentDocumentSlot({ label, file, t, canUpload, required = false, saving, onFileChange, onDelete }) {
+function ApprovalLetterDocumentSlot({
+  app,
+  label,
+  file,
+  t,
+  canUpload,
+  required = false,
+  saving,
+  onDelete,
+  onEditManualLetter,
+}) {
+  const fileSource = getPaymentDocumentSource(file);
+  const manualReady = hasManualApprovalLetter(app);
+  const displayName =
+    file?.name ||
+    t(
+      "workspace.payment.approvalLetterDraftRequired",
+      "Please review the auto-generated approval letter before sending it to the applicant."
+    );
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          {label}
+          {required && <span className="ml-1 text-red-600">*</span>}
+        </p>
+        <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+          {displayName}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {fileSource && (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => downloadPaymentDocument(file, label, t)}
+            >
+              {t("common.download", "Download")}
+            </Button>
+          </>
+        )}
+
+        {!fileSource && manualReady && (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => printManualApprovalLetterDocument(app, t)}
+            >
+              {t("common.download", "Download")}
+            </Button>
+          </>
+        )}
+
+        {canUpload && (
+          <Button
+            type="button"
+            variant="secondary"
+            icon="edit"
+            className="min-h-9 px-3 py-1 text-xs"
+            disabled={saving}
+            onClick={onEditManualLetter}
+          >
+            {t("workspace.payment.reviewApprovalLetter", "Review Approval Letter")}
+          </Button>
+        )}
+
+        {canUpload && fileSource && (
+          <Button
+            type="button"
+            variant="danger"
+            icon="delete"
+            className="min-h-9 px-3 py-1 text-xs"
+            disabled={saving}
+            onClick={onDelete}
+          >
+            {t("common.delete", "Delete")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PaymentDocumentSlot({ label, file, t, canUpload, required = false, saving, onFileChange, onDelete, emptyText }) {
   const fileSource = getPaymentDocumentSource(file);
 
   return (
@@ -14022,7 +14832,7 @@ function PaymentDocumentSlot({ label, file, t, canUpload, required = false, savi
           {required && <span className="ml-1 text-red-600">*</span>}
         </p>
         <p className="mt-1 truncate text-sm font-semibold text-slate-950">
-          {file?.name || t("workspace.info.notUploaded", "Not uploaded")}
+          {file?.name || emptyText || t("workspace.info.notUploaded", "Not uploaded")}
         </p>
         {canUpload && (
           <p className="mt-0.5 text-xs text-slate-500">
@@ -14333,10 +15143,52 @@ function hasPaymentDocuments(app) {
 }
 
 function hasUploadedPaymentDocuments(app) {
-  return Boolean(
-    getPaymentDocumentSource(getStoredPaymentDocument(app, "letter")) &&
-    getPaymentDocumentSource(getStoredPaymentDocument(app, "bill"))
+  const hasApprovalLetter =
+    getPaymentDocumentSource(getStoredPaymentDocument(app, "letter")) ||
+    hasManualApprovalLetter(app);
+
+  return Boolean(hasApprovalLetter);
+}
+
+function hasManualApprovalLetter(app) {
+  const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
+  return Boolean(manualLetter.document_html || manualLetter.editable_body_html || manualLetter.saved_at);
+}
+
+function getManualApprovalLetterDocumentHtml(app) {
+  const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
+  return (
+    manualLetter.document_html ||
+    buildManualApprovalLetterDocumentHtml(
+      manualLetter.editable_body_html || buildManualApprovalLetterTemplateBodyHtml(app)
+    )
   );
+}
+
+function openManualApprovalLetterDocument(app, t) {
+  const html = getManualApprovalLetterDocumentHtml(app);
+  const previewUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  const preview = window.open(previewUrl, "_blank");
+
+  if (!preview) {
+    URL.revokeObjectURL(previewUrl);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    return;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
+}
+
+async function printManualApprovalLetterDocument(app, t) {
+  try {
+    await printHtmlDocument(
+      getManualApprovalLetterDocumentHtml(app),
+      `${getApplicationReference(app)} ${t("workspace.payment.approvalLetter", "Approval Letter")}`
+    );
+  } catch (err) {
+    console.error("Failed to print approval letter:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
 }
 
 function getSentOfficialReceiptFile(app) {

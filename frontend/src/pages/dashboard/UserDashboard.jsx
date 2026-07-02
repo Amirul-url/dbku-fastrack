@@ -2288,6 +2288,10 @@ function getApplicantManualPaymentDocumentHtml(app, type, t) {
   const manualBill = approvalLetter.manual_bill || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
 
+  if (type === "letter" && manualLetter.document_html) {
+    return manualLetter.document_html;
+  }
+
   if (type === "receipt") {
     return buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt);
   }
