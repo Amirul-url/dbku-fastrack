@@ -267,6 +267,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showDecisionLog, setShowDecisionLog] = useState(false);
   const [showMphlgChecklist, setShowMphlgChecklist] = useState(false);
   const [showManualApprovalLetterEditor, setShowManualApprovalLetterEditor] = useState(false);
+  const [showManualBillEditor, setShowManualBillEditor] = useState(false);
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -1363,6 +1364,74 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function saveManualBillDraft(bodyHtml) {
+    if (!selectedRecord?.id) return;
+
+    const now = new Date().toISOString();
+    const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
+    const billDetails = getManualBillDetails(selectedRecord);
+    const nextManualBill = {
+      ...(savedApprovalLetter.manual_bill || {}),
+      template: "dbku_bill_rate_form_v1",
+      name: t("workspace.payment.billDocument", "Bill"),
+      invoice_no: getInvoiceNo(selectedRecord),
+      amount: billDetails.total,
+      rows: billDetails.rows
+        .filter((row) => parseCurrencyAmount(row.amount) > 0)
+        .map((row) => ({
+          label: row.item,
+          amount: row.amount,
+          validity: row.validity || "Per Permohonan",
+          account_code: row.accountCode,
+        })),
+      editable_body_html: bodyHtml,
+      document_html: buildManualBillDocumentHtml(bodyHtml),
+      status: "Draft",
+      saved_by: userDepartment,
+      saved_at: now,
+    };
+    const nextApprovalLetter = {
+      ...savedApprovalLetter,
+      manual_bill: nextManualBill,
+      generated_by: userDepartment,
+      generated_at: savedApprovalLetter.generated_at || now,
+      updated_at: now,
+    };
+    nextApprovalLetter.status = hasPaymentDocuments({
+      ...selectedRecord,
+      form_data: {
+        ...(selectedRecord.form_data || {}),
+        approval_letter: nextApprovalLetter,
+      },
+    })
+      ? "Ready for KU(IKL) Confirmation"
+      : "Draft";
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            approval_letter: nextApprovalLetter,
+          }),
+        }),
+      });
+
+      setSelectedDetail(response?.data || response || selectedRecord);
+      await fetchApplications({ silent: true });
+      setShowManualBillEditor(false);
+      setSuccess(t("workspace.payment.billSaved", "Bill saved."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.billSaveFailed", "Could not save the bill."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function addMphlgSupportingDocument() {
     setMphlgSupportingDocumentError("");
     setMphlgSupportingDocuments((prev) => [
@@ -1835,7 +1904,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (action.requiresPaymentDocuments && !hasUploadedPaymentDocuments(selectedRecord)) {
       setError(t(
         "workspace.payment.documentsRequired",
-        "Please save the approval letter before sending to the applicant."
+        "Please save the approval letter and bill before sending to the applicant."
       ));
       return;
     }
@@ -2603,6 +2672,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onPaymentDocumentUpload={uploadPaymentDocument}
                           onPaymentDocumentDelete={deletePaymentDocument}
                           onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
+                          onEditBill={() => setShowManualBillEditor(true)}
                           onLicenseDocumentUpload={uploadLicenseDocument}
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -2935,6 +3005,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onPaymentDocumentUpload={uploadPaymentDocument}
                         onPaymentDocumentDelete={deletePaymentDocument}
                         onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
+                        onEditBill={() => setShowManualBillEditor(true)}
                         onLicenseDocumentUpload={uploadLicenseDocument}
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -3087,6 +3158,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {showManualBillEditor && selectedRecord && (
+        <ManualBillEditorModal
+          app={selectedRecord}
+          t={t}
+          saving={saving}
+          onClose={() => setShowManualBillEditor(false)}
+          onSave={saveManualBillDraft}
+        />
+      )}
+
     </AdminDashboardLayout>
   );
 }
@@ -3174,6 +3255,188 @@ function buildManualApprovalLetterDocumentHtml(bodyHtml) {
 </html>`;
 }
 
+function ManualBillEditorModal({ app, t, saving, onClose, onSave }) {
+  const editorRef = useRef(null);
+  const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
+  const initialBodyHtml = syncManualBillAutoFields(
+    manualBill.editable_body_html || buildManualBillTemplateBodyHtml(app),
+    app
+  );
+
+  function handleSave() {
+    const bodyHtml = editorRef.current?.innerHTML || initialBodyHtml;
+    onSave?.(bodyHtml);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+      <div className="max-h-[92vh] w-full max-w-[min(96vw,72rem)] overflow-hidden rounded-md bg-white shadow-xl">
+        <style>{getManualBillCss({ editor: true })}</style>
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <p className="text-[13px] font-semibold leading-5 text-slate-950">
+              {t("workspace.payment.reviewBill", "Review Bill")}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-slate-500">
+              {getApplicationReference(app)}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              icon="save"
+              className="min-h-9 px-3 py-1.5"
+              disabled={saving}
+              onClick={handleSave}
+            >
+              {saving ? t("workspace.saving", "Saving...") : t("common.save", "Save")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="close"
+              className="min-h-9 w-9 px-0 py-0"
+              disabled={saving}
+              onClick={onClose}
+              aria-label={t("common.close", "Close")}
+              title={t("common.close", "Close")}
+            />
+          </div>
+        </div>
+
+        <div className="max-h-[calc(92vh-64px)] overflow-y-auto bg-slate-100 px-4 py-5">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            spellCheck={false}
+            className="manual-bill-pages outline-none"
+            dangerouslySetInnerHTML={{ __html: initialBodyHtml }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildManualBillDocumentHtml(bodyHtml) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Bill</title>
+  <style>${getManualBillCss()}</style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">Print</button></div>
+  <main class="manual-bill-pages">
+    ${bodyHtml || buildManualBillTemplateBodyHtml()}
+  </main>
+</body>
+</html>`;
+}
+
+function syncManualBillAutoFields(bodyHtml, app = null) {
+  const nextBody = buildManualBillTemplateBodyHtml(app);
+  const saved = String(bodyHtml || "").trim();
+  if (!saved) return nextBody;
+
+  return saved
+    .replace(/<section class="manual-bill-page">[\s\S]*?<\/section>/, nextBody.trim());
+}
+
+function buildManualBillTemplateBodyHtml(app = null) {
+  const details = getManualBillDetails(app);
+
+  return `
+    <section class="manual-bill-page">
+      <div class="bill-form-code">DBKU/LES/56-09 (Pind. 4/26)</div>
+      <header class="bill-header">
+        <div class="bill-crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
+        <h1>DEWAN BANDARAYA KUCHING UTARA</h1>
+        <p class="bill-unit">BAHAGIAN PELESENAN (UNIT IKLAN)</p>
+        <p>Lot 3462 And Part Of Lot 706, Block 17, Salak Land District, Jalan Depo, 93050 Kuching, Sarawak</p>
+        <p>Tel: 082-512955 <span>Faks: 082-495075</span></p>
+      </header>
+
+      <h2>BORANG KADAR BAYARAN LESEN IKLAN</h2>
+
+      <p class="bill-intro">Berikut adalah kadar bayaran lesen bagi permohonan tuan/puan;</p>
+
+      <div class="bill-field-grid">
+        <div class="bill-line-row bill-wide">
+          <span>Kepada</span><span>:</span><strong>${escapeHtml(details.recipientName)}</strong>
+        </div>
+        <div class="bill-line-row bill-wide bill-address">
+          <span>Alamat</span><span>:</span><strong>${escapeHtml(details.addressLine)}</strong>
+        </div>
+        <div class="bill-line-row bill-wide bill-address-cont">
+          <span></span><span></span><strong></strong>
+        </div>
+        <div class="bill-line-row">
+          <span>No. Tel</span><span>:</span><strong>${escapeHtml(details.phone)}</strong>
+        </div>
+        <div class="bill-line-row">
+          <span>Tarikh</span><span>:</span><strong>${escapeHtml(details.date)}</strong>
+        </div>
+        <div class="bill-line-row">
+          <span>Tempoh Lesen</span><span>:</span><strong>${escapeHtml(details.licensePeriod)}</strong>
+        </div>
+        <div class="bill-line-row bill-ad-name">
+          <span>Nama Iklan</span><span>:</span><strong>${escapeHtml(details.adName)}</strong>
+        </div>
+      </div>
+
+      <table class="bill-rate-table">
+        <thead>
+          <tr>
+            <th>BIL</th>
+            <th>PERKARA</th>
+            <th><span class="bill-amount-heading-top">JUMLAH</span><span>TUNAI/CEK<br />(RM)</span></th>
+            <th>KOD AKAUN</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${details.rows.map((row) => `
+            <tr>
+              <td>${row.no}</td>
+              <td>${row.htmlLabel || escapeHtml(row.item)}</td>
+              <td class="bill-amount">${escapeHtml(row.displayAmount)}</td>
+              <td>${escapeHtml(row.accountCode)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2">JUMLAH</td>
+            <td class="bill-amount">${escapeHtml(details.displayTotal)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="bill-signature-grid">
+        <div>
+          <p><strong>Disediakan oleh :</strong></p>
+          <div class="bill-person-row"><span>Nama</span><span>:</span><strong>${escapeHtml(details.preparedBy)}</strong></div>
+          <div class="bill-person-row"><span>Bahagian</span><span>:</span><strong>Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
+        </div>
+        <div>
+          <p><strong>Diluluskan oleh :</strong></p>
+          <div class="bill-person-row"><span>Nama</span><span>:</span><strong>${escapeHtml(details.approvedBy)}</strong></div>
+          <div class="bill-person-row"><span>Bahagian</span><span>:</span><strong>Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
+        </div>
+      </div>
+
+      <footer>
+        <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+        <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+      </footer>
+    </section>
+  `;
+}
+
 function formatManualApprovalLetterDate(value) {
   const date = value instanceof Date ? value : new Date(value || Date.now());
   if (Number.isNaN(date.getTime())) return "";
@@ -3206,7 +3469,10 @@ function syncManualApprovalLetterAutoFields(bodyHtml, app = null) {
     .replace(/<p>Tarikh:[\s\S]*?<\/p>/, dateHtml)
     .replace(/<p class="address-block">[\s\S]*?<\/p>/, addressHtml)
     .replace(/<table class="info-table">[\s\S]*?<\/table>/, advertisementDetailsHtml)
-    .replace(/<table class="payment-table">[\s\S]*?<\/table>/, paymentDetailsHtml);
+    .replace(/<table class="payment-table">[\s\S]*?<\/table>/, paymentDetailsHtml)
+    .replace(/\s*<p><strong>\(RAMZI BIN ABDILLAH\)<\/strong><\/p>/gi, "")
+    .replace(/<p>Pengarah<\/p>/gi, "<p><strong>Pengarah</strong></p>")
+    .replace(/<p>Dewan Bandaraya Kuching Utara<\/p>/gi, "<p><strong>Dewan Bandaraya Kuching Utara</strong></p>");
 }
 
 function buildManualApprovalLetterAddressHtml(app = null) {
@@ -3455,6 +3721,71 @@ function getManualApprovalLetterPaymentDetails(app = null) {
   };
 }
 
+function getManualBillDetails(app = null) {
+  const submittingPerson = app?.form_data?.step_3 || {};
+  const payment = getManualApprovalLetterPaymentDetails(app);
+  const applicantName = titleCaseAddressLine(
+    getRegisteredApplicantName(app) ||
+      getApplicantName(app) ||
+      submittingPerson.org_name ||
+      submittingPerson.name ||
+      ""
+  );
+  const addressLines = getManualApprovalLetterAddressLines(app);
+  const advertisementDetails = getManualApprovalLetterAdvertisementDetails(app);
+  const phone =
+    submittingPerson.mobile_no ||
+    submittingPerson.mobile ||
+    submittingPerson.telephone_no ||
+    submittingPerson.office_no ||
+    submittingPerson.tel_no ||
+    "";
+  const licenseFee = parseCurrencyAmount(payment.licenseFee);
+  const deposit = parseCurrencyAmount(payment.deposit);
+  const processingFee = parseCurrencyAmount(payment.processingFee);
+  const total = parseCurrencyAmount(payment.total);
+  const rows = getManualBillRateRows({ licenseFee, deposit, processingFee });
+
+  return {
+    recipientName: applicantName || "-",
+    addressLine: addressLines.join(", "),
+    phone,
+    date: formatManualApprovalLetterDate(new Date()),
+    licensePeriod: payment.licensePeriod,
+    adName: advertisementDetails.adName || getProjectName(app) || "-",
+    preparedBy: "",
+    approvedBy: "",
+    rows,
+    total,
+    displayTotal: formatManualApprovalLetterAmount(total),
+  };
+}
+
+function getManualBillRateRows({ licenseFee = 0, deposit = 0, processingFee = 0 } = {}) {
+  const rows = [
+    { no: 1, item: "Yuran Tandanama Perniagaan", amount: 0, accountCode: "H02021118-25" },
+    { no: 2, item: "Yuran Lesen Iklan", amount: licenseFee, accountCode: "H02021118-25" },
+    { no: 3, item: "Yuran Lesen Iklan - Prepayment", amount: 0, accountCode: "L04021019-25" },
+    { no: 4, item: "Yuran Gegantung", amount: 0, accountCode: "H02021118-25" },
+    { no: 5, item: "Yuran Kain Rentang", amount: 0, accountCode: "H02021118-25" },
+    { no: 6, item: "Yuran Giant Banner", htmlLabel: "Yuran <em>Giant Banner</em>", amount: 0, accountCode: "H02021118-25" },
+    { no: 7, item: "Pelekat", amount: 0, accountCode: "H02021118-25" },
+    { no: 8, item: "Sewa Pagar", amount: 0, accountCode: "H02021118-25" },
+    { no: 9, item: "Yuran Pemprosesan Lesen", amount: processingFee, accountCode: "H02021121-25" },
+    { no: 10, item: "Deposit Gegantung", amount: 0, accountCode: "CC-DP(L04030201-25)" },
+    { no: 11, item: "Deposit Kain Rentang", amount: 0, accountCode: "CC-DP(L04030201-25)" },
+    { no: 12, item: "Deposit Giant Banner", htmlLabel: "Deposit <em>Giant Banner</em>", amount: 0, accountCode: "CC-DP(L04030201-25)" },
+    { no: 13, item: "Deposit Billboard", htmlLabel: "Deposit <em>Billboard</em>", amount: deposit, accountCode: "CC-DP(L04030201-25)" },
+  ];
+
+  return rows.map((row) => ({
+    ...row,
+    displayAmount: parseCurrencyAmount(row.amount) > 0
+      ? formatManualApprovalLetterAmount(row.amount)
+      : "",
+  }));
+}
+
 function getManualApprovalLetterPaymentApplicationCount(rows = []) {
   const count = (Array.isArray(rows) ? rows : []).filter((row) =>
     row?.subtype ||
@@ -3541,9 +3872,8 @@ function buildManualApprovalLetterTemplateBodyHtml(app = null) {
       <p class="motto"><strong><em>"AN HONOUR TO SERVE"</em><br /><em>"TOGETHER WE CARE"</em></strong></p>
 
       <div class="signature-block">
-        <p><strong>(RAMZI BIN ABDILLAH)</strong></p>
-        <p>Pengarah</p>
-        <p>Dewan Bandaraya Kuching Utara</p>
+        <p><strong>Pengarah</strong></p>
+        <p><strong>Dewan Bandaraya Kuching Utara</strong></p>
       </div>
     </section>
 
@@ -3643,7 +3973,7 @@ function getManualApprovalLetterCss({ editor = false } = {}) {
       padding: 18mm 24mm 20mm;
       background: #fff;
       color: #111;
-      font-family: Arial, sans-serif !important;
+      font-family: "Times New Roman", Times, serif !important;
       font-size: 9.5pt !important;
       line-height: 1.32;
       box-shadow: ${editor ? "0 1px 8px rgba(15, 23, 42, 0.18)" : "none"};
@@ -3655,14 +3985,16 @@ function getManualApprovalLetterCss({ editor = false } = {}) {
       font-size: 9.5pt !important;
     }
     .manual-approval-letter-page::after {
-      content: "Dokumen ini dijana secara elektronik dan sah tanpa tandatangan";
+      content: "Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.\\A Sila abaikan surat ini sekiranya pembaharuan telah dibuat.";
       position: absolute;
       left: 24mm;
       right: 24mm;
       bottom: 10mm;
       text-align: center;
       font-size: 8pt !important;
+      font-style: italic;
       line-height: 1.2;
+      white-space: pre-line;
       color: #334155;
     }
     .manual-approval-letter-page p { margin: 0 0 12px; }
@@ -3686,9 +4018,9 @@ function getManualApprovalLetterCss({ editor = false } = {}) {
     .payment-table th:nth-child(2) { width: 47%; }
     .payment-table th:nth-child(3),
     .payment-table td:nth-child(3) { width: 20%; text-align: right; padding-right: 0; }
-    .payment-table .total-row td { font-weight: 800; }
+    .payment-table .total-row td { font-weight: 700; }
     .motto { margin-top: 24px; }
-    .signature-block { margin-top: 46px; }
+    .signature-block { margin-top: 24px; }
     .signature-block p { margin: 0 0 2px; }
     .appendix-title { margin: 0 0 42px; text-align: center; }
     .appendix-title h2 { margin: 20px 0; font-size: 9.5pt; letter-spacing: .2px; }
@@ -3709,7 +4041,220 @@ function getManualApprovalLetterCss({ editor = false } = {}) {
   `;
 }
 
+function getManualBillCss({ editor = false } = {}) {
+  return `
+    @page { size: 21.0cm 29.7cm; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: ${editor ? "#f1f5f9" : "#ffffff"}; color: #111; font-family: Arial, sans-serif; }
+    .manual-bill-pages { width: fit-content; margin: 0 auto; }
+    .manual-bill-page {
+      position: relative;
+      width: 21.0cm;
+      height: 29.7cm;
+      margin: 0 auto 14px;
+      padding: 10mm 13mm 8mm;
+      background: #fff;
+      border: 1.5px solid #111;
+      color: #111;
+      font-family: Arial, sans-serif !important;
+      font-size: 8.2pt !important;
+      line-height: 1.08;
+      box-shadow: ${editor ? "0 1px 8px rgba(15, 23, 42, 0.18)" : "none"};
+      page-break-after: always;
+    }
+    .manual-bill-page * {
+      font-family: Arial, sans-serif !important;
+      font-size: 8.2pt !important;
+    }
+    .bill-form-code {
+      position: absolute;
+      top: 5mm;
+      right: 8mm;
+      font-size: 8.5pt !important;
+    }
+    .bill-header {
+      text-align: center;
+      padding-top: 1mm;
+    }
+    .bill-crest {
+      display: inline-flex;
+      height: 20mm;
+      width: 26mm;
+      align-items: center;
+      justify-content: center;
+    }
+    .bill-crest img {
+      max-height: 20mm;
+      max-width: 26mm;
+      object-fit: contain;
+    }
+    .bill-header h1 {
+      margin: 1.5mm 0 1.2mm;
+      font-size: 16pt !important;
+      font-weight: 900;
+      letter-spacing: .02em;
+      line-height: 1.05;
+    }
+    .bill-header p {
+      margin: 0;
+      line-height: 1.15;
+    }
+    .bill-header .bill-unit {
+      margin-top: .5mm;
+      font-size: 10pt !important;
+      letter-spacing: .02em;
+    }
+    .bill-header span {
+      margin-left: 30mm;
+    }
+    .manual-bill-page h2 {
+      margin: 2mm auto 4mm;
+      width: 146mm;
+      border: 1.5px solid #111;
+      text-align: center;
+      font-family: "Times New Roman", Times, serif !important;
+      font-size: 14pt !important;
+      font-weight: 900;
+      letter-spacing: .03em;
+      line-height: 1.12;
+    }
+    .bill-intro {
+      margin: 0 0 1mm;
+      font-size: 9pt !important;
+    }
+    .bill-field-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1.4mm 10mm;
+      margin-bottom: 3mm;
+    }
+    .bill-line-row {
+      display: grid;
+      grid-template-columns: 25mm 5mm minmax(0, 1fr);
+      align-items: end;
+      min-height: 4.8mm;
+    }
+    .bill-line-row strong {
+      min-height: 4mm;
+      border-bottom: 1.2px solid #111;
+      font-weight: 400;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .bill-wide {
+      grid-column: 1 / -1;
+    }
+    .bill-wide strong {
+      white-space: normal;
+    }
+    .bill-ad-name strong {
+      line-height: 1.15;
+      overflow: visible;
+      white-space: normal;
+    }
+    .bill-address-cont span {
+      visibility: hidden;
+    }
+    .bill-rate-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-top: 1.5mm;
+      font-size: 8.2pt !important;
+    }
+    .bill-rate-table th,
+    .bill-rate-table td {
+      border: 1.4px solid #111;
+      padding: 1.15mm 1.6mm;
+      vertical-align: middle;
+    }
+    .bill-rate-table th {
+      text-align: center;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .bill-rate-table th span {
+      display: block;
+    }
+    .bill-amount-heading-top {
+      margin: -1.15mm -1.6mm 0.8mm;
+      padding-bottom: 0.6mm;
+      border-bottom: 1.4px solid #111;
+    }
+    .bill-rate-table th:nth-child(1),
+    .bill-rate-table td:nth-child(1) {
+      width: 28mm;
+      text-align: center;
+    }
+    .bill-rate-table th:nth-child(2),
+    .bill-rate-table td:nth-child(2) {
+      width: 61mm;
+    }
+    .bill-rate-table th:nth-child(3),
+    .bill-rate-table td:nth-child(3) {
+      width: 37mm;
+      text-align: center;
+    }
+    .bill-rate-table th:nth-child(4),
+    .bill-rate-table td:nth-child(4) {
+      width: 52mm;
+    }
+    .bill-rate-table td.bill-amount {
+      text-align: right;
+      padding-right: 4mm;
+      white-space: nowrap;
+    }
+    .bill-rate-table tfoot td {
+      font-weight: 700;
+      text-align: center;
+    }
+    .bill-rate-table tfoot td:last-child {
+      background: #c9c9c9;
+    }
+    .bill-signature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22mm;
+      margin-top: 4mm;
+    }
+    .bill-signature-grid p {
+      margin: 0 0 4mm;
+    }
+    .bill-person-row {
+      display: grid;
+      grid-template-columns: 27mm 5mm minmax(0, 1fr);
+      align-items: start;
+      min-height: 4.8mm;
+    }
+    .bill-person-row strong {
+      font-weight: 400;
+      line-height: 1.18;
+    }
+    .manual-bill-page footer {
+      margin-top: 10mm;
+      text-align: center;
+      font-style: italic;
+      font-weight: 400;
+      color: #334155;
+    }
+    .manual-bill-page footer p {
+      margin: 0;
+      font-size: 7.5pt !important;
+    }
+    .print-actions { position: fixed; right: 18px; top: 18px; z-index: 10; }
+    .print-actions button { border: 1px solid #cbd5e1; background: white; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: #fff; }
+      .manual-bill-pages { width: auto; margin: 0; }
+      .manual-bill-page { margin: 0; box-shadow: none; page-break-after: auto; break-after: auto; }
+      .print-actions { display: none; }
+    }
+  `;
+}
+
 async function printHtmlDocument(html, title) {
+  const originalTitle = document.title;
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -3732,10 +4277,12 @@ async function printHtmlDocument(html, title) {
   frameDocument.write(html);
   frameDocument.close();
   frameDocument.title = title;
+  document.title = title;
 
   await new Promise((resolve) => setTimeout(resolve, 250));
 
   const cleanup = () => {
+    document.title = originalTitle;
     setTimeout(() => iframe.remove(), 500);
   };
   frameWindow.addEventListener("afterprint", cleanup, { once: true });
@@ -5170,7 +5717,7 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
         <p class="download-subtitle">${escapeHtml(formatDecisionLogDepartmentLabel(log.department, language))} · ${escapeHtml(formatDecisionLogCompactDateTime(log.date, language))}</p>
       </div>
       <div class="download-body">
-        ${log.technicalReport ? buildDecisionLogTechnicalReportSnapshotHtml(log.technicalReport) : ""}
+        ${log.technicalReport ? buildDecisionLogTechnicalReportSnapshotHtml(log.technicalReport, language) : ""}
         ${buildDecisionLogMphlgSupportingDocumentsSnapshotHtml(log.supportingDocuments, labels)}
         ${decisionHtml}
         <div class="remarks-section">
@@ -5226,9 +5773,10 @@ function buildDecisionLogMphlgSupportingDocumentsSnapshotHtml(documents, labels)
   `;
 }
 
-function buildDecisionLogTechnicalReportSnapshotHtml(report) {
+function buildDecisionLogTechnicalReportSnapshotHtml(report, language = "en") {
   const technicalSite = report?.technicalSite || {};
   const rows = getTechnicalFeeRowsFromSite(technicalSite);
+  const labels = getDecisionLogTechnicalLabels(language);
   const departmentsText = Array.isArray(report?.derivedDepartments)
     ? report.derivedDepartments.join(", ")
     : String(report?.derivedDepartments || "").trim();
@@ -5252,45 +5800,45 @@ function buildDecisionLogTechnicalReportSnapshotHtml(report) {
     <div class="technical-report">
       <div class="technical-section">
         <div class="technical-section-header">
-          <p class="technical-section-title">List of Application &amp; Project</p>
+          <p class="technical-section-title">${escapeHtml(stepText(language, "applicationProjectList"))}</p>
         </div>
         <div class="technical-section-body">
           <table class="technical-table">
             <thead>
               <tr>
-                <th style="width:42px;">No.</th>
-                <th style="width:100px;">Category</th>
-                <th style="width:120px;">Display Type</th>
-                <th style="width:160px;">Advertisement Type</th>
-                <th>Title</th>
+                <th style="width:42px;">${escapeHtml(stepText(language, "advertisementNumber"))}</th>
+                <th style="width:100px;">${escapeHtml(stepText(language, "applicationCategory"))}</th>
+                <th style="width:120px;">${escapeHtml(stepText(language, "displayType"))}</th>
+                <th style="width:160px;">${escapeHtml(stepText(language, "advertisementType"))}</th>
+                <th>${escapeHtml(stepText(language, "title"))}</th>
               </tr>
             </thead>
             <tbody>
-              ${rows.map((row, index) => buildDecisionLogTechnicalProjectRowHtml(row, index)).join("")}
+              ${rows.map((row, index) => buildDecisionLogTechnicalProjectRowHtml(row, index, language)).join("")}
             </tbody>
           </table>
-          ${departmentsText ? `<p class="technical-departments"><strong>Departments involved:</strong> ${escapeHtml(departmentsText)}</p>` : ""}
+          ${departmentsText ? `<p class="technical-departments"><strong>${escapeHtml(labels.departmentsInvolved)}:</strong> ${escapeHtml(departmentsText)}</p>` : ""}
         </div>
       </div>
 
       <div class="technical-section">
         <div class="technical-section-body">
-          <p class="technical-section-title">Advertisement Unit Site Visit</p>
-          <p style="margin:2px 0 10px;color:#334155;">Upload the site photo, enter the advertisement size, and record site findings.</p>
-          <p style="margin:0 0 6px;font-weight:700;">Site Photo</p>
+          <p class="technical-section-title">${escapeHtml(labels.siteVisitTitle)}</p>
+          <p style="margin:2px 0 10px;color:#334155;">${escapeHtml(labels.siteVisitDesc)}</p>
+          <p style="margin:0 0 6px;font-weight:700;">${escapeHtml(labels.sitePhoto)}</p>
           ${sitePhotos.length > 0
-            ? `<div style="display:grid;gap:6px;">${sitePhotos.map(buildDecisionLogTechnicalPhotoHtml).join("")}</div>`
-            : '<div class="technical-empty">No site photo uploaded.</div>'
+            ? `<div style="display:grid;gap:6px;">${sitePhotos.map((photo, index) => buildDecisionLogTechnicalPhotoHtml(photo, labels.sitePhoto, index)).join("")}</div>`
+            : `<div class="technical-empty">${escapeHtml(labels.noSitePhoto)}</div>`
           }
         </div>
       </div>
 
       <div class="technical-section">
         <div class="technical-section-body">
-          <p class="technical-section-title">Advertisement Size &amp; Fee Calculation</p>
-          ${buildDecisionLogFeeScheduleHtml(scheduleNumbers)}
+          <p class="technical-section-title">${escapeHtml(labels.feeCalculationTitle)}</p>
+          ${buildDecisionLogFeeScheduleHtml(scheduleNumbers, language)}
           <div style="display:grid;gap:8px;margin-top:10px;">
-            ${rows.map((row, index) => buildDecisionLogTechnicalFeeRowHtml(row, index)).join("")}
+            ${rows.map((row, index) => buildDecisionLogTechnicalFeeRowHtml(row, index, language)).join("")}
           </div>
         </div>
       </div>
@@ -5298,7 +5846,7 @@ function buildDecisionLogTechnicalReportSnapshotHtml(report) {
   `;
 }
 
-function buildDecisionLogTechnicalProjectRowHtml(row, index) {
+function buildDecisionLogTechnicalProjectRowHtml(row, index, language = "en") {
   const rowType =
     normalizeApplicationTypeOptions(row?.applicationType || row?.application_type)[0] ||
     getApplicationTypeFromSubtype(row?.subtype);
@@ -5306,22 +5854,22 @@ function buildDecisionLogTechnicalProjectRowHtml(row, index) {
   const advertisementLabel =
     row?.customLabel ||
     row?.custom_label ||
-    getApplicationSubtypeLabel(rowType, row?.subtype, "en") ||
+    getApplicationSubtypeLabel(rowType, row?.subtype, language) ||
     "";
 
   return `
     <tr>
       <td>${index + 1}</td>
-      <td>${escapeHtml(getApplicationTypeOptionLabel(rowType, "en") || "-")}</td>
-      <td>${escapeHtml(getTechnicalDisplayTypeLabel(displayType, "en") || "-")}</td>
-      <td>${escapeHtml(getTechnicalAdvertisementOptionLabel(advertisementLabel, "en") || "-")}</td>
-      <td>${escapeHtml(buildTechnicalProjectNameLine("en", row, rowType) || "-")}</td>
+      <td>${escapeHtml(getApplicationTypeOptionLabel(rowType, language) || "-")}</td>
+      <td>${escapeHtml(getTechnicalDisplayTypeLabel(displayType, language) || "-")}</td>
+      <td>${escapeHtml(getTechnicalAdvertisementOptionLabel(advertisementLabel, language) || "-")}</td>
+      <td>${escapeHtml(buildTechnicalProjectNameLine(language, row, rowType) || "-")}</td>
     </tr>
   `;
 }
 
-function buildDecisionLogTechnicalPhotoHtml(photo) {
-  const name = photo?.name || photo?.title || photo?.fileName || "Site Photo";
+function buildDecisionLogTechnicalPhotoHtml(photo, fallbackTitle = "Site Photo", index = 0) {
+  const name = photo?.name || photo?.title || photo?.fileName || `${fallbackTitle} ${index + 1}`;
   const format = getTechnicalSitePhotoFormat(photo);
   const size = formatTechnicalSitePhotoSize(photo?.size);
   const meta = [format, size].filter(Boolean).join(" - ");
@@ -5337,43 +5885,39 @@ function buildDecisionLogTechnicalPhotoHtml(photo) {
   `;
 }
 
-function buildDecisionLogFeeScheduleHtml(scheduleNumbers = []) {
+function buildDecisionLogFeeScheduleHtml(scheduleNumbers = [], language = "en") {
   const visibleSchedules = scheduleNumbers.length > 0 ? scheduleNumbers : ["1"];
+  const labels = getDecisionLogTechnicalLabels(language);
 
   return `
     <div class="fee-schedule">
       <p class="fee-schedule-heading">
-        <em>SECOND SCHEDULE</em>
-        <span class="fee-schedule-title">LICENCE FEES</span>
-        <strong>(By-laws 9 and 10)</strong>
+        <em>${escapeHtml(labels.scheduleTitle)}</em>
+        <span class="fee-schedule-title">${escapeHtml(labels.scheduleFeesTitle)}</span>
+        <strong>${escapeHtml(labels.scheduleBylaws)}</strong>
       </p>
       <div class="fee-schedule-grid">
         <span></span>
-        <span class="fee-heading">Type of Advertisement</span>
-        <span class="fee-heading">Fee Payable</span>
-        <span class="fee-heading">City/Municipal Council</span>
-        <span class="fee-heading">District Council</span>
-        ${visibleSchedules.map(buildDecisionLogFeeScheduleBlockHtml).join("")}
+        <span class="fee-heading">${escapeHtml(labels.scheduleAdvertisementType)}</span>
+        <span class="fee-heading">${escapeHtml(labels.scheduleFeePayable)}</span>
+        <span class="fee-heading">${escapeHtml(labels.scheduleCityCouncil)}</span>
+        <span class="fee-heading">${escapeHtml(labels.scheduleDistrictCouncil)}</span>
+        ${visibleSchedules.map((scheduleNumber) => buildDecisionLogFeeScheduleBlockHtml(scheduleNumber, language)).join("")}
       </div>
     </div>
   `;
 }
 
-function buildDecisionLogFeeScheduleBlockHtml(scheduleNumber) {
+function buildDecisionLogFeeScheduleBlockHtml(scheduleNumber, language = "en") {
   const isLedSchedule = String(scheduleNumber) === "6";
-  const typeDescription = isLedSchedule
-    ? "Advertisement by means of electronic or any non-print device"
-    : "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support";
-  const firstAreaText = isLedSchedule
-    ? "For the first 10 square metre or part thereof"
-    : "For the first 20 square metre or part thereof";
-  const additionalAreaText = isLedSchedule
-    ? "For every additional square metre"
-    : "For every additional square metre or part thereof";
-  const firstCityRate = isLedSchedule ? "RM2,000.00 per year" : "RM100.00 for every square metre per year";
-  const firstDistrictRate = isLedSchedule ? "RM1,500.00 per year" : "RM70.00 for every square metre per year";
-  const additionalCityRate = isLedSchedule ? "RM50.00 per year" : "RM70.00 per year";
-  const additionalDistrictRate = isLedSchedule ? "RM35.00 per year" : "RM50.00 per year";
+  const labels = getDecisionLogTechnicalLabels(language);
+  const typeDescription = isLedSchedule ? labels.schedule6AdvertisementDesc : labels.scheduleAdvertisementDesc;
+  const firstAreaText = isLedSchedule ? labels.schedule6FirstArea : labels.scheduleFirstArea;
+  const additionalAreaText = isLedSchedule ? labels.schedule6AdditionalArea : labels.scheduleAdditionalArea;
+  const firstCityRate = isLedSchedule ? labels.schedule6CityFirstRate : labels.scheduleCityFirstRate;
+  const firstDistrictRate = isLedSchedule ? labels.schedule6DistrictFirstRate : labels.scheduleDistrictFirstRate;
+  const additionalCityRate = isLedSchedule ? labels.schedule6CityAdditionalRate : labels.scheduleCityAdditionalRate;
+  const additionalDistrictRate = isLedSchedule ? labels.schedule6DistrictAdditionalRate : labels.scheduleDistrictAdditionalRate;
 
   return `
     <span>${escapeHtml(scheduleNumber)}.</span>
@@ -5381,31 +5925,32 @@ function buildDecisionLogFeeScheduleBlockHtml(scheduleNumber) {
     <span>
       (a) ${escapeHtml(firstAreaText)}<br>
       (b) ${escapeHtml(additionalAreaText)}
-      ${isLedSchedule ? "<br>(c) For every set of device producing non-measurable advertisement" : ""}
+      ${isLedSchedule ? `<br>(c) ${escapeHtml(labels.schedule6DeviceSet)}` : ""}
     </span>
     <span>
       ${escapeHtml(firstCityRate)}<br>
       ${escapeHtml(additionalCityRate)}
-      ${isLedSchedule ? "<br>RM1,000.00 per year" : ""}
+      ${isLedSchedule ? `<br>${escapeHtml(labels.schedule6CityDeviceRate)}` : ""}
     </span>
     <span>
       ${escapeHtml(firstDistrictRate)}<br>
       ${escapeHtml(additionalDistrictRate)}
-      ${isLedSchedule ? "<br>RM750.00 per year" : ""}
+      ${isLedSchedule ? `<br>${escapeHtml(labels.schedule6DistrictDeviceRate)}` : ""}
     </span>
   `;
 }
 
-function buildDecisionLogTechnicalFeeRowHtml(row, index) {
+function buildDecisionLogTechnicalFeeRowHtml(row, index, language = "en") {
   const applicationType =
     row.applicationType || row.application_type || getApplicationTypeFromSubtype(row.subtype);
-  const typeLabel = getApplicationTypeOptionLabel(applicationType, "en");
+  const typeLabel = getApplicationTypeOptionLabel(applicationType, language);
   const displayType = row.displayType || row.display_type || getTechnicalDisplayTypeFromSubtype(row.subtype);
-  const displayLabel = getTechnicalDisplayTypeLabel(displayType, "en");
+  const displayLabel = getTechnicalDisplayTypeLabel(displayType, language);
   const advertisementLabel = getTechnicalAdvertisementOptionLabel(
     row.customLabel || row.custom_label,
-    "en"
+    language
   );
+  const labels = getDecisionLogTechnicalLabels(language);
   const widthValue = row.width_ft || row.widthFt || "";
   const heightValue = row.height_ft || row.heightFt || "";
   const fee = calculateTechnicalFee({
@@ -5423,24 +5968,24 @@ function buildDecisionLogTechnicalFeeRowHtml(row, index) {
       <p class="fee-card-title">${index + 1}. ${escapeHtml(typeLabel)}: ${escapeHtml(displayLabel)} - ${escapeHtml(advertisementLabel || "-")}</p>
       <div class="fee-grid">
         <label>
-          <span class="fee-field-label">Advertisement Size (W x H)</span>
+          <span class="fee-field-label">${escapeHtml(stepText(language, "advertisementSizeFt"))}</span>
           <div class="fee-input">${escapeHtml(widthValue || "-")} ft &nbsp; x &nbsp; ${escapeHtml(heightValue || "-")} ft</div>
         </label>
         <label>
-          <span class="fee-field-label">Area Required (Sq. m)</span>
+          <span class="fee-field-label">${escapeHtml(stepText(language, "areaRequired"))}</span>
           <div class="fee-input">${escapeHtml(formatTechnicalDecimal(areaValue))}</div>
         </label>
         <label>
-          <span class="fee-field-label">Total Payable, (RM)</span>
+          <span class="fee-field-label">${escapeHtml(stepText(language, "malaysiaPlanRm"))}</span>
           <div class="fee-input">${escapeHtml(formatTechnicalAmountInput(totalPayable))}</div>
         </label>
         <label>
-          <span class="fee-field-label">Calculation breakdown</span>
+          <span class="fee-field-label">${escapeHtml(stepText(language, "calculationBreakdown"))}</span>
           <div class="fee-input">
             ${escapeHtml(formatTechnicalDecimal(widthValue || 0))} ft x ${escapeHtml(formatTechnicalDecimal(heightValue || 0))} ft,
-            ${escapeHtml(formatTechnicalCurrency(fee.feeTotal))} fee +
-            ${escapeHtml(formatTechnicalCurrency(fee.deposit))} deposit +
-            ${escapeHtml(formatTechnicalCurrency(fee.processingFee))} processing
+            ${escapeHtml(formatTechnicalCurrency(fee.feeTotal))} ${escapeHtml(labels.feeShort)} +
+            ${escapeHtml(formatTechnicalCurrency(fee.deposit))} ${escapeHtml(labels.deposit)} +
+            ${escapeHtml(formatTechnicalCurrency(fee.processingFee))} ${escapeHtml(labels.processingShort)}
           </div>
         </label>
       </div>
@@ -5487,6 +6032,84 @@ function getDecisionLogDownloadLabels(language = "en") {
     agency: "Agency",
     date: "Date",
     signatureAlt: "Digital signature preview",
+  };
+}
+
+function getDecisionLogTechnicalLabels(language = "en") {
+  if (getDecisionLogLanguage(language) === "ms") {
+    return {
+      departmentsInvolved: "Bahagian terlibat",
+      siteVisitTitle: "Lawatan Tapak Unit Iklan",
+      siteVisitDesc: "Muat naik gambar tapak, masukkan saiz iklan dan rekod penemuan tapak.",
+      sitePhoto: "Gambar Tapak",
+      noSitePhoto: "Tiada gambar tapak dimuat naik.",
+      feeCalculationTitle: "Kiraan Saiz & Caj Iklan",
+      scheduleTitle: "JADUAL KEDUA",
+      scheduleFeesTitle: "YURAN LESEN",
+      scheduleBylaws: "(Undang-undang Kecil 9 dan 10)",
+      scheduleAdvertisementType: "Jenis Iklan",
+      scheduleFeePayable: "Yuran Kena Dibayar",
+      scheduleCityCouncil: "Majlis Bandaraya/Perbandaran",
+      scheduleDistrictCouncil: "Majlis Daerah",
+      scheduleAdvertisementDesc:
+        "Iklan (selain papan tanda nama perniagaan, iklan langit dan iklan pada papan elektronik atau peranti bukan cetak) yang melebihi satu meter persegi; diukur mengikut kawasan paparan iklan, termasuk kawasan permukaan rangka atau sokongan",
+      scheduleFirstArea: "Bagi 20 meter persegi pertama atau sebahagian daripadanya",
+      scheduleAdditionalArea: "Bagi setiap meter persegi tambahan atau sebahagian daripadanya",
+      schedule6AdvertisementDesc: "Iklan melalui elektronik atau mana-mana peranti bukan cetak",
+      schedule6FirstArea: "Bagi 10 meter persegi pertama atau sebahagian daripadanya",
+      schedule6AdditionalArea: "Bagi setiap meter persegi tambahan",
+      schedule6DeviceSet: "Bagi setiap set peranti yang menghasilkan iklan tidak boleh diukur",
+      scheduleCityFirstRate: "RM100.00 bagi setiap meter persegi setahun",
+      scheduleDistrictFirstRate: "RM70.00 bagi setiap meter persegi setahun",
+      scheduleCityAdditionalRate: "RM70.00 setahun",
+      scheduleDistrictAdditionalRate: "RM50.00 setahun",
+      schedule6CityFirstRate: "RM2,000.00 setahun",
+      schedule6DistrictFirstRate: "RM1,500.00 setahun",
+      schedule6CityAdditionalRate: "RM50.00 setahun",
+      schedule6DistrictAdditionalRate: "RM35.00 setahun",
+      schedule6CityDeviceRate: "RM1,000.00 setahun",
+      schedule6DistrictDeviceRate: "RM750.00 setahun",
+      feeShort: "yuran",
+      deposit: "deposit",
+      processingShort: "pemprosesan",
+    };
+  }
+
+  return {
+    departmentsInvolved: "Departments involved",
+    siteVisitTitle: "Advertisement Unit Site Visit",
+    siteVisitDesc: "Upload the site photo, enter the advertisement size, and record site findings.",
+    sitePhoto: "Site Photo",
+    noSitePhoto: "No site photo uploaded.",
+    feeCalculationTitle: "Advertisement Size & Fee Calculation",
+    scheduleTitle: "SECOND SCHEDULE",
+    scheduleFeesTitle: "LICENCE FEES",
+    scheduleBylaws: "(By-laws 9 and 10)",
+    scheduleAdvertisementType: "Type of Advertisement",
+    scheduleFeePayable: "Fee Payable",
+    scheduleCityCouncil: "City/Municipal Council",
+    scheduleDistrictCouncil: "District Council",
+    scheduleAdvertisementDesc:
+      "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support",
+    scheduleFirstArea: "For the first 20 square metre or part thereof",
+    scheduleAdditionalArea: "For every additional square metre or part thereof",
+    schedule6AdvertisementDesc: "Advertisement by means of electronic or any non-print device",
+    schedule6FirstArea: "For the first 10 square metre or part thereof",
+    schedule6AdditionalArea: "For every additional square metre",
+    schedule6DeviceSet: "For every set of device producing non-measurable advertisement",
+    scheduleCityFirstRate: "RM100.00 for every square metre per year",
+    scheduleDistrictFirstRate: "RM70.00 for every square metre per year",
+    scheduleCityAdditionalRate: "RM70.00 per year",
+    scheduleDistrictAdditionalRate: "RM50.00 per year",
+    schedule6CityFirstRate: "RM2,000.00 per year",
+    schedule6DistrictFirstRate: "RM1,500.00 per year",
+    schedule6CityAdditionalRate: "RM50.00 per year",
+    schedule6DistrictAdditionalRate: "RM35.00 per year",
+    schedule6CityDeviceRate: "RM1,000.00 per year",
+    schedule6DistrictDeviceRate: "RM750.00 per year",
+    feeShort: "fee",
+    deposit: "deposit",
+    processingShort: "processing",
   };
 }
 
@@ -5908,7 +6531,7 @@ function DecisionLogTemplateModal({ log, t, language = "en", onClose }) {
         </div>
 
         <div className="max-h-[calc(92vh-64px)] overflow-y-auto px-4 py-4">
-          <DecisionLogRecordedTemplate log={log} t={t} />
+          <DecisionLogRecordedTemplate log={log} t={t} language={language} />
         </div>
       </div>
     </div>
@@ -5964,13 +6587,13 @@ function getDecisionLogLanguage(language = "") {
   return "en";
 }
 
-function DecisionLogRecordedTemplate({ log, t }) {
+function DecisionLogRecordedTemplate({ log, t, language = "en" }) {
   const signatureSource = getDecisionLogSignatureSource(log.signature);
 
   return (
     <div className="space-y-4 text-[13px] leading-5 text-slate-950">
       {log.technicalReport && (
-        <DecisionLogTechnicalReportView report={log.technicalReport} t={t} />
+        <DecisionLogTechnicalReportView report={log.technicalReport} t={t} language={language} />
       )}
 
       {Array.isArray(log.supportingDocuments) && log.supportingDocuments.length > 0 && (
@@ -5984,7 +6607,7 @@ function DecisionLogRecordedTemplate({ log, t }) {
           </span>
           <input
             type="text"
-            value={log.decision}
+            value={formatDecisionLogDecision(log.decision, language)}
             readOnly
             className="form-input form-input-sm w-full bg-white text-[13px]"
           />
@@ -6100,7 +6723,7 @@ function DecisionLogMphlgSupportingDocumentsView({ documents, t }) {
   );
 }
 
-function DecisionLogTechnicalReportView({ report, t }) {
+function DecisionLogTechnicalReportView({ report, t, language = "en" }) {
   const technicalSite = report?.technicalSite || {};
   const sitePhotos = Array.isArray(report?.sitePhotos) ? report.sitePhotos : [];
 
@@ -6108,7 +6731,7 @@ function DecisionLogTechnicalReportView({ report, t }) {
     <div className="space-y-4">
       <TechnicalApplicationTypePanel
         t={t}
-        language="en"
+        language={language}
         selectedTypes={report?.selectedTypes || []}
         selectedSubtype={report?.selectedSubtype || technicalSite.application_subtype || ""}
         derivedDepartments={report?.derivedDepartments || []}
@@ -6129,7 +6752,7 @@ function DecisionLogTechnicalReportView({ report, t }) {
       <div className="rounded-md border border-slate-200 bg-white p-3">
         <TechnicalFeeCalculationSheet
           t={t}
-          language="en"
+          language={language}
           value={technicalSite}
           readOnly
         />
@@ -10767,6 +11390,7 @@ const configs = {
           const savedApprovalLetter = app.form_data?.approval_letter || {};
           const letterFile = getStoredPaymentDocument(app, "letter");
           const billFile = getStoredPaymentDocument(app, "bill");
+          const manualBill = savedApprovalLetter.manual_bill || null;
 
           return {
             status: "invoice_generated",
@@ -10782,6 +11406,7 @@ const configs = {
                   stripLocalPaymentDocumentPreview(billFile) ||
                   savedApprovalLetter.bill_file ||
                   null,
+                manual_bill: manualBill,
                 status: "Sent to Applicant",
                 recommendation: decision,
                 letter_bill_decision: decision,
@@ -13638,7 +14263,7 @@ function TechnicalFeeCalculationSheet({
         {t("workspace.technical.feeCalculationTitle", "Advertisement Size & Fee Calculation")}
       </h4>
 
-      <TechnicalFeeScheduleReference scheduleNumbers={scheduleNumbers} />
+      <TechnicalFeeScheduleReference scheduleNumbers={scheduleNumbers} language={language} />
 
       <div className="mt-2 space-y-2">
         {rows.map((row, index) => (
@@ -13657,8 +14282,9 @@ function TechnicalFeeCalculationSheet({
   );
 }
 
-function TechnicalFeeScheduleReference({ scheduleNumbers = [] }) {
+function TechnicalFeeScheduleReference({ scheduleNumbers = [], language = "en" }) {
   const visibleSchedules = scheduleNumbers.length > 0 ? scheduleNumbers : ["1"];
+  const labels = getDecisionLogTechnicalLabels(language);
 
   return (
     <div className="mt-2 rounded-sm border border-slate-300 bg-white px-3 py-3 text-sm leading-5 text-slate-950">
@@ -13666,9 +14292,9 @@ function TechnicalFeeScheduleReference({ scheduleNumbers = [] }) {
         <div className="mx-auto flex max-w-[420px] items-center justify-center gap-3">
           <span className="h-px flex-1 bg-slate-900" />
           <div>
-            <p className="italic">SECOND SCHEDULE</p>
-            <p className="text-[18px] font-bold leading-6">LICENCE FEES</p>
-            <p className="font-bold">(By-laws 9 and 10)</p>
+            <p className="italic">{labels.scheduleTitle}</p>
+            <p className="text-[18px] font-bold leading-6">{labels.scheduleFeesTitle}</p>
+            <p className="font-bold">{labels.scheduleBylaws}</p>
           </div>
           <span className="h-px flex-1 bg-slate-900" />
         </div>
@@ -13676,34 +14302,29 @@ function TechnicalFeeScheduleReference({ scheduleNumbers = [] }) {
 
       <div className="grid gap-x-7 gap-y-1 lg:grid-cols-[44px_minmax(0,1.2fr)_minmax(0,1.35fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
         <div aria-hidden="true" />
-        <p className="text-center italic">Type of Advertisement</p>
-        <p className="text-center italic">Fee Payable</p>
-        <p className="text-center italic">City/Municipal Council</p>
-        <p className="text-center italic">District Council</p>
+        <p className="text-center italic">{labels.scheduleAdvertisementType}</p>
+        <p className="text-center italic">{labels.scheduleFeePayable}</p>
+        <p className="text-center italic">{labels.scheduleCityCouncil}</p>
+        <p className="text-center italic">{labels.scheduleDistrictCouncil}</p>
 
         {visibleSchedules.map((scheduleNumber) => (
-          <TechnicalFeeScheduleBlock key={scheduleNumber} scheduleNumber={scheduleNumber} />
+          <TechnicalFeeScheduleBlock key={scheduleNumber} scheduleNumber={scheduleNumber} language={language} />
         ))}
       </div>
     </div>
   );
 }
 
-function TechnicalFeeScheduleBlock({ scheduleNumber }) {
+function TechnicalFeeScheduleBlock({ scheduleNumber, language = "en" }) {
   const isLedSchedule = String(scheduleNumber) === "6";
-  const typeDescription = isLedSchedule
-    ? "Advertisement by means of electronic or any non-print device"
-    : "Advertisement (other than business name signboard, sky-sign and advertisement on electronic board or any non-print device) of over one square metre in size; measured over the area for the display of the advertisement, and includes such superficial area of frame work or support";
-  const firstAreaText = isLedSchedule
-    ? "For the first 10 square metre or part thereof"
-    : "For the first 20 square metre or part thereof";
-  const additionalAreaText = isLedSchedule
-    ? "For every additional square metre"
-    : "For every additional square metre or part thereof";
-  const firstCityRate = isLedSchedule ? "RM2,000.00 per year" : "RM100.00 for every square metre per year";
-  const firstDistrictRate = isLedSchedule ? "RM1,500.00 per year" : "RM70.00 for every square metre per year";
-  const additionalCityRate = isLedSchedule ? "RM50.00 per year" : "RM70.00 per year";
-  const additionalDistrictRate = isLedSchedule ? "RM35.00 per year" : "RM50.00 per year";
+  const labels = getDecisionLogTechnicalLabels(language);
+  const typeDescription = isLedSchedule ? labels.schedule6AdvertisementDesc : labels.scheduleAdvertisementDesc;
+  const firstAreaText = isLedSchedule ? labels.schedule6FirstArea : labels.scheduleFirstArea;
+  const additionalAreaText = isLedSchedule ? labels.schedule6AdditionalArea : labels.scheduleAdditionalArea;
+  const firstCityRate = isLedSchedule ? labels.schedule6CityFirstRate : labels.scheduleCityFirstRate;
+  const firstDistrictRate = isLedSchedule ? labels.schedule6DistrictFirstRate : labels.scheduleDistrictFirstRate;
+  const additionalCityRate = isLedSchedule ? labels.schedule6CityAdditionalRate : labels.scheduleCityAdditionalRate;
+  const additionalDistrictRate = isLedSchedule ? labels.schedule6DistrictAdditionalRate : labels.scheduleDistrictAdditionalRate;
 
   return (
     <>
@@ -13721,19 +14342,19 @@ function TechnicalFeeScheduleBlock({ scheduleNumber }) {
         {isLedSchedule && (
           <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-2">
             <span>(c)</span>
-            <p>For every set of device producing non-measurable advertisement</p>
+            <p>{labels.schedule6DeviceSet}</p>
           </div>
         )}
       </div>
       <div className={`grid self-start gap-y-1 ${isLedSchedule ? "pt-4" : ""}`}>
         <p>{firstCityRate}</p>
         <p>{additionalCityRate}</p>
-        {isLedSchedule && <p>RM1,000.00 per year</p>}
+        {isLedSchedule && <p>{labels.schedule6CityDeviceRate}</p>}
       </div>
       <div className={`grid self-start gap-y-1 ${isLedSchedule ? "pt-4" : ""}`}>
         <p>{firstDistrictRate}</p>
         <p>{additionalDistrictRate}</p>
-        {isLedSchedule && <p>RM750.00 per year</p>}
+        {isLedSchedule && <p>{labels.schedule6DistrictDeviceRate}</p>}
       </div>
     </>
   );
@@ -14213,6 +14834,7 @@ function PaymentDetails({
   onPaymentDocumentUpload,
   onPaymentDocumentDelete,
   onEditApprovalLetter,
+  onEditBill,
   onLicenseDocumentUpload,
   onLicenseDocumentDelete,
   paymentReceiptDecision = "",
@@ -14358,16 +14980,16 @@ function PaymentDetails({
           onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
           onEditManualLetter={onEditApprovalLetter}
         />
-        <PaymentDocumentSlot
+        <BillDocumentSlot
+          app={app}
           label={t("workspace.payment.billDocument", "Bill")}
           file={billFile}
-          emptyText={t("workspace.payment.billGeneratedWithLetter", "Bill will be prepared with the approval letter.")}
           t={t}
-          canUpload={false}
-          required={false}
+          canEdit={canUploadDocuments}
+          required={canUploadDocuments}
           saving={saving}
-          onFileChange={(file) => onPaymentDocumentUpload?.("bill", file)}
           onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+          onEditManualBill={onEditBill}
         />
       </div>
 
@@ -14821,6 +15443,103 @@ function ApprovalLetterDocumentSlot({
   );
 }
 
+function BillDocumentSlot({
+  app,
+  label,
+  file,
+  t,
+  canEdit,
+  required = false,
+  saving,
+  onDelete,
+  onEditManualBill,
+}) {
+  const fileSource = getPaymentDocumentSource(file);
+  const manualReady = hasManualBill(app);
+  const displayName =
+    file?.name ||
+    (manualReady
+      ? t("workspace.payment.billReady", "Generated bill ready.")
+      : t("workspace.payment.billGeneratedWithLetter", "The bill will be prepared with the approval letter."));
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          {label}
+          {required && <span className="ml-1 text-red-600">*</span>}
+        </p>
+        <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+          {displayName}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {fileSource && (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => openPaymentDocument(file, t)}
+            >
+              {t("common.view", "View")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() => downloadPaymentDocument(file, label, t)}
+            >
+              {t("common.download", "Download")}
+            </Button>
+          </>
+        )}
+
+        {!fileSource && manualReady && (
+          <Button
+            type="button"
+            variant="secondary"
+            icon="download"
+            className="min-h-9 px-3 py-1 text-xs"
+            onClick={() => printManualBillDocument(app, t)}
+          >
+            {t("common.download", "Download")}
+          </Button>
+        )}
+
+        {canEdit && (
+          <Button
+            type="button"
+            variant="secondary"
+            icon="edit"
+            className="min-h-9 px-3 py-1 text-xs"
+            disabled={saving}
+            onClick={onEditManualBill}
+          >
+            {t("workspace.payment.reviewBill", "Review Bill")}
+          </Button>
+        )}
+
+        {canEdit && fileSource && (
+          <Button
+            type="button"
+            variant="danger"
+            icon="delete"
+            className="min-h-9 px-3 py-1 text-xs"
+            disabled={saving}
+            onClick={onDelete}
+          >
+            {t("common.delete", "Delete")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PaymentDocumentSlot({ label, file, t, canUpload, required = false, saving, onFileChange, onDelete, emptyText }) {
   const fileSource = getPaymentDocumentSource(file);
 
@@ -15146,13 +15865,21 @@ function hasUploadedPaymentDocuments(app) {
   const hasApprovalLetter =
     getPaymentDocumentSource(getStoredPaymentDocument(app, "letter")) ||
     hasManualApprovalLetter(app);
+  const hasBill =
+    getPaymentDocumentSource(getStoredPaymentDocument(app, "bill")) ||
+    hasManualBill(app);
 
-  return Boolean(hasApprovalLetter);
+  return Boolean(hasApprovalLetter && hasBill);
 }
 
 function hasManualApprovalLetter(app) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
   return Boolean(manualLetter.document_html || manualLetter.editable_body_html || manualLetter.saved_at);
+}
+
+function hasManualBill(app) {
+  const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
+  return Boolean(manualBill.document_html || manualBill.editable_body_html || manualBill.saved_at);
 }
 
 function getManualApprovalLetterDocumentHtml(app) {
@@ -15161,6 +15888,16 @@ function getManualApprovalLetterDocumentHtml(app) {
     manualLetter.document_html ||
     buildManualApprovalLetterDocumentHtml(
       manualLetter.editable_body_html || buildManualApprovalLetterTemplateBodyHtml(app)
+    )
+  );
+}
+
+function getManualBillDocumentHtml(app) {
+  const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
+  return (
+    manualBill.document_html ||
+    buildManualBillDocumentHtml(
+      manualBill.editable_body_html || buildManualBillTemplateBodyHtml(app)
     )
   );
 }
@@ -15187,6 +15924,18 @@ async function printManualApprovalLetterDocument(app, t) {
     );
   } catch (err) {
     console.error("Failed to print approval letter:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+async function printManualBillDocument(app, t) {
+  try {
+    await printHtmlDocument(
+      getManualBillDocumentHtml(app),
+      `${getApplicationReference(app)} ${t("workspace.payment.billDocument", "Bill")}`
+    );
+  } catch (err) {
+    console.error("Failed to print bill:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
 }

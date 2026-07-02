@@ -2296,6 +2296,10 @@ function getApplicantManualPaymentDocumentHtml(app, type, t) {
     return buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt);
   }
 
+  if (type === "bill" && manualBill.document_html) {
+    return manualBill.document_html;
+  }
+
   return type === "bill"
     ? buildApplicantManualBillHtml(app, t, manualLetter, manualBill)
     : buildApplicantManualLetterHtml(app, t, manualLetter, manualBill);
