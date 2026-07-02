@@ -5703,17 +5703,8 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
           position: relative;
           height: 266px;
           margin-bottom: 16px;
-          background: #ffffff;
+          background: repeating-linear-gradient(to bottom, #ffffff 0, #ffffff 27px, #1f2937 27px, #1f2937 28px);
           overflow: hidden;
-        }
-        .remarks-lines {
-          position: absolute;
-          inset: 0;
-          z-index: 1;
-        }
-        .remarks-line {
-          height: 25px;
-          border-bottom: 1px solid #1f2937;
         }
         .remarks-text {
           position: relative;
@@ -5723,9 +5714,8 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
           white-space: pre-line;
           font-size: 13px;
           font-weight: 700;
-          line-height: 25px;
+          line-height: 28px;
           color: #000000;
-          transform: translateY(-4px);
         }
         .signature-box {
           border: 1px dashed #cbd5e1;
@@ -5837,7 +5827,6 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
         <div class="remarks-section">
           <p class="remarks-label">${escapeHtml(labels.remarks)}</p>
           <div class="remarks-box">
-            <div class="remarks-lines">${buildDecisionLogRemarkLinesHtml()}</div>
             <p class="remarks-text">${escapeHtml(log.remarks || "")}</p>
           </div>
         </div>
@@ -6282,10 +6271,6 @@ function formatDecisionLogCompactDateTime(value, language = "en") {
   if (hour === 0) hour = 12;
 
   return `${day} ${month} ${year}, ${String(hour).padStart(2, "0")}:${minute} ${suffix}`;
-}
-
-function buildDecisionLogRemarkLinesHtml() {
-  return Array.from({ length: 11 }, () => '<div class="remarks-line"></div>').join("");
 }
 
 function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, labels) {
@@ -6738,10 +6723,10 @@ function DecisionLogRecordedTemplate({ log, t, language = "en" }) {
           className="relative min-h-[300px] bg-white"
           style={{
             backgroundImage:
-              "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+              "repeating-linear-gradient(to bottom, #ffffff 0, #ffffff 27px, #1f2937 27px, #1f2937 28px)",
           }}
         >
-          <p className="whitespace-pre-line px-2 py-0 text-[13px] font-medium leading-[26px] text-slate-950">
+          <p className="whitespace-pre-line px-2 py-0 text-[13px] font-medium leading-[28px] text-slate-950">
             {log.remarks || ""}
           </p>
         </div>

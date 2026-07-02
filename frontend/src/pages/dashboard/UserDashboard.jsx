@@ -67,6 +67,8 @@ function UserDashboard() {
   const tRef = useRef(t);
   const queryTab = searchParams.get("tab");
   const querySelectedId = searchParams.get("id") || "";
+  const queryStatusFilter = searchParams.get("status") || "all";
+  const normalizedQueryStatusFilter = getValidApplicantStatusFilter(queryStatusFilter);
   const normalizedQueryTab = queryTab === "license" ? "status" : queryTab;
   const activeSection = VALID_SECTIONS.includes(normalizedQueryTab)
     ? normalizedQueryTab
@@ -86,7 +88,7 @@ function UserDashboard() {
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterYear, setFilterYear] = useState("all");
   const [statusSearch, setStatusSearch] = useState("");
-  const [statusFilterStatus, setStatusFilterStatus] = useState("all");
+  const [statusFilterStatus, setStatusFilterStatus] = useState(normalizedQueryStatusFilter);
   const [statusFilterMonth, setStatusFilterMonth] = useState("all");
   const [statusFilterYear, setStatusFilterYear] = useState("all");
   const [recordSeen, setRecordSeen] = useState(() => getApplicantRecordSeen(getStoredUser()));
@@ -165,6 +167,8 @@ function UserDashboard() {
   useEffect(() => {
     if (activeSection !== "status") return;
 
+    setStatusFilterStatus(normalizedQueryStatusFilter);
+
     if (querySelectedId) {
       setSelectedId(querySelectedId);
       setLicensePanelOpen(true);
@@ -175,7 +179,7 @@ function UserDashboard() {
     setSelectedApplication(null);
     setPaymentReceipt(null);
     setMessage({ type: "", text: "" });
-  }, [activeSection, querySelectedId]);
+  }, [activeSection, normalizedQueryStatusFilter, querySelectedId]);
 
   const draftApplications = useMemo(
     () => applications.filter((app) => normalizeStatus(app.status) === "draft"),
@@ -238,7 +242,9 @@ function UserDashboard() {
   );
   const activeApplication = selectedApplication || selectedListApplication || latest;
   const payment = activeApplication?.form_data?.payment || {};
-  const pageHeader = getDashboardHeader(activeSection, t);
+  const pageHeader = getDashboardHeader(activeSection, t, {
+    hideStatusDetailHeader: activeSection === "status" && licensePanelOpen,
+  });
 
   function showSection(tab) {
     setSearchParams({ tab });
@@ -308,6 +314,24 @@ function UserDashboard() {
     setPaymentReceipt(null);
     setMessage({ type: "", text: "" });
     setSearchParams({ tab: "status" });
+  }
+
+  function openStatusSummary(summaryKey) {
+    const nextStatusFilter = summaryKey === "submitted" ? "all" : summaryKey;
+
+    setStatusSearch("");
+    setStatusFilterStatus(nextStatusFilter);
+    setStatusFilterMonth("all");
+    setStatusFilterYear("all");
+    setLicensePanelOpen(false);
+    setSelectedApplication(null);
+    setPaymentReceipt(null);
+    setMessage({ type: "", text: "" });
+    const params = { tab: "status" };
+    if (nextStatusFilter !== "all") {
+      params.status = nextStatusFilter;
+    }
+    setSearchParams(params);
   }
 
   async function submitPayment() {
@@ -470,6 +494,7 @@ function UserDashboard() {
           language={language}
           loading={loading}
           t={t}
+          onStatusCardClick={openStatusSummary}
         />
       )}
 
@@ -545,7 +570,7 @@ function UserDashboard() {
   );
 }
 
-function OverviewSection({ applications, language, loading, t }) {
+function OverviewSection({ applications, language, loading, t, onStatusCardClick }) {
   const statusSummary = useMemo(
     () => buildOverviewStatusSummary(applications, t),
     [applications, t]
@@ -559,31 +584,47 @@ function OverviewSection({ applications, language, loading, t }) {
   return (
     <section className="space-y-4">
       <div className="rounded-md border border-emerald-200 bg-white p-5">
-        <OverviewStatusCards items={statusSummary} loading={loading} />
+        <OverviewStatusCards
+          items={statusSummary}
+          loading={loading}
+          onItemClick={onStatusCardClick}
+        />
       </div>
       <RecentActivities activities={recentActivities} loading={loading} t={t} />
     </section>
   );
 }
 
-function OverviewStatusCards({ items, loading }) {
+function OverviewStatusCards({ items, loading, onItemClick }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {items.map((item) => (
         <OverviewStatusCard
           key={item.key}
+          itemKey={item.key}
           label={item.label}
           value={loading ? "..." : item.value}
           icon={item.icon}
           tone={item.tone}
           compact={item.compact}
+          disabled={loading}
+          onClick={onItemClick}
         />
       ))}
     </div>
   );
 }
 
-function OverviewStatusCard({ label, value, icon, tone, compact = false }) {
+function OverviewStatusCard({
+  itemKey,
+  label,
+  value,
+  icon,
+  tone,
+  compact = false,
+  disabled = false,
+  onClick,
+}) {
   const tones = {
     emerald: "bg-emerald-50 text-emerald-700",
     blue: "bg-blue-50 text-blue-700",
@@ -593,7 +634,13 @@ function OverviewStatusCard({ label, value, icon, tone, compact = false }) {
   };
 
   return (
-    <div className="min-h-[104px] rounded-md border border-slate-200 bg-slate-50 p-3">
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onClick?.(itemKey)}
+      className="min-h-[104px] rounded-md border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-wait disabled:hover:border-slate-200 disabled:hover:bg-slate-50 disabled:hover:shadow-none"
+      aria-label={`${label}: ${value}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-500">{label}</p>
@@ -613,7 +660,7 @@ function OverviewStatusCard({ label, value, icon, tone, compact = false }) {
           {icon}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -784,14 +831,10 @@ function LicenseSection({
         </Button>
       </div>
 
-      <div className="rounded-md border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-950">
-            {t("applicant.licenseDownloadTitle")}
-          </h3>
-        </div>
+      <ApplicationSelectionSummary app={app} t={t} />
 
-        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]">
+      <div className="rounded-md border border-slate-200 bg-white">
+        <div className="grid items-start gap-4 p-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
           <LicenseQrPanel app={app} t={t} />
 
           <div className="space-y-4">
@@ -802,22 +845,15 @@ function LicenseSection({
             />
 
             <section className="rounded-md border border-slate-200 bg-slate-50">
-              <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h4 className="text-sm font-semibold text-slate-950">
-                    {isPaymentLocked
-                      ? t("applicant.paymentReceipt", "Payment Receipt")
-                      : t("common.uploadReceipt")}
+                    {t("applicant.paymentReceipt", "Payment Receipt")}
                   </h4>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                     {getPaymentHint(app, t)}
                   </p>
                 </div>
-                {!isPaymentLocked && (
-                  <p className="text-sm text-slate-500">
-                    {t("applicant.receiptUploadHint")}
-                  </p>
-                )}
               </div>
 
               {isReceiptRejected && (
@@ -832,21 +868,21 @@ function LicenseSection({
                 </div>
               )}
 
-              <div className="border-t border-slate-200 bg-white px-3 py-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-emerald-700 ring-1 ring-slate-200">
-                      <span className="material-symbols-outlined text-[22px]">
-                        {isPaymentLocked ? "attach_file" : "description"}
-                      </span>
+              <div className="border-t border-slate-200 bg-white px-3 py-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                      1
                     </span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">
-                        {paymentReceipt?.name || t("applicant.chooseReceiptFile")}
+                        {paymentReceipt?.name || t("applicant.uploadReceiptFile", "Upload receipt file")}
                       </p>
                       {!isPaymentLocked && (
-                        <p className="mt-0.5 text-sm text-slate-500">
-                          PDF, JPG, or PNG
+                        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                          {paymentReceipt
+                            ? t("applicant.receiptReadyToSubmit", "Receipt selected. Submit it for ALiS verification.")
+                            : t("applicant.receiptAcceptedFormats", "Choose a PDF, JPG, or PNG file.")}
                         </p>
                       )}
                     </div>
@@ -870,7 +906,7 @@ function LicenseSection({
                         <span className="material-symbols-outlined text-[16px] text-white">
                           upload_file
                         </span>
-                        <span>{t("common.uploadFile", "Upload File")}</span>
+                        <span>{t("common.chooseFile", "Choose File")}</span>
                         <input
                           type="file"
                           accept="image/*,.pdf"
@@ -899,7 +935,22 @@ function LicenseSection({
               </div>
 
               {canSubmitPaymentProof && (
-                <div className="flex justify-end border-t border-slate-200 bg-white px-3 py-3">
+                <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+                      2
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                        {paymentReceipt
+                          ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
+                          : t("applicant.submitReceiptDisabledHint", "Choose a receipt file first.")}
+                      </p>
+                    </div>
+                  </div>
                   {isReceiptSubmitted ? (
                     <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
                       <span className="material-symbols-outlined text-[16px]">
@@ -917,7 +968,9 @@ function LicenseSection({
                       <span className="material-symbols-outlined text-[16px] text-white">
                         upload_file
                       </span>
-                      {saving ? t("common.submitting") : t("applicant.submitPayment")}
+                      {saving
+                        ? t("common.submitting")
+                        : t("applicant.submitReceiptVerificationButton", "Submit for Verification")}
                     </button>
                   )}
                 </div>
@@ -930,6 +983,45 @@ function LicenseSection({
   );
 }
 
+function ApplicationSelectionSummary({ app, t }) {
+  const items = [
+    {
+      label: t("common.reference"),
+      value: getApplicationReference(app),
+      className: "font-semibold text-slate-950",
+    },
+    {
+      label: t("common.status"),
+      value: (
+        <StatusPill value={translatedStatus(t, normalizeStatus(app?.status))} />
+      ),
+    },
+    {
+      label: t("common.created"),
+      value: formatCompactDateTime(app?.created_at),
+    },
+    {
+      label: t("common.updated"),
+      value: formatCompactDateTime(app?.updated_at),
+    },
+  ];
+
+  return (
+    <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
+      {items.map((item) => (
+        <div key={item.label} className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            {item.label}
+          </p>
+          <div className={`mt-1 text-sm ${item.className || "text-slate-950"}`}>
+            {item.value || "-"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LicenseQrPanel({ app, t }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
@@ -939,8 +1031,8 @@ function LicenseQrPanel({ app, t }) {
   const qrContainerRef = useRef(null);
 
   return (
-    <section className="rounded-md border border-slate-200 bg-slate-50">
-      <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 p-4 text-center">
+    <section className="inline-flex w-auto max-w-full rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex min-h-0 flex-col items-center justify-center gap-3 p-3 text-center">
         {licenseReady ? (
           <>
             <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -971,10 +1063,42 @@ function LicenseQrPanel({ app, t }) {
             </div>
           </>
         ) : (
-          <div className="flex h-full min-h-[300px] w-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 text-center">
-            <p className="max-w-xs text-sm font-medium text-slate-500">
-              {t("applicant.qrLicensePending")}
-            </p>
+          <div className="mx-auto flex aspect-square w-full max-w-[360px] items-center justify-center overflow-hidden rounded-md border border-slate-900 bg-[#e55a82] p-3 text-center">
+            <div className="flex h-full w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-3 text-slate-950">
+              <p className="text-xs font-normal uppercase tracking-[0.14em]">
+                Please made payment to:
+              </p>
+
+              <img
+                src="/Bank Islam Logo.jpg"
+                alt="Bank Islam"
+                className="mt-2 h-auto w-full max-w-[132px] object-contain"
+              />
+
+              <p className="mt-3 text-sm font-bold uppercase tracking-wide">
+                Account No :
+              </p>
+              <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-base font-normal tracking-wide">
+                11013010028881
+              </div>
+
+              <p className="mt-3 text-sm font-bold uppercase tracking-wide">
+                Account Holder :
+              </p>
+              <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-sm font-normal">
+                Dewan Bandaraya Kuching Utara
+              </div>
+
+              <p className="mt-3 max-w-[320px] text-[10px] font-normal leading-tight text-slate-950">
+                Please attach payment slip /receipt as payment proof.
+                <br />
+                Please provide your Full Name, Full Address,
+                <br />
+                Phone Number &amp; Order Details.
+                <br />
+                THANK YOU.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -1041,11 +1165,11 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
 
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-3">
+      <div className="border-b border-slate-200 px-3 py-2">
         <h4 className="text-sm font-semibold text-slate-950">
-          {t("workspace.payment.documents", "Approval Letter and Bill")}
+          {t("applicant.paymentDocumentsTitle", "Documents to Download")}
         </h4>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
           {t("applicant.paymentDocumentsDesc", "View the submitted application and download documents from ALiS.")}
         </p>
       </div>
@@ -1054,7 +1178,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
         {documents.map((item) => (
           <div
             key={item.label}
-            className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
               <p className="text-sm font-semibold uppercase text-slate-500">
@@ -1073,26 +1197,28 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             </div>
             {(item.available || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    item.type === "submitted_application"
-                      ? onViewApplicationSteps?.(app)
-                      : item.type === "advertisement_license"
-                      ? item.file
+                {!["letter", "bill"].includes(item.type) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      item.type === "submitted_application"
+                        ? onViewApplicationSteps?.(app)
+                        : item.type === "advertisement_license"
+                        ? item.file
+                          ? openApplicantPaymentDocument(item.file, t)
+                          : openAdvertisementLicenseDocument(app, t)
+                        : item.file
                         ? openApplicantPaymentDocument(item.file, t)
-                        : openAdvertisementLicenseDocument(app, t)
-                      : item.file
-                      ? openApplicantPaymentDocument(item.file, t)
-                      : openApplicantManualPaymentDocument(app, item.type, t)
-                  }
-                  className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  <span className="material-symbols-outlined text-[16px]">
-                    visibility
-                  </span>
-                  {t("common.view", "View")}
-                </button>
+                        : openApplicantManualPaymentDocument(app, item.type, t)
+                    }
+                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">
+                      visibility
+                    </span>
+                    {t("common.view", "View")}
+                  </button>
+                )}
                 {item.type !== "submitted_application" && (
                   <button
                     type="button"
@@ -1573,16 +1699,11 @@ function ReferenceNewBadge({ t }) {
 function getApplicationRemark(app) {
   const status = normalizeStatus(app?.status);
   const formData = app?.form_data || {};
-  const approvalLetter = formData.approval_letter || app?.approval_letter || {};
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
-    return cleanRemark(
-      approvalLetter.remarks ||
-        approvalLetter.comment ||
-        approvalLetter.notes ||
-        formData.payment?.verification_notes ||
-        app?.display_remark
-    );
+    return isPaymentReceiptRejected(formData.payment)
+      ? cleanRemark(formData.payment?.verification_notes || app?.display_remark)
+      : "";
   }
 
   if (["payment_verified", "license_issued"].includes(status)) {
@@ -1759,6 +1880,13 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function isPaymentReceiptRejected(payment = {}) {
+  return (
+    payment.status === "Receipt Rejected" ||
+    payment.verification_result === "Invalid/Fake"
+  );
+}
+
 function getApplicationAppliedDate(app) {
   const rawDate = app?.created_at || app?.submitted_at || app?.updated_at;
   if (!rawDate) return null;
@@ -1847,6 +1975,12 @@ function getApplicantFilterStatus(app) {
   }
 
   return "";
+}
+
+function getValidApplicantStatusFilter(value) {
+  return value === "all" || APPLICANT_STATUS_FILTER_OPTIONS.includes(value)
+    ? value
+    : "all";
 }
 
 function getStatusFilterOptions(applications, t) {
@@ -2342,6 +2476,7 @@ function getLicenseVerificationUrl(licenseId) {
 }
 
 async function printHtmlDocument(html, title) {
+  const originalTitle = document.title;
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -2364,11 +2499,13 @@ async function printHtmlDocument(html, title) {
   frameDocument.write(html);
   frameDocument.close();
   frameDocument.title = title;
+  document.title = title;
 
   await waitForDocumentImages(frameDocument);
   await new Promise((resolve) => setTimeout(resolve, 250));
 
   const cleanup = () => {
+    document.title = originalTitle;
     setTimeout(() => iframe.remove(), 500);
   };
   frameWindow.addEventListener("afterprint", cleanup, { once: true });
@@ -3135,7 +3272,7 @@ function getPaymentStatusText(app, t) {
   return t("applicant.paymentStatusPending");
 }
 
-function getDashboardHeader(activeSection, t) {
+function getDashboardHeader(activeSection, t, options = {}) {
   if (activeSection === "applications") {
     return {
       title: t("applicant.applicationsSectionTitle"),
@@ -3145,6 +3282,8 @@ function getDashboardHeader(activeSection, t) {
   }
 
   if (activeSection === "status") {
+    if (options.hideStatusDetailHeader) return null;
+
     return {
       title: t("applicant.statusSectionTitle"),
       description: t("applicant.statusTrackingDescription"),
