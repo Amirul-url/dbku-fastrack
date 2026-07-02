@@ -452,7 +452,7 @@ function UserDashboard() {
     setMessage({ type: "", text: "" });
   }
 
-  async function viewPaymentReceipt() {
+  async function downloadPaymentReceipt() {
     const source = getPaymentReceiptSource(paymentReceipt);
     if (!source) return;
 
@@ -461,14 +461,22 @@ function UserDashboard() {
       const url = isInlineFile
         ? source
         : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+      const title = `${getApplicationReference(activeApplication)} ${t("applicant.paymentReceipt", "Payment Receipt")}`;
 
-      window.open(url, "_blank");
+      if (isImageReceipt(paymentReceipt, url)) {
+        await printHtmlDocument(
+          buildApplicantReceiptPrintHtml(paymentReceipt, url, title),
+          title
+        );
+      } else {
+        await printUrlDocument(url, title);
+      }
 
       if (!isInlineFile) {
-        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
     } catch (err) {
-      console.error("Failed to open payment receipt:", err);
+      console.error("Failed to download payment receipt:", err);
       setMessage({
         type: "error",
         text: t("applicant.receiptViewFailed", "Unable to open the receipt. Please try again."),
@@ -529,7 +537,7 @@ function UserDashboard() {
             onViewApplicationSteps={openSubmittedApplicationSteps}
             onReceiptChange={handlePaymentReceiptChange}
             onReceiptRemove={handlePaymentReceiptRemove}
-            onReceiptView={viewPaymentReceipt}
+            onReceiptDownload={downloadPaymentReceipt}
             onSubmitPayment={submitPayment}
             onBack={returnToLicenseList}
           />
@@ -808,7 +816,7 @@ function LicenseSection({
   onViewApplicationSteps,
   onReceiptChange,
   onReceiptRemove,
-  onReceiptView,
+  onReceiptDownload,
   onSubmitPayment,
   onBack,
 }) {
@@ -892,13 +900,13 @@ function LicenseSection({
                     {paymentReceipt && getPaymentReceiptSource(paymentReceipt) && (
                       <button
                         type="button"
-                        onClick={onReceiptView}
+                        onClick={onReceiptDownload}
                         className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       >
                         <span className="material-symbols-outlined text-[16px]">
-                          visibility
+                          download
                         </span>
-                        {t("common.view")}
+                        {t("common.download", "Download")}
                       </button>
                     )}
                     {!isPaymentLocked && !paymentReceipt && (
@@ -2314,6 +2322,50 @@ function getPaymentReceiptSource(receipt) {
   return receipt?.dataUrl || receipt?.url || receipt?.file_url || receipt?.file || "";
 }
 
+function isImageReceipt(receipt, source = "") {
+  const mimeType = String(
+    receipt?.type || receipt?.mime_type || receipt?.content_type || ""
+  ).toLowerCase();
+  if (mimeType.startsWith("image/")) return true;
+  if (source.startsWith("data:image/")) return true;
+
+  const filename = String(receipt?.name || receipt?.filename || source)
+    .split("?")[0]
+    .toLowerCase();
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(filename);
+}
+
+function buildApplicantReceiptPrintHtml(receipt, url, title) {
+  const filename = receipt?.name || title;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .page { min-height: calc(100vh - 24mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #fff; }
+    .title { margin: 0; font-size: 14px; font-weight: 700; text-align: center; }
+    img { max-width: 100%; max-height: calc(100vh - 44mm); object-fit: contain; }
+    @media print {
+      body { background: #fff; }
+      .page { min-height: auto; }
+      .title { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="title">${escapeHtml(filename)}</p>
+    <img src="${escapeHtml(url)}" alt="${escapeHtml(filename)}" />
+  </main>
+</body>
+</html>`;
+}
+
 function getPaymentDocumentSource(file) {
   return file?.dataUrl || file?.url || file?.file_url || file?.file || "";
 }
@@ -2511,6 +2563,45 @@ async function printHtmlDocument(html, title) {
   frameWindow.addEventListener("afterprint", cleanup, { once: true });
   setTimeout(cleanup, 120000);
 
+  frameWindow.focus();
+  frameWindow.print();
+}
+
+async function printUrlDocument(url, title) {
+  const originalTitle = document.title;
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+
+  document.body.appendChild(iframe);
+  document.title = title;
+
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
   frameWindow.focus();
   frameWindow.print();
 }
