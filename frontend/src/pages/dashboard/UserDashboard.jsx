@@ -1066,7 +1066,7 @@ function LicenseQrPanel({ app, t }) {
           <div className="mx-auto flex aspect-square w-full max-w-[360px] items-center justify-center overflow-hidden rounded-md border border-slate-900 bg-[#e55a82] p-3 text-center">
             <div className="flex h-full w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-3 text-slate-950">
               <p className="text-xs font-normal uppercase tracking-[0.14em]">
-                Please made payment to:
+                {t("applicant.bankPaymentTitle", "Please made payment to:")}
               </p>
 
               <img
@@ -1076,27 +1076,27 @@ function LicenseQrPanel({ app, t }) {
               />
 
               <p className="mt-3 text-sm font-bold uppercase tracking-wide">
-                Account No :
+                {t("applicant.bankPaymentAccountNo", "Account No :")}
               </p>
               <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-base font-normal tracking-wide">
                 11013010028881
               </div>
 
               <p className="mt-3 text-sm font-bold uppercase tracking-wide">
-                Account Holder :
+                {t("applicant.bankPaymentAccountHolder", "Account Holder :")}
               </p>
               <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-sm font-normal">
                 Dewan Bandaraya Kuching Utara
               </div>
 
               <p className="mt-3 max-w-[320px] text-[10px] font-normal leading-tight text-slate-950">
-                Please attach payment slip /receipt as payment proof.
+                {t("applicant.bankPaymentProofLine", "Please attach payment slip /receipt as payment proof.")}
                 <br />
-                Please provide your Full Name, Full Address,
+                {t("applicant.bankPaymentDetailsLine1", "Please provide your Full Name, Full Address,")}
                 <br />
-                Phone Number &amp; Order Details.
+                {t("applicant.bankPaymentDetailsLine2", "Phone Number & Order Details.")}
                 <br />
-                THANK YOU.
+                {t("applicant.bankPaymentThanks", "THANK YOU.")}
               </p>
             </div>
           </div>
