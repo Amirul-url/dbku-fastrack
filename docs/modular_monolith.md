@@ -68,6 +68,16 @@ Views and serializers now delegate activity-specific work to this service layer.
 
 Serializers still shape API responses, but application summary and profile derivation now live in the application domain service layer.
 
+`applications.services.queries` owns:
+
+- application list query-value parsing
+- applicant/staff application visibility scoping
+- status and application-type filtering
+- application search matching
+- detail-query document prefetch selection
+
+Application views still orchestrate HTTP actions, but list/detail queryset construction now lives in the application domain service layer.
+
 `accounts.services.identity` owns:
 
 - MyKad/date-of-birth/gender inference
@@ -140,7 +150,7 @@ Notification services still orchestrate event routing and delivery creation, but
 ## Next Safe Steps
 
 1. Split notification event routing/message builders by application event group.
-2. Split application list/query filtering into a dedicated query module if it keeps growing.
+2. Extract application public license verification lookup into an application service.
 3. Extract any future account security checks into an account security service.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.

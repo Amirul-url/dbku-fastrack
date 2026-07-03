@@ -5,7 +5,6 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
 from copy import deepcopy
 from .models import Application, SupportingDocument
 from .serializers import (
@@ -29,6 +28,7 @@ from .services.documents import (
     get_application_site_image_document,
     get_document_filename,
 )
+from .services.queries import build_application_queryset, parse_list_query_values
 from .services.workflow import (
     ensure_applicant_can_update,
     ensure_staff_can_update_workflow,
@@ -266,39 +266,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return ApplicationDetailSerializer
 
     def get_queryset(self):
-        user = self.request.user
-
-        if user.role in STAFF_ROLES:
-            queryset = Application.objects.filter(~Q(status="draft") | Q(applicant=user))
-        else:
-            queryset = Application.objects.filter(applicant=user)
-
-        queryset = queryset.select_related("applicant").order_by("-updated_at")
-
         statuses = self.get_list_values("status") or self.get_list_values("statuses")
-        if statuses:
-            queryset = queryset.filter(status__in=statuses)
-
         application_types = self.get_list_values("application_type")
-        if application_types:
-            queryset = queryset.filter(application_type__in=application_types)
-
         search = str(self.request.query_params.get("search", "") or "").strip()
-        if search:
-            queryset = queryset.filter(
-                Q(reference_no__icontains=search)
-                | Q(title__icontains=search)
-                | Q(project_location__icontains=search)
-                | Q(applicant__username__icontains=search)
-                | Q(applicant__first_name__icontains=search)
-                | Q(applicant__last_name__icontains=search)
-                | Q(applicant__email__icontains=search)
-            )
 
-        if self.action == "list":
-            return queryset
-
-        return queryset.prefetch_related("supporting_documents")
+        return build_application_queryset(
+            self.request.user,
+            statuses=statuses,
+            application_types=application_types,
+            search=search,
+            include_documents=self.action != "list",
+        )
 
     @action(
         detail=False,
@@ -360,16 +338,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         raise Http404("Advertisement license not found.")
 
     def get_list_values(self, key):
-        values = []
-
-        for item in self.request.query_params.getlist(key):
-            values.extend(
-                part.strip()
-                for part in str(item or "").split(",")
-                if part.strip()
-            )
-
-        return values
+        return parse_list_query_values(self.request.query_params.getlist(key))
 
     def perform_create(self, serializer):
         if self.request.user.role not in ["applicant", "user"]:
