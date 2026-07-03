@@ -3,18 +3,27 @@ import logging
 import re
 import urllib.error
 import urllib.request
-from calendar import monthrange
 from copy import deepcopy
-from datetime import datetime, time
 from hashlib import sha1
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.core.mail import EmailMultiAlternatives
-from django.utils.dateparse import parse_datetime, parse_date
 from django.utils import timezone
 
+from .formatting import (
+    dedupe_recipients,
+    dedupe_values,
+    escape_html,
+    format_notification_datetime,
+    get_nested,
+    join_phone,
+    normalize_email,
+    normalize_phone,
+    parse_license_datetime,
+    subtract_calendar_months,
+)
 from .models import NotificationDelivery
 
 logger = logging.getLogger(__name__)
@@ -2565,43 +2574,6 @@ def get_channel_skip_reason(channel):
     return "Notification channel is not configured."
 
 
-def get_nested(data, *keys):
-    current = data or {}
-    for key in keys:
-        if not isinstance(current, dict):
-            return ""
-        current = current.get(key, "")
-    return str(current or "").strip()
-
-
-def parse_license_datetime(value):
-    if not value:
-        return None
-
-    parsed = parse_datetime(str(value))
-    if parsed is None:
-        parsed_date = parse_date(str(value))
-        if parsed_date is None:
-            return None
-        parsed = datetime.combine(parsed_date, time.min)
-
-    if timezone.is_naive(parsed):
-        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
-
-    return parsed
-
-
-def subtract_calendar_months(value, months):
-    month_index = value.month - months
-    year = value.year
-    while month_index <= 0:
-        month_index += 12
-        year -= 1
-
-    day = min(value.day, monthrange(year, month_index)[1])
-    return value.replace(year=year, month=month_index, day=day)
-
-
 def has_verified_renewal_payment(renewal):
     payment = renewal.get("payment") if isinstance(renewal, dict) else {}
     if not isinstance(payment, dict):
@@ -2613,14 +2585,6 @@ def has_verified_renewal_payment(renewal):
 def get_license_id(application):
     license_data = get_form_section(application, "license")
     return str(license_data.get("license_id") or "").strip() or "-"
-
-
-def format_notification_datetime(value):
-    if not value:
-        return "-"
-
-    local_value = timezone.localtime(value)
-    return local_value.strftime("%d %b %Y, %I:%M %p")
 
 
 def build_renewal_letter_text(application, months):
@@ -2639,92 +2603,3 @@ def build_cancellation_notice_text(application):
     )
 
 
-def join_phone(country_code, number):
-    country_digits = re.sub(r"\D+", "", str(country_code or ""))
-    number_digits = re.sub(r"\D+", "", str(number or ""))
-
-    if not country_digits:
-        return number_digits
-
-    if number_digits.startswith("0"):
-        number_digits = number_digits[1:]
-
-    return f"{country_digits}{number_digits}"
-
-
-def normalize_email(value):
-    email = str(value or "").strip()
-    if not email or "@" not in email:
-        return ""
-
-    domain = email.rsplit("@", 1)[-1].lower()
-    if domain in {"dbku.local", "fastrack.local", "example.test"}:
-        return ""
-
-    return email
-
-
-def normalize_phone(value):
-    digits = re.sub(r"\D+", "", str(value or ""))
-
-    if not digits or len(digits) < 8:
-        return ""
-
-    if digits.startswith("60"):
-        return digits
-
-    if digits.startswith("0"):
-        return f"60{digits[1:]}"
-
-    if digits.startswith("1") and len(digits) in {9, 10}:
-        return f"60{digits}"
-
-    return digits
-
-
-def escape_html(value):
-    return (
-        str(value or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-        .replace("'", "&#x27;")
-    )
-
-
-def dedupe_values(values):
-    seen = set()
-    result = []
-
-    for value in values:
-        normalized = str(value or "").strip()
-        key = normalized.lower()
-
-        if not normalized or key in seen:
-            continue
-
-        seen.add(key)
-        result.append(normalized)
-
-    return result
-
-
-def dedupe_recipients(recipients):
-    seen = set()
-    result = []
-
-    for recipient in recipients:
-        key = (
-            recipient["channel"],
-            recipient["recipient_role"],
-            recipient["recipient"].lower(),
-        )
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-        result.append(recipient)
-
-    return result
