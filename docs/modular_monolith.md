@@ -26,7 +26,7 @@ These Django apps are modules inside the same backend process. They should commu
 - Owns notification delivery records and outbound channels.
 - May read application data to compose messages, but workflow mutations should stay in `applications`.
 
-## First Extraction
+## Extracted Boundaries
 
 `applications.services.documents` is the first service boundary. It owns:
 
@@ -38,11 +38,20 @@ These Django apps are modules inside the same backend process. They should commu
 
 The existing API endpoints stay in `ApplicationViewSet`; views now delegate document-specific work to the service layer.
 
+`applications.services.activity` owns:
+
+- activity log creation
+- activity actor naming
+- workflow department detection for activity records
+- activity visibility/scoping by user role
+- rejection remark enrichment for activity output
+
+Views and serializers now delegate activity-specific work to this service layer.
+
 ## Next Safe Steps
 
-1. Extract application activity log helpers to `applications.services.activity`.
-2. Extract application workflow permission checks to `applications.services.workflow`.
-3. Extract account payload/auth helpers to `accounts.services.identity`.
-4. Split the large notification service into smaller files by channel and event group.
+1. Extract application workflow permission checks to `applications.services.workflow`.
+2. Extract account payload/auth helpers to `accounts.services.identity`.
+3. Split the large notification service into smaller files by channel and event group.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.

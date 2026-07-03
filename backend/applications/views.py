@@ -13,6 +13,12 @@ from .serializers import (
     ApplicationDetailSerializer,
     SupportingDocumentSerializer,
 )
+from .services.activity import (
+    append_application_activity,
+    get_activity_actor_name,
+    get_user_workflow_department,
+    timezone_now_iso,
+)
 from .services.documents import (
     build_document_file_response,
     can_delete_application_document,
@@ -36,7 +42,6 @@ from notifications.services import (
 )
 
 STAFF_ROLES = ["admin", "supervisor", "staff"]
-MAX_ACTIVITY_LOG_ITEMS = 80
 APPLICANT_CORRECTION_STATUSES = {"incomplete", "rejected", "technical_amendment"}
 APPLICANT_RESUBMIT_STATUSES = {"submitted", "ku_ikl_review", "mphlg_processing"}
 RESUBMIT_WORKFLOW_RESET_FIELDS = [
@@ -56,31 +61,6 @@ RESUBMIT_WORKFLOW_RESET_FIELDS = [
     "sut_approval",
     "approval",
 ]
-
-
-def append_application_activity(application, actor, title, description="", category="user"):
-    form_data = deepcopy(application.form_data or {})
-    activity_log = form_data.get("activity_log")
-
-    if not isinstance(activity_log, list):
-        activity_log = []
-
-    activity_log.insert(
-        0,
-        {
-            "title": title,
-            "description": description,
-            "category": category,
-            "actor": get_activity_actor_name(actor),
-            "actor_id": getattr(actor, "id", None),
-            "actor_role": getattr(actor, "role", ""),
-            "actor_department": get_user_workflow_department(actor),
-            "created_at": timezone_now_iso(),
-        },
-    )
-    form_data["activity_log"] = activity_log[:MAX_ACTIVITY_LOG_ITEMS]
-    application.form_data = form_data
-    application.save(update_fields=["form_data", "updated_at"])
 
 
 def reset_workflow_on_applicant_resubmit(application, old_status, old_form_data=None):
@@ -115,49 +95,6 @@ def reset_workflow_on_applicant_resubmit(application, old_status, old_form_data=
     application.form_data = form_data
     application.latest_remark = ""
     application.save(update_fields=["form_data", "latest_remark", "updated_at"])
-
-
-def get_activity_actor_name(user):
-    full_name = " ".join(
-        part for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")] if part
-    ).strip()
-
-    return full_name or getattr(user, "username", "") or "Applicant"
-
-
-def get_user_workflow_department(user):
-    identity_department = get_user_identity_workflow_department(user)
-    if identity_department == "SUT":
-        return identity_department
-
-    department = normalize_department(getattr(user, "department", ""))
-    if department:
-        return department
-
-    return identity_department
-
-
-def get_user_identity_workflow_department(user):
-    for value in [
-        getattr(user, "full_name", ""),
-        getattr(user, "username", ""),
-        " ".join(
-            part
-            for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")]
-            if part
-        ),
-    ]:
-        department = normalize_department(value)
-        if department:
-            return department
-
-    return ""
-
-
-def timezone_now_iso():
-    from django.utils import timezone
-
-    return timezone.now().isoformat()
 
 
 def get_applicant_activity_message(application, request_data, old_status=""):

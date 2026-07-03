@@ -1,8 +1,11 @@
-import re
-
-from django.utils.dateparse import parse_datetime
 from rest_framework import serializers
 from .models import Application, SupportingDocument
+from .services.activity import (
+    clean_remark,
+    enrich_activity_log_with_rejection_remarks,
+    get_request_user,
+    scope_activity_log_for_user,
+)
 
 
 def strip_inline_file_data(value, preserve_inline_data=False):
@@ -41,79 +44,6 @@ def merge_dicts(current, updates):
             merged[key] = value
 
     return merged
-
-
-STAFF_ACTIVITY_ROLES = {"admin", "supervisor", "staff"}
-APPLICANT_ACTIVITY_ROLES = {"applicant", "user"}
-APPLICANT_SAFE_ACTIVITY_TITLES = {
-    "application draft created",
-    "application submitted",
-    "application resubmitted",
-    "payment receipt submitted",
-}
-
-
-def get_request_user(serializer):
-    request = serializer.context.get("request") if hasattr(serializer, "context") else None
-    user = getattr(request, "user", None)
-    return user if getattr(user, "is_authenticated", False) else None
-
-
-def is_applicant_safe_activity(activity):
-    title = str(activity.get("title") or "").strip().lower()
-    category = str(activity.get("category") or "").strip().lower()
-    actor_role = str(activity.get("actor_role") or "").strip().lower()
-
-    return (
-        category == "user"
-        or actor_role in APPLICANT_ACTIVITY_ROLES
-        or title in APPLICANT_SAFE_ACTIVITY_TITLES
-        or title.endswith(" details saved")
-        or title.endswith(" uploaded")
-        or title.endswith(" removed")
-    )
-
-
-def scope_activity_log_for_user(activity_log, user):
-    if not user:
-        return []
-
-    role = str(getattr(user, "role", "") or "").strip().lower()
-    user_id = getattr(user, "id", None)
-
-    scoped = []
-    for activity in activity_log:
-        if not isinstance(activity, dict):
-            continue
-
-        actor_id = activity.get("actor_id")
-        actor_role = str(activity.get("actor_role") or "").strip().lower()
-
-        actor_matches_user = (
-            actor_id not in {None, ""}
-            and user_id not in {None, ""}
-            and str(actor_id) == str(user_id)
-        )
-
-        if role in APPLICANT_ACTIVITY_ROLES:
-            if actor_matches_user or (
-                actor_id in {None, ""}
-                and actor_role in APPLICANT_ACTIVITY_ROLES
-                and is_applicant_safe_activity(activity)
-            ):
-                scoped.append(activity)
-            continue
-
-        if role in STAFF_ACTIVITY_ROLES:
-            title = str(activity.get("title") or "").strip().lower()
-            if actor_matches_user or title in APPLICANT_SAFE_ACTIVITY_TITLES or is_rejected_activity(activity):
-                scoped.append(activity)
-            continue
-
-        if role == "superadmin":
-            scoped.append(activity)
-
-    return scoped
 
 
 def get_application_applicant_name(application):
@@ -564,84 +494,3 @@ def get_latest_remark_from_form_data(form_data, status=""):
             return remark
 
     return ""
-
-
-def enrich_activity_log_with_rejection_remarks(application, activity_log):
-    rejection_remarks = get_rejection_delivery_remarks(application)
-    if not rejection_remarks:
-        return activity_log
-
-    enriched = []
-    for activity in activity_log:
-        if not isinstance(activity, dict):
-            enriched.append(activity)
-            continue
-
-        item = dict(activity)
-        if is_rejected_activity(item) and not clean_remark(item.get("remark") or item.get("remarks")):
-            remark = get_closest_rejection_remark(item, rejection_remarks)
-            if remark:
-                item["remark"] = remark
-
-        enriched.append(item)
-
-    return enriched
-
-
-def get_rejection_delivery_remarks(application):
-    try:
-        from notifications.models import NotificationDelivery
-    except Exception:
-        return []
-
-    deliveries = (
-        NotificationDelivery.objects.filter(
-            application=application,
-            metadata__event_status="rejected",
-        )
-        .order_by("-created_at")
-        .only("created_at", "message", "metadata")
-    )
-    remarks = []
-
-    for delivery in deliveries:
-        remark = clean_remark(
-            extract_remark_from_text((delivery.metadata or {}).get("message"))
-            or extract_remark_from_text((delivery.metadata or {}).get("message_en"))
-            or extract_remark_from_text(delivery.message)
-        )
-        if remark:
-            remarks.append({"created_at": delivery.created_at, "remark": remark})
-
-    return remarks
-
-
-def get_closest_rejection_remark(activity, rejection_remarks):
-    activity_time = parse_datetime(str(activity.get("created_at") or ""))
-    if not activity_time:
-        return rejection_remarks[0]["remark"]
-
-    closest = sorted(
-        rejection_remarks,
-        key=lambda item: abs((item["created_at"] - activity_time).total_seconds()),
-    )[0]
-    return closest["remark"]
-
-
-def is_rejected_activity(activity):
-    title = str(activity.get("title") or "").strip().lower()
-    return title == "application rejected" or title.startswith("application rejected by")
-
-
-def extract_remark_from_text(value):
-    text = str(value or "")
-    match = re.search(r"\bRemark:\s*(.+)", text, flags=re.IGNORECASE | re.DOTALL)
-    return clean_remark(match.group(1) if match else "")
-
-
-def clean_remark(value):
-    remark = str(value or "").strip()
-    if remark in {"", "-", "[]"}:
-        return ""
-
-    return remark
