@@ -15658,10 +15658,12 @@ function ApprovalLetterDocumentSlot({
   const manualReady = hasManualApprovalLetter(app);
   const displayName =
     file?.name ||
-    t(
-      "workspace.payment.approvalLetterDraftRequired",
-      "Please review the auto-generated approval letter before sending it to the applicant."
-    );
+    (canUpload
+      ? t(
+          "workspace.payment.approvalLetterDraftRequired",
+          "Please review the auto-generated approval letter before sending it to the applicant."
+        )
+      : "");
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 sm:flex-row sm:items-center sm:justify-between">
@@ -15670,9 +15672,11 @@ function ApprovalLetterDocumentSlot({
           {label}
           {required && <span className="ml-1 text-red-600">*</span>}
         </p>
-        <p className="mt-1 truncate text-sm font-semibold text-slate-950">
-          {displayName}
-        </p>
+        {displayName && (
+          <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+            {displayName}
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -15749,7 +15753,9 @@ function BillDocumentSlot({
   const manualReady = hasManualBill(app);
   const displayName =
     file?.name ||
-    t("workspace.payment.billGeneratedWithLetter", "The bill will be prepared with the approval letter.");
+    (canEdit
+      ? t("workspace.payment.billGeneratedWithLetter", "The bill will be prepared with the approval letter.")
+      : "");
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 sm:flex-row sm:items-center sm:justify-between">
@@ -15758,9 +15764,11 @@ function BillDocumentSlot({
           {label}
           {required && <span className="ml-1 text-red-600">*</span>}
         </p>
-        <p className="mt-1 truncate text-sm font-semibold text-slate-950">
-          {displayName}
-        </p>
+        {displayName && (
+          <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+            {displayName}
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
