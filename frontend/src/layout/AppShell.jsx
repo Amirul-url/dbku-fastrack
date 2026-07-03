@@ -256,7 +256,7 @@ function AppShell({ children, role = "admin" }) {
     if (role !== "admin") return;
 
     try {
-      const applications = await fetchApplicationList();
+      const applications = await fetchApplicationList({ params: { compact: "1" } });
       const approvalSeenAt = getAdminApprovalRecordSeen(user);
 
       setAdminTaskCounts(getAdminTaskCounts(applications, user, approvalSeenAt));
@@ -269,7 +269,7 @@ function AppShell({ children, role = "admin" }) {
     if (role !== "applicant") return;
 
     try {
-      const applications = await fetchApplicationList();
+      const applications = await fetchApplicationList({ params: { compact: "1" } });
       const latestSeenAt = seenAt || getApplicantRecordSeen(user);
       const openELicenseRecordId = getOpenApplicantELicenseRecordId(location);
 

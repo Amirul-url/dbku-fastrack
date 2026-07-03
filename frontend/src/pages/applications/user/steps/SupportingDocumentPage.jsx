@@ -789,6 +789,45 @@ function AttachmentView({ attachment, language = "en" }) {
   );
 }
 
+async function printAttachmentUrlDocument(url, title) {
+  const originalTitle = document.title;
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+
+  document.body.appendChild(iframe);
+  document.title = title;
+
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+  frameWindow.focus();
+  frameWindow.print();
+}
+
 function FileAction({
   index,
   attachment,
@@ -813,15 +852,8 @@ function FileAction({
           ? await fetch(attachmentUrl).then((response) => response.blob())
           : await fetchAuthenticatedBlob(attachmentUrl);
       const objectUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-
-      link.href = objectUrl;
-      link.download = attachment?.name || "attachment";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      await printAttachmentUrlDocument(objectUrl, attachment?.name || "attachment");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
     } catch (error) {
       console.error("Failed to download attachment:", error);
       alert(tx("failedDownload"));

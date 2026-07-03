@@ -2212,45 +2212,141 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
     return URL.createObjectURL(blob);
   }
 
-  async function handleView(image) {
-    try {
-      const objectUrl = await getFileObjectUrl(image);
-      if (!objectUrl) {
-        return;
-      }
-      const shouldRevoke = !isInlinePreview(image?.preview);
-
-      window.open(objectUrl, "_blank");
-
-      if (shouldRevoke) {
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
-      }
-    } catch (error) {
-      console.error("Failed to view site image:", error);
-      alert(tx("failedViewFile"));
-    }
-  }
-
   async function handleDownload(image) {
     try {
       const objectUrl = await getFileObjectUrl(image);
       if (!objectUrl) return;
       const shouldRevoke = !isInlinePreview(image?.preview);
+      const title = image?.name || "site-image";
 
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = image?.name || "site-image";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (isSiteImagePdf(image)) {
+        await printSiteImageUrlDocument(objectUrl, title);
+      } else {
+        await printSiteImageHtmlDocument(
+          buildSiteImagePrintHtml(image, objectUrl, title),
+          title
+        );
+      }
 
       if (shouldRevoke) {
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
       }
     } catch (error) {
       console.error("Failed to download site image:", error);
       alert(tx("failedDownload"));
     }
+  }
+
+  function isSiteImagePdf(image) {
+    const type = String(image?.type || image?.file?.type || "").toLowerCase();
+    const name = String(image?.name || "").toLowerCase();
+    return type === "application/pdf" || name.endsWith(".pdf");
+  }
+
+  function buildSiteImagePrintHtml(image, url, title) {
+    const filename = image?.name || title;
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #fff; }
+    .page { min-height: calc(100vh - 24mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+    .title { margin: 0; font-size: 14px; font-weight: 700; text-align: center; }
+    img { max-width: 100%; max-height: calc(100vh - 44mm); object-fit: contain; }
+    @media print {
+      .title { display: none; }
+      .page { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="title">${escapeHtml(filename)}</p>
+    <img src="${escapeHtml(url)}" alt="${escapeHtml(filename)}" />
+  </main>
+</body>
+</html>`;
+  }
+
+  async function printSiteImageHtmlDocument(html, title) {
+    const iframe = preparePrintFrame(title);
+    const frameDocument = iframe.contentDocument;
+    const frameWindow = iframe.contentWindow;
+    if (!frameDocument || !frameWindow) {
+      iframe.remove();
+      throw new Error("Unable to prepare print document.");
+    }
+
+    frameDocument.open();
+    frameDocument.write(html);
+    frameDocument.close();
+    await waitForPrintFrameImages(frameDocument);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    triggerPrintFrame(iframe, title);
+  }
+
+  async function printSiteImageUrlDocument(url, title) {
+    const iframe = preparePrintFrame(title);
+    await new Promise((resolve, reject) => {
+      iframe.onload = resolve;
+      iframe.onerror = reject;
+      iframe.src = url;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    triggerPrintFrame(iframe, title);
+  }
+
+  function preparePrintFrame(title) {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.dataset.printTitle = title;
+    document.body.appendChild(iframe);
+    return iframe;
+  }
+
+  function triggerPrintFrame(iframe, title) {
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+      iframe.remove();
+      throw new Error("Unable to prepare print document.");
+    }
+
+    const originalTitle = document.title;
+    const cleanup = () => {
+      document.title = originalTitle;
+      setTimeout(() => iframe.remove(), 500);
+    };
+
+    document.title = title;
+    frameWindow.addEventListener("afterprint", cleanup, { once: true });
+    setTimeout(cleanup, 120000);
+    frameWindow.focus();
+    frameWindow.print();
+  }
+
+  function waitForPrintFrameImages(frameDocument) {
+    const images = Array.from(frameDocument.images || []);
+    return Promise.all(
+      images.map((image) => {
+        if (image.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          image.onload = resolve;
+          image.onerror = resolve;
+        });
+      })
+    );
   }
 
   return (
@@ -2306,15 +2402,6 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleView(image)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
-                    title={tx("view")}
-                    aria-label={tx("view")}
-                  >
-                    <span className="material-symbols-outlined text-xl">visibility</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => handleDownload(image)}

@@ -40,6 +40,33 @@ def strip_inline_file_data(value, preserve_inline_data=False):
     return value
 
 
+COMPACT_LIST_OMIT_KEYS = {
+    "dataUrl",
+    "drawDataUrl",
+    "editable_body_html",
+    "document_html",
+    "digital_signature",
+    "site_image_preview",
+}
+
+
+def strip_compact_list_data(value):
+    if isinstance(value, dict):
+        return {
+            key: strip_compact_list_data(item)
+            for key, item in value.items()
+            if key not in COMPACT_LIST_OMIT_KEYS
+        }
+
+    if isinstance(value, list):
+        return [strip_compact_list_data(item) for item in value]
+
+    if isinstance(value, str) and value.startswith("data:"):
+        return ""
+
+    return value
+
+
 def merge_dicts(current, updates):
     merged = dict(current or {})
 
@@ -166,43 +193,66 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
         return obj.get_application_type_display()
 
+    def is_compact(self):
+        request = self.context.get("request")
+        if not request:
+            return False
+
+        query_params = getattr(request, "query_params", None) or getattr(request, "GET", {})
+        value = str(
+            query_params.get("compact")
+            or query_params.get("list_mode")
+            or ""
+        ).strip().lower()
+        return value in {"1", "true", "yes", "compact"}
+
+    def get_form_section(self, obj, key):
+        section = (obj.form_data or {}).get(key, {})
+        if self.is_compact():
+            return strip_compact_list_data(section)
+
+        return section
+
     def get_auto_screening(self, obj):
-        return (obj.form_data or {}).get("auto_screening", {})
+        return self.get_form_section(obj, "auto_screening")
 
     def get_technical_review(self, obj):
-        return (obj.form_data or {}).get("technical_review", {})
+        return self.get_form_section(obj, "technical_review")
 
     def get_technical_ku_review(self, obj):
-        return (obj.form_data or {}).get("technical_ku_review", {})
+        return self.get_form_section(obj, "technical_ku_review")
 
     def get_technical_department_reviews(self, obj):
-        return (obj.form_data or {}).get("technical_department_reviews", {})
+        return self.get_form_section(obj, "technical_department_reviews")
 
     def get_technical_department_selection(self, obj):
-        return (obj.form_data or {}).get("technical_department_selection", {})
+        return self.get_form_section(obj, "technical_department_selection")
 
     def get_technical_referral(self, obj):
-        return (obj.form_data or {}).get("technical_referral", {})
+        return self.get_form_section(obj, "technical_referral")
 
     def get_kb_les_verification(self, obj):
-        return (obj.form_data or {}).get("kb_les_verification", {})
+        return self.get_form_section(obj, "kb_les_verification")
 
     def get_management_recommendation(self, obj):
-        return (obj.form_data or {}).get("management_recommendation", {})
+        return self.get_form_section(obj, "management_recommendation")
 
     def get_mphlg_gateway(self, obj):
-        return (obj.form_data or {}).get("mphlg_gateway", {})
+        return self.get_form_section(obj, "mphlg_gateway")
 
     def get_sut_approval(self, obj):
-        return (obj.form_data or {}).get("sut_approval", {})
+        return self.get_form_section(obj, "sut_approval")
 
     def get_approval(self, obj):
-        return (obj.form_data or {}).get("approval", {})
+        return self.get_form_section(obj, "approval")
 
     def get_approval_letter(self, obj):
         approval_letter = (obj.form_data or {}).get("approval_letter", {})
         if not isinstance(approval_letter, dict):
             return {}
+
+        if self.is_compact():
+            return strip_compact_list_data(approval_letter)
 
         return strip_inline_file_data(approval_letter)
 

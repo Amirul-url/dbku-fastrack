@@ -1251,13 +1251,13 @@ export function NotificationProvider({ children }) {
       if (deliveryNotifications.length > 0 || isSuperAdminUser(user)) {
         setNotifications(deliveryNotifications);
       } else {
-        const fallbackList = await fetchApplicationList();
+        const fallbackList = await fetchApplicationList({ params: { compact: "1" } });
         setNotifications(buildNotifications(fallbackList, user));
       }
       setLastSyncedAt(new Date().toISOString());
     } catch (err) {
       try {
-        const list = await fetchApplicationList();
+        const list = await fetchApplicationList({ params: { compact: "1" } });
         setNotifications(buildNotifications(list, user));
         setLastSyncedAt(new Date().toISOString());
       } catch {

@@ -82,6 +82,7 @@ function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
+  const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -100,7 +101,7 @@ function UserDashboard() {
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
-      const list = await fetchApplicationList();
+      const list = await fetchApplicationList({ params: { compact: "1" } });
       setApplications(list);
       setSelectedId((current) => current || (list.length > 0 ? String(list[0].id) : ""));
     } catch (err) {
@@ -540,6 +541,8 @@ function UserDashboard() {
             onReceiptDownload={downloadPaymentReceipt}
             onSubmitPayment={submitPayment}
             onBack={returnToLicenseList}
+            activePanelTab={licensePanelTab}
+            onPanelTabChange={setLicensePanelTab}
           />
         ) : (
           <LicenseListSection
@@ -819,6 +822,8 @@ function LicenseSection({
   onReceiptDownload,
   onSubmitPayment,
   onBack,
+  activePanelTab = "bank",
+  onPanelTabChange,
 }) {
   const canSubmitPaymentProof = canSubmitPayment(app);
   const isReceiptRejected =
@@ -843,7 +848,12 @@ function LicenseSection({
 
       <div className="rounded-md border border-slate-200 bg-white">
         <div className="grid items-start gap-4 p-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
-          <LicenseQrPanel app={app} t={t} />
+          <LicenseQrPanel
+            app={app}
+            t={t}
+            activeTab={activePanelTab}
+            onTabChange={onPanelTabChange}
+          />
 
           <div className="space-y-4">
             <ApplicantPaymentDocuments
@@ -1030,87 +1040,153 @@ function ApplicationSelectionSummary({ app, t }) {
   );
 }
 
-function LicenseQrPanel({ app, t }) {
+function LicenseQrPanel({ app, t, activeTab = "bank", onTabChange }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
   const licenseId = license.license_id || getLicenseId(app);
   const displayReference = getApplicationReference(app);
   const verificationUrl = getLicenseVerificationUrl(licenseId);
   const qrContainerRef = useRef(null);
+  const selectedTab = activeTab === "qr" ? "qr" : "bank";
+  const tabs = [
+    { key: "bank", label: t("applicant.bankAccountTab", "Account Bank") },
+    { key: "qr", label: t("applicant.qrELicenseTab", "QR E-License") },
+  ];
 
   return (
-    <section className="inline-flex w-auto max-w-full rounded-md border border-slate-200 bg-slate-50">
-      <div className="flex min-h-0 flex-col items-center justify-center gap-3 p-3 text-center">
-        {licenseReady ? (
-          <>
-            <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <QRCodeSVG
-                value={verificationUrl}
-                size={360}
-                level="M"
-                includeMargin
-                className="h-auto max-w-full"
-                role="img"
-                aria-label="License verification QR"
-              />
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {displayReference}
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
+    <section className="w-full max-w-[360px] lg:w-[360px]">
+      <div className="mx-auto w-full max-w-[360px]">
+        <div className="grid grid-cols-2 overflow-hidden rounded-t-md border border-slate-300 bg-white text-center text-xs font-bold uppercase leading-5 text-slate-950">
+          {tabs.map((tab) => {
+            const selected = selectedTab === tab.key;
+            return (
               <button
+                key={tab.key}
                 type="button"
-                onClick={() => downloadApplicantQrCode(qrContainerRef.current, displayReference)}
-                className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => onTabChange?.(tab.key)}
+                className={`min-h-7 border-r border-slate-300 px-3 transition last:border-r-0 ${
+                  selected
+                    ? "bg-[#b8e4a8] text-slate-950"
+                    : "bg-white text-slate-950 hover:bg-slate-50"
+                }`}
               >
-                <span className="material-symbols-outlined text-[16px]">
-                  download
-                </span>
-                {t("common.download", "Download")}
+                {tab.label}
               </button>
-            </div>
-          </>
-        ) : (
-          <div className="mx-auto flex aspect-square w-full max-w-[360px] items-center justify-center overflow-hidden rounded-md border border-slate-900 bg-[#e55a82] p-3 text-center">
-            <div className="flex h-full w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-3 text-slate-950">
-              <p className="text-xs font-normal uppercase tracking-[0.14em]">
-                {t("applicant.bankPaymentTitle", "Please made payment to:")}
-              </p>
+            );
+          })}
+        </div>
 
-              <img
-                src="/Bank Islam Logo.jpg"
-                alt="Bank Islam"
-                className="mt-2 h-auto w-full max-w-[132px] object-contain"
-              />
-
-              <p className="mt-3 text-sm font-bold uppercase tracking-wide">
-                {t("applicant.bankPaymentAccountNo", "Account No :")}
-              </p>
-              <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-base font-normal tracking-wide">
-                11013010028881
+        <div className="flex min-h-[360px] items-stretch justify-center rounded-b-md border-x border-b border-slate-300 bg-white text-center">
+          {selectedTab === "bank" ? (
+            <div className="flex min-h-[360px] w-full items-center justify-center overflow-hidden rounded-b-md border border-slate-900 bg-[#e55a82] p-3">
+              <div className="flex min-h-[332px] w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-3 text-slate-950">
+                <BankAccountContent t={t} />
               </div>
-
-              <p className="mt-3 text-sm font-bold uppercase tracking-wide">
-                {t("applicant.bankPaymentAccountHolder", "Account Holder :")}
-              </p>
-              <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-sm font-normal">
-                Dewan Bandaraya Kuching Utara
-              </div>
-
-              <p className="mt-3 max-w-[320px] text-[10px] font-normal leading-tight text-slate-950">
-                {t("applicant.bankPaymentProofLine", "Please attach payment slip /receipt as payment proof.")}
-                <br />
-                {t("applicant.bankPaymentDetailsLine1", "Please provide your Full Name, Full Address,")}
-                <br />
-                {t("applicant.bankPaymentDetailsLine2", "Phone Number & Order Details.")}
-                <br />
-                {t("applicant.bankPaymentThanks", "THANK YOU.")}
-              </p>
             </div>
-          </div>
-        )}
+          ) : (
+            <QrELicenseContent
+              app={app}
+              t={t}
+              licenseReady={licenseReady}
+              verificationUrl={verificationUrl}
+              displayReference={displayReference}
+              qrContainerRef={qrContainerRef}
+            />
+          )}
+        </div>
       </div>
     </section>
+  );
+}
+
+function BankAccountContent({ t }) {
+  return (
+    <>
+      <p className="text-xs font-normal uppercase tracking-[0.14em]">
+        {t("applicant.bankPaymentTitle", "Please made payment to:")}
+      </p>
+
+      <img
+        src="/Bank Islam Logo.jpg"
+        alt="Bank Islam"
+        className="mt-2 h-auto w-full max-w-[132px] object-contain"
+      />
+
+      <p className="mt-3 text-sm font-bold uppercase tracking-wide">
+        {t("applicant.bankPaymentAccountNo", "Account No :")}
+      </p>
+      <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-base font-normal tracking-wide">
+        11013010028881
+      </div>
+
+      <p className="mt-3 text-sm font-bold uppercase tracking-wide">
+        {t("applicant.bankPaymentAccountHolder", "Account Holder :")}
+      </p>
+      <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-sm font-normal">
+        Dewan Bandaraya Kuching Utara
+      </div>
+
+      <p className="mt-3 max-w-[320px] text-[10px] font-normal leading-tight text-slate-950">
+        {t("applicant.bankPaymentProofLine", "Please attach payment slip /receipt as payment proof.")}
+        <br />
+        {t("applicant.bankPaymentDetailsLine1", "Please provide your Full Name, Full Address,")}
+        <br />
+        {t("applicant.bankPaymentDetailsLine2", "Phone Number & Order Details.")}
+        <br />
+        {t("applicant.bankPaymentThanks", "THANK YOU.")}
+      </p>
+    </>
+  );
+}
+
+function QrELicenseContent({
+  app,
+  t,
+  licenseReady,
+  verificationUrl,
+  displayReference,
+  qrContainerRef,
+}) {
+  if (!licenseReady) {
+    return (
+      <div className="flex min-h-[360px] w-full items-center justify-center rounded-b-md border border-slate-900 bg-white px-8 text-center">
+        <p className="max-w-[260px] text-sm font-bold leading-7 text-slate-950">
+          {t(
+            "applicant.qrLicensePendingFull",
+            "QR e-license will appear after payment has been verified and the license is issued."
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[360px] w-full flex-col items-center justify-center gap-3">
+      <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <QRCodeSVG
+          value={verificationUrl}
+          size={320}
+          level="M"
+          includeMargin
+          className="h-auto max-w-full"
+          role="img"
+          aria-label="License verification QR"
+        />
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {displayReference || getApplicationReference(app)}
+      </p>
+      <button
+        type="button"
+        onClick={() => downloadApplicantQrCode(qrContainerRef.current, displayReference)}
+        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+      >
+        <span className="material-symbols-outlined text-[16px]">
+          download
+        </span>
+        {t("common.download", "Download")}
+      </button>
+    </div>
   );
 }
 

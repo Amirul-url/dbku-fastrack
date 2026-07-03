@@ -42,7 +42,7 @@ function UserApplicationsPage() {
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
-      const list = await fetchApplicationList();
+      const list = await fetchApplicationList({ params: { compact: "1" } });
       setApplications(list);
     } catch (err) {
       console.error("Failed to load applications:", err);

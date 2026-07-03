@@ -34,6 +34,7 @@ import {
   formatDate,
   formatDateTime,
   formatWorkflowStatus,
+  canViewLicense,
   getApplicantName,
   getApplicationLocation,
   getApplicationReference,
@@ -3467,7 +3468,7 @@ function buildManualBillTemplateBodyHtml(app = null) {
     <section class="manual-bill-page">
       <div class="bill-form-code">DBKU/LES/56-09 (Pind. 4/26)</div>
       <header class="bill-header">
-        <div class="bill-crest"><img src="/logo-dbku.png" alt="DBKU" /></div>
+        <div class="bill-crest"><img src="/logo-dbku-black_white.png" alt="DBKU" /></div>
         <h1>DEWAN BANDARAYA KUCHING UTARA</h1>
         <p class="bill-unit">BAHAGIAN PELESENAN (UNIT IKLAN)</p>
         <p>Lot 3462 And Part Of Lot 706, Block 17, Salak Land District, Jalan Depo, 93050 Kuching, Sarawak</p>
@@ -4188,22 +4189,22 @@ function getManualBillCss({ editor = false } = {}) {
     }
     .bill-header {
       text-align: center;
-      padding-top: 1mm;
+      padding-top: 0;
     }
     .bill-crest {
       display: inline-flex;
-      height: 20mm;
-      width: 26mm;
+      height: 26mm;
+      width: 42mm;
       align-items: center;
       justify-content: center;
     }
     .bill-crest img {
-      max-height: 20mm;
-      max-width: 26mm;
+      max-height: 26mm;
+      max-width: 42mm;
       object-fit: contain;
     }
     .bill-header h1 {
-      margin: 1.5mm 0 1.2mm;
+      margin: .4mm 0 1.2mm;
       font-size: 16pt !important;
       font-weight: 900;
       letter-spacing: .02em;
@@ -14867,7 +14868,9 @@ async function getSitePhotoBlobUrl(photo, applicationId) {
   const source = getSitePhotoSource(photo, applicationId);
   if (!source) return { url: "", revoke: false };
 
-  if (source.startsWith("blob:")) return { url: source, revoke: false };
+  if (source.startsWith("blob:") || source.startsWith("data:")) {
+    return { url: source, revoke: false };
+  }
 
   const blob = await fetchAuthenticatedBlob(source);
   return { url: URL.createObjectURL(blob), revoke: true };
@@ -14910,42 +14913,27 @@ function isTechnicalSitePhotoPdf(photo) {
 }
 
 function SitePhotoActions({ photo, applicationId, disabled, onRemove, labels, hideDelete = false }) {
-  async function viewPhoto() {
-    try {
-      const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
-
-      if (!url) {
-        return;
-      }
-
-      window.open(url, "_blank");
-
-      if (revoke) {
-        window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
-      }
-    } catch (error) {
-      console.error("Failed to view site photo:", error);
-    }
-  }
-
   async function downloadPhoto() {
     const { url, revoke } = await getSitePhotoBlobUrl(photo, applicationId);
     if (!url) return;
 
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = photo?.name || "site-photo";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const title = photo?.name || "site-photo";
+
+    if (isTechnicalSitePhotoPdf(photo)) {
+      await printUrlDocument(url, title);
+    } else {
+      await printHtmlDocument(
+        buildPaymentReceiptPrintHtml(photo, url, title),
+        title
+      );
+    }
 
     if (revoke) {
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     }
   }
 
   const actions = [
-    { icon: "visibility", label: labels.view, onClick: viewPhoto },
     { icon: "download", label: labels.download, onClick: downloadPhoto },
     hideDelete ? null : { icon: "delete", label: labels.delete, onClick: onRemove, danger: true },
   ].filter(Boolean);
@@ -15043,6 +15031,7 @@ function PaymentDetails({
   const showLicenseDocumentSection =
     showVerificationUploads || (canShowSavedIssueDocuments && Boolean(licenseFile));
   const showQrPanel = false;
+  const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("bank");
 
   const officialReceiptUploadSection = showOfficialReceiptSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
@@ -15100,12 +15089,21 @@ function PaymentDetails({
     </section>
   ) : null;
 
+  const documentPreviewSection = (
+    <PaymentApprovalDocumentTabs
+      app={app}
+      t={t}
+      activeTab={activePaymentDocumentTab}
+      onTabChange={setActivePaymentDocumentTab}
+    />
+  );
+
   const documentSection = (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <div>
           <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-            {t("workspace.payment.documents", "Approval Letter and Bill")}
+            {t("workspace.payment.documents", "List of Document")}
           </p>
         </div>
       </div>
@@ -15134,7 +15132,6 @@ function PaymentDetails({
           onEditManualBill={onEditBill}
         />
       </div>
-
     </section>
   );
 
@@ -15248,8 +15245,13 @@ function PaymentDetails({
           </>
         ) : (
           <>
-            {documentSection}
-            {receiptSection}
+            <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+              {documentPreviewSection}
+              <div className="space-y-4">
+                {documentSection}
+                {receiptSection}
+              </div>
+            </div>
             {(showOfficialReceiptSection || showLicenseDocumentSection) && (
               <div className="grid gap-4 xl:grid-cols-2">
                 {officialReceiptUploadSection}
@@ -15482,6 +15484,161 @@ function PaymentVerificationDocumentRow({ item, t, saving }) {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function PaymentApprovalDocumentTabs({
+  app,
+  t,
+  activeTab = "bank",
+  onTabChange,
+}) {
+  const license = app?.form_data?.license || {};
+  const licenseReady = canViewLicense(app);
+  const licenseId = license.license_id || getLicenseId(app);
+  const displayReference = getApplicationReference(app);
+  const verificationUrl = getLicenseVerificationUrl(licenseId);
+  const qrContainerRef = useRef(null);
+  const selectedTab = activeTab === "qr" ? "qr" : "bank";
+  const tabs = [
+    { key: "bank", label: t("applicant.bankAccountTab", "Account Bank") },
+    { key: "qr", label: t("applicant.qrELicenseTab", "QR E-License") },
+  ];
+
+  return (
+    <section className="w-full max-w-[360px] self-start lg:w-[360px]">
+      <div className="mx-auto w-full max-w-[360px]">
+        <div className="grid grid-cols-2 overflow-hidden rounded-t-md border border-slate-300 bg-white text-center text-xs font-bold uppercase leading-5 text-slate-950">
+          {tabs.map((tab) => {
+            const selected = selectedTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onTabChange?.(tab.key)}
+                className={`min-h-7 border-r border-slate-300 px-3 transition last:border-r-0 ${
+                  selected
+                    ? "bg-[#b8e4a8] text-slate-950"
+                    : "bg-white text-slate-950 hover:bg-slate-50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex min-h-[360px] items-stretch justify-center rounded-b-md border-x border-b border-slate-300 bg-white text-center">
+          {selectedTab === "bank" ? (
+            <div className="flex min-h-[360px] w-full items-center justify-center overflow-hidden rounded-b-md border border-slate-900 bg-[#e55a82] p-3">
+              <div className="flex min-h-[332px] w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-3 text-slate-950">
+                <PaymentBankAccountContent t={t} />
+              </div>
+            </div>
+          ) : (
+            <PaymentQrELicenseContent
+              app={app}
+              t={t}
+              licenseReady={licenseReady}
+              verificationUrl={verificationUrl}
+              displayReference={displayReference}
+              qrContainerRef={qrContainerRef}
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PaymentBankAccountContent({ t }) {
+  return (
+    <>
+      <p className="text-xs font-normal uppercase tracking-[0.14em]">
+        {t("applicant.bankPaymentTitle", "Please made payment to:")}
+      </p>
+
+      <img
+        src="/Bank Islam Logo.jpg"
+        alt="Bank Islam"
+        className="mt-2 h-auto w-full max-w-[132px] object-contain"
+      />
+
+      <p className="mt-3 text-sm font-bold uppercase tracking-wide">
+        {t("applicant.bankPaymentAccountNo", "Account No :")}
+      </p>
+      <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-base font-normal tracking-wide">
+        11013010028881
+      </div>
+
+      <p className="mt-3 text-sm font-bold uppercase tracking-wide">
+        {t("applicant.bankPaymentAccountHolder", "Account Holder :")}
+      </p>
+      <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-sm font-normal">
+        Dewan Bandaraya Kuching Utara
+      </div>
+
+      <p className="mt-3 max-w-[320px] text-[10px] font-normal leading-tight text-slate-950">
+        {t("applicant.bankPaymentProofLine", "Please attach payment slip /receipt as payment proof.")}
+        <br />
+        {t("applicant.bankPaymentDetailsLine1", "Please provide your Full Name, Full Address,")}
+        <br />
+        {t("applicant.bankPaymentDetailsLine2", "Phone Number & Order Details.")}
+        <br />
+        {t("applicant.bankPaymentThanks", "THANK YOU.")}
+      </p>
+    </>
+  );
+}
+
+function PaymentQrELicenseContent({
+  app,
+  t,
+  licenseReady,
+  verificationUrl,
+  displayReference,
+  qrContainerRef,
+}) {
+  if (!licenseReady) {
+    return (
+      <div className="flex min-h-[360px] w-full items-center justify-center rounded-b-md border border-slate-900 bg-white px-8 text-center">
+        <p className="max-w-[260px] text-sm font-bold leading-7 text-slate-950">
+          {t(
+            "applicant.qrLicensePendingFull",
+            "QR e-license will appear after payment has been verified and the license is issued."
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[360px] w-full flex-col items-center justify-center gap-3">
+      <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <QRCodeSVG
+          value={verificationUrl}
+          size={320}
+          level="M"
+          includeMargin
+          className="h-auto max-w-full"
+          role="img"
+          aria-label="License verification QR"
+        />
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {displayReference || getApplicationReference(app)}
+      </p>
+      <button
+        type="button"
+        onClick={() => downloadPaymentQrCode(qrContainerRef.current, displayReference)}
+        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+      >
+        <span className="material-symbols-outlined text-[16px]">
+          download
+        </span>
+        {t("common.download", "Download")}
+      </button>
     </div>
   );
 }
