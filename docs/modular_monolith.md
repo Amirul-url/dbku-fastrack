@@ -96,6 +96,15 @@ Accounts views still orchestrate HTTP registration/login/profile flows, but iden
 
 Accounts views still orchestrate HTTP request/response and cache/token validation, but account lookup and OTP delivery helpers now live in account service modules.
 
+`accounts.services.sessions` owns:
+
+- login session timeout calculation
+- login session expiry and close-time calculation
+- closing open sessions on login/logout
+- closing stale open sessions for account management views
+
+Login/logout views still create the HTTP response and session records, but session lifecycle rules now live in the account service layer.
+
 `notifications.formatting` owns:
 
 - email and phone normalization helpers
@@ -121,7 +130,7 @@ Notification services still orchestrate event routing and delivery creation, but
 ## Next Safe Steps
 
 1. Split notification event routing/message builders by application event group.
-2. Move account login-session lifecycle helpers into an account session service.
-3. Split application list/query filtering into a dedicated query module if it keeps growing.
+2. Split application list/query filtering into a dedicated query module if it keeps growing.
+3. Move remaining managed-account validation helpers into an account management service.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.

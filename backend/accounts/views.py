@@ -6,7 +6,6 @@ import urllib.request
 
 from django.contrib.auth import authenticate, get_user_model
 from django.conf import settings
-from datetime import timedelta
 
 from django.core.cache import cache
 from django.core import signing
@@ -33,7 +32,6 @@ from .services.identity import (
     build_auth_response,
     build_user_payload,
     clean_mobile_number,
-    get_login_duration_seconds,
     normalize_full_name,
     normalize_mykad_identifier,
     split_full_name,
@@ -60,6 +58,14 @@ from .services.password_reset import (
     get_password_reset_user,
     normalize_reset_channel,
     password_reset_cache_key,
+)
+from .services.sessions import (
+    close_login_session,
+    close_open_login_sessions,
+    close_stale_open_login_sessions,
+    get_login_session_close_at,
+    get_login_session_expiry_at,
+    get_login_session_timeout_seconds,
 )
 
 User = get_user_model()
@@ -108,52 +114,6 @@ def verify_recaptcha(token, remote_ip=""):
         return True, ""
 
     return False, "reCAPTCHA verification failed. Please try again."
-
-
-def get_login_session_timeout_seconds():
-    try:
-        timeout_seconds = int(getattr(settings, "LOGIN_SESSION_TIMEOUT_SECONDS", 60 * 60))
-    except (TypeError, ValueError):
-        timeout_seconds = 60 * 60
-
-    return max(60, timeout_seconds)
-
-
-def get_login_session_expiry_at(session):
-    if not session.login_at:
-        return None
-
-    return session.login_at + timedelta(seconds=get_login_session_timeout_seconds())
-
-
-def get_login_session_close_at(session, logout_at):
-    expiry_at = get_login_session_expiry_at(session)
-    if not expiry_at:
-        return logout_at
-
-    return min(logout_at, expiry_at)
-
-
-def close_login_session(session, logout_at):
-    session.logout_at = get_login_session_close_at(session, logout_at)
-    session.duration_seconds = get_login_duration_seconds(session.login_at, session.logout_at)
-    session.save(update_fields=["logout_at", "duration_seconds"])
-
-
-def close_open_login_sessions(user, logout_at):
-    for session in LoginSession.objects.filter(user=user, logout_at__isnull=True):
-        close_login_session(session, logout_at)
-
-
-def close_stale_open_login_sessions(now=None, user=None):
-    now = now or timezone.now()
-    cutoff = now - timedelta(seconds=get_login_session_timeout_seconds())
-    queryset = LoginSession.objects.filter(logout_at__isnull=True, login_at__lte=cutoff)
-    if user is not None:
-        queryset = queryset.filter(user=user)
-
-    for session in queryset:
-        close_login_session(session, now)
 
 
 def friendly_password_validation(password, password2):
