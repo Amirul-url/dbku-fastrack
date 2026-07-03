@@ -105,6 +105,16 @@ Accounts views still orchestrate HTTP request/response and cache/token validatio
 
 Login/logout views still create the HTTP response and session records, but session lifecycle rules now live in the account service layer.
 
+`accounts.services.management` owns:
+
+- managed-account role normalization
+- managed-account validation for required fields, email, password, and duplicates
+- managed-account profile field mutation
+- role-to-staff/superuser flag handling
+- managed-account password updates
+
+SuperAdmin views still orchestrate list/create/update/delete HTTP behavior, but account mutation rules now live in the account service layer.
+
 `notifications.formatting` owns:
 
 - email and phone normalization helpers
@@ -131,6 +141,6 @@ Notification services still orchestrate event routing and delivery creation, but
 
 1. Split notification event routing/message builders by application event group.
 2. Split application list/query filtering into a dedicated query module if it keeps growing.
-3. Move remaining managed-account validation helpers into an account management service.
+3. Extract reCAPTCHA verification into an account security service.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.
