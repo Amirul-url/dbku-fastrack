@@ -78,6 +78,24 @@ Serializers still shape API responses, but application summary and profile deriv
 
 Accounts views still orchestrate HTTP registration/login/profile flows, but identity formatting and payload construction now live in the account domain service layer.
 
+`accounts.services.lookup` owns:
+
+- email and phone identifier normalization
+- MyKad/user lookup by normalized identifiers
+- mobile-number variant matching
+- login identifier lookup
+- WhatsApp recipient formatting for account flows
+
+`accounts.services.password_reset` owns:
+
+- password reset OTP generation
+- reset cache-key and channel normalization
+- password reset user lookup by channel
+- password reset message construction
+- OTP delivery through notification services
+
+Accounts views still orchestrate HTTP request/response and cache/token validation, but account lookup and OTP delivery helpers now live in account service modules.
+
 `notifications.formatting` owns:
 
 - email and phone normalization helpers
@@ -103,7 +121,7 @@ Notification services still orchestrate event routing and delivery creation, but
 ## Next Safe Steps
 
 1. Split notification event routing/message builders by application event group.
-2. Extract account lookup and password-reset delivery helpers into service modules.
+2. Move account login-session lifecycle helpers into an account session service.
 3. Split application list/query filtering into a dedicated query module if it keeps growing.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.

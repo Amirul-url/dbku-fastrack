@@ -1,5 +1,4 @@
 import json
-import random
 import re
 import urllib.error
 import urllib.parse
@@ -39,14 +38,32 @@ from .services.identity import (
     normalize_mykad_identifier,
     split_full_name,
 )
+from .services.lookup import (
+    EMAIL_PATTERN,
+    find_user_by_mobile_number,
+    find_user_by_mykad_identifier,
+    find_user_by_normalized_email,
+    find_user_for_login,
+    format_whatsapp_recipient,
+    normalize_email_address,
+    normalize_phone_number,
+    phone_number_variants,
+)
+from .services.password_reset import (
+    PASSWORD_RESET_MAX_ATTEMPTS,
+    PASSWORD_RESET_PURPOSE,
+    PASSWORD_RESET_TOKEN_TTL_SECONDS,
+    PASSWORD_RESET_TTL_SECONDS,
+    build_password_reset_message,
+    deliver_password_reset_otp,
+    generate_password_reset_otp,
+    get_password_reset_user,
+    normalize_reset_channel,
+    password_reset_cache_key,
+)
 
 User = get_user_model()
 
-PASSWORD_RESET_TTL_SECONDS = 10 * 60
-PASSWORD_RESET_TOKEN_TTL_SECONDS = 15 * 60
-PASSWORD_RESET_MAX_ATTEMPTS = 5
-PASSWORD_RESET_PURPOSE = "password_reset"
-EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 MANAGED_ACCOUNT_ROLES = {"superadmin", "admin", "supervisor", "staff", "applicant"}
 
 
@@ -137,191 +154,6 @@ def close_stale_open_login_sessions(now=None, user=None):
 
     for session in queryset:
         close_login_session(session, now)
-
-
-def normalize_phone_number(value):
-    return re.sub(r"\D", "", str(value or ""))
-
-
-def normalize_email_address(value):
-    text = str(value or "").strip().lower()
-    return "" if text == "-" else text
-
-
-def find_user_by_normalized_email(identifier):
-    email = normalize_email_address(identifier)
-    if not email:
-        return None
-
-    user = User.objects.filter(email__iexact=email).first()
-    if user:
-        return user
-
-    for user in User.objects.exclude(email=""):
-        if normalize_email_address(user.email) == email:
-            return user
-
-    return None
-
-
-def find_user_by_mykad_identifier(identifier):
-    raw_identifier = str(identifier or "").strip()
-    if not raw_identifier:
-        return None
-
-    normalized_identifier = normalize_mykad_identifier(raw_identifier)
-    user = (
-        User.objects.filter(username=raw_identifier).first()
-        or User.objects.filter(username=normalized_identifier).first()
-        or User.objects.filter(mykad_number=raw_identifier).first()
-        or User.objects.filter(mykad_number=normalized_identifier).first()
-    )
-    if user:
-        return user
-
-    for user in User.objects.all():
-        if (
-            normalize_mykad_identifier(user.username) == normalized_identifier
-            or normalize_mykad_identifier(user.mykad_number) == normalized_identifier
-        ):
-            return user
-
-    return None
-
-
-def find_user_by_mobile_number(identifier):
-    requested_numbers = phone_number_variants(identifier)
-    if not requested_numbers:
-        return None
-
-    for user in User.objects.exclude(mobile_number=""):
-        if phone_number_variants(user.mobile_number) & requested_numbers:
-            return user
-
-    return None
-
-
-def find_user_for_login(identifier):
-    raw_identifier = str(identifier or "").strip()
-    if not raw_identifier:
-        return None
-
-    if EMAIL_PATTERN.match(raw_identifier):
-        user = find_user_by_normalized_email(raw_identifier)
-        if user:
-            return user
-
-    return find_user_by_mykad_identifier(raw_identifier)
-
-
-def format_whatsapp_recipient(value):
-    digits = normalize_phone_number(value)
-
-    if digits.startswith("60"):
-        return digits
-
-    if digits.startswith("0") and len(digits) > 1:
-        return f"60{digits[1:]}"
-
-    if digits.startswith("1"):
-        return f"60{digits}"
-
-    return digits
-
-
-def phone_number_variants(value):
-    digits = normalize_phone_number(value)
-    variants = {digits} if digits else set()
-
-    if digits.startswith("60") and len(digits) > 2:
-        variants.add(f"0{digits[2:]}")
-        variants.add(digits[2:])
-    elif digits.startswith("0") and len(digits) > 1:
-        variants.add(f"60{digits[1:]}")
-        variants.add(digits[1:])
-
-    return {variant for variant in variants if variant}
-
-
-def password_reset_cache_key(identifier):
-    return f"password-reset:{identifier.strip().lower()}"
-
-
-def generate_password_reset_otp():
-    return f"{random.SystemRandom().randint(0, 999999):06d}"
-
-
-def normalize_reset_channel(value):
-    channel = str(value or "").strip().lower()
-    return channel if channel in {"email", "whatsapp"} else ""
-
-
-def get_password_reset_user(channel, identifier):
-    if channel == "email":
-        return find_user_by_normalized_email(identifier)
-
-    requested_numbers = phone_number_variants(identifier)
-    if not requested_numbers:
-        return None
-
-    for user in User.objects.exclude(mobile_number=""):
-        if phone_number_variants(user.mobile_number) & requested_numbers:
-            return user
-
-    return None
-
-
-def build_password_reset_message(user, otp):
-    name = normalize_full_name(f"{user.first_name} {user.last_name}") or normalize_full_name(user.username)
-    return (
-        f"Hello {name},\n\n"
-        f"Your ALiS password reset OTP is {otp}.\n"
-        "This OTP will expire in 10 minutes. If you did not request this, please ignore this message."
-    )
-
-
-def deliver_password_reset_otp(user, channel, otp):
-    message = build_password_reset_message(user, otp)
-
-    if channel == "email":
-        if not user.email:
-            return False, "This account does not have an email address saved."
-
-        if getattr(settings, "NOTIFICATION_EMAIL_ENABLED", False):
-            from notifications.services import is_channel_configured, send_email
-
-            if not is_channel_configured("email"):
-                return False, "Email OTP service is not configured right now. Please try WhatsApp or contact support."
-
-            try:
-                send_email(user.email, "ALiS Password Reset OTP", message)
-            except Exception as exc:
-                return False, f"Email OTP could not be sent right now. Please try again. ({exc})"
-            return True, "OTP sent to your registered email address."
-
-        return False, "Email OTP service is not configured right now. Please try WhatsApp or contact support."
-
-    if channel == "whatsapp":
-        if not user.mobile_number:
-            return False, "This account does not have a WhatsApp/mobile number saved."
-
-        if getattr(settings, "WHATSAPP_ENABLED", False):
-            from notifications.services import send_whatsapp
-
-            try:
-                send_whatsapp(format_whatsapp_recipient(user.mobile_number), message)
-            except Exception as exc:
-                if "connection closed" in str(exc).lower():
-                    return False, (
-                        "WhatsApp OTP could not be sent because the WhatsApp service is disconnected. "
-                        "Please reconnect the WhatsApp provider and try again."
-                    )
-                return False, "WhatsApp OTP could not be sent right now. Please try again."
-            return True, "OTP sent to your registered WhatsApp number."
-
-        return False, "WhatsApp OTP service is not configured right now. Please try email or contact support."
-
-    return False, "Please choose whether to receive the OTP by email or WhatsApp."
 
 
 def friendly_password_validation(password, password2):
