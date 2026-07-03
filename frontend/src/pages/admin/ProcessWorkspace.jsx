@@ -5322,26 +5322,7 @@ function normalizeMphlgSupportingDocumentAttachment(applicationId, uploaded, fil
 
 function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
   const [selectedLog, setSelectedLog] = useState(null);
-  const [downloadingLogId, setDownloadingLogId] = useState("");
-  const [downloadError, setDownloadError] = useState("");
   const logs = buildWorkspaceDecisionLogRows(app, t);
-  const reference = getApplicationReference(app);
-
-  async function handleDownloadReport(log) {
-    setDownloadError("");
-    setDownloadingLogId(log.id);
-
-    try {
-      await downloadDecisionLogReportPdf(log, reference, language);
-    } catch (error) {
-      console.error("Failed to download decision report:", error);
-      setDownloadError(
-        t("workspace.decisionLog.downloadFailed", "Could not download the report. Please try again.")
-      );
-    } finally {
-      setDownloadingLogId("");
-    }
-  }
 
   return (
     <>
@@ -5401,10 +5382,6 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
         )}
       </section>
 
-      {downloadError && (
-        <p className="mt-2 text-sm font-medium text-red-600">{downloadError}</p>
-      )}
-
       {selectedLog && (
         <DecisionLogTemplateModal
           log={selectedLog}
@@ -5415,57 +5392,6 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
       )}
     </>
   );
-}
-
-async function downloadDecisionLogReportPdf(log, reference, language = "en") {
-  const snapshotWidth = 728;
-  const reportElement = document.createElement("div");
-  reportElement.style.position = "fixed";
-  reportElement.style.left = "-10000px";
-  reportElement.style.top = "0";
-  reportElement.style.width = `${snapshotWidth}px`;
-  reportElement.style.background = "#ffffff";
-  reportElement.style.padding = "0";
-  reportElement.style.zIndex = "-1";
-  reportElement.innerHTML = buildDecisionLogSnapshotHtml(log, language);
-  document.body.appendChild(reportElement);
-
-  try {
-    await waitForReportAssets(reportElement);
-    const canvas = await html2canvas(reportElement, {
-      backgroundColor: "#ffffff",
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      windowWidth: snapshotWidth,
-      windowHeight: reportElement.scrollHeight,
-      width: snapshotWidth,
-      height: reportElement.scrollHeight,
-    });
-    const imageData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({
-      orientation: "p",
-      unit: "mm",
-      format: "a4",
-    });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imageHeight = (canvas.height * pageWidth) / canvas.width;
-
-    if (imageHeight <= pageHeight) {
-      pdf.addImage(imageData, "PNG", 0, 0, pageWidth, imageHeight);
-    } else {
-      let renderedHeight = 0;
-      while (renderedHeight < imageHeight) {
-        if (renderedHeight > 0) pdf.addPage("a4", "p");
-        pdf.addImage(imageData, "PNG", 0, -renderedHeight, pageWidth, imageHeight);
-        renderedHeight += pageHeight;
-      }
-    }
-    pdf.save(buildDecisionLogDownloadFilename(reference, log, language));
-  } finally {
-    reportElement.remove();
-  }
 }
 
 function buildDecisionLogSnapshotHtml(log, language = "en") {
