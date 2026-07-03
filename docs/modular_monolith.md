@@ -48,10 +48,18 @@ The existing API endpoints stay in `ApplicationViewSet`; views now delegate docu
 
 Views and serializers now delegate activity-specific work to this service layer.
 
+`applications.services.workflow` owns:
+
+- applicant update permission checks
+- staff workflow transition permission checks
+- management support memo draft-save detection
+
+`ApplicationViewSet` still orchestrates the HTTP update flow, but the workflow authorization rules now live in the application domain service layer.
+
 ## Next Safe Steps
 
-1. Extract application workflow permission checks to `applications.services.workflow`.
-2. Extract account payload/auth helpers to `accounts.services.identity`.
-3. Split the large notification service into smaller files by channel and event group.
+1. Extract account payload/auth helpers to `accounts.services.identity`.
+2. Split the large notification service into smaller files by channel and event group.
+3. Move application summary/remark derivation from serializers into an application query/service module.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.
