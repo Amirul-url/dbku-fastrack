@@ -30,10 +30,6 @@ ALLOWED_HOSTS = env_list(
     "localhost,127.0.0.1,t13ibowgmqv1q5b97ctxtd3t.sapotlokal.my",
 )
 
-RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "")
-RECAPTCHA_REQUIRED = os.getenv("RECAPTCHA_REQUIRED", "False" if DEBUG else "True") == "True"
-REGISTRATION_RECAPTCHA_ENABLED = os.getenv("REGISTRATION_RECAPTCHA_ENABLED", "False") == "True"
-
 # Apps
 INSTALLED_APPS = [
     'django.contrib.admin',

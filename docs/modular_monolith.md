@@ -141,6 +141,6 @@ Notification services still orchestrate event routing and delivery creation, but
 
 1. Split notification event routing/message builders by application event group.
 2. Split application list/query filtering into a dedicated query module if it keeps growing.
-3. Extract reCAPTCHA verification into an account security service.
+3. Extract any future account security checks into an account security service.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.

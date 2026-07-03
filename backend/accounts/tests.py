@@ -230,7 +230,6 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(stale_session.logout_at, stale_login_at + timedelta(hours=1))
         self.assertEqual(stale_session.duration_seconds, 3600)
 
-    @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
     def test_registration_rejects_existing_mykad_number(self):
         User.objects.create_user(
             username="020215-13-0135",
@@ -254,7 +253,6 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("MyKad Number is already registered", response.data["error"])
 
-    @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
     def test_registration_rejects_existing_mobile_number(self):
         User.objects.create_user(
             username="020215130136",
@@ -279,7 +277,6 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("mobile number is already registered", response.data["error"])
 
-    @override_settings(RECAPTCHA_REQUIRED=False, RECAPTCHA_SECRET_KEY="")
     def test_registration_rejects_existing_email_case_insensitive(self):
         User.objects.create_user(
             username="020215130138",

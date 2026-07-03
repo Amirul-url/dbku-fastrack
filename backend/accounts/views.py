@@ -1,11 +1,6 @@
-import json
 import re
-import urllib.error
-import urllib.parse
-import urllib.request
 
 from django.contrib.auth import authenticate, get_user_model
-from django.conf import settings
 
 from django.core.cache import cache
 from django.core import signing
@@ -79,40 +74,6 @@ class IsSuperAdmin(BasePermission):
         )
 
 
-def verify_recaptcha(token, remote_ip=""):
-    if not settings.RECAPTCHA_SECRET_KEY:
-        return not settings.RECAPTCHA_REQUIRED, "reCAPTCHA is not configured."
-
-    if not token:
-        return False, "Please complete the reCAPTCHA verification."
-
-    payload = {
-        "secret": settings.RECAPTCHA_SECRET_KEY,
-        "response": token,
-    }
-
-    if remote_ip:
-        payload["remoteip"] = remote_ip
-
-    request = urllib.request.Request(
-        "https://www.google.com/recaptcha/api/siteverify",
-        data=urllib.parse.urlencode(payload).encode("utf-8"),
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            result = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, json.JSONDecodeError):
-        return False, "Unable to verify reCAPTCHA. Please try again."
-
-    if result.get("success"):
-        return True, ""
-
-    return False, "reCAPTCHA verification failed. Please try again."
-
-
 def friendly_password_validation(password, password2):
     if not password:
         return "Please enter your new password."
@@ -177,22 +138,6 @@ def register_view(request):
             {"error": "Password and Retype Password do not match."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    if (
-        getattr(settings, "REGISTRATION_RECAPTCHA_ENABLED", False)
-        and (settings.RECAPTCHA_REQUIRED or settings.RECAPTCHA_SECRET_KEY)
-    ):
-        recaptcha_token = str(data.get("recaptcha_token", "")).strip()
-        recaptcha_valid, recaptcha_error = verify_recaptcha(
-            recaptcha_token,
-            request.META.get("REMOTE_ADDR", ""),
-        )
-
-        if not recaptcha_valid:
-            return Response(
-                {"error": recaptcha_error},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
     if find_user_by_mykad_identifier(mykad_number or username):
         return Response(

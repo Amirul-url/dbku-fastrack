@@ -224,12 +224,3 @@ video {
   max-width: 100%;
 }
 
-/* Center the Google reCAPTCHA image challenge wrapper on desktop. */
-body > div:has(iframe[src*="google.com/recaptcha/api2/bframe"]),
-body > div:has(iframe[src*="recaptcha.net/recaptcha/api2/bframe"]) {
-  position: fixed !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  z-index: 2147483647 !important;
-}
