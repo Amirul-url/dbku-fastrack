@@ -56,6 +56,16 @@ Views and serializers now delegate activity-specific work to this service layer.
 
 `ApplicationViewSet` still orchestrates the HTTP update flow, but the workflow authorization rules now live in the application domain service layer.
 
+`applications.services.summary` owns:
+
+- applicant display-name and registered-name derivation
+- applicant profile payload construction for application responses
+- project location summary derivation
+- latest display remark selection by workflow status
+- application summary field synchronization from form data
+
+Serializers still shape API responses, but application summary and profile derivation now live in the application domain service layer.
+
 `accounts.services.identity` owns:
 
 - MyKad/date-of-birth/gender inference
@@ -69,7 +79,7 @@ Accounts views still orchestrate HTTP registration/login/profile flows, but iden
 ## Next Safe Steps
 
 1. Split the large notification service into smaller files by channel and event group.
-2. Move application summary/remark derivation from serializers into an application query/service module.
-3. Extract account lookup and password-reset delivery helpers into service modules.
+2. Extract account lookup and password-reset delivery helpers into service modules.
+3. Split application list/query filtering into a dedicated query module if it keeps growing.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.
