@@ -56,10 +56,20 @@ Views and serializers now delegate activity-specific work to this service layer.
 
 `ApplicationViewSet` still orchestrates the HTTP update flow, but the workflow authorization rules now live in the application domain service layer.
 
+`accounts.services.identity` owns:
+
+- MyKad/date-of-birth/gender inference
+- user profile payload construction
+- auth response payload construction
+- name, MyKad, mobile, and address normalization helpers
+- login session payload/duration helpers
+
+Accounts views still orchestrate HTTP registration/login/profile flows, but identity formatting and payload construction now live in the account domain service layer.
+
 ## Next Safe Steps
 
-1. Extract account payload/auth helpers to `accounts.services.identity`.
-2. Split the large notification service into smaller files by channel and event group.
-3. Move application summary/remark derivation from serializers into an application query/service module.
+1. Split the large notification service into smaller files by channel and event group.
+2. Move application summary/remark derivation from serializers into an application query/service module.
+3. Extract account lookup and password-reset delivery helpers into service modules.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.
