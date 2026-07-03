@@ -40,10 +40,6 @@ import {
   normalizeStatus,
 } from "../../utils/workflow";
 import {
-  buildAdvertisementLicenseHtml,
-  openAdvertisementLicenseDocument,
-} from "../../utils/advertisementLicenseDocument";
-import {
   getApplicantRecordSeen,
   getRecordUpdatedTime,
   markApplicantRecordSeen,
@@ -83,6 +79,7 @@ function UserDashboard() {
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
+  const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -253,6 +250,7 @@ function UserDashboard() {
       setLicensePanelOpen(false);
       setSelectedApplication(null);
       setPaymentReceipt(null);
+      setReceiptSuccessOpen(false);
       setMessage({ type: "", text: "" });
     }
   }
@@ -313,6 +311,7 @@ function UserDashboard() {
     setLicensePanelOpen(false);
     setSelectedApplication(null);
     setPaymentReceipt(null);
+    setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     setSearchParams({ tab: "status" });
   }
@@ -327,6 +326,7 @@ function UserDashboard() {
     setLicensePanelOpen(false);
     setSelectedApplication(null);
     setPaymentReceipt(null);
+    setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     const params = { tab: "status" };
     if (nextStatusFilter !== "all") {
@@ -391,11 +391,13 @@ function UserDashboard() {
       const submittedApplication = updatedApplication?.id ? updatedApplication : nextApplication;
       markApplicationSeen("all", submittedApplication);
       await fetchApplications();
-      setLicensePanelOpen(false);
-      setSelectedApplication(null);
-      setPaymentReceipt(null);
+      setSelectedId(String(submittedApplication.id));
+      setLicensePanelOpen(true);
+      setSelectedApplication(submittedApplication);
+      setPaymentReceipt(submittedApplication.form_data?.payment?.receipt_file || receiptFile);
+      setReceiptSuccessOpen(true);
       setMessage({ type: "", text: "" });
-      setSearchParams({ tab: "status" });
+      setSearchParams({ tab: "status", id: String(submittedApplication.id) });
     } catch (err) {
       setMessage({ type: "error", text: err.message || t("applicant.paymentSubmissionFailed") });
     } finally {
@@ -577,7 +579,49 @@ function UserDashboard() {
           />
         )
       )}
+
+      {receiptSuccessOpen && (
+        <ReceiptSubmittedModal
+          t={t}
+          onClose={() => setReceiptSuccessOpen(false)}
+        />
+      )}
     </UserDashboardLayout>
+  );
+}
+
+function ReceiptSubmittedModal({ t, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="receipt-submitted-title"
+    >
+      <div className="w-full max-w-[680px] rounded-lg border-2 border-slate-900 bg-white px-6 py-7 text-center shadow-xl sm:px-10">
+        <img
+          src="/green_tick.png"
+          alt=""
+          className="mx-auto h-44 w-44 object-contain"
+        />
+        <h2
+          id="receipt-submitted-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {t("applicant.receiptSuccessTitle", "SUCCESS!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium text-black">
+          {t("applicant.receiptSubmittedModalMessage", "Receipt Submitted!")}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1290,7 +1334,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                         : item.type === "advertisement_license"
                         ? item.file
                           ? openApplicantPaymentDocument(item.file, t)
-                          : openAdvertisementLicenseDocument(app, t)
+                          : openApplicantBlankAdvertisementLicenseDocument(app, t)
                         : item.file
                         ? openApplicantPaymentDocument(item.file, t)
                         : openApplicantManualPaymentDocument(app, item.type, t)
@@ -2535,13 +2579,71 @@ async function downloadApplicantManualPaymentDocument(app, type, t) {
 async function downloadApplicantAdvertisementLicenseDocument(app, t) {
   try {
     await printHtmlDocument(
-      buildAdvertisementLicenseHtml(app, t),
+      buildApplicantBlankAdvertisementLicenseHtml(app, t),
       `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
     );
   } catch (err) {
     console.error("Failed to download advertisement license:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
+}
+
+function openApplicantBlankAdvertisementLicenseDocument(app, t) {
+  const html = buildApplicantBlankAdvertisementLicenseHtml(app, t);
+  const previewUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  const preview = window.open(previewUrl, "_blank");
+
+  if (!preview) {
+    URL.revokeObjectURL(previewUrl);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    return;
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
+}
+
+function buildApplicantBlankAdvertisementLicenseHtml(app, t) {
+  const title = `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; font-family: Arial, sans-serif; color: #0f172a; }
+    .blank-license-page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 22mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .blank-license-message { max-width: 92mm; font-size: 12pt; font-weight: 700; line-height: 1.45; color: #475569; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
+    @media print {
+      html, body { width: 210mm; min-height: 297mm; overflow: hidden; background: #fff; }
+      .blank-license-page { margin: 0; }
+      .print-actions { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">Print</button></div>
+  <main class="blank-license-page">
+    <p class="blank-license-message">${escapeHtml(
+      t("workspace.license.blankTemplateMessage", "Advertisement License template will be added later.")
+    )}</p>
+  </main>
+</body>
+</html>`;
 }
 
 function getApplicantManualPaymentDocumentHtml(app, type, t) {

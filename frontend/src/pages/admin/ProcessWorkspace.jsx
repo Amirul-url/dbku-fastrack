@@ -48,8 +48,6 @@ import {
 } from "../../utils/workflow";
 import {
   DEFAULT_ADVERTISEMENT_LICENSE_TERMS,
-  buildAdvertisementLicenseHtml as buildAdvertisementLicenseDocumentHtml,
-  buildManualAdvertisementLicenseForIssuance,
   getAdvertisementLicenseDraftFields,
 } from "../../utils/advertisementLicenseDocument";
 import {
@@ -3550,6 +3548,189 @@ function buildManualBillTemplateBodyHtml(app = null) {
       </footer>
     </section>
   `;
+}
+
+function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
+  const details = getManualBillDetails(app);
+  const receiptNo = getGeneratedOfficialReceiptNumber(app);
+  const paymentRows = getGeneratedOfficialReceiptRows(details);
+  const total = Number.isFinite(details.total) ? details.total : getGeneratedOfficialReceiptTotal(paymentRows);
+  const totalParts = splitRinggitSen(total);
+  const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku-black_white.png");
+  const receiptDate =
+    app?.form_data?.approval_letter?.manual_receipt?.generated_at ||
+    app?.form_data?.payment?.verified_at ||
+    new Date().toISOString();
+  const receivedFrom = details.recipientName || getApplicantName(app) || "-";
+  const ringgitText = formatGeneratedOfficialReceiptAmountText(total);
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(getApplicationReference(app))} Official Receipt</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; color: #000; font-family: "Times New Roman", Times, serif; }
+    .receipt-page { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 10mm 9mm; overflow: hidden; }
+    .receipt-content { width: 100%; transform: scale(.94); transform-origin: top left; }
+    .receipt-header { position: relative; min-height: 34mm; }
+    .crest { position: absolute; left: 0; top: 0; width: 43mm; display: flex; justify-content: center; }
+    .crest img { width: 40mm; max-height: 31mm; object-fit: contain; }
+    .heading { text-align: center; font-family: "Times New Roman", Times, serif; font-weight: 700; line-height: 1.03; }
+    .receipt-header .heading { width: 126mm; margin: 0 auto; padding-top: 1mm; }
+    .heading .mayor { font-size: 14pt; letter-spacing: 0; }
+    .heading .commissioner { margin-top: .4mm; font-size: 10pt; }
+    .heading .agency { margin-top: .5mm; font-size: 10pt; }
+    .heading .address { margin-top: .5mm; font-size: 9pt; line-height: 1.08; }
+    .copy { position: absolute; right: 4mm; top: 1mm; width: 52mm; text-align: center; font-size: 12pt; line-height: 1.15; }
+    .copy-code { display: block; width: 100%; text-align: center; font-weight: 400; transform: translateX(4mm); }
+    .copy-label { display: block; margin-top: 8mm; font-weight: 700; }
+    .title-row { display: grid; grid-template-columns: 1fr 45mm; align-items: baseline; margin: 8mm 0 5mm; padding-left: 43mm; }
+    .title { text-align: center; font-size: 24pt; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .number { font-size: 19pt; font-weight: 800; white-space: nowrap; }
+    .number span { color: #f00; font-size: 21pt; letter-spacing: .06em; }
+    .content-grid { display: grid; grid-template-columns: minmax(0,1fr) 91mm; gap: 10mm; align-items: start; }
+    .meta { padding-top: 19mm; font-size: 12.5pt; font-weight: 700; }
+    .dot-line { display: grid; grid-template-columns: auto 1fr; gap: 1.2mm; align-items: end; margin-bottom: 6mm; }
+    .dots { border-bottom: 1.4px dotted #111; min-height: 6mm; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5pt; font-weight: 700; }
+    th, td { border: 1.25px solid #111; height: 5.8mm; padding: .5mm 1.2mm; }
+    th { text-align: center; line-height: 1.1; }
+    td.amount { text-align: right; }
+    .credit { width: 53mm; }
+    .rm { width: 27mm; }
+    .sen { width: 11mm; }
+    .total-label { border: 0; text-align: right; font-size: 12.5pt; }
+    .received { margin-top: 8mm; font-size: 12.5pt; font-weight: 700; line-height: 1.35; }
+    .received-row { display: grid; grid-template-columns: auto 1fr; gap: 3mm; align-items: end; min-height: 6.6mm; }
+    .solid-line { border-bottom: 1.25px solid #111; min-height: 5.6mm; line-height: 5mm; padding-left: 1.5mm; font-weight: 400; }
+    .blank-line { border-bottom: 1.25px solid #111; height: 6.5mm; }
+    .footer { display: grid; grid-template-columns: 30mm minmax(0,1fr) 51mm; gap: 10mm; align-items: end; margin-top: 8mm; }
+    .payment-mode { font-size: 11.5pt; font-weight: 800; line-height: 1.05; }
+    .payment-mode .cash { display: inline-block; min-width: 23mm; border-bottom: 1.3px solid #111; text-align: center; }
+    .bank-note { text-align: center; font: 700 7.5pt Arial, sans-serif; line-height: 1.2; }
+    .bank-note em { font-size: 7.5pt; }
+    .signature { text-align: center; font-size: 10.5pt; font-weight: 700; }
+    .signature .line { border-bottom: 1.6px dotted #111; height: 6mm; margin-bottom: .5mm; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
+    @media print {
+      html, body { width: 210mm; height: 297mm; overflow: hidden; background: #fff; }
+      .receipt-page { margin: 0; box-shadow: none; page-break-after: avoid; break-after: avoid; }
+      .print-actions { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">Print</button></div>
+  <section class="receipt-page">
+    <div class="receipt-content">
+    <header class="receipt-header">
+      <div class="crest"><img src="${escapeHtml(dbkuLogoUrl)}" alt="DBKU" /></div>
+      <div class="heading">
+        <div class="mayor">DATUK BANDAR KUCHING UTARA</div>
+        <div class="commissioner">(THE COMMISSIONER OF THE CITY OF KUCHING NORTH)</div>
+        <div class="agency">DEWAN BANDARAYA KUCHING UTARA</div>
+        <div class="address">Bukit Siol, Jalan Semariang, Petra Jaya,<br />93050 Kuching, Sarawak, Malaysia</div>
+      </div>
+      <div class="copy"><span class="copy-code">ACC 3/88</span><span class="copy-label">Salinan Bahagian</span></div>
+    </header>
+
+    <div class="title-row">
+      <div class="title">Official Receipt</div>
+      <div class="number">No. <span>${escapeHtml(receiptNo)}</span></div>
+    </div>
+
+    <div class="content-grid">
+      <div class="meta">
+        <div class="dot-line"><span>Station</span><span class="dots">${escapeHtml(details.preparedBy || "DBKU")}</span></div>
+        <div class="dot-line"><span>Date</span><span class="dots">${escapeHtml(formatManualApprovalLetterDate(receiptDate))}</span></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="credit">For credit of</th>
+            <th colspan="2">Amount<br />RM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sen</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${paymentRows.map((row) => {
+            const parts = splitRinggitSen(row.amount);
+            return `<tr><td>${escapeHtml(row.item)}</td><td class="amount rm">${escapeHtml(parts.ringgit)}</td><td class="amount sen">${escapeHtml(parts.sen)}</td></tr>`;
+          }).join("")}
+          ${Array.from({ length: Math.max(0, 5 - paymentRows.length) })
+            .map(() => `<tr><td>&nbsp;</td><td class="amount rm"></td><td class="amount sen"></td></tr>`)
+            .join("")}
+          <tr>
+            <td class="total-label">TOTAL RM</td>
+            <td class="amount rm">${escapeHtml(totalParts.ringgit)}</td>
+            <td class="amount sen">${escapeHtml(totalParts.sen)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <section class="received">
+      <div class="received-row"><span>RECEIVED from</span><span class="solid-line">${escapeHtml(receivedFrom)}</span></div>
+      <div class="received-row"><span>the sum of Ringgit</span><span class="solid-line">${escapeHtml(ringgitText)}</span></div>
+      <div class="received-row"><span>and Sen</span><span class="solid-line">${escapeHtml(totalParts.sen)}</span></div>
+      <div class="blank-line"></div>
+      <div class="blank-line"></div>
+      <div class="blank-line"></div>
+    </section>
+
+    <footer class="footer">
+      <div class="payment-mode"><span class="cash">CASH</span><br />CHEQUE NO.<br /><span style="font-size:9pt;font-weight:700;">PNMB,Kch.</span></div>
+      <div class="bank-note">Pembayaran ini hanya dianggap sah setelah cek diperakui oleh bank<br /><em>Payment valid only upon clearance of cheques</em></div>
+      <div class="signature"><div class="line"></div>b.p. Datuk Bandar</div>
+    </footer>
+    </div>
+  </section>
+</body>
+</html>`;
+}
+
+function getGeneratedOfficialReceiptRows(details = {}) {
+  const rows = Array.isArray(details.rows) ? details.rows : [];
+  return rows
+    .filter((row) => Number.isFinite(parseCurrencyAmount(row.amount)) && parseCurrencyAmount(row.amount) > 0)
+    .map((row) => ({
+      item: row.item || "",
+      amount: parseCurrencyAmount(row.amount),
+    }))
+    .slice(0, 5);
+}
+
+function getGeneratedOfficialReceiptTotal(rows = []) {
+  return rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+}
+
+function splitRinggitSen(value) {
+  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+  const fixed = amount.toFixed(2);
+  const [ringgit, sen] = fixed.split(".");
+  return {
+    ringgit: Number(ringgit || 0).toLocaleString("en-MY"),
+    sen: sen || "00",
+  };
+}
+
+function formatGeneratedOfficialReceiptAmountText(value) {
+  const amount = Number.isFinite(Number(value)) ? Number(value) : 0;
+  return `Ringgit Malaysia ${formatManualApprovalLetterAmount(amount)} sahaja`;
+}
+
+function getGeneratedOfficialReceiptNumber(app = null) {
+  const existing =
+    app?.form_data?.approval_letter?.manual_receipt?.receipt_no ||
+    app?.form_data?.payment?.official_receipt_no;
+  if (existing) return String(existing);
+
+  const referenceDigits = String(getApplicationReference(app) || app?.reference_no || "")
+    .match(/(\d+)$/)?.[1];
+  return String(referenceDigits || app?.id || 1).padStart(6, "0");
 }
 
 function formatManualApprovalLetterDate(value) {
@@ -11527,18 +11708,12 @@ const configs = {
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
         requiresPaymentDocuments: true,
-        requiresOfficialReceipt: true,
-        requiresLicenseDocument: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
         buildPayload: (app, data) => {
           const now = new Date();
           const timestamp = now.toISOString();
           const savedApprovalLetter = app.form_data?.approval_letter || {};
-          const savedOfficialReceipt =
-            getStoredPaymentDocument(app, "official_receipt") ||
-            savedApprovalLetter.official_receipt_file ||
-            {};
           const savedLicense = app.form_data?.license || {};
           const validityYears = Number(savedLicense.validity_years) || 1;
           const issueDate = parseDateOrFallback(savedLicense.issue_date, now);
@@ -11547,6 +11722,49 @@ const configs = {
             addCalendarYears(issueDate, validityYears)
           );
           const licenseId = savedLicense.license_id || getLicenseId(app);
+          const officialReceiptNo = getGeneratedOfficialReceiptNumber(app);
+          const { document_html: _oldReceiptHtml, ...savedManualReceipt } =
+            savedApprovalLetter.manual_receipt || {};
+          const { manual_license: _oldManualLicense, ...savedLicenseWithoutManualTemplate } =
+            savedLicense || {};
+          const nextLicenseBase = {
+            ...savedLicenseWithoutManualTemplate,
+            creation_mode: "generated",
+            license_file: null,
+            license_id: licenseId,
+            status: "Active",
+            holder: getApplicantName(app),
+            type: getApplicationType(app),
+            location: getApplicationLocation(app),
+            issue_date: issueDate.toISOString(),
+            expiry_date: expiryDate.toISOString(),
+            validity_years: validityYears,
+            verification_url: getLicenseVerificationUrl(licenseId),
+            issued_at: timestamp,
+            renewal_reminders: [
+              { months_before_expiry: 3, status: "Scheduled" },
+              { months_before_expiry: 2, status: "Scheduled" },
+              { months_before_expiry: 1, status: "Scheduled" },
+            ],
+          };
+          const documentApp = {
+            ...app,
+            form_data: {
+              ...(app.form_data || {}),
+              approval_letter: {
+                ...savedApprovalLetter,
+                manual_receipt: {
+                  ...savedManualReceipt,
+                  receipt_no: officialReceiptNo,
+                },
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                official_receipt_no: officialReceiptNo,
+              },
+              license: nextLicenseBase,
+            },
+          };
 
           return {
             status: "license_issued",
@@ -11554,14 +11772,22 @@ const configs = {
             form_data: mergeFormData(app, {
               approval_letter: {
                 ...savedApprovalLetter,
-                official_receipt_file: {
-                  ...stripLocalPaymentDocumentPreview(savedOfficialReceipt),
+                official_receipt_file: null,
+                manual_receipt: {
+                  ...savedManualReceipt,
+                  template: "dbku_official_receipt_acc_3_88_v1",
+                  name: "Official Receipt",
+                  receipt_no: officialReceiptNo,
                   status: "Sent to Applicant",
+                  generated_by: "PT(IKL)",
+                  generated_at: timestamp,
+                  saved_at: timestamp,
                   sent_at: timestamp,
                 },
               },
               payment: {
                 ...(app.form_data?.payment || {}),
+                official_receipt_no: officialReceiptNo,
                 status: "Payment Verified",
                 recommendation: "Verify Receipt",
                 receipt_decision: "Verify Receipt",
@@ -11570,23 +11796,8 @@ const configs = {
                 verified_at: timestamp,
               },
               license: {
-                ...savedLicense,
-                creation_mode: "upload",
-                license_id: licenseId,
-                status: "Active",
-                holder: getApplicantName(app),
-                type: getApplicationType(app),
-                location: getApplicationLocation(app),
-                issue_date: issueDate.toISOString(),
-                expiry_date: expiryDate.toISOString(),
-                validity_years: validityYears,
-                verification_url: getLicenseVerificationUrl(licenseId),
-                issued_at: timestamp,
-                renewal_reminders: [
-                  { months_before_expiry: 3, status: "Scheduled" },
-                  { months_before_expiry: 2, status: "Scheduled" },
-                  { months_before_expiry: 1, status: "Scheduled" },
-                ],
+                ...nextLicenseBase,
+                manual_license: null,
               },
             }),
           };
@@ -14958,6 +15169,7 @@ function PaymentDetails({
     showVerificationUploads || (canShowSavedIssueDocuments && Boolean(licenseFile));
   const showQrPanel = false;
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("bank");
+  const [generatedDocumentReview, setGeneratedDocumentReview] = useState(null);
 
   const officialReceiptUploadSection = showOfficialReceiptSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
@@ -15129,19 +15341,29 @@ function PaymentDetails({
   const verificationDocuments = [
     {
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
-      file: officialReceiptFile,
       required: showVerificationUploads,
-      canUpload: showVerificationUploads,
-      onFileChange: (file) => onPaymentDocumentUpload?.("official_receipt", file),
-      onDelete: () => onPaymentDocumentDelete?.("official_receipt", officialReceiptFile),
+      displayName: t("workspace.payment.autoGeneratedDocumentReady", "Auto-generated document ready."),
+      onReview: () =>
+        setGeneratedDocumentReview({
+          title: t("workspace.payment.reviewGeneratedDocument", "Review"),
+          reference: getApplicationReference(app),
+          html: getGeneratedOfficialReceiptDocumentHtml(app),
+          scale: 0.95,
+        }),
+      onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
     },
     {
       label: t("workspace.license.documentTitle", "Advertisement License"),
-      file: licenseFile,
       required: showVerificationUploads,
-      canUpload: showVerificationUploads,
-      onFileChange: (file) => onLicenseDocumentUpload?.(file),
-      onDelete: () => onLicenseDocumentDelete?.(licenseFile),
+      displayName: t("workspace.payment.autoGeneratedDocumentReady", "Auto-generated document ready."),
+      onReview: () =>
+        setGeneratedDocumentReview({
+          title: t("workspace.payment.reviewGeneratedDocument", "Review"),
+          reference: getApplicationReference(app),
+          html: buildBlankAdvertisementLicenseDocumentHtml(app, t),
+          scale: 0.72,
+        }),
+      onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
     },
   ];
 
@@ -15149,45 +15371,58 @@ function PaymentDetails({
     <PaymentVerificationDocumentList
       t={t}
       saving={saving}
-      canUploadIssueDocuments={showVerificationUploads}
       documents={verificationDocuments}
     />
   ) : null;
 
   return (
-    <div className={showQrPanel ? "grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]" : "text-sm"}>
-      {showQrPanel && <PaymentQrPanel app={app} t={t} />}
+    <>
+      <div className={showQrPanel ? "grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.85fr)_minmax(0,1.75fr)]" : "text-sm"}>
+        {showQrPanel && <PaymentQrPanel app={app} t={t} />}
 
-      <div className="space-y-4">
-        {isIssuedLicenseView ? (
-          <>
-            {issuedDocumentSection}
-            {receiptSection}
-          </>
-        ) : isReceiptVerification ? (
-          <>
-            {verificationDocumentSection}
-            {receiptSection}
-          </>
-        ) : (
-          <>
+        <div className="space-y-4">
+          {isIssuedLicenseView ? (
+            <>
+              {issuedDocumentSection}
+              {receiptSection}
+            </>
+          ) : isReceiptVerification ? (
             <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               {documentPreviewSection}
               <div className="space-y-4">
-                {documentSection}
+                {verificationDocumentSection}
                 {receiptSection}
               </div>
             </div>
-            {(showOfficialReceiptSection || showLicenseDocumentSection) && (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {officialReceiptUploadSection}
-                {licenseUploadSection}
+          ) : (
+            <>
+              <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+                {documentPreviewSection}
+                <div className="space-y-4">
+                  {documentSection}
+                  {receiptSection}
+                </div>
               </div>
-            )}
-          </>
-        )}
+              {(showOfficialReceiptSection || showLicenseDocumentSection) && (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {officialReceiptUploadSection}
+                  {licenseUploadSection}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+
+      {generatedDocumentReview && (
+        <GeneratedDocumentReviewModal
+          document={generatedDocumentReview}
+          t={t}
+          saving={saving}
+          onClose={() => setGeneratedDocumentReview(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -15299,27 +15534,16 @@ function IssuedPaymentDocumentList({ t, documents }) {
   );
 }
 
-function PaymentVerificationDocumentList({ t, documents, saving, canUploadIssueDocuments }) {
+function PaymentVerificationDocumentList({ t, documents, saving }) {
   return (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
-        <p className="text-sm font-semibold text-slate-950">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
           {t("workspace.payment.documents", "List of Document")}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">
-          {canUploadIssueDocuments
-            ? t(
-                "workspace.payment.verifyDocumentListDesc",
-                "View payment documents, then upload the official receipt and advertisement license."
-              )
-            : t(
-                "workspace.payment.verifyDocumentListPendingDesc",
-                "Select Verify Receipt to upload the official receipt and advertisement license."
-              )}
         </p>
       </div>
 
-      <div className="divide-y divide-slate-200">
+      <div className="grid grid-cols-1 gap-3 py-3">
         {documents.map((item) => (
           <PaymentVerificationDocumentRow
             key={item.label}
@@ -15334,84 +15558,174 @@ function PaymentVerificationDocumentList({ t, documents, saving, canUploadIssueD
 }
 
 function PaymentVerificationDocumentRow({ item, t, saving }) {
-  const fileSource = getPaymentDocumentSource(item.file);
-  const hasFile = Boolean(fileSource);
-
   return (
-    <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <AutoGeneratedPaymentDocumentSlot
+      label={item.label}
+      t={t}
+      required={item.required}
+      saving={saving}
+      displayName={item.displayName}
+      onReview={item.onReview}
+      onDownload={item.onDownload}
+    />
+  );
+}
+
+function AutoGeneratedPaymentDocumentSlot({
+  label,
+  t,
+  required = false,
+  saving,
+  displayName = "",
+  onReview,
+  onDownload,
+}) {
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 py-3 pl-3 pr-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-          {item.label}
-          {item.required && <span className="text-red-600"> *</span>}
+          {label}
+          {required && <span className="ml-1 text-red-600">*</span>}
         </p>
-        <p className={`mt-1 truncate text-sm font-semibold ${hasFile ? "text-slate-950" : "text-slate-900"}`}>
-          {item.file?.name || t("workspace.info.notUploaded", "Not uploaded")}
-        </p>
-        {item.canUpload && !hasFile && (
-          <p className="mt-0.5 text-xs text-slate-500">
-            PDF, JPG, or PNG
+        {displayName && (
+          <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+            {displayName}
           </p>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {hasFile && (
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              icon="visibility"
-              className="min-h-9 px-3 py-1 text-xs"
-              onClick={() => openPaymentDocument(item.file, t)}
-            >
-              {t("common.view", "View")}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              icon="download"
-              className="min-h-9 px-3 py-1 text-xs"
-              onClick={() => downloadPaymentDocument(item.file, item.label, t)}
-            >
-              {t("common.download", "Download")}
-            </Button>
-          </>
-        )}
-
-        {item.canUpload && !hasFile && (
-          <>
-            <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              <Icon name="upload_file" className="text-[17px]" />
-              {t("common.uploadFile", "Upload File")}
-              <input
-                type="file"
-                accept="application/pdf,image/png,image/jpeg"
-                className="hidden"
-                disabled={saving}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) item.onFileChange?.(file);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-          </>
-        )}
-        {item.canUpload && hasFile && (
-          <Button
-            type="button"
-            variant="secondary"
-            icon="delete"
-            className="min-h-9 px-3 py-1 text-xs text-red-700"
-            disabled={saving}
-            onClick={item.onDelete}
-          >
-            {t("common.remove", "Remove")}
-          </Button>
-        )}
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          icon="download"
+          className="min-h-9 px-3 py-1 text-xs"
+          disabled={saving}
+          onClick={onDownload}
+        >
+          {t("common.download", "Download")}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          icon="edit"
+          className="min-h-9 px-3 py-1 text-xs"
+          disabled={saving}
+          onClick={onReview}
+        >
+          {t("workspace.payment.reviewGeneratedDocument", "Review")}
+        </Button>
       </div>
     </div>
   );
+}
+
+function GeneratedDocumentReviewModal({ document, t, saving, onClose }) {
+  const html = hidePrintActionsInReviewDocument(document?.html || "", document?.scale);
+  const iframeRef = useRef(null);
+  const [iframeHeight, setIframeHeight] = useState(720);
+
+  useEffect(() => {
+    setIframeHeight(720);
+  }, [html]);
+
+  const resizeIframe = useCallback(() => {
+    const frameDocument = iframeRef.current?.contentDocument;
+    if (!frameDocument) return;
+
+    const nextHeight = Math.max(
+      frameDocument.documentElement?.scrollHeight || 0,
+      frameDocument.body?.scrollHeight || 0,
+      720
+    );
+    setIframeHeight(Math.ceil(nextHeight + 18));
+  }, []);
+
+  function handleIframeLoad() {
+    resizeIframe();
+    window.setTimeout(resizeIframe, 300);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6">
+      <div className="max-h-[92vh] w-full max-w-[min(96vw,72rem)] overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <p className="text-[13px] font-semibold leading-5 text-slate-950">
+              {document?.title || t("workspace.payment.reviewGeneratedDocument", "Review")}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-slate-500">
+              {document?.reference}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              icon="save"
+              className="min-h-9 px-3 py-1.5"
+              disabled={saving}
+              onClick={onClose}
+            >
+              {saving ? t("workspace.saving", "Saving...") : t("common.save", "Save")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="close"
+              className="min-h-9 w-9 px-0 py-0"
+              disabled={saving}
+              onClick={onClose}
+              aria-label={t("common.close", "Close")}
+              title={t("common.close", "Close")}
+            />
+          </div>
+        </div>
+
+        <div className="max-h-[calc(92vh-64px)] overflow-y-auto bg-slate-100 px-4 py-5">
+          <div className={document?.allowHorizontalScroll ? "overflow-x-auto" : ""}>
+            <iframe
+              ref={iframeRef}
+              title={document?.title || "Generated document preview"}
+              srcDoc={html}
+              scrolling="no"
+              onLoad={handleIframeLoad}
+              style={{ height: `${iframeHeight}px` }}
+              className={`mx-auto block border-0 bg-transparent ${
+                document?.allowHorizontalScroll ? "w-[1050px] max-w-none" : "w-full max-w-[58rem]"
+              }`}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function hidePrintActionsInReviewDocument(html, scale = 0.72) {
+  if (!html) return "";
+  const safeScale = Number.isFinite(Number(scale)) ? Number(scale) : 0.72;
+  const reviewCss = `<style>
+    @media screen {
+      html { background: #f1f5f9 !important; }
+      body {
+        margin: 0 !important;
+        background: #f1f5f9 !important;
+        overflow: ${safeScale >= 0.85 ? "visible" : "hidden"} !important;
+        zoom: ${safeScale};
+      }
+      .print-actions { display: none !important; }
+      .receipt-page,
+      .page {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, .12) !important;
+      }
+    }
+  </style>`;
+  return html.includes("</head>")
+    ? html.replace("</head>", `${reviewCss}</head>`)
+    : `${reviewCss}${html}`;
 }
 
 function PaymentApprovalDocumentTabs({
@@ -16083,6 +16397,118 @@ async function printPaymentReceiptDocument(file, fallbackLabel, title, t) {
     console.error("Failed to print payment receipt:", error);
     window.alert(t("workspace.info.receiptViewFailed", "Unable to open the receipt. Please try again."));
   }
+}
+
+function openHtmlPreviewDocument(html, title, t) {
+  const previewUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  const preview = window.open(previewUrl, "_blank");
+
+  if (!preview) {
+    URL.revokeObjectURL(previewUrl);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    return;
+  }
+
+  preview.document.title = title;
+  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
+}
+
+function getGeneratedOfficialReceiptDocumentHtml(app) {
+  return buildGeneratedOfficialReceiptDocumentHtml(app);
+}
+
+function openGeneratedOfficialReceiptDocument(app, t) {
+  try {
+    openHtmlPreviewDocument(
+      getGeneratedOfficialReceiptDocumentHtml(app),
+      `${getApplicationReference(app)} ${t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}`,
+      t
+    );
+  } catch (error) {
+    console.error("Failed to open official receipt:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function openGeneratedAdvertisementLicenseDocument(app, t) {
+  try {
+    openHtmlPreviewDocument(
+      buildBlankAdvertisementLicenseDocumentHtml(app, t),
+      `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`,
+      t
+    );
+  } catch (error) {
+    console.error("Failed to open advertisement license:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+async function printGeneratedOfficialReceiptDocument(app, t) {
+  try {
+    await printHtmlDocument(
+      getGeneratedOfficialReceiptDocumentHtml(app),
+      `${getApplicationReference(app)} ${t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}`
+    );
+  } catch (error) {
+    console.error("Failed to print official receipt:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+async function printBlankAdvertisementLicenseDocument(app, t) {
+  try {
+    await printHtmlDocument(
+      buildBlankAdvertisementLicenseDocumentHtml(app, t),
+      `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
+    );
+  } catch (error) {
+    console.error("Failed to print advertisement license:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
+  const title = `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`;
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; font-family: Arial, sans-serif; color: #0f172a; }
+    .blank-license-page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 22mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .blank-license-message { max-width: 92mm; font-size: 12pt; font-weight: 700; line-height: 1.45; color: #475569; }
+    .print-actions { position: fixed; right: 18px; top: 18px; }
+    .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
+    @media print {
+      html, body { width: 210mm; min-height: 297mm; overflow: hidden; background: #fff; }
+      .blank-license-page { margin: 0; }
+      .print-actions { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions"><button onclick="window.print()">Print</button></div>
+  <main class="blank-license-page">
+    <p class="blank-license-message">${escapeHtml(
+      t("workspace.license.blankTemplateMessage", "Advertisement License template will be added later.")
+    )}</p>
+  </main>
+</body>
+</html>`;
 }
 
 function getPaymentQrSvgBlob(qrContainer) {
