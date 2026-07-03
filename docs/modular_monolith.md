@@ -26,6 +26,7 @@ These Django apps are modules inside the same backend process. They should commu
 - Owns notification delivery records and outbound channels.
 - May read application data to compose messages, but workflow mutations should stay in `applications`.
 - Exposes reusable formatting/recipient helpers from `notifications.formatting`.
+- Exposes outbound delivery channel helpers from `notifications.channels`.
 
 ## Extracted Boundaries
 
@@ -88,9 +89,20 @@ Accounts views still orchestrate HTTP registration/login/profile flows, but iden
 
 Notification services still orchestrate event routing and delivery creation, but shared formatting helpers now live outside the large notification service file.
 
+`notifications.channels` owns:
+
+- email sender provider selection
+- SMTP and Brevo email payload delivery
+- WhatsApp provider selection
+- webhook, Evolution API, and Meta WhatsApp payload delivery
+- notification channel configuration checks and skip reasons
+- test email redirection handling
+
+`notifications.services` still exposes the same channel function names for compatibility, but the outbound delivery implementation now lives in the notification channel module.
+
 ## Next Safe Steps
 
-1. Extract notification channel delivery senders into a dedicated module while preserving existing import paths.
+1. Split notification event routing/message builders by application event group.
 2. Extract account lookup and password-reset delivery helpers into service modules.
 3. Split application list/query filtering into a dedicated query module if it keeps growing.
 

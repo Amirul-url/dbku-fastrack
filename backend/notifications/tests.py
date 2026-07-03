@@ -16,7 +16,7 @@ from .services import (
     notify_application_status_change,
     process_license_renewal_reminders,
 )
-from .services import send_brevo_email, send_smtp_email, send_webhook_whatsapp
+from .channels import send_brevo_email, send_smtp_email, send_webhook_whatsapp
 
 
 class NotificationSenderDefaultsTests(TestCase):
@@ -33,7 +33,7 @@ class NotificationSenderDefaultsTests(TestCase):
 
     @override_settings(DEFAULT_FROM_EMAIL="noreply@dbku.gov.my")
     def test_smtp_sender_uses_default_from_email(self):
-        with patch("notifications.services.EmailMultiAlternatives") as email_class:
+        with patch("notifications.channels.EmailMultiAlternatives") as email_class:
             send_smtp_email("applicant@example.com", "Subject", "Message")
 
         email_class.assert_called_once_with(
@@ -45,7 +45,7 @@ class NotificationSenderDefaultsTests(TestCase):
 
     @override_settings(BREVO_FROM_EMAIL="sender@example.com", BREVO_FROM_NAME="ALiS")
     def test_brevo_sender_uses_brevo_from_email(self):
-        with patch("notifications.services.post_json") as post_json:
+        with patch("notifications.channels.post_json") as post_json:
             send_brevo_email("applicant@example.com", "Subject", "Message")
 
         payload = post_json.call_args.args[1]
@@ -53,7 +53,7 @@ class NotificationSenderDefaultsTests(TestCase):
 
     @override_settings(WHATSAPP_WEBHOOK_URL="https://example.com/webhook", WHATSAPP_WEBHOOK_TOKEN="")
     def test_webhook_whatsapp_uses_superadmin_mobile_as_sender(self):
-        with patch("notifications.services.post_json") as post_json:
+        with patch("notifications.channels.post_json") as post_json:
             send_webhook_whatsapp("60198765432", "Message")
 
         payload = post_json.call_args.args[1]
