@@ -25,7 +25,6 @@ import {
   getRegisteredApplicantName,
   normalizeStatus,
 } from "../../utils/workflow";
-import { openAdvertisementLicenseDocument } from "../../utils/advertisementLicenseDocument";
 
 const TECHNICAL_DEPARTMENT_TASK_STATUSES = [
   "technical_review",
@@ -548,11 +547,6 @@ function RecentActivitiesPanel({
                 <p className="mt-1 text-sm font-semibold text-slate-700">
                   {activity.reference}
                 </p>
-                {activity.project && (
-                  <p className="mt-1 whitespace-pre-line text-sm text-slate-600">
-                    {formatActivityProjectText(activity.project)}
-                  </p>
-                )}
                 {activity.description && (
                   <p className="mt-1 text-xs text-slate-500">{activity.description}</p>
                 )}
@@ -1068,26 +1062,34 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
 
 function CompleteApplicationCard({ row, t, language = "en" }) {
   const app = row.application || {};
-  const [showVerificationReport, setShowVerificationReport] = useState(false);
-  const [showDecisionLog, setShowDecisionLog] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [activeLicenseTab, setActiveLicenseTab] = useState(canViewLicense(app) ? "qr" : "bank");
   const reference = row.reference || getApplicationReference(app);
   const statusLabel = t("status.license_issued", "E-License Generated");
   const updatedDate = app.updated_at || row.date;
   const licenseId = getLicenseId(app);
   const verificationUrl = getDashboardLicenseVerificationUrl(licenseId);
   const qrContainerRef = useRef(null);
-  const documents = getCompleteApplicationDocuments(app, t);
-  const applicantReceipt = getApplicantReceiptDocument(app, t);
-  const decisionLogs = buildDecisionLogReportRows(app, t);
   const viewPath = getResubmissionApplicationViewPath(
     row.applicationId,
     RESUBMISSION_DRILLDOWN_TYPES.complete,
     row.id
   );
+  const documents = [
+    {
+      type: "application_form",
+      label: t("applicant.submittedApplicationForm", "Application Form"),
+      name: t("applicant.submittedApplicationSteps", "Application Details"),
+      viewPath,
+    },
+    ...getCompleteApplicationDocuments(app, t),
+  ];
+  const applicantReceipt = getApplicantReceiptDocument(app, t);
+  const decisionLogs = buildDecisionLogReportRows(app, t);
 
   return (
-    <article className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
+    <article>
+      <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 md:grid-cols-4 md:items-center">
         <CompleteMetaBlock label={t("common.reference", "Reference")} value={reference} />
         <div>
           <p className="text-xs font-semibold uppercase text-slate-500">{t("common.status", "Status")}</p>
@@ -1095,50 +1097,23 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
         </div>
         <CompleteMetaBlock label={t("common.created", "Created")} value={formatCompactDateTime(app.created_at)} />
         <CompleteMetaBlock label={t("common.updated", "Updated")} value={formatCompactDateTime(updatedDate)} />
-        <Link
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          to={viewPath}
-        >
-          <span className="material-symbols-outlined text-[18px]">visibility</span>
-          {t("workspace.openForm", "View Form")}
-        </Link>
       </div>
 
-      <div className="mt-3 flex flex-wrap justify-end gap-2">
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
         <button
           type="button"
           className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          onClick={() => setShowDecisionLog((visible) => !visible)}
+          onClick={() => setShowReport((visible) => !visible)}
         >
           <span className="material-symbols-outlined text-[18px]">assignment</span>
-          {showDecisionLog
-            ? t("admin.dashboard.hideDecisionLog", "Hide Log Decision")
-            : t("admin.dashboard.showDecisionLog", "Log Decision")}
-        </button>
-        <button
-          type="button"
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          onClick={() => setShowVerificationReport((visible) => !visible)}
-        >
-          <span className="material-symbols-outlined text-[18px]">visibility</span>
-          {showVerificationReport
-            ? t("workspace.approval.hideVerificationReport", "Hide Verification Report")
-            : t("workspace.approval.verificationReport", "Verification Report")}
+          {showReport
+            ? t("workspace.approval.hideVerificationReport", "Hide Report")
+            : t("workspace.approval.showReport", "Show Report")}
         </button>
       </div>
 
-      {showDecisionLog && (
-        <DecisionLogReport
-          app={app}
-          logs={decisionLogs}
-          reference={reference}
-          t={t}
-          language={language}
-        />
-      )}
-
-      {showVerificationReport && (
-        <div className="mt-3">
+      {showReport && (
+        <div className="mt-4 space-y-3">
           <ApprovalTechnicalReviewSummary
             t={t}
             language={language}
@@ -1146,48 +1121,32 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
             technicalSite={app?.form_data?.technical_site_visit || {}}
             userDepartment="KB(LES)"
           />
+          <DecisionLogReport
+            app={app}
+            logs={decisionLogs}
+            reference={reference}
+            t={t}
+            language={language}
+          />
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(300px,32%)_1fr]">
-        <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
-          <div className="flex min-h-[330px] flex-col items-center justify-center gap-3 text-center">
-            {canViewLicense(app) ? (
-              <>
-                <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <QRCodeSVG
-                    value={verificationUrl}
-                    size={300}
-                    level="M"
-                    includeMargin
-                    className="h-auto max-w-full"
-                    role="img"
-                    aria-label="License verification QR"
-                  />
-                </div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{reference}</p>
-                <button
-                  type="button"
-                  onClick={() => downloadDashboardQrCode(qrContainerRef.current, reference)}
-                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                >
-                  <span className="material-symbols-outlined text-[18px]">download</span>
-                  {t("common.download", "Download")}
-                </button>
-              </>
-            ) : (
-              <p className="max-w-xs text-sm font-medium text-slate-500">
-                {t("applicant.qrLicensePending", "QR e-license will be displayed once the license is generated.")}
-              </p>
-            )}
-          </div>
-        </section>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(320px,32%)_1fr]">
+        <CompleteLicensePanel
+          activeTab={activeLicenseTab}
+          app={app}
+          qrContainerRef={qrContainerRef}
+          reference={reference}
+          t={t}
+          verificationUrl={verificationUrl}
+          onTabChange={setActiveLicenseTab}
+        />
 
         <section className="space-y-3">
           <div className="rounded-md border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-3 py-3">
               <h3 className="text-sm font-semibold text-slate-950">
-                {t("admin.dashboard.completedDocumentListTitle", "List of Document")}
+                {t("applicant.paymentDocumentsTitle", "Documents to Download")}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 {t("applicant.paymentDocumentsDesc", "View the submitted application form and download related documents from ALiS.")}
@@ -1202,27 +1161,27 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
 
           <div className="rounded-md border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-3 py-3">
-              <h3 className="text-sm font-semibold uppercase text-slate-500">
-                {t("workspace.payment.applicantReceipt", "Applicant Receipt")}
+              <h3 className="text-sm font-semibold text-slate-950">
+                {t("workspace.payment.receiptTitle", "Payment Receipt")}
               </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {t("workspace.payment.completedReceiptDesc", "Payment is complete and QR e-license is ready to download.")}
+              </p>
             </div>
             {applicantReceipt ? (
               <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">{applicantReceipt.name}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-semibold text-emerald-700">
+                      1
+                    </span>
+                    <p className="truncate text-sm font-semibold text-slate-900">{applicantReceipt.name}</p>
+                  </div>
                   <p className="mt-1 text-xs font-medium text-emerald-700">
                     {t("common.valid", "Valid")}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openDashboardPaymentDocument(applicantReceipt.file, t)}
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">visibility</span>
-                    {t("common.view", "View")}
-                  </button>
                   <button
                     type="button"
                     onClick={() => downloadDashboardPaymentDocument(applicantReceipt.file, applicantReceipt.name, t)}
@@ -1495,7 +1454,162 @@ function CompleteMetaBlock({ label, value }) {
   );
 }
 
+function CompleteLicensePanel({
+  activeTab,
+  app,
+  onTabChange,
+  qrContainerRef,
+  reference,
+  t,
+  verificationUrl,
+}) {
+  const selectedTab = activeTab === "qr" ? "qr" : "bank";
+  const tabs = [
+    { key: "bank", label: t("applicant.bankAccountTab", "Account Bank") },
+    { key: "qr", label: t("applicant.qrELicenseTab", "QR E-License") },
+  ];
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
+      <div className="mx-auto w-full max-w-[450px]">
+        <div className="grid grid-cols-2 overflow-hidden rounded-t-md border border-slate-300 bg-white text-center text-xs font-bold uppercase leading-5 text-slate-950">
+          {tabs.map((tab) => {
+            const selected = selectedTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onTabChange?.(tab.key)}
+                className={`min-h-8 border-r border-slate-300 px-3 transition last:border-r-0 ${
+                  selected
+                    ? "bg-[#b8e4a8] text-slate-950"
+                    : "bg-white text-slate-950 hover:bg-slate-50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex min-h-[450px] items-stretch justify-center rounded-b-md border-x border-b border-slate-300 bg-white text-center">
+          {selectedTab === "bank" ? (
+            <DashboardBankAccountContent t={t} />
+          ) : (
+            <DashboardQrELicenseContent
+              app={app}
+              qrContainerRef={qrContainerRef}
+              reference={reference}
+              t={t}
+              verificationUrl={verificationUrl}
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DashboardBankAccountContent({ t }) {
+  return (
+    <div className="flex min-h-[450px] w-full items-center justify-center overflow-hidden rounded-b-md border border-slate-900 bg-[#e55a82] p-3">
+      <div className="flex min-h-[420px] w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-4 text-slate-950">
+        <p className="text-xs font-normal uppercase tracking-[0.14em]">
+          {t("applicant.bankPaymentTitle", "Please made payment to:")}
+        </p>
+
+        <img
+          src="/Bank Islam Logo.jpg"
+          alt="Bank Islam"
+          className="mt-5 h-auto w-full max-w-[250px] object-contain"
+        />
+
+        <p className="mt-6 text-sm font-bold uppercase tracking-wide">
+          {t("applicant.bankPaymentAccountNo", "Account No :")}
+        </p>
+        <div className="mt-2 w-full max-w-[380px] rounded-xl border-4 border-[#e55a82] px-3 py-2 text-base font-normal tracking-wide">
+          11013010028881
+        </div>
+
+        <p className="mt-4 text-sm font-bold uppercase tracking-wide">
+          {t("applicant.bankPaymentAccountHolder", "Account Holder :")}
+        </p>
+        <div className="mt-2 w-full max-w-[380px] rounded-xl border-4 border-[#e55a82] px-3 py-2 text-sm font-normal">
+          Dewan Bandaraya Kuching Utara
+        </div>
+
+        <p className="mt-4 max-w-[340px] text-[11px] font-normal leading-tight text-slate-950">
+          {t("applicant.bankPaymentProofLine", "Please attach payment slip /receipt as payment proof.")}
+          <br />
+          {t("applicant.bankPaymentDetailsLine1", "Please provide your Full Name, Full Address,")}
+          <br />
+          {t("applicant.bankPaymentDetailsLine2", "Phone Number & Order Details.")}
+          <br />
+          {t("applicant.bankPaymentThanks", "THANK YOU.")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DashboardQrELicenseContent({ app, qrContainerRef, reference, t, verificationUrl }) {
+  if (!canViewLicense(app)) {
+    return (
+      <div className="flex min-h-[450px] w-full items-center justify-center rounded-b-md border border-slate-900 bg-white px-8 text-center">
+        <p className="max-w-[260px] text-sm font-bold leading-7 text-slate-950">
+          {t("applicant.qrLicensePending", "QR e-license will be displayed once the license is generated.")}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[450px] w-full flex-col items-center justify-center gap-3">
+      <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <QRCodeSVG
+          value={verificationUrl}
+          size={300}
+          level="M"
+          includeMargin
+          className="h-auto max-w-full"
+          role="img"
+          aria-label="License verification QR"
+        />
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{reference}</p>
+      <button
+        type="button"
+        onClick={() => downloadDashboardQrCode(qrContainerRef.current, reference)}
+        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+      >
+        <span className="material-symbols-outlined text-[18px]">download</span>
+        {t("common.download", "Download")}
+      </button>
+    </div>
+  );
+}
+
 function CompleteDocumentRow({ app, document, t }) {
+  if (document.type === "application_form") {
+    return (
+      <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold uppercase text-slate-500">{document.label}</p>
+          <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+            {document.name}
+          </p>
+        </div>
+        <Link
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          to={document.viewPath}
+        >
+          <span className="material-symbols-outlined text-[18px]">visibility</span>
+          {t("common.view", "View")}
+        </Link>
+      </div>
+    );
+  }
+
   const hasFile = Boolean(getPaymentDocumentSource(document.file));
   const canRenderLicense = document.type === "advertisement_license" && canViewLicense(app);
   const documentName =
@@ -1512,19 +1626,6 @@ function CompleteDocumentRow({ app, document, t }) {
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() =>
-            hasFile
-              ? openDashboardPaymentDocument(document.file, t)
-              : openAdvertisementLicenseDocument(app, t)
-          }
-          disabled={!hasFile && !canRenderLicense}
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <span className="material-symbols-outlined text-[18px]">visibility</span>
-          {t("common.view", "View")}
-        </button>
         <button
           type="button"
           onClick={() => downloadDashboardPaymentDocument(document.file, document.name, t)}
@@ -1597,8 +1698,8 @@ function getImportantApplicationActivities(application, userDepartment, user, t)
       applicationId: application.id,
       reference: getApplicationReference(application),
       project: getProjectName(application),
-      title: getAdminActivityLogTitle(activity, t),
-      description: getAdminActivityLogDescription(activity, application, t),
+      title: getAdminActivityLogTitle(activity, t, userDepartment),
+      description: getAdminActivityLogDescription(activity, application, t, userDepartment),
       createdAt: activity.created_at || application.updated_at || application.created_at,
       status: normalizeStatus(application.status),
       source: "activity",
@@ -2025,6 +2126,19 @@ function addDecisionLogRow(rows, row, t) {
     officer: cleanRemark(row.officer),
     signature: row.signature || section.digital_signature || null,
   });
+}
+
+function getDecisionLogSignature(section = {}) {
+  if (!section || typeof section !== "object") return null;
+
+  return (
+    section.digital_signature ||
+    section.receipt_verification_signature ||
+    section.payment_verification_signature ||
+    section.signature ||
+    section.signature_data ||
+    null
+  );
 }
 
 function getDecisionLogSignatureSource(signature) {
@@ -2564,6 +2678,13 @@ function getResubmissionActivitiesForRejectedCycles(activityLog) {
     .filter((item) => Number.isFinite(item.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
   const rejectedActivities = sortedActivities.filter((item) => isRejectedActivity(item.activity));
+  const explicitResubmissions = sortedActivities.filter((item) =>
+    isResubmissionActivity(item.activity)
+  );
+
+  if (explicitResubmissions.length > 0) {
+    return explicitResubmissions.map((item) => item.activity);
+  }
 
   return rejectedActivities
     .map((rejectedItem, index) => {
@@ -2644,12 +2765,6 @@ function getApplicationRemark(application) {
 function cleanRemark(value) {
   const remark = String(value || "").trim();
   return ["", "-", "[]"].includes(remark) ? "" : remark;
-}
-
-function formatActivityProjectText(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+(\d+\.\s+)/g, "\n$1");
 }
 
 function isImportantAdminActivity(activity, userDepartment, user, application = null) {
@@ -2755,9 +2870,23 @@ function getActivityDepartment(activity) {
   return knownDepartments.find((department) => text.includes(department)) || "";
 }
 
-function getAdminActivityLogTitle(activity, t) {
+function getAdminActivityLogTitle(activity, t, userDepartment = "") {
   const title = String(activity?.title || "").trim();
   const normalized = title.toLowerCase();
+  const useGeneralKuCopy =
+    userDepartment === "KU(IKL)" &&
+    [
+      "application sent to ku(ikl)",
+      "application sent to technical review",
+      "technical review completed",
+      "technical amendment requested",
+      "application sent for management review",
+      "application reviewed",
+    ].includes(normalized);
+
+  if (useGeneralKuCopy) {
+    return t("admin.dashboard.activityUpdated", "Application updated");
+  }
 
   if (normalized === "application submitted") {
     return t("admin.dashboard.activitySubmitted", "Application submitted");
@@ -2819,10 +2948,27 @@ function getAdminActivityLogTitle(activity, t) {
   return title || t("admin.dashboard.activityUpdated", "Application updated");
 }
 
-function getAdminActivityLogDescription(activity, application, t) {
+function getAdminActivityLogDescription(activity, application, t, userDepartment = "") {
   const reference = getApplicationReference(application);
   const title = String(activity?.title || "").trim().toLowerCase();
   const description = String(activity?.description || "").trim();
+  const useGeneralKuCopy =
+    userDepartment === "KU(IKL)" &&
+    [
+      "application sent to ku(ikl)",
+      "application sent to technical review",
+      "technical review completed",
+      "technical amendment requested",
+      "application sent for management review",
+      "application reviewed",
+    ].includes(title);
+
+  if (useGeneralKuCopy) {
+    return t(
+      "admin.dashboard.activityGeneralUpdatedDesc",
+      "{reference} application progress was updated."
+    ).replace("{reference}", reference);
+  }
 
   if (title === "application submitted") {
     return t(
@@ -3098,8 +3244,8 @@ function getAdminActivityDescription(application, userDepartment, t) {
 
   if (status === "submitted" && userDepartment === "KU(IKL)") {
     return t(
-      "admin.dashboard.activitySubmittedDesc",
-      `${reference} is ready for KU(IKL) review.`
+      "admin.dashboard.activityGeneralReadyDesc",
+      `${reference} is ready for review.`
     ).replace("{reference}", reference);
   }
 

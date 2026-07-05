@@ -293,6 +293,15 @@ class ApplicationActivityVisibilityTests(TestCase):
                         "actor_department": self.applicant.username,
                         "created_at": "2026-06-24T00:10:00Z",
                     },
+                    {
+                        "title": "Application draft created",
+                        "description": "The applicant started a new advertisement license application.",
+                        "category": "user",
+                        "actor_id": self.applicant.id,
+                        "actor_role": "applicant",
+                        "actor_department": self.applicant.username,
+                        "created_at": "2026-06-24T00:00:00Z",
+                    },
                 ],
             },
         )
@@ -310,7 +319,7 @@ class ApplicationActivityVisibilityTests(TestCase):
 
         self.assertEqual(
             [activity["title"] for activity in item["activity_log"]],
-            ["Application submitted"],
+            ["Application submitted", "Application draft created"],
         )
 
         client = APIClient()
@@ -319,7 +328,7 @@ class ApplicationActivityVisibilityTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             [activity["title"] for activity in response.data["form_data"]["activity_log"]],
-            ["Application submitted"],
+            ["Application submitted", "Application draft created"],
         )
 
     def test_staff_activity_log_hides_other_staff_accounts(self):
@@ -327,7 +336,10 @@ class ApplicationActivityVisibilityTests(TestCase):
 
         self.assertEqual(
             [activity["description"] for activity in item["activity_log"]],
-            ["Reviewed by KU(IKL)."],
+            [
+                "Reviewed by KU(IKL).",
+                "You sent your application to ALiS for review.",
+            ],
         )
 
 

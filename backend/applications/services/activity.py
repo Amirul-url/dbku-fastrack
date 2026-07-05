@@ -16,6 +16,11 @@ APPLICANT_SAFE_ACTIVITY_TITLES = {
     "application resubmitted",
     "payment receipt submitted",
 }
+STAFF_SAFE_APPLICANT_ACTIVITY_TITLES = {
+    "application submitted",
+    "application resubmitted",
+    "payment receipt submitted",
+}
 
 
 def append_application_activity(application, actor, title, description="", category="user"):
@@ -136,7 +141,7 @@ def scope_activity_log_for_user(activity_log, user):
             continue
 
         if role in STAFF_ACTIVITY_ROLES:
-            if actor_matches_user or is_rejected_activity(activity):
+            if actor_matches_user or is_rejected_activity(activity) or is_staff_safe_applicant_activity(activity):
                 scoped.append(activity)
             continue
 
@@ -211,6 +216,17 @@ def get_closest_rejection_remark(activity, rejection_remarks):
 def is_rejected_activity(activity):
     title = str(activity.get("title") or "").strip().lower()
     return title == "application rejected" or title.startswith("application rejected by")
+
+
+def is_staff_safe_applicant_activity(activity):
+    title = str(activity.get("title") or "").strip().lower()
+    actor_role = str(activity.get("actor_role") or "").strip().lower()
+    category = str(activity.get("category") or "").strip().lower()
+
+    return (
+        title in STAFF_SAFE_APPLICANT_ACTIVITY_TITLES
+        and (category == "user" or actor_role in APPLICANT_ACTIVITY_ROLES)
+    )
 
 
 def extract_remark_from_text(value):
