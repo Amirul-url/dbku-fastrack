@@ -507,7 +507,6 @@ function UserDashboard() {
       {activeSection === "overview" && (
         <OverviewSection
           applications={applications}
-          language={language}
           loading={loading}
           t={t}
           onStatusCardClick={openStatusSummary}
@@ -634,15 +633,15 @@ function getDefaultLicensePanelTab(app) {
   return canViewLicense(app) ? "qr" : "bank";
 }
 
-function OverviewSection({ applications, language, loading, t, onStatusCardClick }) {
+function OverviewSection({ applications, loading, t, onStatusCardClick }) {
   const statusSummary = useMemo(
     () => buildOverviewStatusSummary(applications, t),
     [applications, t]
   );
   const currentUser = useMemo(() => getStoredUser(), []);
   const recentActivities = useMemo(
-    () => buildRecentActivities(applications, t, language, currentUser),
-    [applications, currentUser, language, t]
+    () => buildRecentActivities(applications, t, currentUser),
+    [applications, currentUser, t]
   );
 
   return (
@@ -1966,11 +1965,6 @@ function RecentActivities({ activities, loading, t }) {
                 <p className="mt-1 text-sm font-semibold text-slate-700">
                   {activity.reference}
                 </p>
-                {activity.project && (
-                  <p className="mt-1 whitespace-pre-line text-sm text-slate-600">
-                    {formatActivityProjectText(activity.project)}
-                  </p>
-                )}
                 {activity.description && (
                   <p className="mt-1 text-sm text-slate-500">{activity.description}</p>
                 )}
@@ -1990,12 +1984,6 @@ function RecentActivities({ activities, loading, t }) {
       </div>
     </section>
   );
-}
-
-function formatActivityProjectText(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+(\d+\.\s+)/g, "\n$1");
 }
 
 function getActivityRemark(activity) {
@@ -2171,7 +2159,7 @@ function getApplicationActivityLog(app) {
   return [];
 }
 
-function buildRecentActivities(applications, t, language = "en", currentUser = null) {
+function buildRecentActivities(applications, t, currentUser = null) {
   const activities = applications
     .flatMap((app) => {
       const activityLog = getApplicationActivityLog(app);
@@ -2183,7 +2171,6 @@ function buildRecentActivities(applications, t, language = "en", currentUser = n
         return {
           applicationId: app.id,
           reference: getApplicationReference(app),
-          project: getProjectName(app, language),
           title: friendlyCopy.title,
           description: friendlyCopy.description,
           remark: activityRemark || (isApplicantRejectedActivity(activity) ? getApplicationRemark(app) : ""),
@@ -2313,43 +2300,29 @@ function getApplicantActivityCopy(activity, t) {
   }
 
   if (normalizedTitle.endsWith(" details saved")) {
-    const stepName = rawTitle.replace(/\s+details saved$/i, "");
     return {
-      title: formatActivityText(
-        t("applicant.activitySavedStepTitle", "You saved {step} details"),
-        { step: stepName || t("applicant.activityGenericTitle", "application") }
-      ),
+      title: t("applicant.activitySavedTitle", "You saved application details"),
       description: "",
     };
   }
 
   if (normalizedTitle.endsWith(" uploaded")) {
-    const itemName = rawTitle.replace(/\s+uploaded$/i, "");
     return {
-      title: formatActivityText(
-        t("applicant.activityUploadedTitle", "You uploaded {item}"),
-        { item: itemName || t("common.file", "file") }
+      title: t("applicant.activityDocumentsUpdatedTitle", "You updated supporting documents"),
+      description: t(
+        "applicant.activityDocumentsUpdatedDesc",
+        "Your application documents were updated."
       ),
-      description: rawDescription
-        ? formatActivityText(t("applicant.activityUploadedDesc", "File: {file}"), {
-            file: rawDescription,
-          })
-        : "",
     };
   }
 
   if (normalizedTitle.endsWith(" removed")) {
-    const itemName = rawTitle.replace(/\s+removed$/i, "");
     return {
-      title: formatActivityText(
-        t("applicant.activityRemovedTitle", "You removed {item}"),
-        { item: itemName || t("common.file", "file") }
+      title: t("applicant.activityDocumentsUpdatedTitle", "You updated supporting documents"),
+      description: t(
+        "applicant.activityDocumentsUpdatedDesc",
+        "Your application documents were updated."
       ),
-      description: rawDescription
-        ? formatActivityText(t("applicant.activityRemovedDesc", "Removed file: {file}"), {
-            file: rawDescription,
-          })
-        : "",
     };
   }
 
@@ -2391,13 +2364,6 @@ function removeDuplicateSaveActivities(activities) {
 
 function isSaveActivity(activity) {
   return String(activity?.rawTitle || "").toLowerCase().endsWith("details saved");
-}
-
-function formatActivityText(template, replacements) {
-  return Object.entries(replacements).reduce(
-    (text, [key, value]) => text.replaceAll(`{${key}}`, value),
-    template
-  );
 }
 
 function isPendingApplication(app) {

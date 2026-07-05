@@ -13,6 +13,7 @@ import {
   canEditApplicationForm,
   getApplicantSaveDraftReturnLabelKey,
   getApplicantSaveDraftReturnPath,
+  getApplicationReference,
   getApplicationType,
 } from "../../../../utils/workflow";
 import { markApplicantRecordSeen } from "../../../../utils/applicantSeenRecords";
@@ -64,6 +65,7 @@ function PrintFormPage({
   const [saving, setSaving] = useState(false);
   const [applicationRecord, setApplicationRecord] = useState(null);
   const [activePrintPage, setActivePrintPage] = useState(1);
+  const [submitSuccessApplication, setSubmitSuccessApplication] = useState(null);
 
   useEffect(() => {
     document.title = tx("generatedFormTitle");
@@ -146,8 +148,9 @@ function PrintFormPage({
         markApplicantRecordSeen("status", savedApplication);
       }
 
+      setApplicationRecord(savedApplication);
       setStep9(updatedStep9);
-      return true;
+      return savedApplication;
     } catch (err) {
       console.error("Print form save failed:", err);
       alert(tx("failedSavePrint"));
@@ -195,8 +198,13 @@ function PrintFormPage({
 
     const saved = await saveStep9({ submit: true });
     if (saved) {
-      navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=status");
+      setSubmitSuccessApplication(saved);
     }
+  }
+
+  function closeSubmitSuccessModal() {
+    setSubmitSuccessApplication(null);
+    navigate(isAdminReview ? "/admin/applications" : "/user/dashboard?tab=status");
   }
 
   async function handleSaveDraftAndBack() {
@@ -343,6 +351,14 @@ function PrintFormPage({
           }
         `}
       </style>
+
+      {submitSuccessApplication && (
+        <ApplicationSubmittedSuccessModal
+          application={submitSuccessApplication}
+          language={language}
+          onClose={closeSubmitSuccessModal}
+        />
+      )}
 
       <div className="flex gap-4">
         {StepNav && <StepNav active={5} />}
@@ -638,6 +654,45 @@ function PrintFormPage({
         </main>
       </div>
     </Layout>
+  );
+}
+
+function ApplicationSubmittedSuccessModal({ application, language, onClose }) {
+  const reference = getApplicationReference(application);
+  const message = stepText(language, "submitSuccessMessage").replace(
+    "{reference}",
+    reference
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="application-submitted-success-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src="/green_tick.png"
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="application-submitted-success-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {stepText(language, "submitSuccessTitle")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium text-black">{message}</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          OK
+        </button>
+      </div>
+    </div>
   );
 }
 
