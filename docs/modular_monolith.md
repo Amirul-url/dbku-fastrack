@@ -78,6 +78,14 @@ Serializers still shape API responses, but application summary and profile deriv
 
 Application views still orchestrate HTTP actions, but list/detail queryset construction now lives in the application domain service layer.
 
+`applications.services.license_verification` owns:
+
+- public license ID normalization
+- public license lookup from issued application form data
+- public license document lookup and 404 handling
+
+Application views still shape the public verification HTTP response and file response, but license lookup rules now live in the application domain service layer.
+
 `accounts.services.identity` owns:
 
 - MyKad/date-of-birth/gender inference
@@ -150,7 +158,7 @@ Notification services still orchestrate event routing and delivery creation, but
 ## Next Safe Steps
 
 1. Split notification event routing/message builders by application event group.
-2. Extract application public license verification lookup into an application service.
+2. Extract remaining application workflow reset/activity message helpers from views if they keep growing.
 3. Extract any future account security checks into an account security service.
 
 Avoid changing database ownership, URL paths, or deployment shape until the module boundaries are stable.

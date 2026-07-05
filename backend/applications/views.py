@@ -3,10 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from rest_framework.response import Response
-from django.http import Http404
-from django.shortcuts import get_object_or_404
 from copy import deepcopy
-from .models import Application, SupportingDocument
+from .models import Application
 from .serializers import (
     ApplicationListSerializer,
     ApplicationDetailSerializer,
@@ -28,6 +26,7 @@ from .services.documents import (
     get_application_site_image_document,
     get_document_filename,
 )
+from .services.license_verification import get_public_license_document
 from .services.queries import build_application_queryset, parse_list_query_values
 from .services.workflow import (
     ensure_applicant_can_update,
@@ -286,7 +285,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         authentication_classes=[],
     )
     def license_verification(self, request, license_id=None):
-        application, document = self.get_public_license_document(license_id)
+        application, document = get_public_license_document(license_id)
 
         return Response(
             {
@@ -309,33 +308,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         authentication_classes=[],
     )
     def license_verification_document(self, request, license_id=None):
-        _application, document = self.get_public_license_document(license_id)
+        _application, document = get_public_license_document(license_id)
         return self.file_response(document)
-
-    def get_public_license_document(self, license_id):
-        normalized_id = str(license_id or "").strip().upper()
-
-        for application in Application.objects.exclude(form_data={}):
-            form_data = application.form_data or {}
-            license_data = form_data.get("license") or {}
-            stored_license_id = str(license_data.get("license_id") or "").strip().upper()
-
-            if stored_license_id != normalized_id:
-                continue
-
-            license_file = license_data.get("license_file") or {}
-            document_id = license_file.get("document_id") or license_file.get("id")
-            if not document_id:
-                raise Http404("Advertisement license document not found.")
-
-            document = get_object_or_404(
-                SupportingDocument,
-                id=document_id,
-                application=application,
-            )
-            return application, document
-
-        raise Http404("Advertisement license not found.")
 
     def get_list_values(self, key):
         return parse_list_query_values(self.request.query_params.getlist(key))
