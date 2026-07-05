@@ -3551,18 +3551,8 @@ function buildManualBillTemplateBodyHtml(app = null) {
 }
 
 function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
-  const details = getManualBillDetails(app);
   const receiptNo = getGeneratedOfficialReceiptNumber(app);
-  const paymentRows = getGeneratedOfficialReceiptRows(details);
-  const total = Number.isFinite(details.total) ? details.total : getGeneratedOfficialReceiptTotal(paymentRows);
-  const totalParts = splitRinggitSen(total);
   const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku-black_white.png");
-  const receiptDate =
-    app?.form_data?.approval_letter?.manual_receipt?.generated_at ||
-    app?.form_data?.payment?.verified_at ||
-    new Date().toISOString();
-  const receivedFrom = details.recipientName || getApplicantName(app) || "-";
-  const ringgitText = formatGeneratedOfficialReceiptAmountText(total);
 
   return `<!doctype html>
 <html>
@@ -3645,8 +3635,8 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
 
     <div class="content-grid">
       <div class="meta">
-        <div class="dot-line"><span>Station</span><span class="dots">${escapeHtml(details.preparedBy || "DBKU")}</span></div>
-        <div class="dot-line"><span>Date</span><span class="dots">${escapeHtml(formatManualApprovalLetterDate(receiptDate))}</span></div>
+        <div class="dot-line"><span>Station</span><span class="dots">&nbsp;</span></div>
+        <div class="dot-line"><span>Date</span><span class="dots">&nbsp;</span></div>
       </div>
       <table>
         <thead>
@@ -3656,26 +3646,22 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
           </tr>
         </thead>
         <tbody>
-          ${paymentRows.map((row) => {
-            const parts = splitRinggitSen(row.amount);
-            return `<tr><td>${escapeHtml(row.item)}</td><td class="amount rm">${escapeHtml(parts.ringgit)}</td><td class="amount sen">${escapeHtml(parts.sen)}</td></tr>`;
-          }).join("")}
-          ${Array.from({ length: Math.max(0, 5 - paymentRows.length) })
+          ${Array.from({ length: 5 })
             .map(() => `<tr><td>&nbsp;</td><td class="amount rm"></td><td class="amount sen"></td></tr>`)
             .join("")}
           <tr>
             <td class="total-label">TOTAL RM</td>
-            <td class="amount rm">${escapeHtml(totalParts.ringgit)}</td>
-            <td class="amount sen">${escapeHtml(totalParts.sen)}</td>
+            <td class="amount rm"></td>
+            <td class="amount sen"></td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <section class="received">
-      <div class="received-row"><span>RECEIVED from</span><span class="solid-line">${escapeHtml(receivedFrom)}</span></div>
-      <div class="received-row"><span>the sum of Ringgit</span><span class="solid-line">${escapeHtml(ringgitText)}</span></div>
-      <div class="received-row"><span>and Sen</span><span class="solid-line">${escapeHtml(totalParts.sen)}</span></div>
+      <div class="received-row"><span>RECEIVED from</span><span class="solid-line">&nbsp;</span></div>
+      <div class="received-row"><span>the sum of Ringgit</span><span class="solid-line">&nbsp;</span></div>
+      <div class="received-row"><span>and Sen</span><span class="solid-line">&nbsp;</span></div>
       <div class="blank-line"></div>
       <div class="blank-line"></div>
       <div class="blank-line"></div>
