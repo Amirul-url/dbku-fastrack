@@ -118,6 +118,9 @@ function UserDashboard() {
 
       setSelectedApplication(data);
       setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
+      if (options.setDefaultPanelTab) {
+        setLicensePanelTab(getDefaultLicensePanelTab(data));
+      }
       if (options.markSeen) {
         markApplicationSeen("all", data);
       }
@@ -158,6 +161,7 @@ function UserDashboard() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchApplicationDetails(selectedId, {
         markSeen: activeSection === "status" && licensePanelOpen,
+        setDefaultPanelTab: activeSection === "status" && licensePanelOpen,
       });
     }
   }, [activeSection, fetchApplicationDetails, licensePanelOpen, selectedId]);
@@ -302,9 +306,10 @@ function UserDashboard() {
     setSelectedId(String(app.id));
     setSelectedApplication(app);
     setLicensePanelOpen(true);
+    setLicensePanelTab(getDefaultLicensePanelTab(app));
     setSearchParams({ tab: "status", id: String(app.id) });
     markApplicationSeen("all", app);
-    fetchApplicationDetails(app.id, { markSeen: true });
+    fetchApplicationDetails(app.id, { markSeen: true, setDefaultPanelTab: true });
   }
 
   function returnToLicenseList() {
@@ -623,6 +628,10 @@ function ReceiptSubmittedModal({ t, onClose }) {
       </div>
     </div>
   );
+}
+
+function getDefaultLicensePanelTab(app) {
+  return canViewLicense(app) ? "qr" : "bank";
 }
 
 function OverviewSection({ applications, language, loading, t, onStatusCardClick }) {
@@ -1238,12 +1247,22 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
+  const manualLicense = license.manual_license || {};
   const officialReceiptFile = getSentOfficialReceiptFile(app);
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
+    manualReceipt.document_html ||
     manualReceipt.sent_at ||
     manualReceipt.status === "Sent to Applicant" ||
     (normalizeStatus(app?.status) === "payment_verified" && manualReceipt.saved_at)
+  );
+  const showAdvertisementLicense = Boolean(
+    canViewLicense(app) &&
+    (getPaymentDocumentSource(license.license_file) ||
+      manualLicense.document_html ||
+      manualLicense.sent_at ||
+      manualLicense.status === "Sent to Applicant" ||
+      manualLicense.saved_at)
   );
   const documents = [
     {
@@ -1274,12 +1293,12 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           },
         ]
       : []),
-    ...(canViewLicense(app)
+    ...(showAdvertisementLicense
       ? [
           {
             label: t("workspace.license.documentTitle", "Advertisement License"),
             file: license.license_file,
-            available: true,
+            manual: manualLicense,
             type: "advertisement_license",
           },
         ]
@@ -1325,20 +1344,10 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             </div>
             {(item.available || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
               <div className="flex flex-wrap gap-2">
-                {!["letter", "bill"].includes(item.type) && (
+                {item.type === "submitted_application" && (
                   <button
                     type="button"
-                    onClick={() =>
-                      item.type === "submitted_application"
-                        ? onViewApplicationSteps?.(app)
-                        : item.type === "advertisement_license"
-                        ? item.file
-                          ? openApplicantPaymentDocument(item.file, t)
-                          : openApplicantBlankAdvertisementLicenseDocument(app, t)
-                        : item.file
-                        ? openApplicantPaymentDocument(item.file, t)
-                        : openApplicantManualPaymentDocument(app, item.type, t)
-                    }
+                    onClick={() => onViewApplicationSteps?.(app)}
                     className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     <span className="material-symbols-outlined text-[16px]">
@@ -2577,9 +2586,15 @@ async function downloadApplicantManualPaymentDocument(app, type, t) {
 }
 
 async function downloadApplicantAdvertisementLicenseDocument(app, t) {
+  const html = getApplicantAdvertisementLicenseDocumentHtml(app);
+  if (!html) {
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+    return;
+  }
+
   try {
     await printHtmlDocument(
-      buildApplicantBlankAdvertisementLicenseHtml(app, t),
+      html,
       `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
     );
   } catch (err) {
@@ -2588,62 +2603,9 @@ async function downloadApplicantAdvertisementLicenseDocument(app, t) {
   }
 }
 
-function openApplicantBlankAdvertisementLicenseDocument(app, t) {
-  const html = buildApplicantBlankAdvertisementLicenseHtml(app, t);
-  const previewUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-  const preview = window.open(previewUrl, "_blank");
-
-  if (!preview) {
-    URL.revokeObjectURL(previewUrl);
-    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
-    return;
-  }
-
-  window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
-}
-
-function buildApplicantBlankAdvertisementLicenseHtml(app, t) {
-  const title = `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`;
-
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(title)}</title>
-  <style>
-    @page { size: A4 portrait; margin: 0; }
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; font-family: Arial, sans-serif; color: #0f172a; }
-    .blank-license-page {
-      width: 210mm;
-      min-height: 297mm;
-      margin: 0 auto;
-      background: #fff;
-      padding: 22mm;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-    .blank-license-message { max-width: 92mm; font-size: 12pt; font-weight: 700; line-height: 1.45; color: #475569; }
-    .print-actions { position: fixed; right: 18px; top: 18px; }
-    .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
-    @media print {
-      html, body { width: 210mm; min-height: 297mm; overflow: hidden; background: #fff; }
-      .blank-license-page { margin: 0; }
-      .print-actions { display: none; }
-    }
-  </style>
-</head>
-<body>
-  <div class="print-actions"><button onclick="window.print()">Print</button></div>
-  <main class="blank-license-page">
-    <p class="blank-license-message">${escapeHtml(
-      t("workspace.license.blankTemplateMessage", "Advertisement License template will be added later.")
-    )}</p>
-  </main>
-</body>
-</html>`;
+function getApplicantAdvertisementLicenseDocumentHtml(app) {
+  const manualLicense = app?.form_data?.license?.manual_license || {};
+  return String(manualLicense.document_html || "").trim();
 }
 
 function getApplicantManualPaymentDocumentHtml(app, type, t) {
@@ -2657,6 +2619,7 @@ function getApplicantManualPaymentDocumentHtml(app, type, t) {
   }
 
   if (type === "receipt") {
+    if (manualReceipt.document_html) return manualReceipt.document_html;
     return buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt);
   }
 

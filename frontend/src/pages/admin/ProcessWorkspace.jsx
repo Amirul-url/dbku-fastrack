@@ -253,6 +253,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [licenseIssuedSuccessModal, setLicenseIssuedSuccessModal] = useState({
+    open: false,
+    redirectTo: "",
+  });
   const [commentError, setCommentError] = useState("");
   const [technicalSizeError, setTechnicalSizeError] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
@@ -880,7 +884,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     : null;
   const selectedPaymentReceiptActionReady = Boolean(
     selectedPaymentReceiptAction &&
-    (!selectedPaymentReceiptAction.requiresPaymentDocuments || hasUploadedPaymentDocuments(selectedRecord)) &&
+    (
+      !selectedPaymentReceiptAction.requiresPaymentDocuments ||
+      selectedPaymentReceiptAction.requiresSubmittedReceipt ||
+      hasUploadedPaymentDocuments(selectedRecord)
+    ) &&
     (!selectedPaymentReceiptAction.requiresOfficialReceipt ||
       getPaymentDocumentSource(getStoredPaymentDocument(selectedRecord, "official_receipt"))) &&
     (!selectedPaymentReceiptAction.requiresLicenseDocument ||
@@ -2026,7 +2034,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    if (action.requiresPaymentDocuments && !hasUploadedPaymentDocuments(selectedRecord)) {
+    if (
+      action.requiresPaymentDocuments &&
+      !action.requiresSubmittedReceipt &&
+      !hasUploadedPaymentDocuments(selectedRecord)
+    ) {
       setError(t(
         "workspace.payment.documentsRequired",
         "Please save the approval letter and bill before sending to the applicant."
@@ -2049,6 +2061,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSaving(true);
       setError("");
       setSuccess("");
+      setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+      const shouldShowLicenseIssuedSuccess =
+        action.key === "issue_license" ||
+        (action.requiresSubmittedReceipt && /^verify receipt$/i.test(String(action.label || actionDecision || "")));
 
       if (action.key === "issue_license") {
         if (manualLicenseDraftTimerRef.current) {
@@ -2105,6 +2121,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         kuSignature: overrides.kuSignature ?? null,
         kuChecks: overrides.kuChecks,
         officialReceiptMode: "upload",
+        t,
       });
 
       const requestPath =
@@ -2132,8 +2149,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
 
       setSuccess(t(action.successKey, action.success));
+      if (shouldShowLicenseIssuedSuccess) {
+        setLicenseIssuedSuccessModal({
+          open: true,
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+        });
+      }
       setComment("");
       await fetchApplications();
+      if (shouldShowLicenseIssuedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
       if (isFocusedPersonalWorkspace || fromPersonalTask) {
         navigate("/dashboard/admin?view=personal");
         return true;
@@ -2162,6 +2191,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return false;
     } finally {
       setSaving(false);
+    }
+  }
+
+  function closeLicenseIssuedSuccessModal() {
+    const redirectTo = licenseIssuedSuccessModal.redirectTo;
+    setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+    if (redirectTo) {
+      navigate(redirectTo);
     }
   }
 
@@ -2557,7 +2594,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
                   applicationType={getLocalizedApplicationType(selectedRecord, t, language)}
                   actions={
-                    isFocusedPersonalWorkspace || tableFirstWorkspace ? (
+                    !showApprovalPaymentReadOnly && (isFocusedPersonalWorkspace || tableFirstWorkspace) ? (
                       <Button
                         variant="secondary"
                         icon="visibility"
@@ -2632,6 +2669,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   t={t}
                   userDepartment={userDepartment}
                   saving={saving}
+                  onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                   readOnly
                 />
               )}
@@ -3336,7 +3374,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                                 : null,
                             });
                           }}
-                          disabled={saving || !selectedPaymentReceiptActionRequirementsReady}
+                          disabled={saving}
                           variant="primary"
                           icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "qr_code_2"}
                           className="min-w-40"
@@ -3474,7 +3512,49 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {licenseIssuedSuccessModal.open && (
+        <LicenseIssuedSuccessModal
+          t={t}
+          onClose={closeLicenseIssuedSuccessModal}
+        />
+      )}
+
     </AdminDashboardLayout>
+  );
+}
+
+function LicenseIssuedSuccessModal({ t, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="license-issued-success-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src="/green_tick.png"
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="license-issued-success-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {t("workspace.license.issueSuccessTitle", "SUCCESS!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium text-black">
+          {t("workspace.license.issueSuccessMessage", "License Has Been Issued!")}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -5695,28 +5775,16 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
       <section className="rounded-md border border-slate-300 bg-white">
         {logs.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-[980px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[980px] border-collapse text-left text-sm">
               <colgroup>
-                <col className="w-[16%]" />
-                <col className="w-[18%]" />
-                <col className="w-[30%]" />
-                <col className="w-[18%]" />
-                <col className="w-[12%]" />
-                <col className="w-[6%]" />
+                <col className="w-[28%]" />
+                <col className="w-[52%]" />
+                <col className="w-[20%]" />
               </colgroup>
               <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="border-b border-slate-200 px-4 py-2">
                     {t("common.department", "Department")}
-                  </th>
-                  <th className="border-b border-slate-200 px-4 py-2">
-                    {t("common.decision", "Your Recommendation")}
-                  </th>
-                  <th className="border-b border-slate-200 px-4 py-2">
-                    {t("common.remarks", "Remarks")}
-                  </th>
-                  <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2">
-                    {t("workspace.signature.title", "Digital Signature")}
                   </th>
                   <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2">
                     {t("common.date", "Date")}
@@ -5731,21 +5799,6 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
                   <tr key={log.id} className="align-middle">
                     <td className="whitespace-normal px-4 py-2 font-semibold leading-5 text-slate-900">
                       {formatDecisionLogDepartmentLabel(log.department, language)}
-                    </td>
-                    <td className="px-4 py-2">
-                      {log.decision ? <StatusPill value={formatDecisionLogDecision(log.decision, language)} /> : "-"}
-                    </td>
-                    <td className="px-4 py-2 text-slate-700">
-                      <p className="max-h-20 overflow-y-auto whitespace-pre-line leading-5">
-                        {log.remarks || "-"}
-                      </p>
-                    </td>
-                    <td className="px-4 py-2">
-                      <DecisionLogSignatureCell
-                        department={log.department}
-                        signature={log.signature}
-                        t={t}
-                      />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-600">
                       {formatCompactDateTime(log.date)}
@@ -11924,6 +11977,7 @@ const configs = {
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
         buildPayload: (app, data) => {
+          const translate = data?.t || ((key, fallback) => fallback || key);
           const now = new Date();
           const timestamp = now.toISOString();
           const savedApprovalLetter = app.form_data?.approval_letter || {};
@@ -11937,6 +11991,7 @@ const configs = {
           const licenseId = savedLicense.license_id || getLicenseId(app);
           const officialReceiptNo = getGeneratedOfficialReceiptNumber(app);
           const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
+          const savedManualLicense = savedLicense.manual_license || {};
           const { manual_license: _oldManualLicense, ...savedLicenseWithoutManualTemplate } =
             savedLicense || {};
           const nextLicenseBase = {
@@ -11979,6 +12034,8 @@ const configs = {
           };
           const receiptDocumentHtml =
             savedManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+          const licenseDocumentHtml =
+            savedManualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(documentApp, translate);
 
           return {
             status: "license_issued",
@@ -12014,7 +12071,17 @@ const configs = {
               },
               license: {
                 ...nextLicenseBase,
-                manual_license: null,
+                manual_license: {
+                  ...savedManualLicense,
+                  template: "dbku_advertisement_license_borang_b_v1",
+                  name: translate("workspace.license.documentTitle", "Advertisement License"),
+                  document_html: licenseDocumentHtml,
+                  status: "Sent to Applicant",
+                  generated_by: "PT(IKL)",
+                  generated_at: timestamp,
+                  saved_at: timestamp,
+                  sent_at: timestamp,
+                },
               },
             }),
           };
@@ -15346,6 +15413,7 @@ function PaymentDetails({
   onEditLicense,
   onLicenseDocumentUpload,
   onLicenseDocumentDelete,
+  onOpenForm,
   paymentReceiptDecision = "",
   readOnly = false,
 }) {
@@ -15357,11 +15425,14 @@ function PaymentDetails({
   const letterFile = getStoredPaymentDocument(app, "letter");
   const manualLetter = approvalLetter.manual_letter || {};
   const billFile = getStoredPaymentDocument(app, "bill");
+  const manualBill = approvalLetter.manual_bill || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
   const officialReceiptFile =
     getStoredPaymentDocument(app, "official_receipt") ||
     approvalLetter.official_receipt_file ||
     null;
   const licenseFile = license.license_file || null;
+  const manualLicense = license.manual_license || {};
   const status = normalizeStatus(app?.status);
   const canUploadDocuments =
     !readOnly && userDepartment === "PT(IKL)" && status === "approved";
@@ -15541,36 +15612,70 @@ function PaymentDetails({
       t={t}
       documents={[
         {
+          label: t("applicant.applicationForm", "Application Form"),
+          displayName: t("workspace.applicationDetails", "Application Details"),
+          available: true,
+          type: "application_form",
+          onView: onOpenForm,
+        },
+        {
           label: t("workspace.payment.approvalLetter", "Approval Letter"),
           file: letterFile,
+          available: hasManualApprovalLetter(app),
+          displayName: manualLetter.name || t("workspace.payment.approvalLetter", "Approval Letter"),
+          onDownload: () => printManualApprovalLetterDocument(app, t),
         },
         {
           label: t("workspace.payment.billDocument", "Bill"),
           file: billFile,
+          available: hasManualBill(app),
+          displayName: manualBill.name || t("workspace.payment.billDocument", "Bill"),
+          onDownload: () => printManualBillDocument(app, t),
         },
         {
           label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           file: officialReceiptFile,
+          available: Boolean(manualReceipt.document_html || manualReceipt.saved_at),
+          displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+          onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
         },
         {
           label: t("workspace.license.documentTitle", "Advertisement License"),
           file: licenseFile,
+          available: Boolean(manualLicense.document_html || manualLicense.saved_at),
+          displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
+          onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
         },
       ]}
+    />
+  ) : null;
+  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails ? (
+    <IssuedPaymentReceiptSection
+      app={app}
+      t={t}
+      receiptFile={receiptFile}
+      receiptSource={receiptSource}
+      payment={payment}
     />
   ) : null;
   const verificationDocuments = [
     {
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
       required: showVerificationUploads,
-      displayName: t("workspace.payment.autoGeneratedDocumentReady", "Auto-generated document ready."),
+      displayName: t(
+        "workspace.payment.officialReceiptGeneratedWithLicense",
+        "Please review the auto-generated official receipt before issuing the license."
+      ),
       onReview: onEditReceipt,
       onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
     },
     {
       label: t("workspace.license.documentTitle", "Advertisement License"),
       required: showVerificationUploads,
-      displayName: t("workspace.payment.autoGeneratedDocumentReady", "Auto-generated document ready."),
+      displayName: t(
+        "workspace.license.generatedWithReceipt",
+        "Please review the auto-generated advertisement license before issuing it to the applicant."
+      ),
       onReview: onEditLicense,
       onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
     },
@@ -15591,10 +15696,15 @@ function PaymentDetails({
 
         <div className="space-y-4">
           {isIssuedLicenseView ? (
-            <>
-              {issuedDocumentSection}
-              {receiptSection}
-            </>
+            <div className="rounded-md border border-slate-200 bg-white">
+              <div className="grid items-start gap-4 p-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
+                {documentPreviewSection}
+                <div className="space-y-4">
+                  {issuedDocumentSection}
+                  {issuedReceiptSection}
+                </div>
+              </div>
+            </div>
           ) : isReceiptVerification ? (
             <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               {documentPreviewSection}
@@ -15688,15 +15798,17 @@ function PaymentQrPanel({ app, t }) {
 }
 
 function IssuedPaymentDocumentList({ t, documents }) {
-  const availableDocuments = documents.filter((item) => getPaymentDocumentSource(item.file));
+  const availableDocuments = documents.filter((item) =>
+    getPaymentDocumentSource(item.file) || item.available || item.onView || item.onDownload
+  );
 
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-3">
-        <p className="text-sm font-semibold text-slate-950">
-          {t("workspace.payment.documents", "List of Document")}
-        </p>
-        <p className="mt-1 text-sm text-slate-500">
+      <div className="border-b border-slate-200 px-3 py-2">
+        <h4 className="text-sm font-semibold text-slate-950">
+          {t("applicant.paymentDocumentsTitle", "Documents to Download")}
+        </h4>
+        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
           {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
         </p>
       </div>
@@ -15705,39 +15817,103 @@ function IssuedPaymentDocumentList({ t, documents }) {
         {availableDocuments.map((item) => (
           <div
             key={item.label}
-            className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+              <p className="text-sm font-semibold uppercase text-slate-500">
                 {item.label}
               </p>
-              <p className="mt-1 truncate text-sm font-semibold text-slate-950">
-                {item.file?.name}
-              </p>
+              {item.type === "application_form" && (
+                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                  {item.displayName || item.label}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                icon="visibility"
-                className="min-h-9 px-3 py-1 text-xs"
-                onClick={() => openPaymentDocument(item.file, t)}
-              >
-                {t("common.view", "View")}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                icon="download"
-                className="min-h-9 px-3 py-1 text-xs"
-                onClick={() => downloadPaymentDocument(item.file, item.label, t)}
-              >
-                {t("common.download", "Download")}
-              </Button>
+              {item.type === "application_form" ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="visibility"
+                  className="min-h-9 px-3 py-1 text-xs"
+                  onClick={() => item.onView?.()}
+                >
+                  {t("common.view", "View")}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="download"
+                  className="min-h-9 px-3 py-1 text-xs"
+                  onClick={() => {
+                    if (item.onDownload) {
+                      item.onDownload();
+                      return;
+                    }
+                    downloadPaymentDocument(item.file, item.label, t);
+                  }}
+                >
+                  {t("common.download", "Download")}
+                </Button>
+              )}
             </div>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function IssuedPaymentReceiptSection({ app, t, receiptFile, receiptSource, payment }) {
+  if (!receiptSource && !receiptFile?.name && !payment?.receipt_reference) return null;
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-950">
+            {t("applicant.paymentReceipt", "Payment Receipt")}
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+            {t("applicant.paymentCompleteQrReady", "Payment is complete and QR e-license is ready to download.")}
+          </p>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 bg-white px-3 py-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+            1
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {receiptFile?.name || payment?.receipt_reference || t("workspace.info.notSubmitted")}
+              </p>
+            </div>
+          </div>
+
+          {receiptSource && (
+            <Button
+              type="button"
+              variant="secondary"
+              icon="download"
+              className="min-h-9 px-3 py-1 text-xs"
+              onClick={() =>
+                printPaymentReceiptDocument(
+                  receiptFile,
+                  payment?.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
+                  `${getApplicationReference(app)} ${t("workspace.payment.applicantReceipt", "Applicant Receipt")}`,
+                  t
+                )
+              }
+            >
+              {t("common.download", "Download")}
+            </Button>
+          )}
+        </div>
       </div>
     </section>
   );
