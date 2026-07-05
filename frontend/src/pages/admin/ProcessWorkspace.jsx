@@ -276,6 +276,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showMphlgChecklist, setShowMphlgChecklist] = useState(false);
   const [showManualApprovalLetterEditor, setShowManualApprovalLetterEditor] = useState(false);
   const [showManualBillEditor, setShowManualBillEditor] = useState(false);
+  const [showManualReceiptEditor, setShowManualReceiptEditor] = useState(false);
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -1436,6 +1437,55 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess(t("workspace.payment.billSaved", "Bill saved."));
     } catch (err) {
       setError(err.message || t("workspace.payment.billSaveFailed", "Could not save the bill."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveManualReceiptDraft(documentHtml) {
+    if (!selectedRecord?.id) return;
+
+    const now = new Date().toISOString();
+    const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
+    const receiptNo =
+      getEditedOfficialReceiptNumber(documentHtml) ||
+      getGeneratedOfficialReceiptNumber(selectedRecord);
+    const nextManualReceipt = {
+      ...(savedApprovalLetter.manual_receipt || {}),
+      template: "dbku_official_receipt_acc_3_88_v1",
+      name: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+      receipt_no: receiptNo,
+      document_html: documentHtml || buildGeneratedOfficialReceiptDocumentHtml(selectedRecord),
+      status: "Draft",
+      saved_by: userDepartment,
+      saved_at: now,
+    };
+    const nextApprovalLetter = {
+      ...savedApprovalLetter,
+      manual_receipt: nextManualReceipt,
+      updated_at: now,
+    };
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            approval_letter: nextApprovalLetter,
+          }),
+        }),
+      });
+
+      setSelectedDetail(response?.data || response || selectedRecord);
+      await fetchApplications({ silent: true });
+      setShowManualReceiptEditor(false);
+      setSuccess(t("workspace.payment.receiptSaved", "Official receipt saved."));
+    } catch (err) {
+      setError(err.message || t("workspace.payment.receiptSaveFailed", "Could not save the official receipt."));
     } finally {
       setSaving(false);
     }
@@ -2692,6 +2742,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onPaymentDocumentDelete={deletePaymentDocument}
                           onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                           onEditBill={() => setShowManualBillEditor(true)}
+                          onEditReceipt={() => setShowManualReceiptEditor(true)}
                           onLicenseDocumentUpload={uploadLicenseDocument}
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -3119,6 +3170,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onPaymentDocumentDelete={deletePaymentDocument}
                         onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                         onEditBill={() => setShowManualBillEditor(true)}
+                        onEditReceipt={() => setShowManualReceiptEditor(true)}
                         onLicenseDocumentUpload={uploadLicenseDocument}
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -3278,6 +3330,22 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           saving={saving}
           onClose={() => setShowManualBillEditor(false)}
           onSave={saveManualBillDraft}
+        />
+      )}
+
+      {showManualReceiptEditor && selectedRecord && (
+        <GeneratedDocumentReviewModal
+          document={{
+            title: t("workspace.payment.reviewGeneratedDocument", "Review"),
+            reference: getApplicationReference(selectedRecord),
+            html: getGeneratedOfficialReceiptDocumentHtml(selectedRecord),
+            scale: 0.95,
+            editable: true,
+          }}
+          t={t}
+          saving={saving}
+          onClose={() => setShowManualReceiptEditor(false)}
+          onSave={saveManualReceiptDraft}
         />
       )}
 
@@ -3563,46 +3631,49 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #fff; color: #000; font-family: "Times New Roman", Times, serif; }
-    .receipt-page { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 10mm 9mm; overflow: hidden; }
-    .receipt-content { width: 100%; transform: scale(.94); transform-origin: top left; }
-    .receipt-header { position: relative; min-height: 34mm; }
+    .receipt-page { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 10mm 1.5mm; overflow: hidden; }
+    .receipt-content { width: 100%; transform: scale(.94); transform-origin: top center; }
+    .receipt-header { position: relative; min-height: 27mm; }
     .crest { position: absolute; left: 0; top: 0; width: 43mm; display: flex; justify-content: center; }
     .crest img { width: 40mm; max-height: 31mm; object-fit: contain; }
     .heading { text-align: center; font-family: "Times New Roman", Times, serif; font-weight: 700; line-height: 1.03; }
     .receipt-header .heading { width: 126mm; margin: 0 auto; padding-top: 1mm; }
-    .heading .mayor { font-size: 14pt; letter-spacing: 0; }
-    .heading .commissioner { margin-top: .4mm; font-size: 10pt; }
-    .heading .agency { margin-top: .5mm; font-size: 10pt; }
-    .heading .address { margin-top: .5mm; font-size: 9pt; line-height: 1.08; }
-    .copy { position: absolute; right: 4mm; top: 1mm; width: 52mm; text-align: center; font-size: 12pt; line-height: 1.15; }
-    .copy-code { display: block; width: 100%; text-align: center; font-weight: 400; transform: translateX(4mm); }
+    .heading .mayor { font-size: 15pt; letter-spacing: 0; }
+    .heading .commissioner { margin-top: .4mm; font-size: 11pt; }
+    .heading .agency { margin-top: .5mm; font-size: 11pt; }
+    .heading .address { margin-top: .5mm; font-size: 10pt; line-height: 1.08; }
+    .copy { position: absolute; right: 0; top: 1mm; width: 52mm; text-align: right; font-size: 12pt; line-height: 1.15; }
+    .copy-code { display: block; width: 100%; text-align: right; font-weight: 400; }
     .copy-label { display: block; margin-top: 8mm; font-weight: 700; }
-    .title-row { display: grid; grid-template-columns: 1fr 45mm; align-items: baseline; margin: 8mm 0 5mm; padding-left: 43mm; }
-    .title { text-align: center; font-size: 24pt; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
-    .number { font-size: 19pt; font-weight: 800; white-space: nowrap; }
-    .number span { color: #f00; font-size: 21pt; letter-spacing: .06em; }
-    .content-grid { display: grid; grid-template-columns: minmax(0,1fr) 91mm; gap: 10mm; align-items: start; }
-    .meta { padding-top: 19mm; font-size: 12.5pt; font-weight: 700; }
+    .title-row { display: grid; grid-template-columns: 1fr 45mm; align-items: baseline; margin: 0 0 5mm; padding-left: 43mm; }
+    .title { text-align: center; font-size: 19pt; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .number { font-size: 19pt; font-weight: 800; white-space: nowrap; transform: translateX(4mm); }
+    .number span { color: #f00; font-size: 19pt; letter-spacing: .06em; }
+    .content-grid { display: grid; grid-template-columns: minmax(0,1fr) 109mm; gap: 10mm; align-items: start; }
+    .meta { padding-top: 19mm; font-size: 11pt; font-weight: 700; }
     .dot-line { display: grid; grid-template-columns: auto 1fr; gap: 1.2mm; align-items: end; margin-bottom: 6mm; }
     .dots { border-bottom: 1.4px dotted #111; min-height: 6mm; }
     table { width: 100%; border-collapse: collapse; font-size: 10.5pt; font-weight: 700; }
     th, td { border: 1.25px solid #111; height: 5.8mm; padding: .5mm 1.2mm; }
     th { text-align: center; line-height: 1.1; }
+    .amount-title { display: block; }
+    .amount-columns { display: grid; grid-template-columns: 27mm 11mm; align-items: center; }
     td.amount { text-align: right; }
     .credit { width: 53mm; }
     .rm { width: 27mm; }
     .sen { width: 11mm; }
     .total-label { border: 0; text-align: right; font-size: 12.5pt; }
-    .received { margin-top: 8mm; font-size: 12.5pt; font-weight: 700; line-height: 1.35; }
+    .received { margin-top: 8mm; font-size: 11pt; font-weight: 700; line-height: 1.35; }
     .received-row { display: grid; grid-template-columns: auto 1fr; gap: 3mm; align-items: end; min-height: 6.6mm; }
     .solid-line { border-bottom: 1.25px solid #111; min-height: 5.6mm; line-height: 5mm; padding-left: 1.5mm; font-weight: 400; }
     .blank-line { border-bottom: 1.25px solid #111; height: 6.5mm; }
+    [contenteditable="true"] { outline: none; box-shadow: none; }
     .footer { display: grid; grid-template-columns: 30mm minmax(0,1fr) 51mm; gap: 10mm; align-items: end; margin-top: 8mm; }
-    .payment-mode { font-size: 11.5pt; font-weight: 800; line-height: 1.05; }
+    .payment-mode { font-size: 11pt; font-weight: 800; line-height: 1.05; }
     .payment-mode .cash { display: inline-block; min-width: 23mm; border-bottom: 1.3px solid #111; text-align: center; }
-    .bank-note { text-align: center; font: 700 7.5pt Arial, sans-serif; line-height: 1.2; }
-    .bank-note em { font-size: 7.5pt; }
-    .signature { text-align: center; font-size: 10.5pt; font-weight: 700; }
+    .bank-note { text-align: center; font: 700 9pt Arial, sans-serif; line-height: 1.2; transform: translateY(4mm); }
+    .bank-note em { font-size: 9pt; }
+    .signature { text-align: center; font-size: 11pt; font-weight: 700; transform: translateY(4mm); }
     .signature .line { border-bottom: 1.6px dotted #111; height: 6mm; margin-bottom: .5mm; }
     .print-actions { position: fixed; right: 18px; top: 18px; }
     .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
@@ -3642,7 +3713,10 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
         <thead>
           <tr>
             <th class="credit">For credit of</th>
-            <th colspan="2">Amount<br />RM&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Sen</th>
+            <th colspan="2">
+              <span class="amount-title">Amount</span>
+              <span class="amount-columns"><span>RM</span><span>Sen</span></span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -3668,7 +3742,7 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     </section>
 
     <footer class="footer">
-      <div class="payment-mode"><span class="cash">CASH</span><br />CHEQUE NO.<br /><span style="font-size:9pt;font-weight:700;">PNMB,Kch.</span></div>
+      <div class="payment-mode"><span class="cash">CASH</span><br />CHEQUE NO.<br /><span style="display:inline-block;transform:translateY(3mm);font-size:6pt;font-weight:700;">PNMB,Kch.</span></div>
       <div class="bank-note">Pembayaran ini hanya dianggap sah setelah cek diperakui oleh bank<br /><em>Payment valid only upon clearance of cheques</em></div>
       <div class="signature"><div class="line"></div>b.p. Datuk Bandar</div>
     </footer>
@@ -11709,8 +11783,7 @@ const configs = {
           );
           const licenseId = savedLicense.license_id || getLicenseId(app);
           const officialReceiptNo = getGeneratedOfficialReceiptNumber(app);
-          const { document_html: _oldReceiptHtml, ...savedManualReceipt } =
-            savedApprovalLetter.manual_receipt || {};
+          const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
           const { manual_license: _oldManualLicense, ...savedLicenseWithoutManualTemplate } =
             savedLicense || {};
           const nextLicenseBase = {
@@ -11751,6 +11824,8 @@ const configs = {
               license: nextLicenseBase,
             },
           };
+          const receiptDocumentHtml =
+            savedManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
 
           return {
             status: "license_issued",
@@ -11764,6 +11839,7 @@ const configs = {
                   template: "dbku_official_receipt_acc_3_88_v1",
                   name: "Official Receipt",
                   receipt_no: officialReceiptNo,
+                  document_html: receiptDocumentHtml,
                   status: "Sent to Applicant",
                   generated_by: "PT(IKL)",
                   generated_at: timestamp,
@@ -15109,6 +15185,7 @@ function PaymentDetails({
   onPaymentDocumentDelete,
   onEditApprovalLetter,
   onEditBill,
+  onEditReceipt,
   onLicenseDocumentUpload,
   onLicenseDocumentDelete,
   paymentReceiptDecision = "",
@@ -15329,13 +15406,7 @@ function PaymentDetails({
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
       required: showVerificationUploads,
       displayName: t("workspace.payment.autoGeneratedDocumentReady", "Auto-generated document ready."),
-      onReview: () =>
-        setGeneratedDocumentReview({
-          title: t("workspace.payment.reviewGeneratedDocument", "Review"),
-          reference: getApplicationReference(app),
-          html: getGeneratedOfficialReceiptDocumentHtml(app),
-          scale: 0.95,
-        }),
+      onReview: onEditReceipt,
       onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
     },
     {
@@ -15606,7 +15677,7 @@ function AutoGeneratedPaymentDocumentSlot({
   );
 }
 
-function GeneratedDocumentReviewModal({ document, t, saving, onClose }) {
+function GeneratedDocumentReviewModal({ document, t, saving, onClose, onSave }) {
   const html = hidePrintActionsInReviewDocument(document?.html || "", document?.scale);
   const iframeRef = useRef(null);
   const [iframeHeight, setIframeHeight] = useState(720);
@@ -15628,8 +15699,27 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose }) {
   }, []);
 
   function handleIframeLoad() {
+    if (document?.editable) {
+      const frameDocument = iframeRef.current?.contentDocument;
+      if (frameDocument) {
+        prepareEditableReceiptDocument(frameDocument);
+      }
+    }
     resizeIframe();
     window.setTimeout(resizeIframe, 300);
+  }
+
+  function handleSave() {
+    if (!document?.editable || !onSave) {
+      onClose?.();
+      return;
+    }
+
+    const frameDocument = iframeRef.current?.contentDocument;
+    const nextHtml = stripReviewDocumentCss(
+      frameDocument?.documentElement?.outerHTML || document?.html || ""
+    );
+    onSave(nextHtml);
   }
 
   return (
@@ -15651,7 +15741,7 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose }) {
               icon="save"
               className="min-h-9 px-3 py-1.5"
               disabled={saving}
-              onClick={onClose}
+              onClick={handleSave}
             >
               {saving ? t("workspace.saving", "Saving...") : t("common.save", "Save")}
             </Button>
@@ -15691,7 +15781,7 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose }) {
 function hidePrintActionsInReviewDocument(html, scale = 0.72) {
   if (!html) return "";
   const safeScale = Number.isFinite(Number(scale)) ? Number(scale) : 0.72;
-  const reviewCss = `<style>
+  const reviewCss = `<style data-generated-review-css="true">
     @media screen {
       html { background: #f1f5f9 !important; }
       body {
@@ -15712,6 +15802,46 @@ function hidePrintActionsInReviewDocument(html, scale = 0.72) {
   return html.includes("</head>")
     ? html.replace("</head>", `${reviewCss}</head>`)
     : `${reviewCss}${html}`;
+}
+
+function stripReviewDocumentCss(html) {
+  return String(html || "").replace(
+    /<style\s+data-generated-review-css=["']true["'][^>]*>[\s\S]*?<\/style>/gi,
+    ""
+  )
+    .replace(/\scontenteditable=["']true["']/gi, "")
+    .replace(/\sspellcheck=["']false["']/gi, "")
+    .replace(/\sdata-receipt-editable=["']true["']/gi, "");
+}
+
+function prepareEditableReceiptDocument(frameDocument) {
+  frameDocument.designMode = "off";
+  const editableSelector = [
+    ".dots",
+    ".solid-line",
+    ".blank-line",
+    "tbody td:not(.total-label)",
+    ".number span",
+    ".signature .line",
+  ].join(",");
+
+  frameDocument.querySelectorAll(editableSelector).forEach((field) => {
+    field.setAttribute("contenteditable", "true");
+    field.setAttribute("spellcheck", "false");
+    field.setAttribute("data-receipt-editable", "true");
+    if (!field.matches(".number span")) {
+      field.style.fontFamily = "Calibri, Arial, sans-serif";
+    }
+    field.addEventListener("paste", handleEditableDocumentPaste);
+  });
+}
+
+function handleEditableDocumentPaste(event) {
+  const text = event.clipboardData?.getData("text/plain") || "";
+  if (!text) return;
+
+  event.preventDefault();
+  event.currentTarget?.ownerDocument?.execCommand?.("insertText", false, text);
 }
 
 function PaymentApprovalDocumentTabs({
@@ -16400,7 +16530,17 @@ function openHtmlPreviewDocument(html, title, t) {
 }
 
 function getGeneratedOfficialReceiptDocumentHtml(app) {
-  return buildGeneratedOfficialReceiptDocumentHtml(app);
+  const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
+  return manualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(app);
+}
+
+function getEditedOfficialReceiptNumber(html) {
+  const match = String(html || "").match(/<div[^>]*class=["'][^"']*\bnumber\b[^"']*["'][^>]*>[\s\S]*?<span[^>]*>([\s\S]*?)<\/span>/i);
+  const text = match?.[1]
+    ?.replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .trim();
+  return text || "";
 }
 
 function openGeneratedOfficialReceiptDocument(app, t) {
