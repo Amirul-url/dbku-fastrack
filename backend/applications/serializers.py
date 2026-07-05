@@ -9,9 +9,13 @@ from .services.summary import (
     get_application_applicant_name,
     get_application_applicant_profile,
     get_application_display_remark,
+    get_public_application_display_remark,
     get_application_registered_applicant_name,
     sync_application_summary,
 )
+
+
+STAFF_ROLES = {"admin", "supervisor", "staff"}
 
 
 def strip_inline_file_data(value, preserve_inline_data=False):
@@ -130,6 +134,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     sut_approval = serializers.SerializerMethodField()
     approval = serializers.SerializerMethodField()
     approval_letter = serializers.SerializerMethodField()
+    latest_remark = serializers.SerializerMethodField()
     display_remark = serializers.SerializerMethodField()
     activity_log = serializers.SerializerMethodField()
 
@@ -257,7 +262,20 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         return strip_inline_file_data(approval_letter)
 
     def get_display_remark(self, obj):
+        if self.is_applicant_view():
+            return get_public_application_display_remark(obj)
+
         return get_application_display_remark(obj)
+
+    def get_latest_remark(self, obj):
+        if self.is_applicant_view():
+            return get_public_application_display_remark(obj)
+
+        return obj.latest_remark
+
+    def is_applicant_view(self):
+        user = get_request_user(self)
+        return getattr(user, "role", "") not in STAFF_ROLES
 
     def get_activity_log(self, obj):
         activity_log = (obj.form_data or {}).get("activity_log", [])

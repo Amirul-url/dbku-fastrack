@@ -1830,7 +1830,7 @@ function getApplicationRemark(app) {
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
     return isPaymentReceiptRejected(formData.payment)
-      ? cleanRemark(formData.payment?.verification_notes || app?.display_remark)
+      ? cleanRemark(formData.payment?.verification_notes)
       : "";
   }
 
@@ -1838,11 +1838,11 @@ function getApplicationRemark(app) {
     return cleanRemark(
       formData.payment?.verification_notes ||
         formData.license?.remarks ||
-        formData.license?.notes ||
-        app?.display_remark ||
-        app?.latest_remark
+        formData.license?.notes
     );
   }
+
+  if (status === "approved") return "";
 
   if (!["incomplete", "rejected"].includes(status)) return "";
 

@@ -277,6 +277,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showManualApprovalLetterEditor, setShowManualApprovalLetterEditor] = useState(false);
   const [showManualBillEditor, setShowManualBillEditor] = useState(false);
   const [showManualReceiptEditor, setShowManualReceiptEditor] = useState(false);
+  const [showManualAdvertisementLicenseEditor, setShowManualAdvertisementLicenseEditor] = useState(false);
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -885,8 +886,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     (!selectedPaymentReceiptAction.requiresLicenseDocument ||
       getPaymentDocumentSource(selectedRecord?.form_data?.license?.license_file))
   );
+  const requiresPaymentReceiptSignature =
+    showPaymentReceiptDecision && selectedPaymentReceiptAction?.label === "Verify Receipt";
   const selectedPaymentReceiptActionRequirementsReady =
-    !selectedPaymentReceiptAction || selectedPaymentReceiptActionReady;
+    !selectedPaymentReceiptAction ||
+    (selectedPaymentReceiptActionReady &&
+      (!requiresPaymentReceiptSignature || hasDigitalSignatureContent(approvalSupportSignature)));
   const approvalMemoHtml = isApprovalSupportStage || savedApprovalDecisionHtml
     ? sanitizeMemoHtml(getApprovalMemoHtml(selectedRecord))
     : "";
@@ -1025,6 +1030,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     useTypedApprovalDecision,
     userDepartment,
   ]);
+
+  useEffect(() => {
+    if (!requiresPaymentReceiptSignature) {
+      setApprovalSupportSignatureError("");
+    }
+  }, [requiresPaymentReceiptSignature]);
 
   function handleApprovalSupportDecisionChange(nextDecision) {
     setDecision(nextDecision);
@@ -1486,6 +1497,51 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess(t("workspace.payment.receiptSaved", "Official receipt saved."));
     } catch (err) {
       setError(err.message || t("workspace.payment.receiptSaveFailed", "Could not save the official receipt."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveManualAdvertisementLicenseDraft(documentHtml) {
+    if (!selectedRecord?.id) return;
+
+    const now = new Date().toISOString();
+    const savedLicense = selectedRecord.form_data?.license || {};
+    const nextManualLicense = {
+      ...(savedLicense.manual_license || {}),
+      template: "dbku_advertisement_license_borang_b_v1",
+      name: t("workspace.license.documentTitle", "Advertisement License"),
+      document_html: documentHtml || buildBlankAdvertisementLicenseDocumentHtml(selectedRecord, t),
+      status: "Draft",
+      saved_by: userDepartment,
+      saved_at: now,
+    };
+    const nextLicense = {
+      ...savedLicense,
+      manual_license: nextManualLicense,
+      updated_at: now,
+    };
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: mergeFormData(selectedRecord, {
+            license: nextLicense,
+          }),
+        }),
+      });
+
+      setSelectedDetail(response?.data || response || selectedRecord);
+      await fetchApplications({ silent: true });
+      setShowManualAdvertisementLicenseEditor(false);
+      setSuccess(t("workspace.license.saved", "Advertisement license saved."));
+    } catch (err) {
+      setError(err.message || t("workspace.license.saveFailed", "Could not save the advertisement license."));
     } finally {
       setSaving(false);
     }
@@ -2743,6 +2799,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                           onEditBill={() => setShowManualBillEditor(true)}
                           onEditReceipt={() => setShowManualReceiptEditor(true)}
+                          onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
                           onLicenseDocumentUpload={uploadLicenseDocument}
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -2971,28 +3028,64 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         }
                         labelClassName={showPaymentTypedDecision ? "!text-[13px]" : ""}
                       >
-                        <textarea
-                          ref={commentRef}
-                          value={comment}
-                          onChange={(event) => {
-                            setComment(event.target.value);
-                            if (commentError) setCommentError("");
-                          }}
-                          rows="5"
-                          required={workspaceCommentRequired}
-                          aria-required={workspaceCommentRequired}
-                          aria-invalid={Boolean(commentError)}
-                          className={`form-input ${showPaymentTypedDecision ? "form-input-sm" : ""} ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                          placeholder={
-                            showPaymentTypedDecision
-                              ? t("workspace.comment.approvalPlaceholder", "Add comments")
-                              : t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")
-                          }
-                        />
+                        {showPaymentTypedDecision ? (
+                          <div
+                            className={`relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                            style={{
+                              backgroundImage:
+                                "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+                            }}
+                          >
+                            <textarea
+                              ref={commentRef}
+                              value={comment}
+                              onChange={(event) => {
+                                setComment(event.target.value);
+                                if (commentError) setCommentError("");
+                              }}
+                              rows="8"
+                              required={workspaceCommentRequired}
+                              aria-required={workspaceCommentRequired}
+                              aria-invalid={Boolean(commentError)}
+                              className="h-full min-h-[220px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                              placeholder={t("workspace.comment.approvalPlaceholder", "Add comments")}
+                              style={RULED_TEXTAREA_STYLE}
+                            />
+                          </div>
+                        ) : (
+                          <textarea
+                            ref={commentRef}
+                            value={comment}
+                            onChange={(event) => {
+                              setComment(event.target.value);
+                              if (commentError) setCommentError("");
+                            }}
+                            rows="5"
+                            required={workspaceCommentRequired}
+                            aria-required={workspaceCommentRequired}
+                            aria-invalid={Boolean(commentError)}
+                            className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                            placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
+                          />
+                        )}
                         {commentError && (
                           <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
                             {commentError}
                           </p>
+                        )}
+                        {requiresPaymentReceiptSignature && (
+                          <div className="mt-4">
+                            <ApprovalSupportSignatureBox
+                              t={t}
+                              value={approvalSupportSignature}
+                              error={approvalSupportSignatureError}
+                              onChange={(nextSignature) => {
+                                setApprovalSupportSignature(nextSignature);
+                                if (approvalSupportSignatureError) setApprovalSupportSignatureError("");
+                              }}
+                              onError={setApprovalSupportSignatureError}
+                            />
+                          </div>
                         )}
                       </Field>
                     )
@@ -3171,6 +3264,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                         onEditBill={() => setShowManualBillEditor(true)}
                         onEditReceipt={() => setShowManualReceiptEditor(true)}
+                        onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
                         onLicenseDocumentUpload={uploadLicenseDocument}
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -3223,10 +3317,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               return;
                             }
 
+                            if (
+                              requiresPaymentReceiptSignature &&
+                              !hasDigitalSignatureContent(approvalSupportSignature)
+                            ) {
+                              setApprovalSupportSignatureError(
+                                t("workspace.signature.required", "Digital signature is required.")
+                              );
+                              return;
+                            }
+
                             submitAction(selectedPaymentReceiptAction, {
                               decision,
                               comment: cleanRemark(comment),
                               checkDecisionRemark: false,
+                              approvalSupportSignature: requiresPaymentReceiptSignature
+                                ? approvalSupportSignature
+                                : null,
                             });
                           }}
                           disabled={saving || !selectedPaymentReceiptActionRequirementsReady}
@@ -3341,11 +3448,29 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html: getGeneratedOfficialReceiptDocumentHtml(selectedRecord),
             scale: 0.95,
             editable: true,
+            kind: "receipt",
           }}
           t={t}
           saving={saving}
           onClose={() => setShowManualReceiptEditor(false)}
           onSave={saveManualReceiptDraft}
+        />
+      )}
+
+      {showManualAdvertisementLicenseEditor && selectedRecord && (
+        <GeneratedDocumentReviewModal
+          document={{
+            title: t("workspace.payment.reviewGeneratedDocument", "Review"),
+            reference: getApplicationReference(selectedRecord),
+            html: getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t),
+            scale: 0.9,
+            editable: true,
+            kind: "advertisement_license",
+          }}
+          t={t}
+          saving={saving}
+          onClose={() => setShowManualAdvertisementLicenseEditor(false)}
+          onSave={saveManualAdvertisementLicenseDraft}
         />
       )}
 
@@ -5570,16 +5695,28 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
       <section className="rounded-md border border-slate-300 bg-white">
         {logs.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="min-w-full table-fixed border-collapse text-left text-sm">
+            <table className="min-w-[980px] border-collapse text-left text-sm">
               <colgroup>
-                <col className="w-[28%]" />
-                <col className="w-[34%]" />
-                <col className="w-[38%]" />
+                <col className="w-[16%]" />
+                <col className="w-[18%]" />
+                <col className="w-[30%]" />
+                <col className="w-[18%]" />
+                <col className="w-[12%]" />
+                <col className="w-[6%]" />
               </colgroup>
               <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="border-b border-slate-200 px-4 py-2">
                     {t("common.department", "Department")}
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-2">
+                    {t("common.decision", "Your Recommendation")}
+                  </th>
+                  <th className="border-b border-slate-200 px-4 py-2">
+                    {t("common.remarks", "Remarks")}
+                  </th>
+                  <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2">
+                    {t("workspace.signature.title", "Digital Signature")}
                   </th>
                   <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2">
                     {t("common.date", "Date")}
@@ -5592,8 +5729,23 @@ function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
               <tbody className="divide-y divide-slate-100">
                 {logs.map((log) => (
                   <tr key={log.id} className="align-middle">
-                    <td className="max-w-[34rem] whitespace-normal px-4 py-2 font-semibold leading-5 text-slate-900">
+                    <td className="whitespace-normal px-4 py-2 font-semibold leading-5 text-slate-900">
                       {formatDecisionLogDepartmentLabel(log.department, language)}
+                    </td>
+                    <td className="px-4 py-2">
+                      {log.decision ? <StatusPill value={formatDecisionLogDecision(log.decision, language)} /> : "-"}
+                    </td>
+                    <td className="px-4 py-2 text-slate-700">
+                      <p className="max-h-20 overflow-y-auto whitespace-pre-line leading-5">
+                        {log.remarks || "-"}
+                      </p>
+                    </td>
+                    <td className="px-4 py-2">
+                      <DecisionLogSignatureCell
+                        department={log.department}
+                        signature={log.signature}
+                        t={t}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-slate-600">
                       {formatCompactDateTime(log.date)}
@@ -9487,8 +9639,9 @@ function buildWorkspaceDecisionLogRows(app, t) {
     department: "PT(IKL)",
     section: payment,
     decision: getWorkspacePaymentReceiptDecisionLogValue(payment),
-    remarks: payment.verification_notes,
+    remarks: payment.internal_verification_notes,
     date: getWorkspaceDecisionLogDate(payment, ["verified_at", "rejected_at"]),
+    signature: getWorkspaceDecisionLogSignature(payment),
   }, t);
 
   addWorkspaceDecisionLogRow(rows, {
@@ -11829,7 +11982,7 @@ const configs = {
 
           return {
             status: "license_issued",
-            latest_remark: data.comment,
+            latest_remark: "",
             form_data: mergeFormData(app, {
               approval_letter: {
                 ...savedApprovalLetter,
@@ -11854,7 +12007,9 @@ const configs = {
                 recommendation: "Verify Receipt",
                 receipt_decision: "Verify Receipt",
                 verification_result: "Valid",
-                verification_notes: data.comment,
+                verification_notes: "",
+                internal_verification_notes: data.comment,
+                digital_signature: data.approvalSupportSignature || app.form_data?.payment?.digital_signature || null,
                 verified_at: timestamp,
               },
               license: {
@@ -11879,7 +12034,7 @@ const configs = {
         successKey: "workspace.message.receiptRejected",
         buildPayload: (app, data) => ({
           status: "invoice_generated",
-          latest_remark: data.comment,
+          latest_remark: "",
           form_data: mergeFormData(app, {
             payment: {
               ...(app.form_data?.payment || {}),
@@ -11887,7 +12042,9 @@ const configs = {
               recommendation: "Reject Receipt",
               receipt_decision: "Reject Receipt",
               verification_result: "Invalid/Fake",
-              verification_notes: data.comment,
+              verification_notes: "",
+              internal_verification_notes: data.comment,
+              digital_signature: null,
               rejected_at: new Date().toISOString(),
             },
           }),
@@ -15186,6 +15343,7 @@ function PaymentDetails({
   onEditApprovalLetter,
   onEditBill,
   onEditReceipt,
+  onEditLicense,
   onLicenseDocumentUpload,
   onLicenseDocumentDelete,
   paymentReceiptDecision = "",
@@ -15413,13 +15571,7 @@ function PaymentDetails({
       label: t("workspace.license.documentTitle", "Advertisement License"),
       required: showVerificationUploads,
       displayName: t("workspace.payment.autoGeneratedDocumentReady", "Auto-generated document ready."),
-      onReview: () =>
-        setGeneratedDocumentReview({
-          title: t("workspace.payment.reviewGeneratedDocument", "Review"),
-          reference: getApplicationReference(app),
-          html: buildBlankAdvertisementLicenseDocumentHtml(app, t),
-          scale: 0.72,
-        }),
+      onReview: onEditLicense,
       onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
     },
   ];
@@ -15702,7 +15854,7 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose, onSave }) 
     if (document?.editable) {
       const frameDocument = iframeRef.current?.contentDocument;
       if (frameDocument) {
-        prepareEditableReceiptDocument(frameDocument);
+        prepareEditableGeneratedDocument(frameDocument, document?.kind);
       }
     }
     resizeIframe();
@@ -15792,7 +15944,8 @@ function hidePrintActionsInReviewDocument(html, scale = 0.72) {
       }
       .print-actions { display: none !important; }
       .receipt-page,
-      .page {
+      .page,
+      .ad-license-page {
         margin-left: auto !important;
         margin-right: auto !important;
         box-shadow: 0 1px 4px rgba(15, 23, 42, .12) !important;
@@ -15814,22 +15967,25 @@ function stripReviewDocumentCss(html) {
     .replace(/\sdata-receipt-editable=["']true["']/gi, "");
 }
 
-function prepareEditableReceiptDocument(frameDocument) {
+function prepareEditableGeneratedDocument(frameDocument, kind = "") {
   frameDocument.designMode = "off";
-  const editableSelector = [
-    ".dots",
-    ".solid-line",
-    ".blank-line",
-    "tbody td:not(.total-label)",
-    ".number span",
-    ".signature .line",
-  ].join(",");
+  const editableSelector =
+    kind === "advertisement_license"
+      ? ".ad-license-page .dot-line"
+      : [
+          ".dots",
+          ".solid-line",
+          ".blank-line",
+          "tbody td:not(.total-label)",
+          ".number span",
+          ".signature .line",
+        ].join(",");
 
   frameDocument.querySelectorAll(editableSelector).forEach((field) => {
     field.setAttribute("contenteditable", "true");
     field.setAttribute("spellcheck", "false");
     field.setAttribute("data-receipt-editable", "true");
-    if (!field.matches(".number span")) {
+    if (kind !== "advertisement_license" && !field.matches(".number span")) {
       field.style.fontFamily = "Calibri, Arial, sans-serif";
     }
     field.addEventListener("paste", handleEditableDocumentPaste);
@@ -16559,7 +16715,7 @@ function openGeneratedOfficialReceiptDocument(app, t) {
 function openGeneratedAdvertisementLicenseDocument(app, t) {
   try {
     openHtmlPreviewDocument(
-      buildBlankAdvertisementLicenseDocumentHtml(app, t),
+      getGeneratedAdvertisementLicenseDocumentHtml(app, t),
       `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`,
       t
     );
@@ -16584,7 +16740,7 @@ async function printGeneratedOfficialReceiptDocument(app, t) {
 async function printBlankAdvertisementLicenseDocument(app, t) {
   try {
     await printHtmlDocument(
-      buildBlankAdvertisementLicenseDocumentHtml(app, t),
+      getGeneratedAdvertisementLicenseDocumentHtml(app, t),
       `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
     );
   } catch (error) {
@@ -16593,8 +16749,17 @@ async function printBlankAdvertisementLicenseDocument(app, t) {
   }
 }
 
+function getGeneratedAdvertisementLicenseDocumentHtml(app, t) {
+  const manualLicense = app?.form_data?.license?.manual_license || {};
+  return manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t);
+}
+
 function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
   const title = `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`;
+  const license = app?.form_data?.license || {};
+  const manualLicense = license.manual_license || {};
+  const logoUrl = getPublicAssetUrl("/logo-dbku.png");
+  const terms = getAdvertisementLicenseAttachmentTerms(manualLicense.terms);
 
   return `<!doctype html>
 <html>
@@ -16604,37 +16769,151 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
   <style>
     @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; font-family: Arial, sans-serif; color: #0f172a; }
-    .blank-license-page {
+    body { margin: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+    .ad-license-page {
       width: 210mm;
       min-height: 297mm;
-      margin: 0 auto;
+      margin: 0 auto 12px;
       background: #fff;
-      padding: 22mm;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
+      padding: 24mm 16mm 20mm;
+      page-break-after: always;
+      break-after: page;
+      overflow: hidden;
     }
-    .blank-license-message { max-width: 92mm; font-size: 12pt; font-weight: 700; line-height: 1.45; color: #475569; }
+    .ad-license-page:last-of-type { page-break-after: auto; break-after: auto; }
+    .license-header { text-align: center; }
+    .license-logo { width: 43mm; height: 32mm; margin: 0 auto 8mm; display: flex; align-items: center; justify-content: center; }
+    .license-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .license-heading { margin: 0; font-size: 11pt; line-height: 1.25; font-weight: 700; text-transform: uppercase; }
+    .license-heading strong { font-weight: 700; }
+    .license-heading em { font-style: italic; }
+    .license-form-title { margin: 5mm 0 10mm; text-align: center; font-size: 11pt; line-height: 1.32; font-weight: 700; }
+    .top-fields { display: grid; grid-template-columns: 22mm 5mm 40mm 20mm 5mm 1fr; column-gap: 3mm; align-items: end; margin-top: 2mm; font-size: 11pt; line-height: 1.1; }
+    .form-lines { display: grid; grid-template-columns: 22mm 5mm 1fr; column-gap: 3mm; row-gap: 1.5mm; align-items: end; margin-top: 2mm; font-size: 11pt; }
+    .label { white-space: pre-line; }
+    .colon { text-align: center; }
+    .dot-line { min-height: 5mm; border-bottom: 1.4px dotted #111; line-height: 4.8mm; padding: 0 2mm; font-weight: 400; }
+    [contenteditable="true"] { outline: none; box-shadow: none; }
+    .grant { margin: 17mm 0 12mm; font-size: 11pt; line-height: 1.45; text-align: justify; }
+    .grant strong { font-weight: 700; }
+    .license-details { display: grid; grid-template-columns: 42mm 5mm 1fr; column-gap: 3mm; row-gap: 1.4mm; align-items: end; font-size: 11pt; }
+    .period-line { display: grid; grid-template-columns: 42mm 5mm 1fr 16mm 1fr; column-gap: 3mm; align-items: end; margin-top: 1.4mm; font-size: 11pt; }
+    .attachment-line { margin-top: 12mm; font-size: 11pt; }
+    .signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }
+    .signature-title { margin-top: 4mm; }
+    .date-row { display: grid; grid-template-columns: auto 1fr; gap: 2mm; align-items: end; }
+    .appendix-page { padding: 24mm 16mm 20mm; font-family: Arial, Helvetica, sans-serif; }
+    .appendix-title { margin: 0 0 8mm; font-size: 11pt; line-height: 1.55; font-weight: 700; text-transform: uppercase; }
+    .terms { margin: 0; padding-left: 13mm; font-size: 11pt; line-height: 1.32; }
+    .terms li { margin: 0 0 6.5mm; padding-left: 2mm; text-align: justify; }
     .print-actions { position: fixed; right: 18px; top: 18px; }
     .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
     @media print {
       html, body { width: 210mm; min-height: 297mm; overflow: hidden; background: #fff; }
-      .blank-license-page { margin: 0; }
+      .ad-license-page { margin: 0; }
       .print-actions { display: none; }
     }
   </style>
 </head>
 <body>
   <div class="print-actions"><button onclick="window.print()">Print</button></div>
-  <main class="blank-license-page">
-    <p class="blank-license-message">${escapeHtml(
-      t("workspace.license.blankTemplateMessage", "Advertisement License template will be added later.")
-    )}</p>
-  </main>
+  <section class="ad-license-page">
+    <header class="license-header">
+      <div class="license-logo"><img src="${escapeHtml(logoUrl)}" alt="DBKU" /></div>
+      <p class="license-heading">
+        DEWAN BANDARAYA KUCHING UTARA<br />
+        (COMMISSION OF THE CITY NORTH OF KUCHING NORTH)<br />
+        <em>THE LOCAL AUTHORITIES (ADVERTISEMENT) BY-LAWS, 2012</em>
+      </p>
+      <p class="license-form-title">Borang B<br />(Undang-Undang Kecil 7)<br />Lesen Pengiklanan</p>
+    </header>
+
+    <div class="top-fields">
+      <span class="label">No. Resit</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span>Rujukan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+    </div>
+
+    <div class="form-lines">
+      <span>Nama</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span>Alamat</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span></span><span></span><span class="dot-line">&nbsp;</span>
+      <span></span><span></span><span class="dot-line">&nbsp;</span>
+    </div>
+
+    <p class="grant">
+      Adalah dengan ini diberi lesen oleh <strong>Pengarah, Dewan Bandaraya Kuching Utara</strong>
+      di bawah undang-undang kecil 7, <em>The Local Authorities (Advertisements) By-Laws, 2012</em>
+      untuk mempamer iklan seperti berikut:
+    </p>
+
+    <div class="license-details">
+      <span>Nama Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span>Jenis Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span>Lokasi Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span></span><span></span><span class="dot-line">&nbsp;</span>
+    </div>
+
+    <div class="period-line">
+      <span>Tempoh Lesen Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
+      <span>hingga</span><span class="dot-line">&nbsp;</span>
+    </div>
+
+    <p class="attachment-line">Tertakluk kepada syarat-syarat dalam Lampiran A.</p>
+
+    <div class="signature-row">
+      <div>
+        <div class="dot-line">&nbsp;</div>
+        <div class="signature-title">b.p.: Dewan Bandaraya Kuching Utara</div>
+      </div>
+      <div class="date-row"><span>Tarikh:</span><span class="dot-line">&nbsp;</span></div>
+    </div>
+  </section>
+
+  <section class="ad-license-page appendix-page">
+    <h1 class="appendix-title">LAMPIRAN A<br />SYARAT-SYARAT LESEN PENGIKLANAN</h1>
+    <ol class="terms">
+      ${terms.map((term) => `<li>${formatAdvertisementLicenseTermHtml(term)}</li>`).join("")}
+    </ol>
+  </section>
 </body>
 </html>`;
+}
+
+function getAdvertisementLicenseAttachmentTerms(savedTerms) {
+  if (Array.isArray(savedTerms) && savedTerms.length > 0) {
+    return savedTerms.map((term) => String(term || "").trim()).filter(Boolean);
+  }
+
+  return [
+    "Lesen ini hanya sah bagi iklan, lokasi dan tempoh yang diluluskan oleh Dewan Bandaraya Kuching Utara (DBKU).",
+    "Lesen ini tidak boleh dipindah milik tanpa kelulusan bertulis daripada DBKU.",
+    "Pemegang lesen hendaklah memastikan iklan dipasang mengikut pelan yang diluluskan dan sentiasa berada dalam keadaan bersih, selamat serta disenggara dengan baik.",
+    "Sebarang pindaan terhadap reka bentuk, saiz, kandungan, struktur atau lokasi iklan hendaklah mendapat kelulusan bertulis daripada DBKU terlebih dahulu.",
+    "Kandungan iklan hendaklah mematuhi semua undang-undang yang berkuat kuasa dan tidak mengandungi unsur yang menyalahi undang-undang, lucah, menghasut, mengelirukan atau menyentuh sensitiviti kaum, agama dan budaya.",
+    "Bagi iklan LED atau digital, tahap kecerahan, animasi dan pertukaran paparan hendaklah tidak mengganggu atau membahayakan pengguna jalan raya.",
+    "Pemegang lesen hendaklah mematuhi semua arahan yang dikeluarkan oleh DBKU dari semasa ke semasa.",
+    "Pemegang lesen bertanggungjawab sepenuhnya terhadap keselamatan struktur iklan serta sebarang kerosakan, kemalangan atau tuntutan yang berpunca daripada pemasangan dan penyelenggaraan iklan.",
+    "Pemegang lesen hendaklah menanggalkan iklan apabila lesen tamat tempoh, dibatalkan atau apabila diarahkan oleh DBKU. Semua kos penanggalan iklan dan pemulihan tapak hendaklah ditanggung oleh pemegang lesen.",
+    "Permohonan pembaharuan lesen hendaklah dikemukakan sebelum tamat tempoh lesen. Lesen yang telah tamat tempoh adalah terbatal dan iklan tidak boleh terus dipamerkan sehingga lesen baharu diluluskan oleh DBKU.",
+    "Deposit (jika berkaitan) boleh dilupuskan atau digunakan oleh DBKU bagi menampung kos penanggalan iklan, pemulihan tapak atau apa-apa kerosakan sekiranya pemegang lesen gagal mematuhi syarat-syarat lesen.",
+    "Kegagalan mematuhi mana-mana syarat lesen ini atau peruntukan The Local Authorities (Advertisement) By-Laws, 2012 boleh menyebabkan lesen digantung atau dibatalkan tanpa menjejaskan apa-apa tindakan penguatkuasaan yang boleh diambil oleh DBKU.",
+  ];
+}
+
+function splitAdvertisementLicenseLines(value) {
+  const lines = String(value || "")
+    .split(/\n|,\s*/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines : [""];
+}
+
+function formatAdvertisementLicenseTermHtml(term) {
+  return escapeHtml(term).replace(
+    /The Local Authorities \(Advertisement\) By-Laws/g,
+    "<em>The Local Authorities (Advertisement) By-Laws</em>"
+  );
 }
 
 function getPaymentQrSvgBlob(qrContainer) {

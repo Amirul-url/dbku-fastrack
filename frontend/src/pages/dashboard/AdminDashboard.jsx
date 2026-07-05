@@ -1958,9 +1958,10 @@ function buildDecisionLogReportRows(app, t) {
     department: "PT(IKL)",
     section: payment,
     decision: getPaymentReceiptDecisionLogValue(payment),
-    remarks: payment.verification_notes,
+    remarks: payment.internal_verification_notes,
     date: getDecisionLogDate(payment, ["verified_at", "rejected_at"]),
     officer: "PT(IKL)",
+    signature: getDecisionLogSignature(payment),
   }, t);
 
   addDecisionLogRow(rows, {

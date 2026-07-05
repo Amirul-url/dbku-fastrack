@@ -129,6 +129,54 @@ def get_application_display_remark(application):
     )
 
 
+def get_public_application_display_remark(application):
+    form_data = application.form_data or {}
+    status_key = str(application.status or "").strip().lower()
+
+    def section(name):
+        value = form_data.get(name) or {}
+        return value if isinstance(value, dict) else {}
+
+    if status_key in {"invoice_generated", "payment_submitted"}:
+        approval_letter = section("approval_letter")
+        payment = section("payment")
+        payment_rejected = (
+            str(payment.get("receipt_decision") or payment.get("recommendation") or "").strip().lower()
+            == "reject receipt"
+            or str(payment.get("verification_result") or "").strip().lower() in {"invalid", "invalid/fake"}
+            or str(payment.get("status") or "").strip().lower() == "receipt rejected"
+        )
+        remark = clean_remark(
+            approval_letter.get("remarks")
+            or approval_letter.get("comment")
+            or approval_letter.get("notes")
+            or (payment.get("verification_notes") if payment_rejected else "")
+        )
+        if remark:
+            return remark
+
+    if status_key in {"payment_verified", "license_issued"}:
+        license_data = section("license")
+        remark = clean_remark(
+            section("payment").get("verification_notes")
+            or license_data.get("remarks")
+            or license_data.get("notes")
+        )
+        if remark:
+            return remark
+
+    if status_key in {"incomplete", "rejected"}:
+        remark = clean_remark(
+            section("correction_request").get("remarks")
+            or clean_remark(application.latest_remark)
+            or section("auto_screening").get("remarks")
+        )
+        if remark:
+            return remark
+
+    return ""
+
+
 def get_latest_remark_from_form_data(form_data, status=""):
     form_data = form_data or {}
     status_key = str(status or "").strip().lower()
