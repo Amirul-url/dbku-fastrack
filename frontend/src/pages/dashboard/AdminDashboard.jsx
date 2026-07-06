@@ -846,9 +846,11 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       ? new URLSearchParams(location.search).get("completeId") || ""
       : "";
   const [selectedCompleteRowId, setSelectedCompleteRowId] = useState(initialCompleteRowId);
+  const [selectedRejectedRowId, setSelectedRejectedRowId] = useState("");
   const title = getResubmissionDrilldownTitle(type, t);
   const description = getResubmissionDrilldownDescription(type, t);
   const isCompleteDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.complete;
+  const isRejectedDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.rejected;
   const monthOptions = getResubmissionMonthOptions(language);
   const yearOptions = useMemo(() => {
     return buildDrilldownYearOptions(rows, filters.year);
@@ -865,8 +867,12 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
   const selectedCompleteRow = isCompleteDrilldown
     ? filteredRows.find((row) => row.id === selectedCompleteRowId) || null
     : null;
-  const panelTitle = selectedCompleteRow ? t("workspace.actionPanel", "Action Panel") : title;
-  const panelDescription = selectedCompleteRow ? "" : description;
+  const selectedRejectedRow = isRejectedDrilldown
+    ? filteredRows.find((row) => row.id === selectedRejectedRowId) || null
+    : null;
+  const selectedDetailRow = selectedCompleteRow || selectedRejectedRow;
+  const panelTitle = selectedDetailRow ? t("workspace.actionPanel", "Action Panel") : title;
+  const panelDescription = selectedDetailRow ? "" : description;
   const columns = [
     {
       key: "reference",
@@ -895,15 +901,6 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
         </span>
       ),
     },
-    ...(type === RESUBMISSION_DRILLDOWN_TYPES.rejected
-      ? [
-          {
-            key: "remark",
-            label: t("common.remarks", "Remarks"),
-            render: (row) => row.remark || "-",
-          },
-        ]
-      : []),
     {
       key: "date",
       label: t("common.date", "Date"),
@@ -920,6 +917,14 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
             type="button"
             className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
             onClick={() => setSelectedCompleteRowId(row.id)}
+          >
+            {t("common.view", "View")}
+          </button>
+        ) : isRejectedDrilldown ? (
+          <button
+            type="button"
+            className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+            onClick={() => setSelectedRejectedRowId(row.id)}
           >
             {t("common.view", "View")}
           </button>
@@ -941,9 +946,15 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       setSelectedCompleteRowId(
         new URLSearchParams(location.search).get("completeId") || ""
       );
+      setSelectedRejectedRowId("");
+      return;
+    }
+    if (type === RESUBMISSION_DRILLDOWN_TYPES.rejected) {
+      setSelectedCompleteRowId("");
       return;
     }
     setSelectedCompleteRowId("");
+    setSelectedRejectedRowId("");
   }, [filters.month, filters.search, filters.year, location.search, type]);
 
   useEffect(() => {
@@ -960,7 +971,13 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
         <Button
           type="button"
           variant="secondary"
-          onClick={selectedCompleteRow ? () => setSelectedCompleteRowId("") : onClose}
+          onClick={
+            selectedCompleteRow
+              ? () => setSelectedCompleteRowId("")
+              : selectedRejectedRow
+                ? () => setSelectedRejectedRowId("")
+                : onClose
+          }
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
           {t("common.back", "Back")}
@@ -968,7 +985,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       </div>
 
       <div className="p-4">
-        {!selectedCompleteRow && (
+        {!selectedDetailRow && (
           <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_190px_auto] lg:items-end">
             <label className="flex flex-col gap-1 text-sm font-semibold text-slate-700">
               <span>{t("common.search", "Search")}</span>
@@ -1031,7 +1048,9 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
             </Button>
           </div>
         )}
-        {selectedCompleteRow ? (
+        {selectedRejectedRow ? (
+          <RejectedApplicationCard row={selectedRejectedRow} t={t} language={language} />
+        ) : selectedCompleteRow ? (
           <div>
             <CompleteApplicationCard row={selectedCompleteRow} t={t} language={language} />
           </div>
@@ -1044,7 +1063,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
             rows={visibleRows}
           />
         )}
-        {!loading && !selectedCompleteRow && (
+        {!loading && !selectedDetailRow && (
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
               {t("applicant.recentActivitiesPage", "Page")} {currentPage + 1} {t("common.of", "of")} {totalPages}
@@ -1212,6 +1231,191 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
         </section>
       </div>
     </article>
+  );
+}
+
+function RejectedApplicationCard({ row, t, language = "en" }) {
+  const app = row.application || {};
+  const [showReport, setShowReport] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const reference = row.reference || getApplicationReference(app);
+  const summaryApp = {
+    ...app,
+    updated_at: row.date || app.updated_at,
+  };
+  const reportRows = useMemo(() => buildRejectedDecisionReportRows(row, t), [row, t]);
+
+  return (
+    <article>
+      <ApplicationSummary
+        app={summaryApp}
+        labels={{
+          reference: t("common.reference", "Reference"),
+          status: t("common.status", "Status"),
+          created: t("common.created", "Created"),
+          updated: t("common.updated", "Updated"),
+        }}
+        statusLabel={row.statusLabel || t("status.rejected", "Rejected")}
+      />
+
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          onClick={() => setShowReport((visible) => !visible)}
+        >
+          <span className="material-symbols-outlined text-[18px]">assignment</span>
+          {showReport
+            ? t("workspace.decisionLog.hideReport", "Hide Report")
+            : t("workspace.decisionLog.showReport", "Show Report")}
+        </button>
+      </div>
+
+      {showReport && (
+        <RejectedDecisionReport
+          language={language}
+          onView={setSelectedLog}
+          rows={reportRows}
+          t={t}
+        />
+      )}
+
+      {selectedLog && (
+        <RejectedDecisionTemplateModal
+          language={language}
+          log={selectedLog}
+          onClose={() => setSelectedLog(null)}
+          reference={reference}
+          t={t}
+        />
+      )}
+    </article>
+  );
+}
+
+function RejectedDecisionReport({ language = "en", onView, rows, t }) {
+  return (
+    <section className="mt-4 rounded-md border border-slate-200 bg-white">
+      {rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+            <colgroup>
+              <col className="w-[28%]" />
+              <col className="w-[52%]" />
+              <col className="w-[20%]" />
+            </colgroup>
+            <thead className="bg-white text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th className="border-b border-slate-200 px-4 py-2">
+                  {t("common.department", "Department")}
+                </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2">
+                  {t("common.date", "Date")}
+                </th>
+                <th className="whitespace-nowrap border-b border-slate-200 px-4 py-2 text-right">
+                  {t("common.action", "Action")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <tr key={row.id} className="align-middle">
+                  <td className="whitespace-normal px-4 py-2 font-semibold leading-5 text-slate-900">
+                    {formatDecisionLogDepartmentLabel(row.department, language)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-2 text-slate-600">
+                    {formatCompactDateTime(row.date)}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon="visibility"
+                        className="min-h-8 px-2.5 py-1 text-sm"
+                        onClick={() => onView(row)}
+                      >
+                        {t("common.view", "View")}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="px-4 py-4 text-sm font-medium text-slate-500">
+          {t("admin.dashboard.noDecisionLogs", "No DBKU or MPHLG decision records found.")}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function RejectedDecisionTemplateModal({ language = "en", log, onClose, reference, t }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rejected-template-title"
+    >
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-md bg-white shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <p id="rejected-template-title" className="text-[13px] font-semibold leading-5 text-slate-950">
+              {t("workspace.decisionLog.recordedTemplate", "Recorded Template")}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-slate-500">
+              {formatDecisionLogDepartmentLabel(log.department, language)} · {formatCompactDateTime(log.date) || reference}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            icon="close"
+            className="min-h-8 px-2.5 py-1"
+            onClick={onClose}
+          >
+            {t("common.close", "Close")}
+          </Button>
+        </div>
+
+        <div className="max-h-[calc(92vh-64px)] overflow-y-auto px-4 py-4">
+          <div className="space-y-4 text-[13px] leading-5 text-slate-950">
+            <div className="max-w-[17rem]">
+              <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                {t("common.decision", "Your Recommendation")}
+              </span>
+              <input
+                type="text"
+                value={t("workspace.decision.reject", "Reject")}
+                readOnly
+                className="form-input form-input-sm w-full bg-white text-[13px]"
+              />
+            </div>
+
+            <div>
+              <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                {t("common.remarks", "Remarks")}
+              </span>
+              <div
+                className="relative min-h-[300px] bg-white"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(to bottom, #ffffff 0, #ffffff 27px, #1f2937 27px, #1f2937 28px)",
+                }}
+              >
+                <p className="whitespace-pre-line px-2 py-0 text-[13px] font-medium leading-[28px] text-slate-950">
+                  {log.remarks || ""}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1881,6 +2085,53 @@ function buildResubmissionDrilldownRows(type, insights, t) {
       date: entry.eventDate || entry.sortDate,
     }))
     .sort(sortRowsByDateDesc);
+}
+
+function buildRejectedDecisionReportRows(row, t) {
+  const app = row?.application || {};
+  const decisionLogs = buildDecisionLogReportRows(app, t)
+    .filter(isRejectedDecisionReportLog)
+    .map((log) => ({
+      id: `${row.id}-${log.id}`,
+      department: log.department,
+      date: log.date || row.date,
+      decision: "Reject",
+      remarks: log.remarks || row.remark || getApplicationRemark(app),
+    }))
+    .filter((log) => log.date || log.remarks);
+
+  if (decisionLogs.length > 0) {
+    return decisionLogs;
+  }
+
+  return [
+    {
+      id: `${row.id}-rejected-template`,
+      department: getRejectedApplicationDepartment(app),
+      date: row.date,
+      decision: "Reject",
+      remarks: row.remark || getApplicationRemark(app),
+    },
+  ];
+}
+
+function isRejectedDecisionReportLog(log = {}) {
+  const decision = String(log.decision || "").trim().toLowerCase();
+  return (
+    decision === "reject" ||
+    decision === "rejected" ||
+    decision.includes("reject to applicant") ||
+    decision.includes("rejected to applicant") ||
+    decision.includes("not supported") ||
+    decision.includes("not verify") ||
+    decision.includes("not verified")
+  );
+}
+
+function getRejectedApplicationDepartment(app) {
+  const autoScreening = app?.form_data?.auto_screening || {};
+  const department = getAutoScreeningDecisionDepartment(autoScreening);
+  return department || normalizeDepartmentCode(autoScreening.officer || autoScreening.checked_by) || "KU(IKL)";
 }
 
 function getResubmissionApplicationViewPath(applicationId, type, selectedRowId = "") {
