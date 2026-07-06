@@ -1887,7 +1887,9 @@ function buildAdminRecentActivities(applications, userDepartment, user, t) {
     const hasCurrentStatusLog = logActivities.some((activity) =>
       isActivityForCurrentStatus(activity, application)
     );
-    const statusActivity = !hasCurrentStatusLog && isRelevantRecentActivity(application, userDepartment)
+    const statusActivity = departmentHistoryActivities.length === 0 &&
+      !hasCurrentStatusLog &&
+      isRelevantRecentActivity(application, userDepartment)
       ? buildStatusRecentActivity(application, userDepartment, t)
       : null;
 
@@ -3752,7 +3754,10 @@ function isRelevantRecentActivity(application, userDepartment) {
   }
 
   if (userDepartment === "MPHLG") {
-    return status === "mphlg_processing";
+    return (
+      ["mphlg_processing", "mphlg_decision_received"].includes(status) ||
+      hasMphlgGatewayHistory(application)
+    );
   }
 
   const assignedUnit = getAssignedUnit(userDepartment);
@@ -3799,6 +3804,18 @@ function isMphlgReviewComplete(application) {
   return (
     ["approved", "reviewed", "completed"].includes(status) ||
     Boolean(decision || section?.reviewed_at || section?.decided_at)
+  );
+}
+
+function hasMphlgGatewayHistory(application) {
+  const section = getApplicationSection(application, "mphlg_gateway");
+  return Boolean(
+    section?.routed_at ||
+      section?.reviewed_at ||
+      section?.decided_at ||
+      section?.status ||
+      section?.decision ||
+      section?.recommendation
   );
 }
 
