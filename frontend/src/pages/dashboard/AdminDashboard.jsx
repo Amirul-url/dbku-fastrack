@@ -1079,7 +1079,8 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
 function CompleteApplicationCard({ row, t, language = "en" }) {
   const app = row.application || {};
   const [showReport, setShowReport] = useState(false);
-  const [activeLicenseTab, setActiveLicenseTab] = useState("bank");
+  const defaultLicenseTab = canViewLicense(app) ? "qr" : "bank";
+  const [activeLicenseTab, setActiveLicenseTab] = useState(defaultLicenseTab);
   const reference = row.reference || getApplicationReference(app);
   const statusLabel = t("status.license_issued", "E-License Generated");
   const summaryApp = {
@@ -1104,6 +1105,11 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
     ...getCompleteApplicationDocuments(app, t),
   ];
   const applicantReceipt = getApplicantReceiptDocument(app, t);
+
+  useEffect(() => {
+    setActiveLicenseTab(defaultLicenseTab);
+  }, [app?.id, defaultLicenseTab]);
+
   return (
     <article>
       <ApplicationSummary
@@ -2477,9 +2483,13 @@ async function downloadDashboardPaymentDocument(file, fallbackLabel, t) {
     const url = isInlineFile
       ? source
       : URL.createObjectURL(await fetchAuthenticatedBlob(source));
-    const filename = getDownloadFilename(file?.name || fallbackLabel, "pdf");
+    const title = getDownloadFilename(file?.name || fallbackLabel, "pdf");
 
-    triggerDownload(url, filename);
+    if (isImageDashboardDocument(file, source)) {
+      await printHtmlDocument(buildDashboardPrintableImageHtml(url, title), title);
+    } else {
+      await printDashboardUrlDocument(url, title);
+    }
 
     if (!isInlineFile) {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -2508,6 +2518,122 @@ function getDashboardLicenseVerificationUrl(licenseId) {
   }
 
   return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
+}
+
+function escapeDashboardHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function isImageDashboardDocument(file, source = "") {
+  const mimeType = String(file?.type || file?.mime_type || file?.content_type || "").toLowerCase();
+  if (mimeType.startsWith("image/")) return true;
+  if (source.startsWith("data:image/")) return true;
+
+  const filename = String(file?.name || file?.filename || source).split("?")[0].toLowerCase();
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(filename);
+}
+
+function buildDashboardPrintableImageHtml(imageUrl, title) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeDashboardHtml(title)}</title>
+  <style>
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #f8fafc; }
+    .page { min-height: calc(100vh - 24mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #fff; }
+    .title { margin: 0; font-size: 14px; font-weight: 700; text-align: center; }
+    img { max-width: 100%; max-height: calc(100vh - 44mm); object-fit: contain; }
+    @media print {
+      body { background: #fff; }
+      .page { min-height: auto; }
+      .title { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="title">${escapeDashboardHtml(title)}</p>
+    <img src="${escapeDashboardHtml(imageUrl)}" alt="${escapeDashboardHtml(title)}" />
+  </main>
+</body>
+</html>`;
+}
+
+function buildDashboardQrPrintHtml(imageUrl, reference) {
+  const title = reference || "QR E-License";
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeDashboardHtml(title)}</title>
+  <style>
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; }
+    .page { min-height: calc(100vh - 24mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #fff; }
+    .qr { width: min(78vw, 420px); height: auto; }
+    .reference { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-align: center; color: #475569; text-transform: uppercase; }
+    @media print {
+      body { background: #fff; }
+      .page { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <img class="qr" src="${escapeDashboardHtml(imageUrl)}" alt="${escapeDashboardHtml(title)}" />
+    <p class="reference">${escapeDashboardHtml(title)}</p>
+  </main>
+</body>
+</html>`;
+}
+
+async function printDashboardUrlDocument(url, title) {
+  const originalTitle = document.title;
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+
+  document.body.appendChild(iframe);
+  document.title = title;
+
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+  frameWindow.focus();
+  frameWindow.print();
 }
 
 function getQrSvgBlob(qrContainer) {
@@ -2544,22 +2670,16 @@ async function downloadDashboardQrCode(qrContainer, reference) {
     if (!pngBlob) return;
 
     const downloadUrl = URL.createObjectURL(pngBlob);
-    triggerDownload(downloadUrl, `${reference || "e-license"}-qr.png`);
+    await printHtmlDocument(
+      buildDashboardQrPrintHtml(downloadUrl, reference || "QR E-License"),
+      reference || "QR E-License"
+    );
     setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
   } catch (err) {
     console.error("Failed to download QR code:", err);
   } finally {
     URL.revokeObjectURL(sourceUrl);
   }
-}
-
-function triggerDownload(url, filename) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
 }
 
 function getDownloadFilename(value, fallbackExtension) {

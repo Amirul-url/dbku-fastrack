@@ -5643,7 +5643,11 @@ function MphlgDocumentActions({
 
       <button
         type="button"
-        onClick={() => downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t)}
+        onClick={() =>
+          downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t, {
+            directDownload: true,
+          })
+        }
         disabled={!hasAttachment || saving}
         className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-[#00843d] shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
         title={t("workspace.mphlg.download", "Download")}
@@ -7229,7 +7233,11 @@ function DecisionLogMphlgSupportingDocumentsView({ documents, t }) {
                   <MphlgDocumentTableCell center>
                     <button
                       type="button"
-                      onClick={() => downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t)}
+                      onClick={() =>
+                        downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t, {
+                          directDownload: true,
+                        })
+                      }
                       disabled={!hasAttachment}
                       className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-[#00843d] shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
                       title={t("workspace.mphlg.download", "Download")}
@@ -15396,6 +15404,10 @@ function WorkspaceGuidelineHint({ text }) {
   );
 }
 
+function getDefaultPaymentDocumentTab(app) {
+  return canViewLicense(app) ? "qr" : "bank";
+}
+
 function PaymentDetails({
   app,
   t,
@@ -15456,8 +15468,13 @@ function PaymentDetails({
   const showLicenseDocumentSection =
     showVerificationUploads || (canShowSavedIssueDocuments && Boolean(licenseFile));
   const showQrPanel = false;
-  const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("bank");
+  const defaultPaymentDocumentTab = getDefaultPaymentDocumentTab(app);
+  const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState(defaultPaymentDocumentTab);
   const [generatedDocumentReview, setGeneratedDocumentReview] = useState(null);
+
+  useEffect(() => {
+    setActivePaymentDocumentTab(defaultPaymentDocumentTab);
+  }, [app?.id, defaultPaymentDocumentTab]);
 
   const officialReceiptUploadSection = showOfficialReceiptSection ? (
     <section className="rounded-md border border-slate-200 bg-white">
@@ -16793,7 +16810,7 @@ async function openPaymentDocument(file, t) {
   }
 }
 
-async function downloadPaymentDocument(file, fallbackLabel, t) {
+async function downloadPaymentDocument(file, fallbackLabel, t, options = {}) {
   const source = getPaymentDocumentSource(file);
   if (!source) return;
 
@@ -16802,9 +16819,18 @@ async function downloadPaymentDocument(file, fallbackLabel, t) {
     const url = isInlineFile
       ? source
       : URL.createObjectURL(await fetchAuthenticatedBlob(source));
-    const filename = getPaymentDownloadFilename(file?.name || fallbackLabel, "document");
+    const title = getPaymentDownloadFilename(file?.name || fallbackLabel, "document");
 
-    triggerPaymentDownload(url, filename);
+    if (options.directDownload) {
+      triggerPaymentDownload(url, title);
+    } else if (isImageReceipt(file, source)) {
+      await printHtmlDocument(
+        buildPaymentReceiptPrintHtml({ ...(file || {}), name: title }, url, title),
+        title
+      );
+    } else {
+      await printUrlDocument(url, title);
+    }
 
     if (!isInlineFile) {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -17088,6 +17114,36 @@ function formatAdvertisementLicenseTermHtml(term) {
   );
 }
 
+function buildPaymentQrPrintHtml(imageUrl, reference) {
+  const title = reference || "QR E-License";
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: auto; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; }
+    .page { min-height: calc(100vh - 24mm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #fff; }
+    .qr { width: min(78vw, 420px); height: auto; }
+    .reference { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-align: center; color: #475569; text-transform: uppercase; }
+    @media print {
+      body { background: #fff; }
+      .page { min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <img class="qr" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" />
+    <p class="reference">${escapeHtml(title)}</p>
+  </main>
+</body>
+</html>`;
+}
+
 function getPaymentQrSvgBlob(qrContainer) {
   const svg = qrContainer?.querySelector("svg");
   if (!svg) return null;
@@ -17122,7 +17178,10 @@ async function downloadPaymentQrCode(qrContainer, reference) {
     if (!pngBlob) return;
 
     const downloadUrl = URL.createObjectURL(pngBlob);
-    triggerPaymentDownload(downloadUrl, `${reference || "e-license"}-qr.png`);
+    await printHtmlDocument(
+      buildPaymentQrPrintHtml(downloadUrl, reference || "QR E-License"),
+      reference || "QR E-License"
+    );
     setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
   } catch (error) {
     console.error("Failed to download QR code:", error);
