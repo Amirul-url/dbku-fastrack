@@ -16349,7 +16349,7 @@ function PaymentDetails({
       required: showVerificationUploads,
       displayName: t(
         "workspace.payment.officialReceiptGeneratedWithLicense",
-        "Please review the auto-generated official receipt before issuing the license."
+        "Please review the auto-generated Official Receipt before sending it to applicant."
       ),
       onReview: onEditReceipt,
       onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
@@ -16359,7 +16359,7 @@ function PaymentDetails({
       required: showVerificationUploads,
       displayName: t(
         "workspace.license.generatedWithReceipt",
-        "Please review the auto-generated advertisement license before issuing it to the applicant."
+        "Please review the auto-generated Advertisement License before sending it to applicant."
       ),
       onReview: onEditLicense,
       onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
