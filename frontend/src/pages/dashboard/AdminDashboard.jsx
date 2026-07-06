@@ -3370,6 +3370,10 @@ function getAdminActivityLogTitle(activity, t, userDepartment = "") {
     return t("admin.dashboard.activityUpdated", "Application updated");
   }
 
+  if (shouldUseGeneralKbLesActivityCopy(normalized, userDepartment)) {
+    return t("admin.dashboard.activityUpdated", "Application updated");
+  }
+
   if (shouldUseGeneralIklTechnicalActivityCopy(normalized, userDepartment)) {
     return t("admin.dashboard.activityUpdated", "Application updated");
   }
@@ -3450,6 +3454,13 @@ function getAdminActivityLogDescription(activity, application, t, userDepartment
     ].includes(title);
 
   if (useGeneralKuCopy) {
+    return t(
+      "admin.dashboard.activityGeneralUpdatedDesc",
+      "{reference} application progress was updated."
+    ).replace("{reference}", reference);
+  }
+
+  if (shouldUseGeneralKbLesActivityCopy(title, userDepartment)) {
     return t(
       "admin.dashboard.activityGeneralUpdatedDesc",
       "{reference} application progress was updated."
@@ -3579,6 +3590,16 @@ function shouldUseGeneralIklTechnicalActivityCopy(title, userDepartment = "") {
     ].includes(normalized) ||
     normalized.startsWith("application rejected by")
   );
+}
+
+function shouldUseGeneralKbLesActivityCopy(title, userDepartment = "") {
+  if (normalizeDepartmentCode(userDepartment) !== "KB(LES)") return false;
+
+  return [
+    "application sent for management review",
+    "application reviewed",
+    "application approved",
+  ].includes(String(title || "").trim().toLowerCase());
 }
 
 function isActivityForCurrentStatus(activity, application) {
@@ -3723,6 +3744,10 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (status === "management_review") {
+    if (userDepartment === "KB(LES)") {
+      return t("admin.dashboard.activityUpdated", "Application updated");
+    }
+
     if (userDepartment === "KU(IKL)") {
       return t("admin.dashboard.activityUpdated", "Application updated");
     }
@@ -3829,6 +3854,13 @@ function getAdminActivityDescription(application, userDepartment, t) {
   }
 
   if (status === "management_review") {
+    if (userDepartment === "KB(LES)") {
+      return t(
+        "admin.dashboard.activityGeneralUpdatedDesc",
+        `${reference} application progress was updated.`
+      ).replace("{reference}", reference);
+    }
+
     if (userDepartment === "KU(IKL)") {
       return t(
         "admin.dashboard.activityGeneralUpdatedDesc",

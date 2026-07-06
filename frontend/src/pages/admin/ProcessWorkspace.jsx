@@ -2149,6 +2149,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
       const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
       const shouldShowKbVerificationSuccess = shouldShowKbVerificationModal(action, body);
+      const shouldShowKbApprovalSupportSuccess = shouldShowKbApprovalSupportModal(action, body);
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2204,9 +2205,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
           messageKey: shouldShowTechnicalSiteVisitAmendmentSuccess
             ? "workspace.amendment.technicalSiteVisitMessage"
+            : shouldShowKbNotVerifyAmendmentModal(action, body)
+              ? "workspace.amendment.kuIklMessage"
             : "workspace.amendment.message",
           defaultMessage: shouldShowTechnicalSiteVisitAmendmentSuccess
             ? "Application {reference} has been sent to Technical Site Visit."
+            : shouldShowKbNotVerifyAmendmentModal(action, body)
+              ? "Application {reference} has been sent to KU(IKL)."
             : "Application {reference} has been sent to the applicant for amendment.",
         });
       }
@@ -2214,7 +2219,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowApplicationApprovedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
-        shouldShowKbVerificationSuccess
+        shouldShowKbVerificationSuccess ||
+        shouldShowKbApprovalSupportSuccess
       ) {
         setApplicationApprovedModal({
           open: true,
@@ -2225,6 +2231,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
           messageKey: shouldShowKuFinalCheckSuccess
             ? "workspace.kuFinalCheck.message"
+            : shouldShowKbApprovalSupportSuccess
+              ? "workspace.tpPghFinalApproval.message"
             : shouldShowKbVerificationSuccess
               ? "workspace.kbVerification.message"
               : shouldShowTechnicalSiteVisitSuccess
@@ -2232,6 +2240,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 : "workspace.approved.message",
           defaultMessage: shouldShowKuFinalCheckSuccess
             ? "Application {reference} has been sent to KU(IKL) Final Check."
+            : shouldShowKbApprovalSupportSuccess
+              ? "Application {reference} has been sent to TP(RES)/PGH Final Approval."
             : shouldShowKbVerificationSuccess
               ? "Application {reference} has been sent to KB(LES) Verification."
               : shouldShowTechnicalSiteVisitSuccess
@@ -2254,7 +2264,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         (shouldShowApplicationApprovedSuccess ||
           shouldShowTechnicalSiteVisitSuccess ||
           shouldShowKuFinalCheckSuccess ||
-          shouldShowKbVerificationSuccess) &&
+          shouldShowKbVerificationSuccess ||
+          shouldShowKbApprovalSupportSuccess) &&
         (isFocusedPersonalWorkspace || fromPersonalTask)
       ) {
         return true;
@@ -3314,7 +3325,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           </p>
                         )}
                       </div>
-                      <div className="max-w-[56rem]">
+                      <div className="mt-4 max-w-[56rem]">
                         <label
                           htmlFor="approval-support-remarks"
                           className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
@@ -3794,8 +3805,30 @@ function shouldShowApplicationAmendmentModal(action, body) {
         action?.buildPayload === buildKuTechnicalReviewPayload &&
         normalizeStatus(body.status) === "technical_amendment" &&
         body.form_data?.technical_ku_review?.decision === "KU(IKL) Request Technical Amendment"
-      )
+      ) ||
+      shouldShowKbNotVerifyAmendmentModal(action, body)
     )
+  );
+}
+
+function shouldShowKbNotVerifyAmendmentModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildApprovalWorkflowPayload &&
+    normalizeStatus(body.status) === "technical_review_completed" &&
+    body.form_data?.kb_les_verification?.decision === "Not Verify" &&
+    body.form_data?.correction_request?.target === "KU(IKL)"
+  );
+}
+
+function shouldShowKbApprovalSupportModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildApprovalWorkflowPayload &&
+    normalizeStatus(body.status) === "management_review" &&
+    body.form_data?.kb_les_verification?.decision === "Verify" &&
+    body.form_data?.kb_les_verification?.status === "Verified" &&
+    body.form_data?.management_recommendation?.status === "Pending TP(RES)/PGH Approval"
   );
 }
 
@@ -11977,11 +12010,32 @@ function getWorkspaceStatusFilterOptions(applications, config, department, t) {
 
 function getWorkspaceStatusFilterFallbackApplications(config, department) {
   const statuses = getWorkspaceStatusFilterFallbackStatuses(config, department);
+  const shouldIncludeApprovalSupportStage =
+    config?.key === "approval" && INTERNAL_WORK_TRACKING_DEPARTMENTS.has(department);
+  const fallbackApplications = statuses.flatMap((status) => {
+    const fallbackApp = {
+      status,
+      form_data: {},
+    };
 
-  return statuses.map((status) => ({
-    status,
-    form_data: {},
-  }));
+    if (!shouldIncludeApprovalSupportStage || status !== "management_review") {
+      return [fallbackApp];
+    }
+
+    return [
+      fallbackApp,
+      {
+        status: "management_review",
+        form_data: {
+          kb_les_verification: {
+            status: "Verified",
+          },
+        },
+      },
+    ];
+  });
+
+  return fallbackApplications;
 }
 
 function getWorkspaceStatusFilterFallbackStatuses(config, department) {
