@@ -1,3 +1,4 @@
+from django.http import HttpResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -296,7 +297,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     f"/applications/license-verification/"
                     f"{license_id}/document/"
                 ),
-                "document_name": document.file.name.rsplit("/", 1)[-1],
+                "document_name": document.name,
             }
         )
 
@@ -309,7 +310,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     )
     def license_verification_document(self, request, license_id=None):
         _application, document = get_public_license_document(license_id)
-        return self.file_response(document)
+        if document.is_generated:
+            return HttpResponse(document.html, content_type="text/html; charset=utf-8")
+        return self.file_response(document.supporting_document)
 
     def get_list_values(self, key):
         return parse_list_query_values(self.request.query_params.getlist(key))

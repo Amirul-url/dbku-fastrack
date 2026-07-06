@@ -1,7 +1,20 @@
+from dataclasses import dataclass
+
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from applications.models import Application, SupportingDocument
+
+
+@dataclass
+class PublicLicenseDocument:
+    supporting_document: SupportingDocument | None = None
+    html: str = ""
+    name: str = "Advertisement License.html"
+
+    @property
+    def is_generated(self):
+        return bool(self.html)
 
 
 def normalize_license_id(value):
@@ -26,14 +39,28 @@ def get_public_license_document(license_id):
             license_file = {}
 
         document_id = license_file.get("document_id") or license_file.get("id")
-        if not document_id:
-            raise Http404("Advertisement license document not found.")
+        if document_id:
+            document = get_object_or_404(
+                SupportingDocument,
+                id=document_id,
+                application=application,
+            )
+            return application, PublicLicenseDocument(
+                supporting_document=document,
+                name=document.file.name.rsplit("/", 1)[-1],
+            )
 
-        document = get_object_or_404(
-            SupportingDocument,
-            id=document_id,
-            application=application,
-        )
-        return application, document
+        manual_license = license_data.get("manual_license") or {}
+        if not isinstance(manual_license, dict):
+            manual_license = {}
+
+        document_html = str(manual_license.get("document_html") or "").strip()
+        if document_html:
+            return application, PublicLicenseDocument(
+                html=document_html,
+                name=manual_license.get("name") or "Advertisement License.html",
+            )
+
+        raise Http404("Advertisement license document not found.")
 
     raise Http404("Advertisement license not found.")

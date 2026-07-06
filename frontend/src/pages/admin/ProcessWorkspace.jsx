@@ -47,10 +47,6 @@ import {
   WORKFLOW_STATUS,
 } from "../../utils/workflow";
 import {
-  DEFAULT_ADVERTISEMENT_LICENSE_TERMS,
-  getAdvertisementLicenseDraftFields,
-} from "../../utils/advertisementLicenseDocument";
-import {
   getAdminApprovalRecordSeen,
   isAdminApprovalRecordUnread,
   markAdminApprovalRecordSeen,
@@ -4814,7 +4810,7 @@ function getManualBillCss({ editor = false } = {}) {
   `;
 }
 
-async function printHtmlDocument(html, title) {
+export async function printHtmlDocument(html, title) {
   const originalTitle = document.title;
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
@@ -5766,7 +5762,7 @@ function normalizeMphlgSupportingDocumentAttachment(applicationId, uploaded, fil
   };
 }
 
-function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
+export function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const logs = buildWorkspaceDecisionLogRows(app, t);
 
@@ -16861,7 +16857,7 @@ function openHtmlPreviewDocument(html, title, t) {
   window.setTimeout(() => URL.revokeObjectURL(previewUrl), 5 * 60 * 1000);
 }
 
-function getGeneratedOfficialReceiptDocumentHtml(app) {
+export function getGeneratedOfficialReceiptDocumentHtml(app) {
   const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
   return manualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(app);
 }
@@ -16925,7 +16921,7 @@ async function printBlankAdvertisementLicenseDocument(app, t) {
   }
 }
 
-function getGeneratedAdvertisementLicenseDocumentHtml(app, t) {
+export function getGeneratedAdvertisementLicenseDocumentHtml(app, t) {
   const manualLicense = app?.form_data?.license?.manual_license || {};
   return manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t);
 }
@@ -17184,7 +17180,7 @@ function hasManualBill(app) {
   return Boolean(manualBill.document_html || manualBill.editable_body_html || manualBill.saved_at);
 }
 
-function getManualApprovalLetterDocumentHtml(app) {
+export function getManualApprovalLetterDocumentHtml(app) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
   return (
     manualLetter.document_html ||
@@ -17194,7 +17190,7 @@ function getManualApprovalLetterDocumentHtml(app) {
   );
 }
 
-function getManualBillDocumentHtml(app) {
+export function getManualBillDocumentHtml(app) {
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
   return (
     manualBill.document_html ||

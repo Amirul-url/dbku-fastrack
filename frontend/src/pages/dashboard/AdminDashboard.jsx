@@ -3,12 +3,26 @@ import { QRCodeSVG } from "qrcode.react";
 import { Link, useLocation } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
-import { ApprovalTechnicalReviewSummary } from "../admin/ProcessWorkspace";
+import {
+  WorkspaceDecisionLogReport,
+  getGeneratedAdvertisementLicenseDocumentHtml,
+  getGeneratedOfficialReceiptDocumentHtml,
+  getManualApprovalLetterDocumentHtml,
+  getManualBillDocumentHtml,
+  printHtmlDocument,
+} from "../admin/ProcessWorkspace";
 import { useLanguage } from "../../context/LanguageContext";
-import { apiRequest, fetchApplicationList, fetchAuthenticatedBlob, getStoredUser } from "../../services/api";
+import {
+  apiRequest,
+  fetchApplicationList,
+  fetchAuthenticatedBlob,
+  getApplicationDocumentUrl,
+  getStoredUser,
+} from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
 import {
   Alert,
+  ApplicationSummary,
   Button,
   DataTable,
   Icon,
@@ -851,6 +865,8 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
   const selectedCompleteRow = isCompleteDrilldown
     ? filteredRows.find((row) => row.id === selectedCompleteRowId) || null
     : null;
+  const panelTitle = selectedCompleteRow ? t("workspace.actionPanel", "Action Panel") : title;
+  const panelDescription = selectedCompleteRow ? "" : description;
   const columns = [
     {
       key: "reference",
@@ -938,8 +954,8 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
     <section className="mb-5 rounded-md border border-slate-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{description}</p>
+          <h2 className="text-sm font-semibold text-slate-950">{panelTitle}</h2>
+          {panelDescription && <p className="mt-1 text-sm text-slate-500">{panelDescription}</p>}
         </div>
         <Button
           type="button"
@@ -1063,10 +1079,13 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
 function CompleteApplicationCard({ row, t, language = "en" }) {
   const app = row.application || {};
   const [showReport, setShowReport] = useState(false);
-  const [activeLicenseTab, setActiveLicenseTab] = useState(canViewLicense(app) ? "qr" : "bank");
+  const [activeLicenseTab, setActiveLicenseTab] = useState("bank");
   const reference = row.reference || getApplicationReference(app);
   const statusLabel = t("status.license_issued", "E-License Generated");
-  const updatedDate = app.updated_at || row.date;
+  const summaryApp = {
+    ...app,
+    updated_at: app.updated_at || row.date,
+  };
   const licenseId = getLicenseId(app);
   const verificationUrl = getDashboardLicenseVerificationUrl(licenseId);
   const qrContainerRef = useRef(null);
@@ -1085,19 +1104,18 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
     ...getCompleteApplicationDocuments(app, t),
   ];
   const applicantReceipt = getApplicantReceiptDocument(app, t);
-  const decisionLogs = buildDecisionLogReportRows(app, t);
-
   return (
     <article>
-      <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 md:grid-cols-4 md:items-center">
-        <CompleteMetaBlock label={t("common.reference", "Reference")} value={reference} />
-        <div>
-          <p className="text-xs font-semibold uppercase text-slate-500">{t("common.status", "Status")}</p>
-          <StatusPill value={statusLabel} />
-        </div>
-        <CompleteMetaBlock label={t("common.created", "Created")} value={formatCompactDateTime(app.created_at)} />
-        <CompleteMetaBlock label={t("common.updated", "Updated")} value={formatCompactDateTime(updatedDate)} />
-      </div>
+      <ApplicationSummary
+        app={summaryApp}
+        labels={{
+          reference: t("common.reference", "Reference"),
+          status: t("common.status", "Status"),
+          created: t("common.created", "Created"),
+          updated: t("common.updated", "Updated"),
+        }}
+        statusLabel={statusLabel}
+      />
 
       <div className="mt-5 flex flex-wrap justify-end gap-2">
         <button
@@ -1107,31 +1125,18 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
         >
           <span className="material-symbols-outlined text-[18px]">assignment</span>
           {showReport
-            ? t("workspace.approval.hideVerificationReport", "Hide Report")
-            : t("workspace.approval.showReport", "Show Report")}
+            ? t("workspace.decisionLog.hideReport", "Hide Report")
+            : t("workspace.decisionLog.showReport", "Show Report")}
         </button>
       </div>
 
       {showReport && (
-        <div className="mt-4 space-y-3">
-          <ApprovalTechnicalReviewSummary
-            t={t}
-            language={language}
-            selectedRecord={app}
-            technicalSite={app?.form_data?.technical_site_visit || {}}
-            userDepartment="KB(LES)"
-          />
-          <DecisionLogReport
-            app={app}
-            logs={decisionLogs}
-            reference={reference}
-            t={t}
-            language={language}
-          />
+        <div className="mt-4">
+          <WorkspaceDecisionLogReport app={app} t={t} language={language} />
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(320px,32%)_1fr]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
         <CompleteLicensePanel
           activeTab={activeLicenseTab}
           app={app}
@@ -1144,11 +1149,11 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
 
         <section className="space-y-3">
           <div className="rounded-md border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 px-3 py-3">
+            <div className="border-b border-slate-200 px-3 py-2">
               <h3 className="text-sm font-semibold text-slate-950">
                 {t("applicant.paymentDocumentsTitle", "Documents to Download")}
               </h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                 {t("applicant.paymentDocumentsDesc", "View the submitted application form and download related documents from ALiS.")}
               </p>
             </div>
@@ -1159,33 +1164,33 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
             </div>
           </div>
 
-          <div className="rounded-md border border-slate-200 bg-white">
-            <div className="border-b border-slate-200 px-3 py-3">
+          <div className="rounded-md border border-slate-200 bg-slate-50">
+            <div className="px-3 py-2">
               <h3 className="text-sm font-semibold text-slate-950">
                 {t("workspace.payment.receiptTitle", "Payment Receipt")}
               </h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                 {t("workspace.payment.completedReceiptDesc", "Payment is complete and QR e-license is ready to download.")}
               </p>
             </div>
             {applicantReceipt ? (
-              <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-semibold text-emerald-700">
+              <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-100">
                       1
-                    </span>
+                  </span>
+                  <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-slate-900">{applicantReceipt.name}</p>
+                    <p className="mt-0.5 text-xs font-medium text-emerald-700">
+                      {t("common.valid", "Valid")}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs font-medium text-emerald-700">
-                    {t("common.valid", "Valid")}
-                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => downloadDashboardPaymentDocument(applicantReceipt.file, applicantReceipt.name, t)}
-                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                    className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                   >
                     <span className="material-symbols-outlined text-[18px]">download</span>
                     {t("common.download", "Download")}
@@ -1193,7 +1198,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
                 </div>
               </div>
             ) : (
-              <div className="px-3 py-4 text-sm font-medium text-slate-500">
+              <div className="border-t border-slate-200 bg-white px-3 py-3 text-sm font-medium text-slate-500">
                 {t("workspace.payment.noApplicantReceipt", "No applicant receipt available.")}
               </div>
             )}
@@ -1445,15 +1450,6 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t }) {
   );
 }
 
-function CompleteMetaBlock({ label, value }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-slate-900">{value || "-"}</p>
-    </div>
-  );
-}
-
 function CompleteLicensePanel({
   activeTab,
   app,
@@ -1470,8 +1466,8 @@ function CompleteLicensePanel({
   ];
 
   return (
-    <section className="rounded-md border border-slate-200 bg-slate-50 p-4">
-      <div className="mx-auto w-full max-w-[450px]">
+    <section className="w-full max-w-[360px] self-start lg:w-[360px]">
+      <div className="mx-auto w-full max-w-[360px]">
         <div className="grid grid-cols-2 overflow-hidden rounded-t-md border border-slate-300 bg-white text-center text-xs font-bold uppercase leading-5 text-slate-950">
           {tabs.map((tab) => {
             const selected = selectedTab === tab.key;
@@ -1492,7 +1488,7 @@ function CompleteLicensePanel({
           })}
         </div>
 
-        <div className="flex min-h-[450px] items-stretch justify-center rounded-b-md border-x border-b border-slate-300 bg-white text-center">
+        <div className="flex min-h-[360px] items-stretch justify-center rounded-b-md border-x border-b border-slate-300 bg-white text-center">
           {selectedTab === "bank" ? (
             <DashboardBankAccountContent t={t} />
           ) : (
@@ -1512,8 +1508,8 @@ function CompleteLicensePanel({
 
 function DashboardBankAccountContent({ t }) {
   return (
-    <div className="flex min-h-[450px] w-full items-center justify-center overflow-hidden rounded-b-md border border-slate-900 bg-[#e55a82] p-3">
-      <div className="flex min-h-[420px] w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-4 text-slate-950">
+    <div className="flex min-h-[360px] w-full items-center justify-center overflow-hidden rounded-b-md border border-slate-900 bg-[#e55a82] p-3">
+      <div className="flex min-h-[332px] w-full flex-col items-center justify-start rounded-xl border-2 border-slate-800 bg-white px-4 py-3 text-slate-950">
         <p className="text-xs font-normal uppercase tracking-[0.14em]">
           {t("applicant.bankPaymentTitle", "Please made payment to:")}
         </p>
@@ -1521,24 +1517,24 @@ function DashboardBankAccountContent({ t }) {
         <img
           src="/Bank Islam Logo.jpg"
           alt="Bank Islam"
-          className="mt-5 h-auto w-full max-w-[250px] object-contain"
+          className="mt-2 h-auto w-full max-w-[132px] object-contain"
         />
 
-        <p className="mt-6 text-sm font-bold uppercase tracking-wide">
+        <p className="mt-3 text-sm font-bold uppercase tracking-wide">
           {t("applicant.bankPaymentAccountNo", "Account No :")}
         </p>
-        <div className="mt-2 w-full max-w-[380px] rounded-xl border-4 border-[#e55a82] px-3 py-2 text-base font-normal tracking-wide">
+        <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-base font-normal tracking-wide">
           11013010028881
         </div>
 
-        <p className="mt-4 text-sm font-bold uppercase tracking-wide">
+        <p className="mt-3 text-sm font-bold uppercase tracking-wide">
           {t("applicant.bankPaymentAccountHolder", "Account Holder :")}
         </p>
-        <div className="mt-2 w-full max-w-[380px] rounded-xl border-4 border-[#e55a82] px-3 py-2 text-sm font-normal">
+        <div className="mt-1.5 w-full rounded-xl border-4 border-[#e55a82] px-3 py-1.5 text-sm font-normal">
           Dewan Bandaraya Kuching Utara
         </div>
 
-        <p className="mt-4 max-w-[340px] text-[11px] font-normal leading-tight text-slate-950">
+        <p className="mt-3 max-w-[320px] text-[10px] font-normal leading-tight text-slate-950">
           {t("applicant.bankPaymentProofLine", "Please attach payment slip /receipt as payment proof.")}
           <br />
           {t("applicant.bankPaymentDetailsLine1", "Please provide your Full Name, Full Address,")}
@@ -1555,7 +1551,7 @@ function DashboardBankAccountContent({ t }) {
 function DashboardQrELicenseContent({ app, qrContainerRef, reference, t, verificationUrl }) {
   if (!canViewLicense(app)) {
     return (
-      <div className="flex min-h-[450px] w-full items-center justify-center rounded-b-md border border-slate-900 bg-white px-8 text-center">
+      <div className="flex min-h-[360px] w-full items-center justify-center rounded-b-md border border-slate-900 bg-white px-8 text-center">
         <p className="max-w-[260px] text-sm font-bold leading-7 text-slate-950">
           {t("applicant.qrLicensePending", "QR e-license will be displayed once the license is generated.")}
         </p>
@@ -1564,11 +1560,11 @@ function DashboardQrELicenseContent({ app, qrContainerRef, reference, t, verific
   }
 
   return (
-    <div className="flex min-h-[450px] w-full flex-col items-center justify-center gap-3">
+    <div className="flex min-h-[360px] w-full flex-col items-center justify-center gap-3">
       <div ref={qrContainerRef} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <QRCodeSVG
           value={verificationUrl}
-          size={300}
+          size={320}
           level="M"
           includeMargin
           className="h-auto max-w-full"
@@ -1580,7 +1576,7 @@ function DashboardQrELicenseContent({ app, qrContainerRef, reference, t, verific
       <button
         type="button"
         onClick={() => downloadDashboardQrCode(qrContainerRef.current, reference)}
-        className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
         <span className="material-symbols-outlined text-[18px]">download</span>
         {t("common.download", "Download")}
@@ -1592,7 +1588,7 @@ function DashboardQrELicenseContent({ app, qrContainerRef, reference, t, verific
 function CompleteDocumentRow({ app, document, t }) {
   if (document.type === "application_form") {
     return (
-      <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold uppercase text-slate-500">{document.label}</p>
           <p className="mt-1 truncate text-sm font-semibold text-slate-900">
@@ -1600,7 +1596,7 @@ function CompleteDocumentRow({ app, document, t }) {
           </p>
         </div>
         <Link
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
           to={document.viewPath}
         >
           <span className="material-symbols-outlined text-[18px]">visibility</span>
@@ -1611,26 +1607,44 @@ function CompleteDocumentRow({ app, document, t }) {
   }
 
   const hasFile = Boolean(getPaymentDocumentSource(document.file));
+  const hasGeneratedDocument = Boolean(document.generatedHtml);
   const canRenderLicense = document.type === "advertisement_license" && canViewLicense(app);
+  const canDownload = hasFile || hasGeneratedDocument || canRenderLicense;
   const documentName =
-    hasFile || canRenderLicense
+    hasFile || hasGeneratedDocument || canRenderLicense
       ? document.name
       : t("workspace.payment.missingFile", "Missing file");
 
   return (
-    <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-sm font-semibold uppercase text-slate-500">{document.label}</p>
-        <p className={`mt-1 truncate text-sm font-semibold ${hasFile || canRenderLicense ? "text-slate-900" : "text-slate-500"}`}>
+        <p className={`mt-1 truncate text-sm font-semibold ${canDownload ? "text-slate-900" : "text-slate-500"}`}>
           {documentName}
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => downloadDashboardPaymentDocument(document.file, document.name, t)}
-          disabled={!hasFile}
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={() => {
+            if (hasFile) {
+              downloadDashboardPaymentDocument(document.file, document.name, t);
+              return;
+            }
+            if (hasGeneratedDocument) {
+              printDashboardGeneratedDocument(document.generatedHtml, document.name, t);
+              return;
+            }
+            if (canRenderLicense) {
+              printDashboardGeneratedDocument(
+                getGeneratedAdvertisementLicenseDocumentHtml(app, t),
+                document.name,
+                t
+              );
+            }
+          }}
+          disabled={!canDownload}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="material-symbols-outlined text-[18px]">download</span>
           {t("common.download", "Download")}
@@ -1924,34 +1938,81 @@ function sortRowsByDateDesc(a, b) {
 function getCompleteApplicationDocuments(app, t) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
+  const manualLetter = approvalLetter.manual_letter || {};
+  const manualBill = approvalLetter.manual_bill || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const manualLicense = license.manual_license || {};
+  const approvalLetterFile = getDashboardStoredPaymentDocument(app, "letter");
+  const billFile = getDashboardStoredPaymentDocument(app, "bill");
   const officialReceiptFile = getSentOfficialReceiptFile(app);
+  const licenseFile = getDashboardDocumentWithUrl(app, license.license_file);
 
   return [
     {
       type: "approval_letter",
       label: t("workspace.payment.approvalLetter", "Approval Letter"),
-      name: getDocumentDisplayName(approvalLetter.letter_file, "Approval Letter.pdf"),
-      file: approvalLetter.letter_file,
+      name: getDocumentDisplayName(approvalLetterFile, manualLetter.name || "Approval Letter.pdf"),
+      file: approvalLetterFile,
+      generatedHtml: hasDashboardManualDocument(manualLetter)
+        ? getManualApprovalLetterDocumentHtml(app)
+        : "",
     },
     {
       type: "bill",
       label: t("workspace.payment.billDocument", "Bill"),
-      name: getDocumentDisplayName(approvalLetter.bill_file, "Bill.pdf"),
-      file: approvalLetter.bill_file,
+      name: getDocumentDisplayName(billFile, manualBill.name || "Bill.pdf"),
+      file: billFile,
+      generatedHtml: hasDashboardManualDocument(manualBill)
+        ? getManualBillDocumentHtml(app)
+        : "",
     },
     {
       type: "official_receipt",
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
-      name: getDocumentDisplayName(officialReceiptFile, "Official Receipt.pdf"),
+      name: getDocumentDisplayName(officialReceiptFile, manualReceipt.name || "Official Receipt.pdf"),
       file: officialReceiptFile,
+      generatedHtml: hasDashboardManualDocument(manualReceipt)
+        ? getGeneratedOfficialReceiptDocumentHtml(app)
+        : "",
     },
     {
       type: "advertisement_license",
       label: t("workspace.license.documentTitle", "Advertisement License"),
-      name: getDocumentDisplayName(license.license_file, "Advertisement License.pdf"),
-      file: license.license_file,
+      name: getDocumentDisplayName(licenseFile, manualLicense.name || "Advertisement License.pdf"),
+      file: licenseFile,
+      generatedHtml: hasDashboardManualDocument(manualLicense) || canViewLicense(app)
+        ? getGeneratedAdvertisementLicenseDocumentHtml(app, t)
+        : "",
     },
   ];
+}
+
+function hasDashboardManualDocument(document) {
+  return Boolean(document?.document_html || document?.editable_body_html || document?.saved_at);
+}
+
+function getDashboardPaymentDocumentFieldName(kind) {
+  if (kind === "bill") return "bill_file";
+  if (kind === "official_receipt") return "official_receipt_file";
+  return "letter_file";
+}
+
+function getDashboardStoredPaymentDocument(app, kind) {
+  const fieldName = getDashboardPaymentDocumentFieldName(kind);
+  return getDashboardDocumentWithUrl(app, app?.form_data?.approval_letter?.[fieldName] || null);
+}
+
+function getDashboardDocumentWithUrl(app, file) {
+  if (!file || typeof file !== "object") return file || null;
+  if (getPaymentDocumentSource(file)) return file;
+
+  const documentId = file.document_id || file.id;
+  if (!documentId || !app?.id) return file;
+
+  return {
+    ...file,
+    url: getApplicationDocumentUrl(app.id, documentId),
+  };
 }
 
 function buildDecisionLogReportRows(app, t) {
@@ -2349,7 +2410,10 @@ function getApplicantReceiptDocument(app, t) {
 }
 
 function getSentOfficialReceiptFile(app) {
-  const file = app?.form_data?.approval_letter?.official_receipt_file || null;
+  const file = getDashboardDocumentWithUrl(
+    app,
+    app?.form_data?.approval_letter?.official_receipt_file || null
+  );
   if (!getPaymentDocumentSource(file)) return null;
 
   const status = normalizeStatus(app?.status);
@@ -2370,6 +2434,17 @@ function getPaymentDocumentSource(file) {
 
 function getDocumentDisplayName(file, fallbackName) {
   return file?.name || fallbackName;
+}
+
+async function printDashboardGeneratedDocument(html, title, t) {
+  if (!html) return;
+
+  try {
+    await printHtmlDocument(html, title);
+  } catch (err) {
+    console.error("Failed to print generated completed application document:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
 }
 
 async function openDashboardPaymentDocument(file, t) {

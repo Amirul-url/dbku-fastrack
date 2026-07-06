@@ -114,7 +114,7 @@ class ApplicationReferenceTests(TestCase):
             "KU(IKL) Confirm - Send to KB(LES)",
         )
 
-    def test_application_list_uses_submitting_person_before_legacy_step_one_applicant(self):
+    def test_application_list_uses_submitting_person_before_organisation_name(self):
         User = get_user_model()
         applicant = User.objects.create_user(
             username="020215130135",
@@ -156,6 +156,7 @@ class ApplicationReferenceTests(TestCase):
             data[0]["applicant_full_name"],
             "MUHAMMAD AMIRUL AQMAL BIN ABDUL LATIP",
         )
+        self.assertNotEqual(data[0]["applicant_full_name"], "THE WATERFRONT HOTEL")
 
     def test_application_detail_preserves_digital_signature_data_url(self):
         User = get_user_model()
@@ -595,8 +596,14 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
             status="approved",
             form_data={
                 "approval_letter": {
-                    "letter_file": "approval.pdf",
-                    "bill_file": "bill.pdf",
+                    "manual_letter": {
+                        "name": "Approval Letter",
+                        "document_html": "<html><body>Approval Letter</body></html>",
+                    },
+                    "manual_bill": {
+                        "name": "Bill",
+                        "document_html": "<html><body>Bill</body></html>",
+                    },
                 }
             },
         )
@@ -609,8 +616,14 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
                 "status": "invoice_generated",
                 "form_data": {
                     "approval_letter": {
-                        "letter_file": "approval.pdf",
-                        "bill_file": "bill.pdf",
+                        "manual_letter": {
+                            "name": "Approval Letter",
+                            "document_html": "<html><body>Approval Letter</body></html>",
+                        },
+                        "manual_bill": {
+                            "name": "Bill",
+                            "document_html": "<html><body>Bill</body></html>",
+                        },
                         "status": "Sent to Applicant",
                         "submitted_by": "PT(IKL)",
                     },
@@ -660,13 +673,19 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
             status="invoice_generated",
             form_data={
                 "approval_letter": {
-                    "letter_file": "approval.pdf",
-                    "bill_file": "bill.pdf",
+                    "manual_letter": {
+                        "name": "Approval Letter",
+                        "document_html": "<html><body>Approval Letter</body></html>",
+                    },
+                    "manual_bill": {
+                        "name": "Bill",
+                        "document_html": "<html><body>Bill</body></html>",
+                    },
                     "status": "Sent to Applicant",
                 },
                 "payment": {
                     "status": "Awaiting Payment",
-                    "receipt_file": {"name": "receipt.pdf"},
+                    "receipt_file": {"name": "Receipt.png"},
                 },
             },
         )
@@ -680,8 +699,8 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
                 "form_data": {
                     "payment": {
                         "status": "Payment Submitted",
-                        "receipt_reference": "receipt.pdf",
-                        "receipt_file": {"name": "receipt.pdf"},
+                        "receipt_reference": "Receipt.png",
+                        "receipt_file": {"name": "Receipt.png"},
                     },
                 },
             },

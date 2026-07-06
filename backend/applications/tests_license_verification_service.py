@@ -10,6 +10,17 @@ from applications.services.license_verification import (
 
 
 class ApplicationLicenseVerificationServiceTests(TestCase):
+    generated_license_html = (
+        "<html>"
+        "<body>"
+        "<h1>Borang B</h1>"
+        "<p>Lesen Pengiklanan</p>"
+        "<h2>LAMPIRAN A</h2>"
+        "<p>SYARAT-SYARAT LESEN PENGIKLANAN</p>"
+        "</body>"
+        "</html>"
+    )
+
     def setUp(self):
         self.applicant = User.objects.create_user(
             username="900101131234",
@@ -22,15 +33,14 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
             title="Verified license",
             status="license_issued",
         )
-        self.document = SupportingDocument.objects.create(
-            application=self.application,
-            title="Advertisement License",
-            file="supporting_documents/license.pdf",
-        )
         self.application.form_data = {
             "license": {
                 "license_id": "alis202600001",
-                "license_file": {"document_id": self.document.id},
+                "license_file": None,
+                "manual_license": {
+                    "name": "Advertisement License",
+                    "document_html": self.generated_license_html,
+                },
             }
         }
         self.application.save(update_fields=["form_data"])
@@ -38,24 +48,51 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
     def test_normalizes_license_id(self):
         self.assertEqual(normalize_license_id(" alis202600001 "), "ALIS202600001")
 
-    def test_finds_license_document_case_insensitively(self):
+    def test_finds_generated_license_document_case_insensitively(self):
         application, document = get_public_license_document(" ALIS202600001 ")
 
         self.assertEqual(application, self.application)
-        self.assertEqual(document, self.document)
+        self.assertTrue(document.is_generated)
+        self.assertEqual(document.html, self.generated_license_html)
+        self.assertEqual(document.name, "Advertisement License")
 
     def test_supports_legacy_license_file_id_key(self):
+        stored_document = SupportingDocument.objects.create(
+            application=self.application,
+            title="Advertisement License",
+            file="supporting_documents/legacy-license.pdf",
+        )
         self.application.form_data = {
             "license": {
                 "license_id": "ALIS202600002",
-                "license_file": {"id": self.document.id},
+                "license_file": {"id": stored_document.id},
             }
         }
         self.application.save(update_fields=["form_data"])
 
         _application, document = get_public_license_document("alis202600002")
 
-        self.assertEqual(document, self.document)
+        self.assertEqual(document.supporting_document, stored_document)
+        self.assertFalse(document.is_generated)
+
+    def test_supports_generated_manual_license_document(self):
+        self.application.form_data = {
+            "license": {
+                "license_id": "ALIS202600005",
+                "license_file": None,
+                "manual_license": {
+                    "name": "Advertisement License",
+                    "document_html": self.generated_license_html,
+                },
+            }
+        }
+        self.application.save(update_fields=["form_data"])
+
+        _application, document = get_public_license_document("alis202600005")
+
+        self.assertTrue(document.is_generated)
+        self.assertEqual(document.html, self.generated_license_html)
+        self.assertEqual(document.name, "Advertisement License")
 
     def test_raises_404_when_license_is_missing(self):
         with self.assertRaisesMessage(Http404, "Advertisement license not found."):
