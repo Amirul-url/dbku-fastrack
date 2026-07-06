@@ -258,6 +258,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     reference: "",
     redirectTo: "",
   });
+  const [applicationApprovedModal, setApplicationApprovedModal] = useState({
+    open: false,
+    reference: "",
+    redirectTo: "",
+  });
   const [commentError, setCommentError] = useState("");
   const [technicalSizeError, setTechnicalSizeError] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
@@ -2064,6 +2069,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
       setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
+      setApplicationApprovedModal({ open: false, reference: "", redirectTo: "" });
       const shouldShowLicenseIssuedSuccess =
         action.key === "issue_license" ||
         (action.requiresSubmittedReceipt && /^verify receipt$/i.test(String(action.label || actionDecision || "")));
@@ -2126,6 +2132,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         t,
       });
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
+      const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2171,12 +2178,25 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
         });
       }
+      if (shouldShowApplicationApprovedSuccess) {
+        setApplicationApprovedModal({
+          open: true,
+          reference: getApplicationReference(selectedRecord),
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+        });
+      }
       setComment("");
       await fetchApplications();
       if (shouldShowLicenseIssuedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
       if (shouldShowApplicationRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
+      if (shouldShowApplicationApprovedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
       if (isFocusedPersonalWorkspace || fromPersonalTask) {
@@ -2213,6 +2233,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   function closeApplicationRejectedModal() {
     const redirectTo = applicationRejectedModal.redirectTo;
     setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
+    if (redirectTo) {
+      navigate(redirectTo);
+    }
+  }
+
+  function closeApplicationApprovedModal() {
+    const redirectTo = applicationApprovedModal.redirectTo;
+    setApplicationApprovedModal({ open: false, reference: "", redirectTo: "" });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -3551,6 +3579,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {applicationApprovedModal.open && (
+        <ApplicationApprovedModal
+          reference={applicationApprovedModal.reference}
+          t={t}
+          onClose={closeApplicationApprovedModal}
+        />
+      )}
+
     </AdminDashboardLayout>
   );
 }
@@ -3602,6 +3638,59 @@ function shouldShowApplicationRejectedModal(action, body) {
   }
 
   return ["rejected", "incomplete"].includes(normalizeStatus(body.status));
+}
+
+function ApplicationApprovedModal({ reference, t, onClose }) {
+  const displayReference = reference || "Application";
+  const message = t(
+    "workspace.approved.message",
+    "Application {reference} has been sent to Technical Review."
+  ).replace("{reference}", displayReference);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="application-approved-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src="/green_tick.png"
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="application-approved-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {t("workspace.approved.title", "SUCCESS!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium leading-snug text-black">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function shouldShowApplicationApprovedModal(action, body) {
+  if (!body || action?.buildPayload !== buildIklScreeningPayload) {
+    return false;
+  }
+
+  const recommendation = String(body.form_data?.auto_screening?.recommendation || "");
+  return (
+    normalizeStatus(body.status) === "technical_review" &&
+    recommendation === "KU(IKL) Confirm - Send to Technical Units"
+  );
 }
 
 function LicenseIssuedSuccessModal({ t, onClose }) {

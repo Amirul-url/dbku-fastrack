@@ -851,6 +851,7 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
   const description = getResubmissionDrilldownDescription(type, t);
   const isCompleteDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.complete;
   const isRejectedDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.rejected;
+  const isResubmittedDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.resubmitted;
   const monthOptions = getResubmissionMonthOptions(language);
   const yearOptions = useMemo(() => {
     return buildDrilldownYearOptions(rows, filters.year);
@@ -907,37 +908,41 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
       className: "w-[180px]",
       render: (row) => formatCompactDateTime(row.date),
     },
-    {
-      key: "action",
-      label: t("common.action", "Action"),
-      className: "w-[110px] whitespace-nowrap",
-      render: (row) => (
-        isCompleteDrilldown ? (
-          <button
-            type="button"
-            className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
-            onClick={() => setSelectedCompleteRowId(row.id)}
-          >
-            {t("common.view", "View")}
-          </button>
-        ) : isRejectedDrilldown ? (
-          <button
-            type="button"
-            className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
-            onClick={() => setSelectedRejectedRowId(row.id)}
-          >
-            {t("common.view", "View")}
-          </button>
-        ) : (
-          <Link
-            className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
-            to={getResubmissionApplicationViewPath(row.applicationId, type)}
-          >
-            {t("common.view", "View")}
-          </Link>
-        )
-      ),
-    },
+    ...(!isResubmittedDrilldown
+      ? [
+          {
+            key: "action",
+            label: t("common.action", "Action"),
+            className: "w-[110px] whitespace-nowrap",
+            render: (row) => (
+              isCompleteDrilldown ? (
+                <button
+                  type="button"
+                  className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+                  onClick={() => setSelectedCompleteRowId(row.id)}
+                >
+                  {t("common.view", "View")}
+                </button>
+              ) : isRejectedDrilldown ? (
+                <button
+                  type="button"
+                  className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+                  onClick={() => setSelectedRejectedRowId(row.id)}
+                >
+                  {t("common.view", "View")}
+                </button>
+              ) : (
+                <Link
+                  className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+                  to={getResubmissionApplicationViewPath(row.applicationId, type)}
+                >
+                  {t("common.view", "View")}
+                </Link>
+              )
+            ),
+          },
+        ]
+      : []),
   ];
 
   useEffect(() => {
