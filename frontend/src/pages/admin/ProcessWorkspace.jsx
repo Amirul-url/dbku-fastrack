@@ -258,10 +258,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     reference: "",
     redirectTo: "",
   });
+  const [applicationAmendmentModal, setApplicationAmendmentModal] = useState({
+    open: false,
+    reference: "",
+    redirectTo: "",
+  });
   const [applicationApprovedModal, setApplicationApprovedModal] = useState({
     open: false,
     reference: "",
     redirectTo: "",
+    messageKey: "workspace.approved.message",
+    defaultMessage: "Application {reference} has been sent to Technical Review.",
   });
   const [commentError, setCommentError] = useState("");
   const [technicalSizeError, setTechnicalSizeError] = useState("");
@@ -2069,7 +2076,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
       setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
-      setApplicationApprovedModal({ open: false, reference: "", redirectTo: "" });
+      setApplicationAmendmentModal({ open: false, reference: "", redirectTo: "" });
+      setApplicationApprovedModal(createClosedApplicationApprovedModalState());
       const shouldShowLicenseIssuedSuccess =
         action.key === "issue_license" ||
         (action.requiresSubmittedReceipt && /^verify receipt$/i.test(String(action.label || actionDecision || "")));
@@ -2131,8 +2139,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         officialReceiptMode: "upload",
         t,
       });
+      const shouldShowApplicationAmendmentSuccess = shouldShowApplicationAmendmentModal(action, body);
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
+      const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
+      const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2178,7 +2189,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
         });
       }
-      if (shouldShowApplicationApprovedSuccess) {
+      if (shouldShowApplicationAmendmentSuccess) {
+        setApplicationAmendmentModal({
+          open: true,
+          reference: getApplicationReference(selectedRecord),
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+        });
+      }
+      if (
+        shouldShowApplicationApprovedSuccess ||
+        shouldShowTechnicalSiteVisitSuccess ||
+        shouldShowKuFinalCheckSuccess
+      ) {
         setApplicationApprovedModal({
           open: true,
           reference: getApplicationReference(selectedRecord),
@@ -2186,6 +2211,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
+          messageKey: shouldShowKuFinalCheckSuccess
+            ? "workspace.kuFinalCheck.message"
+            : shouldShowTechnicalSiteVisitSuccess
+              ? "workspace.technicalSiteVisit.message"
+              : "workspace.approved.message",
+          defaultMessage: shouldShowKuFinalCheckSuccess
+            ? "Application {reference} has been sent to KU(IKL) Final Check."
+            : shouldShowTechnicalSiteVisitSuccess
+              ? "Application {reference} has been sent for Technical Site Visit."
+              : "Application {reference} has been sent to Technical Review.",
         });
       }
       setComment("");
@@ -2196,7 +2231,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (shouldShowApplicationRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
-      if (shouldShowApplicationApprovedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+      if (shouldShowApplicationAmendmentSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
+      if (
+        (shouldShowApplicationApprovedSuccess ||
+          shouldShowTechnicalSiteVisitSuccess ||
+          shouldShowKuFinalCheckSuccess) &&
+        (isFocusedPersonalWorkspace || fromPersonalTask)
+      ) {
         return true;
       }
       if (isFocusedPersonalWorkspace || fromPersonalTask) {
@@ -2238,9 +2281,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  function closeApplicationAmendmentModal() {
+    const redirectTo = applicationAmendmentModal.redirectTo;
+    setApplicationAmendmentModal({ open: false, reference: "", redirectTo: "" });
+    if (redirectTo) {
+      navigate(redirectTo);
+    }
+  }
+
   function closeApplicationApprovedModal() {
     const redirectTo = applicationApprovedModal.redirectTo;
-    setApplicationApprovedModal({ open: false, reference: "", redirectTo: "" });
+    setApplicationApprovedModal(createClosedApplicationApprovedModalState());
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -3579,8 +3630,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {applicationAmendmentModal.open && (
+        <ApplicationAmendmentModal
+          reference={applicationAmendmentModal.reference}
+          t={t}
+          onClose={closeApplicationAmendmentModal}
+        />
+      )}
+
       {applicationApprovedModal.open && (
         <ApplicationApprovedModal
+          defaultMessage={applicationApprovedModal.defaultMessage}
+          messageKey={applicationApprovedModal.messageKey}
           reference={applicationApprovedModal.reference}
           t={t}
           onClose={closeApplicationApprovedModal}
@@ -3637,14 +3698,84 @@ function shouldShowApplicationRejectedModal(action, body) {
     return false;
   }
 
+  if (shouldShowApplicationAmendmentModal(action, body)) {
+    return false;
+  }
+
   return ["rejected", "incomplete"].includes(normalizeStatus(body.status));
 }
 
-function ApplicationApprovedModal({ reference, t, onClose }) {
+function ApplicationAmendmentModal({ reference, t, onClose }) {
   const displayReference = reference || "Application";
   const message = t(
-    "workspace.approved.message",
-    "Application {reference} has been sent to Technical Review."
+    "workspace.amendment.message",
+    "Application {reference} has been sent to the applicant for amendment."
+  ).replace("{reference}", displayReference);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="application-amendment-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src="/amendment.png"
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="application-amendment-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {t("workspace.amendment.title", "AMENDMENT REQUIRED!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium leading-snug text-black">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function shouldShowApplicationAmendmentModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildIklTechnicalDecisionPayload &&
+    normalizeStatus(body.status) === "rejected" &&
+    body.form_data?.technical_review?.final_decision === "Not Supported"
+  );
+}
+
+function createClosedApplicationApprovedModalState() {
+  return {
+    open: false,
+    reference: "",
+    redirectTo: "",
+    messageKey: "workspace.approved.message",
+    defaultMessage: "Application {reference} has been sent to Technical Review.",
+  };
+}
+
+function ApplicationApprovedModal({
+  defaultMessage = "Application {reference} has been sent to Technical Review.",
+  messageKey = "workspace.approved.message",
+  reference,
+  t,
+  onClose,
+}) {
+  const displayReference = reference || "Application";
+  const message = t(
+    messageKey,
+    defaultMessage
   ).replace("{reference}", displayReference);
 
   return (
@@ -3690,6 +3821,23 @@ function shouldShowApplicationApprovedModal(action, body) {
   return (
     normalizeStatus(body.status) === "technical_review" &&
     recommendation === "KU(IKL) Confirm - Send to Technical Units"
+  );
+}
+
+function shouldShowTechnicalSiteVisitModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildDepartmentTechnicalReviewPayload &&
+    normalizeStatus(body.status) === "technical_site_visit"
+  );
+}
+
+function shouldShowKuFinalCheckModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildIklTechnicalDecisionPayload &&
+    normalizeStatus(body.status) === "technical_review_completed" &&
+    body.form_data?.technical_review?.final_decision === "Supported"
   );
 }
 
@@ -13276,7 +13424,16 @@ function IklWorkspaceSections({
             <div className="space-y-4">
               <div className="max-w-[56rem]">
                 <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
-                  {t("workspace.technical.supportQuestion", "Your Recommendation")}
+                  <span className="relative inline-flex items-center gap-1.5">
+                    {t("workspace.technical.supportQuestion", "Your Recommendation")}
+                    <TechnicalCalculationGuidelineHint
+                      position="right"
+                      text={t(
+                        "workspace.technical.recommendationHelper",
+                        "Yes = KU(IKL) final check; No = return to applicant."
+                      )}
+                    />
+                  </span>
                 </span>
                 <input
                   ref={technicalDecisionInputRef}
@@ -15326,7 +15483,12 @@ function TechnicalCalculationRow({ label, value, strong = false, guideline = "" 
   );
 }
 
-function TechnicalCalculationGuidelineHint({ text }) {
+function TechnicalCalculationGuidelineHint({ text, position = "below" }) {
+  const tooltipPositionClass =
+    position === "right"
+      ? "left-full top-1/2 ml-2 -translate-y-1/2"
+      : "left-0 top-5";
+
   return (
     <span
       role="button"
@@ -15335,7 +15497,7 @@ function TechnicalCalculationGuidelineHint({ text }) {
       className="group/icon inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-400 bg-white text-[10px] font-black leading-none text-slate-600 outline-none hover:border-[#006d32] hover:text-[#006d32] focus:border-[#006d32] focus:text-[#006d32]"
     >
       i
-      <span className="pointer-events-none absolute left-0 top-5 z-40 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block">
+      <span className={`pointer-events-none absolute z-40 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block ${tooltipPositionClass}`}>
         {text}
       </span>
     </span>
