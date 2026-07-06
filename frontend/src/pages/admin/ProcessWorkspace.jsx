@@ -2155,6 +2155,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowMphlgRejectedSuccess = shouldShowMphlgRejectedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
+      const shouldShowInvoiceGeneratedSuccess = shouldShowInvoiceGeneratedModal(action, body);
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
       const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
       const shouldShowKbVerificationSuccess = shouldShowKbVerificationModal(action, body);
@@ -2170,6 +2171,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowApplicationRejectedSuccess ||
         shouldShowApplicationAmendmentSuccess ||
         shouldShowApplicationApprovedSuccess ||
+        shouldShowInvoiceGeneratedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
         shouldShowKbVerificationSuccess ||
@@ -2256,6 +2258,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
       if (
         shouldShowApplicationApprovedSuccess ||
+        shouldShowInvoiceGeneratedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
           shouldShowKbVerificationSuccess ||
@@ -2274,6 +2277,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             ? "workspace.kuFinalCheck.message"
             : shouldShowMphlgFinalApprovedSuccess
             ? "workspace.mphlgFinalApproved.message"
+            : shouldShowInvoiceGeneratedSuccess
+            ? "workspace.invoiceGenerated.message"
             : shouldShowApprovalSupportMphlgSuccess
               ? "workspace.mphlgApproval.message"
             : shouldShowKbApprovalSupportSuccess
@@ -2287,6 +2292,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             ? "Application {reference} has been sent to KU(IKL) Final Check."
             : shouldShowMphlgFinalApprovedSuccess
             ? "Application {reference} Has Been Approve."
+            : shouldShowInvoiceGeneratedSuccess
+            ? "Approval Letter & Bill For Application {reference} Has Been Generated."
             : shouldShowApprovalSupportMphlgSuccess
               ? "Application {reference} has been sent to MPHLG."
             : shouldShowKbApprovalSupportSuccess
@@ -2314,6 +2321,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
       if (
         (shouldShowApplicationApprovedSuccess ||
+          shouldShowInvoiceGeneratedSuccess ||
           shouldShowTechnicalSiteVisitSuccess ||
           shouldShowKuFinalCheckSuccess ||
           shouldShowKbVerificationSuccess ||
@@ -4027,6 +4035,15 @@ function shouldShowApplicationApprovedModal(action, body) {
   );
 }
 
+function shouldShowInvoiceGeneratedModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.requiresPaymentDocuments &&
+    normalizeStatus(body.status) === "invoice_generated" &&
+    body.form_data?.approval_letter?.status === "Sent to Applicant"
+  );
+}
+
 function shouldShowTechnicalSiteVisitModal(action, body) {
   return (
     Boolean(body) &&
@@ -4173,14 +4190,25 @@ function buildManualApprovalLetterDocumentHtml(bodyHtml) {
 
 function ManualBillEditorModal({ app, t, saving, onClose, onSave }) {
   const editorRef = useRef(null);
+  const initialBodyHtmlRef = useRef(null);
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
-  const initialBodyHtml = syncManualBillAutoFields(
-    manualBill.editable_body_html || buildManualBillTemplateBodyHtml(app),
-    app
-  );
+
+  if (initialBodyHtmlRef.current === null) {
+    initialBodyHtmlRef.current = syncManualBillAutoFields(
+      manualBill.editable_body_html || buildManualBillTemplateBodyHtml(app),
+      app
+    );
+  }
+
+  useEffect(() => {
+    if (!editorRef.current || editorRef.current.dataset.initialized === "true") return;
+
+    editorRef.current.innerHTML = initialBodyHtmlRef.current || "";
+    editorRef.current.dataset.initialized = "true";
+  }, []);
 
   function handleSave() {
-    const bodyHtml = editorRef.current?.innerHTML || initialBodyHtml;
+    const bodyHtml = editorRef.current?.innerHTML || initialBodyHtmlRef.current || "";
     onSave?.(bodyHtml);
   }
 
@@ -4228,7 +4256,6 @@ function ManualBillEditorModal({ app, t, saving, onClose, onSave }) {
             suppressContentEditableWarning
             spellCheck={false}
             className="manual-bill-pages outline-none"
-            dangerouslySetInnerHTML={{ __html: initialBodyHtml }}
           />
         </div>
       </div>
@@ -4258,8 +4285,34 @@ function syncManualBillAutoFields(bodyHtml, app = null) {
   const saved = String(bodyHtml || "").trim();
   if (!saved) return nextBody;
 
-  return saved
-    .replace(/<section class="manual-bill-page">[\s\S]*?<\/section>/, nextBody.trim());
+  return normalizeManualBillEditableMarkup(saved);
+}
+
+function normalizeManualBillEditableMarkup(bodyHtml) {
+  return String(bodyHtml || "")
+    .replaceAll(
+      "<span>Nama</span><span>:</span><strong>",
+      '<span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">'
+    )
+    .replaceAll(
+      "<span>Bahagian</span><span>:</span><strong>",
+      '<span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">'
+    )
+    .replace(
+      /<footer>\s*<p>Notis ini adalah cetakan komputer\. Tiada tandatangan diperlukan\.<\/p>\s*<p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat\.<\/p>\s*<\/footer>/,
+      buildManualBillPaymentNoticeHtml()
+    );
+}
+
+function buildManualBillPaymentNoticeHtml() {
+  return `
+      <footer>
+        <p>Sila buat pembayaran dengan kadar segera sebelum lesen dikeluarkan.</p>
+        <p>Untuk sebarang pertanyaan sila berhubung dengan Unit Iklan di talian 082-512955</p>
+        <br />
+        <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+        <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+      </footer>`;
 }
 
 function buildManualBillTemplateBodyHtml(app = null) {
@@ -4335,20 +4388,17 @@ function buildManualBillTemplateBodyHtml(app = null) {
       <div class="bill-signature-grid">
         <div>
           <p><strong>Disediakan oleh :</strong></p>
-          <div class="bill-person-row"><span>Nama</span><span>:</span><strong>${escapeHtml(details.preparedBy)}</strong></div>
-          <div class="bill-person-row"><span>Bahagian</span><span>:</span><strong>Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
+          <div class="bill-person-row"><span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">${escapeHtml(details.preparedBy)}</strong></div>
+          <div class="bill-person-row"><span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
         </div>
         <div>
           <p><strong>Diluluskan oleh :</strong></p>
-          <div class="bill-person-row"><span>Nama</span><span>:</span><strong>${escapeHtml(details.approvedBy)}</strong></div>
-          <div class="bill-person-row"><span>Bahagian</span><span>:</span><strong>Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
+          <div class="bill-person-row"><span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">${escapeHtml(details.approvedBy)}</strong></div>
+          <div class="bill-person-row"><span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
         </div>
       </div>
 
-      <footer>
-        <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
-        <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
-      </footer>
+      ${buildManualBillPaymentNoticeHtml()}
     </section>
   `;
 }
@@ -5318,18 +5368,40 @@ function getManualBillCss({ editor = false } = {}) {
       min-height: 4.8mm;
     }
     .bill-person-row strong {
+      display: block;
+      min-width: 34mm;
+      min-height: 4.2mm;
       font-weight: 400;
       line-height: 1.18;
+      white-space: normal;
+      overflow-wrap: normal;
     }
     .manual-bill-page footer {
-      margin-top: 10mm;
-      text-align: center;
+      margin-top: 4mm;
       font-style: italic;
-      font-weight: 400;
-      color: #334155;
+      font-weight: 600;
+      color: #111;
     }
     .manual-bill-page footer p {
       margin: 0;
+      font-size: 8.2pt !important;
+    }
+    .manual-bill-page footer p:nth-child(-n+2) {
+      text-align: left;
+      font-size: 6pt !important;
+    }
+    .manual-bill-page footer br {
+      display: block;
+      content: "";
+      margin: 0;
+    }
+    .manual-bill-page footer p:nth-child(4) {
+      margin-top: 10mm;
+    }
+    .manual-bill-page footer p:nth-child(n+4) {
+      text-align: center;
+      font-weight: 400;
+      color: #334155;
       font-size: 7.5pt !important;
     }
     .print-actions { position: fixed; right: 18px; top: 18px; z-index: 10; }
