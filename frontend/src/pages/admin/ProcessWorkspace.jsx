@@ -253,6 +253,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     redirectTo: "",
   });
+  const [applicationRejectedModal, setApplicationRejectedModal] = useState({
+    open: false,
+    reference: "",
+    redirectTo: "",
+  });
   const [commentError, setCommentError] = useState("");
   const [technicalSizeError, setTechnicalSizeError] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
@@ -2058,6 +2063,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setError("");
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+      setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
       const shouldShowLicenseIssuedSuccess =
         action.key === "issue_license" ||
         (action.requiresSubmittedReceipt && /^verify receipt$/i.test(String(action.label || actionDecision || "")));
@@ -2119,6 +2125,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         officialReceiptMode: "upload",
         t,
       });
+      const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2154,9 +2161,22 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
         });
       }
+      if (shouldShowApplicationRejectedSuccess) {
+        setApplicationRejectedModal({
+          open: true,
+          reference: getApplicationReference(selectedRecord),
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+        });
+      }
       setComment("");
       await fetchApplications();
       if (shouldShowLicenseIssuedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
+      if (shouldShowApplicationRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
       if (isFocusedPersonalWorkspace || fromPersonalTask) {
@@ -2187,6 +2207,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return false;
     } finally {
       setSaving(false);
+    }
+  }
+
+  function closeApplicationRejectedModal() {
+    const redirectTo = applicationRejectedModal.redirectTo;
+    setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
+    if (redirectTo) {
+      navigate(redirectTo);
     }
   }
 
@@ -3515,8 +3543,65 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {applicationRejectedModal.open && (
+        <ApplicationRejectedModal
+          reference={applicationRejectedModal.reference}
+          t={t}
+          onClose={closeApplicationRejectedModal}
+        />
+      )}
+
     </AdminDashboardLayout>
   );
+}
+
+function ApplicationRejectedModal({ reference, t, onClose }) {
+  const displayReference = reference || "Application";
+  const message = t(
+    "workspace.rejected.message",
+    "Application {reference} Has Been Rejected And Send To Applicant."
+  ).replace("{reference}", displayReference);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="application-rejected-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src="/red_x.png"
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="application-rejected-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {t("workspace.rejected.title", "REJECTED!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium leading-snug text-black">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function shouldShowApplicationRejectedModal(action, body) {
+  if (!body || action?.requiresSubmittedReceipt || action?.key === "reject_receipt") {
+    return false;
+  }
+
+  return ["rejected", "incomplete"].includes(normalizeStatus(body.status));
 }
 
 function LicenseIssuedSuccessModal({ t, onClose }) {
