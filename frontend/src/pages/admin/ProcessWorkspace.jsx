@@ -256,6 +256,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     reference: "",
     redirectTo: "",
+    messageKey: "workspace.rejected.message",
+    defaultMessage: "Application {reference} Has Been Rejected And Send To Applicant.",
   });
   const [applicationAmendmentModal, setApplicationAmendmentModal] = useState({
     open: false,
@@ -2076,7 +2078,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setError("");
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
-      setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
+      setApplicationRejectedModal({
+        open: false,
+        reference: "",
+        redirectTo: "",
+        messageKey: "workspace.rejected.message",
+        defaultMessage: "Application {reference} Has Been Rejected And Send To Applicant.",
+      });
       setApplicationAmendmentModal(createClosedApplicationAmendmentModalState());
       setApplicationApprovedModal(createClosedApplicationApprovedModalState());
       const shouldShowLicenseIssuedSuccess =
@@ -2144,7 +2152,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowTechnicalSiteVisitAmendmentSuccess =
         shouldShowTechnicalSiteVisitAmendmentModal(action, body);
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
+      const shouldShowMphlgRejectedSuccess = shouldShowMphlgRejectedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
+      const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
       const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
       const shouldShowKbVerificationSuccess = shouldShowKbVerificationModal(action, body);
@@ -2198,6 +2208,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
+          messageKey: shouldShowMphlgRejectedSuccess
+            ? "workspace.mphlgRejected.message"
+            : "workspace.rejected.message",
+          defaultMessage: shouldShowMphlgRejectedSuccess
+            ? "Application {reference} Has Been Sent To Applicant."
+            : "Application {reference} Has Been Rejected And Send To Applicant.",
         });
       }
       if (shouldShowApplicationAmendmentSuccess) {
@@ -2226,9 +2242,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowApplicationApprovedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
-        shouldShowKbVerificationSuccess ||
-        shouldShowKbApprovalSupportSuccess ||
-        shouldShowApprovalSupportMphlgSuccess
+          shouldShowKbVerificationSuccess ||
+          shouldShowKbApprovalSupportSuccess ||
+          shouldShowApprovalSupportMphlgSuccess ||
+          shouldShowMphlgFinalApprovedSuccess
       ) {
         setApplicationApprovedModal({
           open: true,
@@ -2239,6 +2256,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
           messageKey: shouldShowKuFinalCheckSuccess
             ? "workspace.kuFinalCheck.message"
+            : shouldShowMphlgFinalApprovedSuccess
+            ? "workspace.mphlgFinalApproved.message"
             : shouldShowApprovalSupportMphlgSuccess
               ? "workspace.mphlgApproval.message"
             : shouldShowKbApprovalSupportSuccess
@@ -2250,6 +2269,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 : "workspace.approved.message",
           defaultMessage: shouldShowKuFinalCheckSuccess
             ? "Application {reference} has been sent to KU(IKL) Final Check."
+            : shouldShowMphlgFinalApprovedSuccess
+            ? "Application {reference} Has Been Approve."
             : shouldShowApprovalSupportMphlgSuccess
               ? "Application {reference} has been sent to MPHLG."
             : shouldShowKbApprovalSupportSuccess
@@ -2278,7 +2299,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           shouldShowKuFinalCheckSuccess ||
           shouldShowKbVerificationSuccess ||
           shouldShowKbApprovalSupportSuccess ||
-          shouldShowApprovalSupportMphlgSuccess) &&
+          shouldShowApprovalSupportMphlgSuccess ||
+          shouldShowMphlgFinalApprovedSuccess) &&
         (isFocusedPersonalWorkspace || fromPersonalTask)
       ) {
         return true;
@@ -2316,7 +2338,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function closeApplicationRejectedModal() {
     const redirectTo = applicationRejectedModal.redirectTo;
-    setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
+    setApplicationRejectedModal({
+      open: false,
+      reference: "",
+      redirectTo: "",
+      messageKey: "workspace.rejected.message",
+      defaultMessage: "Application {reference} Has Been Rejected And Send To Applicant.",
+    });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -3665,6 +3693,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       {applicationRejectedModal.open && (
         <ApplicationRejectedModal
+          defaultMessage={applicationRejectedModal.defaultMessage}
+          messageKey={applicationRejectedModal.messageKey}
           reference={applicationRejectedModal.reference}
           t={t}
           onClose={closeApplicationRejectedModal}
@@ -3695,11 +3725,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
 }
 
-function ApplicationRejectedModal({ reference, t, onClose }) {
+function ApplicationRejectedModal({
+  defaultMessage = "Application {reference} Has Been Rejected And Send To Applicant.",
+  messageKey = "workspace.rejected.message",
+  reference,
+  t,
+  onClose,
+}) {
   const displayReference = reference || "Application";
   const message = t(
-    "workspace.rejected.message",
-    "Application {reference} Has Been Rejected And Send To Applicant."
+    messageKey,
+    defaultMessage
   ).replace("{reference}", displayReference);
 
   return (
@@ -3746,6 +3782,16 @@ function shouldShowApplicationRejectedModal(action, body) {
   }
 
   return ["rejected", "incomplete"].includes(normalizeStatus(body.status));
+}
+
+function shouldShowMphlgRejectedModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildApprovalWorkflowPayload &&
+    normalizeStatus(body.status) === "rejected" &&
+    body.form_data?.mphlg_gateway?.officer === "MPHLG" &&
+    body.form_data?.mphlg_gateway?.status === "Returned to Applicant"
+  );
 }
 
 function createClosedApplicationAmendmentModalState() {
@@ -3853,6 +3899,18 @@ function shouldShowApprovalSupportMphlgModal(action, body) {
     normalizeStatus(body.status) === "mphlg_processing" &&
     body.form_data?.management_recommendation?.status === "Approved" &&
     body.form_data?.mphlg_gateway?.status === "Pending MPHLG Approval"
+  );
+}
+
+function shouldShowMphlgFinalApprovedModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildApprovalWorkflowPayload &&
+    normalizeStatus(body.status) === "approved" &&
+    body.form_data?.mphlg_gateway?.officer === "MPHLG" &&
+    body.form_data?.mphlg_gateway?.status === "Approved" &&
+    body.form_data?.approval?.officer === "MPHLG" &&
+    body.form_data?.approval?.status === "Approved"
   );
 }
 
@@ -6102,9 +6160,7 @@ function MphlgDocumentActions({
       <button
         type="button"
         onClick={() =>
-          downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t, {
-            directDownload: true,
-          })
+          downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t)
         }
         disabled={!hasAttachment || saving}
         className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-[#00843d] shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -7692,9 +7748,7 @@ function DecisionLogMphlgSupportingDocumentsView({ documents, t }) {
                     <button
                       type="button"
                       onClick={() =>
-                        downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t, {
-                          directDownload: true,
-                        })
+                        downloadPaymentDocument(attachment, attachment?.name || "MPHLG Supporting Document", t)
                       }
                       disabled={!hasAttachment}
                       className="inline-flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-white text-[#00843d] shadow-sm hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
