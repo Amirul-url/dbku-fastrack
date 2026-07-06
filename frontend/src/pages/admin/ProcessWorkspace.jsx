@@ -2153,6 +2153,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowTechnicalSiteVisitAmendmentModal(action, body);
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
       const shouldShowMphlgRejectedSuccess = shouldShowMphlgRejectedModal(action, body);
+      const shouldShowReceiptRejectedSuccess = shouldShowReceiptRejectedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
       const shouldShowInvoiceGeneratedSuccess = shouldShowInvoiceGeneratedModal(action, body);
@@ -2169,6 +2170,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowWorkspaceResultModal =
         shouldShowLicenseIssuedSuccess ||
         shouldShowApplicationRejectedSuccess ||
+        shouldShowReceiptRejectedSuccess ||
         shouldShowApplicationAmendmentSuccess ||
         shouldShowApplicationApprovedSuccess ||
         shouldShowInvoiceGeneratedSuccess ||
@@ -2232,6 +2234,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           defaultMessage: shouldShowMphlgRejectedSuccess
             ? "Application {reference} Has Been Sent To Applicant."
             : "Application {reference} Has Been Rejected And Send To Applicant.",
+        });
+      }
+      if (shouldShowReceiptRejectedSuccess) {
+        setApplicationRejectedModal({
+          open: true,
+          reference: getApplicationReference(selectedRecord),
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+          messageKey: "workspace.receiptRejected.message",
+          defaultMessage: "The receipt is invalid. Please upload a new receipt.",
         });
       }
       if (shouldShowApplicationAmendmentSuccess) {
@@ -2314,6 +2328,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         return true;
       }
       if (shouldShowApplicationRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
+      if (shouldShowReceiptRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
       if (shouldShowApplicationAmendmentSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
@@ -3823,6 +3840,16 @@ function shouldShowMphlgRejectedModal(action, body) {
     normalizeStatus(body.status) === "rejected" &&
     body.form_data?.mphlg_gateway?.officer === "MPHLG" &&
     body.form_data?.mphlg_gateway?.status === "Returned to Applicant"
+  );
+}
+
+function shouldShowReceiptRejectedModal(action, body) {
+  return (
+    Boolean(body) &&
+    (action?.key === "reject_receipt" ||
+      body.form_data?.payment?.receipt_decision === "Reject Receipt") &&
+    normalizeStatus(body.status) === "invoice_generated" &&
+    body.form_data?.payment?.status === "Receipt Rejected"
   );
 }
 
@@ -12187,6 +12214,8 @@ function getWorkspaceStatusFilterOptions(applications, config, department, t) {
   ];
 
   filterApplications.forEach((app) => {
+    if (normalizeStatus(app?.status) === "bill_pending_ku") return;
+
     const label = String(getWorkspaceStatusLabel(app, config, t, department) || "").trim();
     if (!label || optionsByLabel.has(label)) return;
 
@@ -12234,7 +12263,6 @@ function getWorkspaceStatusFilterFallbackStatuses(config, department) {
     return [
       ...KU_IKL_TECHNICAL_TRACKING_STATUSES,
       ...(config.statuses || []),
-      "bill_pending_ku",
       "invoice_generated",
       "payment_submitted",
       "payment_verified",
@@ -12721,6 +12749,7 @@ const configs = {
         },
       },
       {
+        key: "reject_receipt",
         label: "Reject Receipt",
         labelKey: "workspace.action.rejectReceipt",
         icon: "report",
