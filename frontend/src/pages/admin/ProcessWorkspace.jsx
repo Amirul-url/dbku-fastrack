@@ -3354,7 +3354,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               : isKbVerificationTemplateWorkspace
                                 ? t("workspace.decision.typeVerifyOrNotVerify", "Type Verify or Not Verify")
                                 : isMphlgApprovalWorkspace
-                                  ? t("workspace.decision.typeYesOrNo", "Type Yes or No")
+                                  ? t("workspace.decision.typeApproveOrReject", "Type Approve or Reject")
                                 : t("workspace.decision.typeSupportOrNotSupport", "Type Support or Not Support")
                           }
                           inputMode="text"
@@ -9528,8 +9528,8 @@ function getWorkspaceDecisionOptions(config, app, department) {
 
   if (MPHLG_REVIEW_DEPARTMENTS.includes(department) && getApprovalStageKey(app) === "mphlg") {
     return [
-      { value: "Approve", labelKey: "workspace.decision.yes" },
-      { value: "Reject", labelKey: "workspace.decision.no" },
+      { value: "Approve", labelKey: "workspace.decision.approve" },
+      { value: "Reject", labelKey: "workspace.decision.reject" },
     ];
   }
 
