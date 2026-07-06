@@ -2165,6 +2165,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       );
       const shouldShowApprovalSupportAmendmentSuccess =
         shouldShowApprovalSupportAmendmentModal(action, body);
+      const shouldShowWorkspaceResultModal =
+        shouldShowLicenseIssuedSuccess ||
+        shouldShowApplicationRejectedSuccess ||
+        shouldShowApplicationAmendmentSuccess ||
+        shouldShowApplicationApprovedSuccess ||
+        shouldShowTechnicalSiteVisitSuccess ||
+        shouldShowKuFinalCheckSuccess ||
+        shouldShowKbVerificationSuccess ||
+        shouldShowKbApprovalSupportSuccess ||
+        shouldShowApprovalSupportMphlgSuccess ||
+        shouldShowMphlgFinalApprovedSuccess;
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2180,7 +2191,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (action.requiresPaymentDocuments || action.requiresOfficialReceipt) {
       }
 
-      if (tableFirstWorkspace && config.key === "approval" && isApprovalHistoryRecord(body)) {
+      if (
+        tableFirstWorkspace &&
+        config.key === "approval" &&
+        isApprovalHistoryRecord(body) &&
+        !shouldShowWorkspaceResultModal
+      ) {
         setSuccess(t(action.successKey, action.success));
         setComment("");
         setSelectedId("");
@@ -2284,6 +2300,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
       setComment("");
       await fetchApplications();
+      if (shouldShowWorkspaceResultModal) {
+        return true;
+      }
       if (shouldShowLicenseIssuedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
@@ -2313,7 +2332,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const refreshed =
         response?.data || (await apiRequest(`/applications/${selectedRecord.id}/`));
 
-      if (tableFirstWorkspace && config.key === "approval" && isApprovalHistoryRecord(refreshed)) {
+      if (
+        tableFirstWorkspace &&
+        config.key === "approval" &&
+        isApprovalHistoryRecord(refreshed) &&
+        !shouldShowWorkspaceResultModal
+      ) {
         setSelectedId("");
         setSelectedDetail(null);
         navigate("/dashboard/admin?view=approval");
