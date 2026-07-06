@@ -262,6 +262,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     reference: "",
     redirectTo: "",
+    messageKey: "workspace.amendment.message",
+    defaultMessage: "Application {reference} has been sent to the applicant for amendment.",
   });
   const [applicationApprovedModal, setApplicationApprovedModal] = useState({
     open: false,
@@ -2076,7 +2078,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
       setApplicationRejectedModal({ open: false, reference: "", redirectTo: "" });
-      setApplicationAmendmentModal({ open: false, reference: "", redirectTo: "" });
+      setApplicationAmendmentModal(createClosedApplicationAmendmentModalState());
       setApplicationApprovedModal(createClosedApplicationApprovedModalState());
       const shouldShowLicenseIssuedSuccess =
         action.key === "issue_license" ||
@@ -2140,10 +2142,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         t,
       });
       const shouldShowApplicationAmendmentSuccess = shouldShowApplicationAmendmentModal(action, body);
+      const shouldShowTechnicalSiteVisitAmendmentSuccess =
+        shouldShowTechnicalSiteVisitAmendmentModal(action, body);
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
       const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
+      const shouldShowKbVerificationSuccess = shouldShowKbVerificationModal(action, body);
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2197,12 +2202,19 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
+          messageKey: shouldShowTechnicalSiteVisitAmendmentSuccess
+            ? "workspace.amendment.technicalSiteVisitMessage"
+            : "workspace.amendment.message",
+          defaultMessage: shouldShowTechnicalSiteVisitAmendmentSuccess
+            ? "Application {reference} has been sent to Technical Site Visit."
+            : "Application {reference} has been sent to the applicant for amendment.",
         });
       }
       if (
         shouldShowApplicationApprovedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
-        shouldShowKuFinalCheckSuccess
+        shouldShowKuFinalCheckSuccess ||
+        shouldShowKbVerificationSuccess
       ) {
         setApplicationApprovedModal({
           open: true,
@@ -2213,14 +2225,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
           messageKey: shouldShowKuFinalCheckSuccess
             ? "workspace.kuFinalCheck.message"
-            : shouldShowTechnicalSiteVisitSuccess
-              ? "workspace.technicalSiteVisit.message"
-              : "workspace.approved.message",
+            : shouldShowKbVerificationSuccess
+              ? "workspace.kbVerification.message"
+              : shouldShowTechnicalSiteVisitSuccess
+                ? "workspace.technicalSiteVisit.message"
+                : "workspace.approved.message",
           defaultMessage: shouldShowKuFinalCheckSuccess
             ? "Application {reference} has been sent to KU(IKL) Final Check."
-            : shouldShowTechnicalSiteVisitSuccess
-              ? "Application {reference} has been sent for Technical Site Visit."
-              : "Application {reference} has been sent to Technical Review.",
+            : shouldShowKbVerificationSuccess
+              ? "Application {reference} has been sent to KB(LES) Verification."
+              : shouldShowTechnicalSiteVisitSuccess
+                ? "Application {reference} has been sent for Technical Site Visit."
+                : "Application {reference} has been sent to Technical Review.",
         });
       }
       setComment("");
@@ -2237,7 +2253,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (
         (shouldShowApplicationApprovedSuccess ||
           shouldShowTechnicalSiteVisitSuccess ||
-          shouldShowKuFinalCheckSuccess) &&
+          shouldShowKuFinalCheckSuccess ||
+          shouldShowKbVerificationSuccess) &&
         (isFocusedPersonalWorkspace || fromPersonalTask)
       ) {
         return true;
@@ -2283,7 +2300,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function closeApplicationAmendmentModal() {
     const redirectTo = applicationAmendmentModal.redirectTo;
-    setApplicationAmendmentModal({ open: false, reference: "", redirectTo: "" });
+    setApplicationAmendmentModal(createClosedApplicationAmendmentModalState());
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -3632,6 +3649,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
       {applicationAmendmentModal.open && (
         <ApplicationAmendmentModal
+          defaultMessage={applicationAmendmentModal.defaultMessage}
+          messageKey={applicationAmendmentModal.messageKey}
           reference={applicationAmendmentModal.reference}
           t={t}
           onClose={closeApplicationAmendmentModal}
@@ -3705,11 +3724,27 @@ function shouldShowApplicationRejectedModal(action, body) {
   return ["rejected", "incomplete"].includes(normalizeStatus(body.status));
 }
 
-function ApplicationAmendmentModal({ reference, t, onClose }) {
+function createClosedApplicationAmendmentModalState() {
+  return {
+    open: false,
+    reference: "",
+    redirectTo: "",
+    messageKey: "workspace.amendment.message",
+    defaultMessage: "Application {reference} has been sent to the applicant for amendment.",
+  };
+}
+
+function ApplicationAmendmentModal({
+  defaultMessage = "Application {reference} has been sent to the applicant for amendment.",
+  messageKey = "workspace.amendment.message",
+  reference,
+  t,
+  onClose,
+}) {
   const displayReference = reference || "Application";
   const message = t(
-    "workspace.amendment.message",
-    "Application {reference} has been sent to the applicant for amendment."
+    messageKey,
+    defaultMessage
   ).replace("{reference}", displayReference);
 
   return (
@@ -3749,9 +3784,27 @@ function ApplicationAmendmentModal({ reference, t, onClose }) {
 function shouldShowApplicationAmendmentModal(action, body) {
   return (
     Boolean(body) &&
-    action?.buildPayload === buildIklTechnicalDecisionPayload &&
-    normalizeStatus(body.status) === "rejected" &&
-    body.form_data?.technical_review?.final_decision === "Not Supported"
+    (
+      (
+        action?.buildPayload === buildIklTechnicalDecisionPayload &&
+        normalizeStatus(body.status) === "rejected" &&
+        body.form_data?.technical_review?.final_decision === "Not Supported"
+      ) ||
+      (
+        action?.buildPayload === buildKuTechnicalReviewPayload &&
+        normalizeStatus(body.status) === "technical_amendment" &&
+        body.form_data?.technical_ku_review?.decision === "KU(IKL) Request Technical Amendment"
+      )
+    )
+  );
+}
+
+function shouldShowTechnicalSiteVisitAmendmentModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildKuTechnicalReviewPayload &&
+    normalizeStatus(body.status) === "technical_amendment" &&
+    body.form_data?.technical_ku_review?.decision === "KU(IKL) Request Technical Amendment"
   );
 }
 
@@ -3838,6 +3891,15 @@ function shouldShowKuFinalCheckModal(action, body) {
     action?.buildPayload === buildIklTechnicalDecisionPayload &&
     normalizeStatus(body.status) === "technical_review_completed" &&
     body.form_data?.technical_review?.final_decision === "Supported"
+  );
+}
+
+function shouldShowKbVerificationModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildKuTechnicalReviewPayload &&
+    normalizeStatus(body.status) === "management_review" &&
+    body.form_data?.technical_ku_review?.decision === "KU(IKL) Confirm - Send to KB(LES)"
   );
 }
 

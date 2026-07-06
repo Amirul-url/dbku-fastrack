@@ -97,6 +97,8 @@ const KU_IKL_RECENT_ACTIVITY_STATUSES = new Set([
   "submitted",
   "ku_ikl_review",
   "technical_review_completed",
+  "technical_amendment",
+  "management_review",
   "bill_pending_ku",
   "rejected",
 ]);
@@ -1877,8 +1879,14 @@ function buildAdminRecentActivities(applications, userDepartment, user, t) {
       user,
       t
     );
+    const hasCurrentStatusLog = logActivities.some((activity) =>
+      isActivityForCurrentStatus(activity, application)
+    );
+    const statusActivity = !hasCurrentStatusLog && isRelevantRecentActivity(application, userDepartment)
+      ? buildStatusRecentActivity(application, userDepartment, t)
+      : null;
 
-    return logActivities;
+    return statusActivity ? [...logActivities, statusActivity] : logActivities;
   });
 
   return dedupeRecentActivities(activities).sort((a, b) => {
@@ -3580,9 +3588,12 @@ function isActivityForCurrentStatus(activity, application) {
   if (status === "rejected") return title.includes("rejected");
   if (status === "technical_review") return title.includes("technical review");
   if (status === "technical_review_completed") return title.includes("technical review completed");
+  if (status === "technical_amendment") return title.includes("technical amendment");
+  if (status === "management_review") return title.includes("management review");
   if (status === "bill_pending_ku") return title.includes("bill");
   if (status === "ku_ikl_review") return title.includes("ku(ikl)");
   if (status === "submitted") return title.includes("submitted");
+  if (status === "license_issued") return title.includes("license") || title.includes("e-license");
 
   return false;
 }
@@ -3700,14 +3711,22 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (status === "technical_review_completed") {
-    if (userDepartment === "IKL (TECHNICAL)") {
+    if (userDepartment === "IKL (TECHNICAL)" || userDepartment === "KU(IKL)") {
       return t("admin.dashboard.activityUpdated", "Application updated");
     }
 
     return t("admin.dashboard.activityTechnicalCompleted", "Technical review completed");
   }
 
+  if (status === "technical_amendment" && userDepartment === "KU(IKL)") {
+    return t("admin.dashboard.activityUpdated", "Application updated");
+  }
+
   if (status === "management_review") {
+    if (userDepartment === "KU(IKL)") {
+      return t("admin.dashboard.activityUpdated", "Application updated");
+    }
+
     if (userDepartment === "KB(LES)" && !isKbLesVerified(application)) {
       return t("workspace.approval.stageKbVerification", "Pending KB(LES) Verification");
     }
@@ -3802,7 +3821,21 @@ function getAdminActivityDescription(application, userDepartment, t) {
     ).replace("{reference}", reference);
   }
 
+  if (status === "technical_review_completed" && userDepartment === "KU(IKL)") {
+    return t(
+      "admin.dashboard.activityGeneralUpdatedDesc",
+      `${reference} application progress was updated.`
+    ).replace("{reference}", reference);
+  }
+
   if (status === "management_review") {
+    if (userDepartment === "KU(IKL)") {
+      return t(
+        "admin.dashboard.activityGeneralUpdatedDesc",
+        `${reference} application progress was updated.`
+      ).replace("{reference}", reference);
+    }
+
     if (userDepartment === "KB(LES)" && !isKbLesVerified(application)) {
       return t(
         "admin.dashboard.activityKbVerificationDesc",
@@ -3820,6 +3853,13 @@ function getAdminActivityDescription(application, userDepartment, t) {
     return t(
       "admin.dashboard.activityManagementDesc",
       `${reference} is waiting for management review.`
+    ).replace("{reference}", reference);
+  }
+
+  if (status === "technical_amendment" && userDepartment === "KU(IKL)") {
+    return t(
+      "admin.dashboard.activityGeneralUpdatedDesc",
+      `${reference} application progress was updated.`
     ).replace("{reference}", reference);
   }
 
