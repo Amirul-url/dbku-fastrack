@@ -2122,21 +2122,40 @@ function buildRejectedDecisionReportRows(row, t) {
 
 function isRejectedDecisionReportLog(log = {}) {
   const decision = String(log.decision || "").trim().toLowerCase();
+  const department = normalizeDepartmentCode(log.department);
+  const isTechnicalDepartment = TECHNICAL_LOG_DEPARTMENTS.has(department);
   return (
     decision === "reject" ||
     decision === "rejected" ||
     decision.includes("reject to applicant") ||
     decision.includes("rejected to applicant") ||
     decision.includes("not supported") ||
+    (isTechnicalDepartment && ["no", "n", "tidak", "not support"].includes(decision)) ||
     decision.includes("not verify") ||
     decision.includes("not verified")
   );
 }
 
 function getRejectedApplicationDepartment(app) {
+  const technicalReview = app?.form_data?.technical_review || {};
+  if (isTechnicalReviewNotSupported(technicalReview)) {
+    return normalizeDepartmentCode(technicalReview.department) || "IKL (TECHNICAL)";
+  }
+
   const autoScreening = app?.form_data?.auto_screening || {};
   const department = getAutoScreeningDecisionDepartment(autoScreening);
   return department || normalizeDepartmentCode(autoScreening.officer || autoScreening.checked_by) || "KU(IKL)";
+}
+
+function isTechnicalReviewNotSupported(technicalReview = {}) {
+  const decision = String(
+    technicalReview.final_decision ||
+      technicalReview.decision ||
+      technicalReview.recommendation ||
+      technicalReview.status ||
+      ""
+  ).trim().toLowerCase();
+  return ["not supported", "not support", "no", "n", "tidak"].includes(decision);
 }
 
 function getResubmissionApplicationViewPath(applicationId, type, selectedRowId = "") {
@@ -3206,8 +3225,12 @@ function getApplicationRemark(application) {
   if (!isRejectedApplication(application)) return "";
 
   const formData = application?.form_data || {};
+  const technicalReview = formData.technical_review || {};
   return cleanRemark(
-    formData.correction_request?.remarks ||
+    (isTechnicalReviewNotSupported(technicalReview)
+      ? technicalReview.comment || technicalReview.remarks
+      : "") ||
+      formData.correction_request?.remarks ||
       application?.latest_remark ||
       formData.auto_screening?.remarks
   );
@@ -3339,6 +3362,10 @@ function getAdminActivityLogTitle(activity, t, userDepartment = "") {
     return t("admin.dashboard.activityUpdated", "Application updated");
   }
 
+  if (shouldUseGeneralIklTechnicalActivityCopy(normalized, userDepartment)) {
+    return t("admin.dashboard.activityUpdated", "Application updated");
+  }
+
   if (normalized === "application submitted") {
     return t("admin.dashboard.activitySubmitted", "Application submitted");
   }
@@ -3415,6 +3442,13 @@ function getAdminActivityLogDescription(activity, application, t, userDepartment
     ].includes(title);
 
   if (useGeneralKuCopy) {
+    return t(
+      "admin.dashboard.activityGeneralUpdatedDesc",
+      "{reference} application progress was updated."
+    ).replace("{reference}", reference);
+  }
+
+  if (shouldUseGeneralIklTechnicalActivityCopy(title, userDepartment)) {
     return t(
       "admin.dashboard.activityGeneralUpdatedDesc",
       "{reference} application progress was updated."
@@ -3500,6 +3534,13 @@ function getAdminActivityLogDescription(activity, application, t, userDepartment
 
   if (title === "application reviewed") {
     const department = getActivityDepartment(activity) || String(activity?.actor || "").trim();
+    if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(normalizeDepartmentCode(userDepartment))) {
+      return t(
+        "admin.dashboard.activityReviewedGeneralDesc",
+        `${reference} technical unit feedback has been submitted.`
+      ).replace("{reference}", reference);
+    }
+
     return t(
       "admin.dashboard.activityReviewedDesc",
       `${reference} was reviewed by {department}.`
@@ -3514,6 +3555,22 @@ function getAdminActivityLogDescription(activity, application, t, userDepartment
     "admin.dashboard.activityUpdatedDesc",
     `${reference} was updated.`
   ).replace("{reference}", reference);
+}
+
+function shouldUseGeneralIklTechnicalActivityCopy(title, userDepartment = "") {
+  if (normalizeDepartmentCode(userDepartment) !== "IKL (TECHNICAL)") return false;
+
+  const normalized = String(title || "").trim().toLowerCase();
+  return (
+    [
+      "technical review completed",
+      "technical amendment requested",
+      "application sent for management review",
+      "application reviewed",
+      "application rejected",
+    ].includes(normalized) ||
+    normalized.startsWith("application rejected by")
+  );
 }
 
 function isActivityForCurrentStatus(activity, application) {
@@ -3643,6 +3700,10 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (status === "technical_review_completed") {
+    if (userDepartment === "IKL (TECHNICAL)") {
+      return t("admin.dashboard.activityUpdated", "Application updated");
+    }
+
     return t("admin.dashboard.activityTechnicalCompleted", "Technical review completed");
   }
 
@@ -3671,6 +3732,10 @@ function getAdminActivityTitle(application, userDepartment, t) {
   }
 
   if (status === "rejected") {
+    if (userDepartment === "IKL (TECHNICAL)") {
+      return t("admin.dashboard.activityUpdated", "Application updated");
+    }
+
     return t("admin.dashboard.activityRejected", "Application rejected");
   }
 
@@ -3759,6 +3824,13 @@ function getAdminActivityDescription(application, userDepartment, t) {
   }
 
   if (status === "rejected") {
+    if (userDepartment === "IKL (TECHNICAL)") {
+      return t(
+        "admin.dashboard.activityGeneralUpdatedDesc",
+        `${reference} application progress was updated.`
+      ).replace("{reference}", reference);
+    }
+
     return t(
       "admin.dashboard.activityRejectedDesc",
       `${reference} was rejected and returned to the applicant for correction.`
