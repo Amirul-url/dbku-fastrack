@@ -233,7 +233,7 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.TECHNICAL_REVIEW_COMPLETED]: "Pending KU(IKL) Final Check",
     [WORKFLOW_STATUS.MANAGEMENT_REVIEW]: "Management Recommendation",
     [WORKFLOW_STATUS.MPHLG_PROCESSING]: "MPHLG Processing",
-    [WORKFLOW_STATUS.MPHLG_DECISION_RECEIVED]: "MPHLG Decision Received",
+    [WORKFLOW_STATUS.MPHLG_DECISION_RECEIVED]: "MPHLG Processing",
     [WORKFLOW_STATUS.APPROVED]: "Approved",
     [WORKFLOW_STATUS.APPROVED_WITH_CONDITIONS]: "Approved with Conditions",
     [WORKFLOW_STATUS.REJECTED]: "Rejected",

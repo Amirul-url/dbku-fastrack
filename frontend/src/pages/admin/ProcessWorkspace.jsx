@@ -9986,7 +9986,7 @@ function getApprovalStageLabel(app, t) {
   const stage = getApprovalStageKey(app);
 
   if (normalizeStatus(app?.status) === "mphlg_decision_received") {
-    return t("status.mphlg_decision_received", "MPHLG Decision Received");
+    return t("status.mphlg_processing", "MPHLG Processing");
   }
 
   if (stage === "kb_support") {

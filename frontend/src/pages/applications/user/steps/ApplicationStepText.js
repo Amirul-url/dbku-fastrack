@@ -527,7 +527,7 @@ const STATUS_TEXT = {
   "technical completed": { en: "Technical Completed", ms: "Teknikal Selesai" },
   "management recommendation": { en: "Management Recommendation", ms: "Perakuan Pengurusan" },
   "mphlg processing": { en: "MPHLG Processing", ms: "Proses MPHLG" },
-  "mphlg decision received": { en: "MPHLG Decision Received", ms: "Keputusan MPHLG Diterima" },
+  "mphlg decision received": { en: "MPHLG Processing", ms: "Proses MPHLG" },
   "invoice generated": { en: "Bill Generated", ms: "Bil Dijana" },
   "payment submitted": { en: "Payment Submitted", ms: "Bayaran Dihantar" },
   "payment verified": { en: "Payment Verified", ms: "Bayaran Disahkan" },
