@@ -112,9 +112,7 @@ function UserDashboard() {
     try {
       const data = await apiRequest(`/applications/${id}/`);
       const paymentData = data?.form_data?.payment || {};
-      const receiptWasRejected =
-        paymentData.status === "Receipt Rejected" ||
-        paymentData.verification_result === "Invalid/Fake";
+      const receiptWasRejected = isPaymentReceiptRejected(paymentData);
 
       setSelectedApplication(data);
       setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
@@ -349,9 +347,7 @@ function UserDashboard() {
 
       const current = selectedApplication;
       const currentPayment = current.form_data?.payment || {};
-      const receiptWasRejected =
-        currentPayment.status === "Receipt Rejected" ||
-        currentPayment.verification_result === "Invalid/Fake";
+      const receiptWasRejected = isPaymentReceiptRejected(currentPayment);
       const receiptFile = paymentReceipt || (receiptWasRejected ? null : currentPayment.receipt_file);
 
       if (!receiptFile) {
@@ -878,8 +874,7 @@ function LicenseSection({
   onPanelTabChange,
 }) {
   const canSubmitPaymentProof = canSubmitPayment(app);
-  const isReceiptRejected =
-    payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake";
+  const isReceiptRejected = isPaymentReceiptRejected(payment);
   const isReceiptSubmitted = normalizeStatus(app?.status) === "payment_submitted" && !isReceiptRejected;
   const isPaymentLocked = !canSubmitPaymentProof || isReceiptSubmitted;
 
@@ -1838,7 +1833,12 @@ function getApplicationRemark(app) {
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
     return isPaymentReceiptRejected(formData.payment)
-      ? cleanRemark(formData.payment?.verification_notes)
+      ? cleanRemark(
+          formData.payment?.verification_notes ||
+            formData.payment?.internal_verification_notes ||
+            app?.display_remark ||
+            app?.latest_remark
+        )
       : "";
   }
 
@@ -2007,8 +2007,10 @@ function cleanRemark(value) {
 
 function isPaymentReceiptRejected(payment = {}) {
   return (
-    payment.status === "Receipt Rejected" ||
-    payment.verification_result === "Invalid/Fake"
+    normalizeStatus(payment.status) === "receipt_rejected" ||
+    normalizeStatus(payment.verification_result) === "invalid_fake" ||
+    normalizeStatus(payment.receipt_decision) === "reject_receipt" ||
+    normalizeStatus(payment.recommendation) === "reject_receipt"
   );
 }
 
@@ -3446,7 +3448,7 @@ function getPaymentHint(app, t) {
 
   if (status === "draft") return t("applicant.paymentHintDraft");
   if (status === "rejected") return t("applicant.paymentHintRejected");
-  if (payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") {
+  if (isPaymentReceiptRejected(payment)) {
     return t("applicant.paymentHintReceiptRejected");
   }
   if (status === "invoice_generated") return t("applicant.paymentHintProceed");
@@ -3460,7 +3462,7 @@ function getPaymentStatusText(app, t) {
   const status = normalizeStatus(app?.status);
   const payment = app?.form_data?.payment || {};
 
-  if (payment.status === "Receipt Rejected" || payment.verification_result === "Invalid/Fake") {
+  if (isPaymentReceiptRejected(payment)) {
     return t("applicant.paymentStatusReceiptRejected");
   }
   if (status === "invoice_generated") return t("applicant.paymentStatusProceed");

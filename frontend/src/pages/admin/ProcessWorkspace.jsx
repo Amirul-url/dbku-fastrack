@@ -12763,7 +12763,7 @@ const configs = {
         successKey: "workspace.message.receiptRejected",
         buildPayload: (app, data) => ({
           status: "invoice_generated",
-          latest_remark: "",
+          latest_remark: data.comment,
           form_data: mergeFormData(app, {
             payment: {
               ...(app.form_data?.payment || {}),
@@ -12771,7 +12771,7 @@ const configs = {
               recommendation: "Reject Receipt",
               receipt_decision: "Reject Receipt",
               verification_result: "Invalid/Fake",
-              verification_notes: "",
+              verification_notes: data.comment,
               internal_verification_notes: data.comment,
               digital_signature: null,
               rejected_at: new Date().toISOString(),

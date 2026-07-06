@@ -1143,8 +1143,12 @@ class NotificationRoutingTests(TestCase):
         self.application.latest_remark = "Receipt image is unclear."
         self.application.form_data = {
             **self.application.form_data,
+            "approval_letter": {
+                "remarks": "We have no objection to this application.",
+            },
             "payment": {
                 "status": "Receipt Rejected",
+                "receipt_decision": "Reject Receipt",
                 "verification_result": "Invalid/Fake",
                 "verification_notes": self.application.latest_remark,
             },
@@ -1160,6 +1164,8 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
         self.assertIn("upload a new proof of payment", deliveries.get(channel="email").message)
         self.assertIn("Receipt image is unclear", deliveries.get(channel="web").message)
+        self.assertNotIn("We have no objection", deliveries.get(channel="email").message)
+        self.assertNotIn("We have no objection", deliveries.get(channel="whatsapp").message)
 
     def test_license_issued_notifies_applicant_ready_to_download_all_channels(self):
         self.notify_status("license_issued", old_status="payment_submitted")

@@ -146,11 +146,18 @@ def get_public_application_display_remark(application):
             or str(payment.get("verification_result") or "").strip().lower() in {"invalid", "invalid/fake"}
             or str(payment.get("status") or "").strip().lower() == "receipt rejected"
         )
+        if payment_rejected:
+            remark = clean_remark(
+                payment.get("verification_notes")
+                or payment.get("internal_verification_notes")
+            )
+            if remark:
+                return remark
+
         remark = clean_remark(
             approval_letter.get("remarks")
             or approval_letter.get("comment")
             or approval_letter.get("notes")
-            or (payment.get("verification_notes") if payment_rejected else "")
         )
         if remark:
             return remark
@@ -187,11 +194,26 @@ def get_latest_remark_from_form_data(form_data, status=""):
 
     if status_key in {"invoice_generated", "payment_submitted"}:
         approval_letter = section("approval_letter")
+        payment = section("payment")
+        payment_rejected = (
+            str(payment.get("receipt_decision") or payment.get("recommendation") or "").strip().lower()
+            == "reject receipt"
+            or str(payment.get("verification_result") or "").strip().lower() in {"invalid", "invalid/fake"}
+            or str(payment.get("status") or "").strip().lower() == "receipt rejected"
+        )
+        if payment_rejected:
+            remark = clean_remark(
+                payment.get("verification_notes")
+                or payment.get("internal_verification_notes")
+            )
+            if remark:
+                return remark
+
         remark = clean_remark(
             approval_letter.get("remarks")
             or approval_letter.get("comment")
             or approval_letter.get("notes")
-            or section("payment").get("verification_notes")
+            or payment.get("verification_notes")
         )
         if remark:
             return remark

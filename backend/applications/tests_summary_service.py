@@ -98,6 +98,36 @@ class ApplicationSummaryServiceTests(SimpleTestCase):
             "Approval letter note",
         )
 
+    def test_latest_remark_uses_payment_note_when_receipt_rejected(self):
+        form_data = {
+            "approval_letter": {"remarks": "Approval letter note"},
+            "payment": {
+                "status": "Receipt Rejected",
+                "receipt_decision": "Reject Receipt",
+                "verification_notes": "Receipt is not valid.",
+            },
+        }
+
+        self.assertEqual(
+            get_latest_remark_from_form_data(form_data, "invoice_generated"),
+            "Receipt is not valid.",
+        )
+
+    def test_latest_remark_falls_back_to_internal_payment_note_when_receipt_rejected(self):
+        form_data = {
+            "approval_letter": {"remarks": "Approval letter note"},
+            "payment": {
+                "status": "Receipt Rejected",
+                "receipt_decision": "Reject Receipt",
+                "internal_verification_notes": "Uploaded receipt is unreadable.",
+            },
+        }
+
+        self.assertEqual(
+            get_latest_remark_from_form_data(form_data, "invoice_generated"),
+            "Uploaded receipt is unreadable.",
+        )
+
     def test_latest_remark_uses_mphlg_approved_remark(self):
         form_data = {
             "mphlg_gateway": {
