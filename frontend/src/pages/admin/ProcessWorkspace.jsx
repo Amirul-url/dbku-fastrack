@@ -2150,6 +2150,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
       const shouldShowKbVerificationSuccess = shouldShowKbVerificationModal(action, body);
       const shouldShowKbApprovalSupportSuccess = shouldShowKbApprovalSupportModal(action, body);
+      const shouldShowApprovalSupportMphlgSuccess = shouldShowApprovalSupportMphlgModal(
+        action,
+        body
+      );
+      const shouldShowApprovalSupportAmendmentSuccess =
+        shouldShowApprovalSupportAmendmentModal(action, body);
 
       const requestPath =
         action.endpoint === "license-renewal-action"
@@ -2205,12 +2211,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
           messageKey: shouldShowTechnicalSiteVisitAmendmentSuccess
             ? "workspace.amendment.technicalSiteVisitMessage"
-            : shouldShowKbNotVerifyAmendmentModal(action, body)
+            : shouldShowKbNotVerifyAmendmentModal(action, body) ||
+                shouldShowApprovalSupportAmendmentSuccess
               ? "workspace.amendment.kuIklMessage"
             : "workspace.amendment.message",
           defaultMessage: shouldShowTechnicalSiteVisitAmendmentSuccess
             ? "Application {reference} has been sent to Technical Site Visit."
-            : shouldShowKbNotVerifyAmendmentModal(action, body)
+            : shouldShowKbNotVerifyAmendmentModal(action, body) ||
+                shouldShowApprovalSupportAmendmentSuccess
               ? "Application {reference} has been sent to KU(IKL)."
             : "Application {reference} has been sent to the applicant for amendment.",
         });
@@ -2220,7 +2228,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
         shouldShowKbVerificationSuccess ||
-        shouldShowKbApprovalSupportSuccess
+        shouldShowKbApprovalSupportSuccess ||
+        shouldShowApprovalSupportMphlgSuccess
       ) {
         setApplicationApprovedModal({
           open: true,
@@ -2231,6 +2240,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
           messageKey: shouldShowKuFinalCheckSuccess
             ? "workspace.kuFinalCheck.message"
+            : shouldShowApprovalSupportMphlgSuccess
+              ? "workspace.mphlgApproval.message"
             : shouldShowKbApprovalSupportSuccess
               ? "workspace.tpPghFinalApproval.message"
             : shouldShowKbVerificationSuccess
@@ -2240,6 +2251,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 : "workspace.approved.message",
           defaultMessage: shouldShowKuFinalCheckSuccess
             ? "Application {reference} has been sent to KU(IKL) Final Check."
+            : shouldShowApprovalSupportMphlgSuccess
+              ? "Application {reference} has been sent to MPHLG."
             : shouldShowKbApprovalSupportSuccess
               ? "Application {reference} has been sent to TP(RES)/PGH Final Approval."
             : shouldShowKbVerificationSuccess
@@ -2265,7 +2278,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           shouldShowTechnicalSiteVisitSuccess ||
           shouldShowKuFinalCheckSuccess ||
           shouldShowKbVerificationSuccess ||
-          shouldShowKbApprovalSupportSuccess) &&
+          shouldShowKbApprovalSupportSuccess ||
+          shouldShowApprovalSupportMphlgSuccess) &&
         (isFocusedPersonalWorkspace || fromPersonalTask)
       ) {
         return true;
@@ -3806,7 +3820,8 @@ function shouldShowApplicationAmendmentModal(action, body) {
         normalizeStatus(body.status) === "technical_amendment" &&
         body.form_data?.technical_ku_review?.decision === "KU(IKL) Request Technical Amendment"
       ) ||
-      shouldShowKbNotVerifyAmendmentModal(action, body)
+      shouldShowKbNotVerifyAmendmentModal(action, body) ||
+      shouldShowApprovalSupportAmendmentModal(action, body)
     )
   );
 }
@@ -3829,6 +3844,27 @@ function shouldShowKbApprovalSupportModal(action, body) {
     body.form_data?.kb_les_verification?.decision === "Verify" &&
     body.form_data?.kb_les_verification?.status === "Verified" &&
     body.form_data?.management_recommendation?.status === "Pending TP(RES)/PGH Approval"
+  );
+}
+
+function shouldShowApprovalSupportMphlgModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildApprovalWorkflowPayload &&
+    normalizeStatus(body.status) === "mphlg_processing" &&
+    body.form_data?.management_recommendation?.status === "Approved" &&
+    body.form_data?.mphlg_gateway?.status === "Pending MPHLG Approval"
+  );
+}
+
+function shouldShowApprovalSupportAmendmentModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.buildPayload === buildApprovalWorkflowPayload &&
+    normalizeStatus(body.status) === "technical_review_completed" &&
+    body.form_data?.management_recommendation?.status === "Rejected" &&
+    body.form_data?.management_recommendation?.recommendation === "Not Support" &&
+    body.form_data?.correction_request?.target === "KU(IKL)"
   );
 }
 

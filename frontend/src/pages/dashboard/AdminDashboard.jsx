@@ -1879,6 +1879,11 @@ function buildAdminRecentActivities(applications, userDepartment, user, t) {
       user,
       t
     );
+    const departmentHistoryActivities = buildDepartmentHistoryActivities(
+      application,
+      userDepartment,
+      t
+    );
     const hasCurrentStatusLog = logActivities.some((activity) =>
       isActivityForCurrentStatus(activity, application)
     );
@@ -1886,7 +1891,11 @@ function buildAdminRecentActivities(applications, userDepartment, user, t) {
       ? buildStatusRecentActivity(application, userDepartment, t)
       : null;
 
-    return statusActivity ? [...logActivities, statusActivity] : logActivities;
+    return [
+      ...departmentHistoryActivities,
+      ...logActivities,
+      ...(statusActivity ? [statusActivity] : []),
+    ];
   });
 
   return dedupeRecentActivities(activities).sort((a, b) => {
@@ -1925,6 +1934,66 @@ function buildStatusRecentActivity(application, userDepartment, t) {
     status: normalizeStatus(application.status),
     source: "status",
   };
+}
+
+function buildDepartmentHistoryActivities(application, userDepartment, t) {
+  const department = normalizeDepartmentCode(userDepartment);
+  const reference = getApplicationReference(application);
+  const buildGenericActivity = (id, createdAt) => {
+    if (!createdAt) return null;
+
+    return {
+      id: `department-history-${application.id}-${id}-${createdAt}`,
+      applicationId: application.id,
+      reference,
+      project: getProjectName(application),
+      title: t("admin.dashboard.activityUpdated", "Application updated"),
+      description: t(
+        "admin.dashboard.activityGeneralUpdatedDesc",
+        `${reference} application progress was updated.`
+      ).replace("{reference}", reference),
+      createdAt,
+      status: normalizeStatus(application.status),
+      source: "department-history",
+    };
+  };
+
+  if (department === "KB(LES)") {
+    const kbVerification = getApplicationSection(application, "kb_les_verification");
+    const kbActivity = buildGenericActivity(
+      "kb-les-verification",
+      kbVerification.verified_at || kbVerification.supported_at || kbVerification.routed_at
+    );
+
+    return kbActivity ? [kbActivity] : [];
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
+    const recommendation = getApplicationSection(application, "management_recommendation");
+    const officer = normalizeDepartmentCode(recommendation.officer);
+    if (officer && officer !== department && !(department === "TP/PGH" && officer === "TP(RES)/PGH")) {
+      return [];
+    }
+
+    const supportActivity = buildGenericActivity(
+      "approval-support",
+      recommendation.decided_at || recommendation.supported_at || recommendation.routed_at
+    );
+
+    return supportActivity ? [supportActivity] : [];
+  }
+
+  if (department === "MPHLG") {
+    const mphlgGateway = getApplicationSection(application, "mphlg_gateway");
+    const mphlgActivity = buildGenericActivity(
+      "mphlg-gateway",
+      mphlgGateway.decided_at || mphlgGateway.reviewed_at || mphlgGateway.routed_at
+    );
+
+    return mphlgActivity ? [mphlgActivity] : [];
+  }
+
+  return [];
 }
 
 function getImportantApplicationActivities(application, userDepartment, user, t) {
@@ -3256,7 +3325,7 @@ function isImportantAdminActivity(activity, userDepartment, user, application = 
 
   if (!title || title.endsWith(" details saved")) return false;
   if (title.includes("uploaded") || title.includes("removed")) return false;
-  if (!isActivityForCurrentStaffUser(activity, user)) return false;
+  if (!isActivityVisibleInDepartmentHistory(activity, userDepartment, user, application)) return false;
 
   const important =
     category === "workflow" ||
@@ -3295,6 +3364,44 @@ function isImportantAdminActivity(activity, userDepartment, user, application = 
   }
 
   return true;
+}
+
+function isActivityVisibleInDepartmentHistory(activity, userDepartment, user, application = null) {
+  if (isActivityForCurrentStaffUser(activity, user)) return true;
+  if (!userDepartment) return false;
+
+  if (EXTERNAL_TECHNICAL_DEPARTMENTS.has(userDepartment)) {
+    return getActivityDepartment(activity) === userDepartment;
+  }
+
+  if (userDepartment === "IKL (TECHNICAL)") {
+    return getActivityDepartment(activity) === userDepartment;
+  }
+
+  if (APPROVAL_WORKFLOW_DEPARTMENTS.has(userDepartment)) {
+    return isApprovalActivityForDepartment(activity, userDepartment, application);
+  }
+
+  if (userDepartment === "KU(IKL)") {
+    return isKuIklRecentActivityLog(activity);
+  }
+
+  return false;
+}
+
+function isKuIklRecentActivityLog(activity) {
+  const title = String(activity?.title || "").toLowerCase();
+  const description = String(activity?.description || "").toLowerCase();
+  const text = `${title} ${description}`;
+
+  return (
+    getActivityDepartment(activity) === "KU(IKL)" ||
+    text.includes("ku(ikl)") ||
+    text.includes("technical") ||
+    text.includes("bill") ||
+    text.includes("rejected") ||
+    text.includes("submitted")
+  );
 }
 
 function isApprovalActivityForDepartment(activity, userDepartment, application = null) {
@@ -3627,6 +3734,7 @@ function dedupeRecentActivities(activities) {
       activity.applicationId,
       String(activity.title || "").trim().toLowerCase(),
       String(activity.description || "").trim().toLowerCase(),
+      String(activity.createdAt || "").trim(),
     ].join(":");
 
     if (seen.has(key)) return false;
@@ -3654,7 +3762,7 @@ function isRelevantRecentActivity(application, userDepartment) {
 
   if (["KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"].includes(userDepartment)) {
     if (userDepartment === "KB(LES)") {
-      return status === "management_review" && !isKbLesVerified(application);
+      return status === "management_review";
     }
 
     return status === "management_review" && isKbLesVerified(application) && !hasManagementSupport(application);
