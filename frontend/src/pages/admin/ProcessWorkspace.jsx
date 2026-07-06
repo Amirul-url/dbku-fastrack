@@ -2245,7 +2245,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               ? "/dashboard/admin?view=personal"
               : "",
           messageKey: "workspace.receiptRejected.message",
-          defaultMessage: "The receipt is invalid. Please upload a new receipt.",
+          defaultMessage: "Receipt Not Valid.",
         });
       }
       if (shouldShowApplicationAmendmentSuccess) {
