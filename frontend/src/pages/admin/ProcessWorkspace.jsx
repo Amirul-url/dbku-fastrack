@@ -852,8 +852,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showReadOnlyGuideBanner =
     isReadOnlyActionPanel &&
     !showDecisionLog &&
-    !showVerificationReport &&
-    !showApprovalPaymentReadOnly;
+    !showVerificationReport;
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
@@ -2723,7 +2722,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   render: (app) => (
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusPill value={getWorkspaceStatusLabel(app, config, t, userDepartment)} />
-                      {hasPendingLicenseRevocationRequest(app) && (
+                      {normalizedUserDepartment === "PT(IKL)" && hasPendingLicenseRevocationRequest(app) && (
                         <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-[11px] font-bold uppercase leading-none text-white shadow-sm">
                           {t("workspace.license.revokeRequestedBadge", "Revoke Requested")}
                         </span>
@@ -16372,7 +16371,9 @@ function PaymentDetails({
   ) : null;
 
   const revocationRequest = app.form_data?.license_revocation_request || {};
-  const showRevocationRequestNotice = normalizeStatus(revocationRequest.status) === "pending";
+  const canManageLicenseRevocation = normalizeDepartmentCode(userDepartment) === "PT(IKL)";
+  const showRevocationRequestNotice =
+    canManageLicenseRevocation && normalizeStatus(revocationRequest.status) === "pending";
   const showLicenseManagementActions =
     !readOnly &&
     Array.isArray(licenseManagementActions) &&
