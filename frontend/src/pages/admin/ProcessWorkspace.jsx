@@ -797,8 +797,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     selectedRecord?.id,
     selectedRecord?.updated_at,
   ]);
+  const isPtIssueLicenseWorkspace =
+    isApprovalWorkspace &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    normalizeStatus(selectedRecord?.status) === "payment_verified" &&
+    workspaceActions.some((action) => action.key === "issue_license");
   const isApprovalLicenseManagement =
-    hasApprovalLicenseManagementRecord;
+    hasApprovalLicenseManagementRecord && !isPtIssueLicenseWorkspace;
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -857,11 +862,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !isApprovalLicenseManagement;
   const showApprovalLicenseManagementDetails =
     isApprovalLicenseManagement ||
-    (
-      isApprovalWorkspace &&
-      normalizedUserDepartment === "PT(IKL)" &&
-      normalizeStatus(selectedRecord?.status) === "payment_verified"
-    );
+    isPtIssueLicenseWorkspace;
   const showReadOnlyGuideBanner =
     isReadOnlyActionPanel &&
     !fromPersonalTask &&
@@ -879,17 +880,29 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     userDepartment === "PT(IKL)" &&
     workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
   const showPaymentTypedDecision = showPaymentReceiptDecision || showPaymentDocumentDecision;
+  const showIssueLicenseDecision = isPtIssueLicenseWorkspace;
+  const issueLicenseDecisionOptions = showIssueLicenseDecision
+    ? [
+        {
+          value: "Issue License",
+          label: "Issue License",
+          labelKey: "workspace.action.issueLicense",
+        },
+      ]
+    : [];
   const useTypedApprovalDecision =
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
     !isApprovalLicenseManagement &&
+    !showIssueLicenseDecision &&
     !useApprovalSignatureTemplate &&
     !showApprovalDecisionButtons &&
     !showPaymentTypedDecision;
   const workspaceCommentRequired =
     workspaceActions.some((action) => action.requiresComment) ||
     useTypedApprovalDecision ||
-    showPaymentTypedDecision;
+    showPaymentTypedDecision ||
+    showIssueLicenseDecision;
   const showWorkspaceCommentField =
     !isApprovalLicenseManagement &&
     config.showComment &&
@@ -907,6 +920,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showDetailsBeforeComment =
     config.key === "payment" &&
     (showPaymentDocumentDecision || workspaceActions.some((action) => action.requiresSubmittedReceipt));
+  const selectedIssueLicenseAction = showIssueLicenseDecision
+    ? workspaceActions.find((action) => action.key === "issue_license")
+    : null;
+  const requiresIssueLicenseSignature =
+    showIssueLicenseDecision &&
+    decision === "Issue License";
   const paymentReceiptDecisionOptions = showPaymentReceiptDecision
     ? workspaceActions.filter((action) => action.requiresSubmittedReceipt)
     : [];
@@ -1031,6 +1050,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
+    if (showIssueLicenseDecision) {
+      setDecision("");
+      setDecisionInput("");
+      setDecisionError("");
+      setCommentError("");
+      setApprovalSupportSignature(null);
+      setApprovalSupportSignatureError("");
+      setLicenseExpiryYears("1");
+      return;
+    }
+
     if (showPaymentTypedDecision && decision) {
       const preservedDecision =
         getWorkspaceDecisionFromInput(decision, paymentTypedDecisionOptions, t) || decision;
@@ -1069,6 +1099,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalSupportWorkspace,
     useApprovalSignatureTemplate,
     selectedRecord?.id,
+    showIssueLicenseDecision,
     showPaymentDocumentDecision,
     showPaymentReceiptDecision,
     showPaymentTypedDecision,
@@ -1078,13 +1109,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   ]);
 
   useEffect(() => {
-    if (!requiresPaymentReceiptSignature) {
-      if (showPaymentReceiptDecision) {
+    if (!requiresPaymentReceiptSignature && !requiresIssueLicenseSignature) {
+      if (showPaymentReceiptDecision || showIssueLicenseDecision) {
         setApprovalSupportSignature(null);
       }
       setApprovalSupportSignatureError("");
     }
-  }, [requiresPaymentReceiptSignature, showPaymentReceiptDecision]);
+  }, [
+    requiresIssueLicenseSignature,
+    requiresPaymentReceiptSignature,
+    showIssueLicenseDecision,
+    showPaymentReceiptDecision,
+  ]);
 
   function handleApprovalSupportDecisionChange(nextDecision) {
     setDecision(nextDecision);
@@ -2955,8 +2991,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     onEditReceipt={() => setShowManualReceiptEditor(true)}
                     onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
-                    licenseManagementActions={workspaceActions}
-                    onLicenseManagementAction={submitWorkspaceAction}
+                    licenseManagementActions={isPtIssueLicenseWorkspace ? [] : workspaceActions}
+                    onLicenseManagementAction={isPtIssueLicenseWorkspace ? null : submitWorkspaceAction}
                   />
                 </div>
               )}
@@ -3047,7 +3083,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     canSubmitWorkspaceAction &&
                     !isApprovalLicenseManagement &&
                     !useApprovalSignatureTemplate &&
-                    !showApprovalDecisionButtons && (
+                    !showApprovalDecisionButtons &&
+                    !showIssueLicenseDecision && (
                     <Field
                       label={
                         isMphlgApprovalWorkspace
@@ -3104,6 +3141,49 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         </select>
                       )}
                     </Field>
+                  )}
+
+                  {showIssueLicenseDecision && (
+                    <div className="max-w-[56rem]">
+                      <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
+                        {t("common.decision", "Your Recommendation")}
+                      </span>
+                      <input
+                        ref={decisionInputRef}
+                        type="text"
+                        value={decisionInput}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          const nextDecision = getWorkspaceDecisionFromInput(
+                            nextValue,
+                            issueLicenseDecisionOptions,
+                            t
+                          );
+                          setDecisionInput(nextValue);
+                          setDecision(nextDecision);
+                          if (decisionError) setDecisionError("");
+                          if (commentError) setCommentError("");
+                          if (nextDecision !== "Issue License") {
+                            setApprovalSupportSignature(null);
+                            setApprovalSupportSignatureError("");
+                          }
+                        }}
+                        onBlur={() => {
+                          if (decision) {
+                            setDecisionInput(getWorkspaceDecisionInput(decision, issueLicenseDecisionOptions, t));
+                          }
+                        }}
+                        className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                        placeholder={getWorkspaceDecisionInputPrompt(issueLicenseDecisionOptions, t)}
+                        inputMode="text"
+                        aria-invalid={Boolean(decisionError)}
+                      />
+                      {decisionError && (
+                        <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                          {decisionError}
+                        </p>
+                      )}
+                    </div>
                   )}
 
                   {showDetailsBeforeComment && (
@@ -3344,6 +3424,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           <>
                             {useTypedApprovalDecision
                               || showPaymentTypedDecision
+                              || showIssueLicenseDecision
                               ? t("workspace.comment.remarks", "Remarks")
                               : t(config.commentLabelKey, config.commentLabel || "Notes")}
                             {workspaceCommentRequired && (
@@ -3351,9 +3432,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             )}
                           </>
                         }
-                        labelClassName={showPaymentTypedDecision ? "!text-[13px]" : ""}
+                        labelClassName={showPaymentTypedDecision || showIssueLicenseDecision ? "!text-[13px]" : ""}
                       >
-                        {showPaymentTypedDecision ? (
+                        {showPaymentTypedDecision || showIssueLicenseDecision ? (
                           <div
                             className={`relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
                             style={{
@@ -3398,7 +3479,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             {commentError}
                           </p>
                         )}
-                        {requiresPaymentReceiptSignature && (
+                        {(requiresPaymentReceiptSignature || requiresIssueLicenseSignature) && (
                           <div className="mt-4">
                             <ApprovalSupportSignatureBox
                               t={t}
@@ -3598,7 +3679,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )
                   )}
 
-                  {((canSubmitWorkspaceAction && !showApprovalLicenseManagementDetails) || showBottomFormButton) && (
+                  {((canSubmitWorkspaceAction && (!showApprovalLicenseManagementDetails || showIssueLicenseDecision)) || showBottomFormButton) && (
                     <div className={actionGridClass}>
                       {showBottomFormButton && (
                         <Button
@@ -3626,6 +3707,47 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           className="min-w-40"
                         >
                           {saving ? t("workspace.saving") : t("common.submit", "Submit")}
+                        </Button>
+                      ) : canSubmitWorkspaceAction && showIssueLicenseDecision ? (
+                        <Button
+                          onClick={() => {
+                            if (!selectedIssueLicenseAction) {
+                              setError(t("workspace.actionUnavailable", "This action is not available for the selected application."));
+                              return;
+                            }
+
+                            if (decision !== "Issue License") {
+                              setDecisionError(getWorkspaceDecisionInputPrompt(issueLicenseDecisionOptions, t));
+                              decisionInputRef.current?.focus();
+                              return;
+                            }
+
+                            if (!cleanRemark(comment)) {
+                              setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
+                              commentRef.current?.focus();
+                              return;
+                            }
+
+                            if (!hasDigitalSignatureContent(approvalSupportSignature)) {
+                              setApprovalSupportSignatureError(
+                                t("workspace.signature.required", "Digital signature is required.")
+                              );
+                              return;
+                            }
+
+                            submitAction(selectedIssueLicenseAction, {
+                              decision,
+                              comment: cleanRemark(comment),
+                              checkDecisionRemark: false,
+                              approvalSupportSignature,
+                            });
+                          }}
+                          disabled={saving}
+                          variant="primary"
+                          icon={selectedIssueLicenseAction?.icon || "qr_code_2"}
+                          className="min-w-40"
+                        >
+                          {saving ? t("workspace.saving") : t("workspace.action.issueLicense", "Issue License")}
                         </Button>
                       ) : canSubmitWorkspaceAction && showPaymentReceiptDecision ? (
                         <Button
@@ -10388,6 +10510,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
   const approval = getApplicationSection(app, "approval");
   const approvalLetter = getApplicationSection(app, "approval_letter");
   const payment = getApplicationSection(app, "payment");
+  const license = getApplicationSection(app, "license");
   const selectedTechnicalDepartments = getSelectedTechnicalDepartments(app);
 
   if (shouldShowAutoScreeningDecisionLog(autoScreening)) {
@@ -10508,6 +10631,16 @@ function buildWorkspaceDecisionLogRows(app, t) {
     remarks: getWorkspaceDecisionLogRemarks(approvalLetter),
     date: getWorkspaceDecisionLogDate(approvalLetter, ["sent_to_applicant_at", "submitted_at"]),
     signature: getWorkspaceDecisionLogSignature(approvalLetter),
+  }, t);
+
+  addWorkspaceDecisionLogRow(rows, {
+    id: "license-issuance",
+    department: "PT(IKL)",
+    section: license,
+    decision: getWorkspaceDecisionLogValue(license),
+    remarks: getWorkspaceDecisionLogRemarks(license),
+    date: getWorkspaceDecisionLogDate(license, ["issued_at", "sent_at", "generated_at"]),
+    signature: getWorkspaceDecisionLogSignature(license),
   }, t);
 
   return rows
@@ -13025,12 +13158,19 @@ const configs = {
             app.form_data?.payment?.official_receipt_no ||
             savedManualReceipt.receipt_no ||
             getGeneratedOfficialReceiptNumber(app);
+          const recommendation = data.decision || "Issue License";
+          const remarks = cleanRemark(data.comment);
+          const digitalSignature = data.approvalSupportSignature || null;
           const nextLicenseBase = {
             ...savedLicenseWithoutManualTemplate,
             creation_mode: "generated",
             license_file: savedLicense.license_file || null,
             license_id: licenseId,
             status: "Active",
+            recommendation,
+            remarks,
+            digital_signature: digitalSignature,
+            issued_by: "PT(IKL)",
             holder: getApplicantName(app),
             type: getApplicationType(app),
             location: getApplicationLocation(app),
