@@ -13863,7 +13863,7 @@ function IklWorkspaceSections({
     setTechnicalApplicationTypeSelection(nextSelection);
     const nextSubtype = getDefaultApplicationSubtype(nextSelection[0]);
     const nextDisplayType = getTechnicalDisplayTypeFromSubtype(nextSubtype);
-    setTechnicalSite((prev) =>
+    setLatestTechnicalSite((prev) =>
       mergeTechnicalFeeCalculation({
         ...prev,
         application_subtype: nextSubtype,
@@ -13890,7 +13890,7 @@ function IklWorkspaceSections({
     if (!normalizedSubtype) return;
 
     setTechnicalApplicationTypeSelection(nextSelection);
-    setTechnicalSite((prev) =>
+    setLatestTechnicalSite((prev) =>
       mergeTechnicalFeeCalculation({
         ...prev,
         application_subtype: normalizedSubtype,
@@ -13917,14 +13917,18 @@ function IklWorkspaceSections({
     };
   }
 
+  function setLatestTechnicalSite(update) {
+    const currentSite = latestTechnicalSiteRef.current || technicalSite;
+    const nextSite =
+      typeof update === "function" ? update(currentSite) : update;
+    const mergedSite = mergeTechnicalSiteWithCurrentSignature(nextSite, currentSite);
+    latestTechnicalSiteRef.current = mergedSite;
+    setTechnicalSite(mergedSite);
+    return mergedSite;
+  }
+
   function setTechnicalSitePreservingSignature(update) {
-    setTechnicalSite((prev) => {
-      const nextSite =
-        typeof update === "function" ? update(prev) : update;
-      const mergedSite = mergeTechnicalSiteWithCurrentSignature(nextSite, prev);
-      latestTechnicalSiteRef.current = mergedSite;
-      return mergedSite;
-    });
+    setLatestTechnicalSite(update);
   }
 
   function scheduleTechnicalSiteVisitDraftSave(nextSite) {
@@ -13957,17 +13961,15 @@ function IklWorkspaceSections({
       window.clearTimeout(technicalSiteSaveTimerRef.current);
     }
 
-    const nextSite = {
-      ...latestTechnicalSiteRef.current,
-      site_photos: [...(latestTechnicalSiteRef.current.site_photos || []), ...cyclePhotos],
-    };
+    const nextSite = setLatestTechnicalSite((prev) => {
+      return {
+        ...prev,
+        site_photos: [...(prev.site_photos || []), ...cyclePhotos],
+      };
+    });
 
-    setTechnicalSite(nextSite);
-    latestTechnicalSiteRef.current = nextSite;
     if (!disableTechnicalAutosave) {
-      saveTechnicalSiteVisitDraft({
-        ...nextSite,
-      });
+      saveTechnicalSiteVisitDraft(nextSite);
     }
   }
 
@@ -14393,7 +14395,7 @@ function IklWorkspaceSections({
                     value={technicalSite.site_remarks}
                     onChange={(event) => {
                       if (commentError) setCommentError("");
-                      setTechnicalSite((prev) => ({
+                      setLatestTechnicalSite((prev) => ({
                         ...prev,
                         site_remarks: event.target.value,
                       }));
