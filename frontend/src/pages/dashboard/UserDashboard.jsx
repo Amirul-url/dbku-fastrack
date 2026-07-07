@@ -1010,14 +1010,6 @@ function LicenseSection({
               onViewApplicationSteps={onViewApplicationSteps}
             />
 
-            <LicenseRevocationRequestPanel
-              app={app}
-              saving={saving}
-              t={t}
-              onRequestRevocation={onRequestRevocation}
-              onCancelRevocationRequest={onCancelRevocationRequest}
-            />
-
             <section className="rounded-md border border-slate-200 bg-slate-50">
               <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -1150,6 +1142,14 @@ function LicenseSection({
                 </div>
               )}
             </section>
+
+            <LicenseRevocationRequestPanel
+              app={app}
+              saving={saving}
+              t={t}
+              onRequestRevocation={onRequestRevocation}
+              onCancelRevocationRequest={onCancelRevocationRequest}
+            />
           </div>
         </div>
       </div>
