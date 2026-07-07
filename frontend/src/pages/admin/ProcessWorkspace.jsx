@@ -468,7 +468,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [
     selectedDetail?.id,
     selectedDetail?.status,
-    selectedDetail?.updated_at,
     selectedDetail?.form_data?.technical_review_cycle,
     selectedDetail?.form_data?.technical_referral?.cycle_id,
     selectedDetail?.form_data?.technical_department_reviews,
@@ -8633,16 +8632,16 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   const [activeUploadItemId, setActiveUploadItemId] = useState("");
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
   const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
-  const uploadedItems = useMemo(() => {
-    if (Array.isArray(value?.items)) return value.items;
-    if (value?.mode === "upload" && value?.dataUrl) {
+  function getUploadedItemsFromSignature(signature) {
+    if (Array.isArray(signature?.items)) return signature.items;
+    if (signature?.mode === "upload" && signature?.dataUrl) {
       return [
         {
           id: "legacy-upload",
-          dataUrl: value.dataUrl,
-          fileName: value.fileName || "signature.png",
-          type: value.type || "image/png",
-          size: value.size || 0,
+          dataUrl: signature.dataUrl,
+          fileName: signature.fileName || "signature.png",
+          type: signature.type || "image/png",
+          size: signature.size || 0,
           x: 50,
           y: 50,
           width: 38,
@@ -8650,11 +8649,20 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       ];
     }
     return [];
-  }, [value]);
+  }
+
+  const [uploadedItems, setUploadedItems] = useState(() =>
+    getUploadedItemsFromSignature(value)
+  );
   const activeUploadedItem = useMemo(
     () => uploadedItems.find((item) => item.id === activeUploadItemId) || null,
     [activeUploadItemId, uploadedItems]
   );
+
+  useEffect(() => {
+    if (uploadDragRef.current || uploadResizeRef.current) return;
+    setUploadedItems(getUploadedItemsFromSignature(value));
+  }, [value?.dataUrl, value?.fileName, value?.items, value?.mode, value?.type]);
 
   useEffect(() => {
     if (value?.mode === "upload") {
@@ -8791,6 +8799,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     }
     hasDrawingRef.current = false;
     if (fileInputRef.current) fileInputRef.current.value = "";
+    setUploadedItems([]);
     onChange(null);
   }
 
@@ -8858,6 +8867,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   async function commitUploadedItems(items, overrides = {}) {
     const drawDataUrl = overrides.drawDataUrl ?? value?.drawDataUrl ?? "";
     const dataUrl = await composeUploadedSignature(items, drawDataUrl);
+    setUploadedItems(items);
     onChange({
       ...(value || {}),
       ...overrides,
@@ -8882,13 +8892,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       return;
     }
 
-    onChange({
-      ...(value || {}),
-      mode: "upload",
-      items: nextItems,
-      dataUrl: value?.dataUrl || nextItems[0]?.dataUrl || "",
-      updatedAt: new Date().toISOString(),
-    });
+    setUploadedItems(nextItems);
   }
 
   function beginUploadResize(event, itemId, corner) {
@@ -8966,6 +8970,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       setMode("upload");
       setIsDrawingEnabled(false);
       setActiveUploadItemId(newItems[newItems.length - 1]?.id || "");
+      setUploadedItems([...baseItems, ...newItems]);
       await commitUploadedItems([...baseItems, ...newItems]);
     } catch (err) {
       console.error("Failed to read signature file:", err);
@@ -9036,13 +9041,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     const nextItems = uploadedItems.map((item) =>
       item.id === drag.itemId ? { ...item, x: nextX, y: nextY } : item
     );
-    onChange({
-      ...(value || {}),
-      mode: "upload",
-      items: nextItems,
-      dataUrl: value?.dataUrl || nextItems[0]?.dataUrl || "",
-      updatedAt: new Date().toISOString(),
-    });
+    setUploadedItems(nextItems);
   }
 
   async function finishUploadDrag(event) {
