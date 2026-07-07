@@ -729,16 +729,22 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     normalizedUserDepartment === "PT(IKL)" &&
     (
-      normalizeStatus(selectedRecord?.status) === "payment_verified" ||
       ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status)) ||
       hasPendingLicenseRevocationRequest(selectedRecord)
     );
+  const isPtPaymentVerifiedPersonalTask =
+    fromPersonalTask &&
+    isApprovalWorkspace &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    normalizeStatus(selectedRecord?.status) === "payment_verified";
   const workspaceActions =
-    forceReadOnlyApprovalPanel && !hasApprovalLicenseManagementRecord
+    forceReadOnlyApprovalPanel && !hasApprovalLicenseManagementRecord && !isPtPaymentVerifiedPersonalTask
       ? []
+      : isPtPaymentVerifiedPersonalTask
+        ? getWorkspaceActions(configs.license, selectedRecord, userDepartment)
       : getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction =
-    (!forceReadOnlyApprovalPanel || hasApprovalLicenseManagementRecord) &&
+    (!forceReadOnlyApprovalPanel || hasApprovalLicenseManagementRecord || isPtPaymentVerifiedPersonalTask) &&
     (isIklWorkspace || workspaceActions.length > 0);
   const canViewSelectedWorkspace =
     tableFirstWorkspace &&
@@ -798,9 +804,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     selectedRecord?.updated_at,
   ]);
   const isPtIssueLicenseWorkspace =
-    isApprovalWorkspace &&
-    normalizedUserDepartment === "PT(IKL)" &&
-    normalizeStatus(selectedRecord?.status) === "payment_verified" &&
+    isPtPaymentVerifiedPersonalTask &&
     workspaceActions.some((action) => action.key === "issue_license");
   const isApprovalLicenseManagement =
     hasApprovalLicenseManagementRecord && !isPtIssueLicenseWorkspace;
@@ -858,7 +862,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showApprovalPaymentReadOnly =
     isApprovalWorkspace &&
     isPostApprovalPaymentRecord(selectedRecord) &&
-    !(normalizedUserDepartment === "PT(IKL)" && normalizeStatus(selectedRecord?.status) === "payment_verified") &&
+    !isPtIssueLicenseWorkspace &&
     !isApprovalLicenseManagement;
   const showApprovalLicenseManagementDetails =
     isApprovalLicenseManagement ||
@@ -9936,13 +9940,6 @@ function getWorkspaceActions(config, app, department) {
       if (typeof action.isAvailable !== "function") return true;
       return action.isAvailable(app, normalizedDepartment);
     });
-  }
-
-  if (
-    normalizedDepartment === "PT(IKL)" &&
-    normalizeStatus(app?.status) === "payment_verified"
-  ) {
-    return getWorkspaceActions(configs.license, app, normalizedDepartment);
   }
 
   if (
