@@ -16,6 +16,19 @@ User = get_user_model()
 MANAGED_ACCOUNT_ROLES = {"superadmin", "admin", "supervisor", "staff", "applicant"}
 
 
+def coerce_bool(value, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"false", "0", "no", "off", "tidak"}:
+        return False
+    if text in {"true", "1", "yes", "on", "ya"}:
+        return True
+    return default
+
+
 def normalize_managed_role(value):
     role = str(value or "").strip().lower()
     if role == "user":
@@ -76,6 +89,14 @@ def apply_managed_account_data(user, data, require_password=False):
     mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
     user.mykad_number = "" if role == "superadmin" and mykad_number == username else mykad_number
     user.mobile_number = clean_mobile_number(data.get("mobile_number", user.mobile_number or ""))
+    user.notify_whatsapp = coerce_bool(
+        data.get("notify_whatsapp"),
+        getattr(user, "notify_whatsapp", True),
+    )
+    user.notify_email = coerce_bool(
+        data.get("notify_email"),
+        getattr(user, "notify_email", True),
+    )
     user.is_active = bool(data.get("is_active", True))
 
     if role in {"applicant", "user"}:

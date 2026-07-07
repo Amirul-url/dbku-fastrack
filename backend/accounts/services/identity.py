@@ -122,6 +122,8 @@ def build_user_payload(user, include_login_sessions=False):
         "department": user.department,
         "mykad_number": mykad_number,
         "mobile_number": clean_mobile_number(user.mobile_number),
+        "notify_whatsapp": getattr(user, "notify_whatsapp", True),
+        "notify_email": getattr(user, "notify_email", True),
         "address": user.address,
         **address_parts,
         "gender": gender,

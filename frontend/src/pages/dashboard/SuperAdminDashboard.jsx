@@ -21,6 +21,8 @@ const emptyForm = {
   state: "",
   password: "",
   password2: "",
+  notify_whatsapp: true,
+  notify_email: true,
   is_active: true,
 };
 
@@ -136,6 +138,8 @@ const screenText = {
     password: "Password",
     newPassword: "New Password",
     confirmPassword: "Confirm Password",
+    notification: "Notification",
+    whatsapp: "WhatsApp",
     passwordResetHelp: "Leave password fields blank to keep the current password.",
     enterPassword: "Enter password",
     confirmPasswordPlaceholder: "Confirm password",
@@ -287,6 +291,8 @@ const screenText = {
     password: "Kata Laluan",
     newPassword: "Kata Laluan Baharu",
     confirmPassword: "Sahkan Kata Laluan",
+    notification: "Notifikasi",
+    whatsapp: "WhatsApp",
     passwordResetHelp: "Biarkan medan kata laluan kosong untuk mengekalkan kata laluan semasa.",
     enterPassword: "Masukkan kata laluan",
     confirmPasswordPlaceholder: "Sahkan kata laluan",
@@ -812,6 +818,8 @@ function SuperAdminAccountManagement({ view }) {
       state: account.state || "",
       password: "",
       password2: "",
+      notify_whatsapp: account.notify_whatsapp !== false,
+      notify_email: account.notify_email !== false,
       is_active: account.is_active !== false,
     });
     setAccountModalOpen(true);
@@ -1503,7 +1511,28 @@ function AccountModal({
               ))}
             </select>
           </FormField>
-          {showDepartment && <div className="hidden md:block" />}
+          <FormField label={labels.notification} className={!showDepartment ? "md:col-span-2" : ""}>
+            <div className="flex min-h-11 flex-wrap items-center gap-6 rounded-md border border-slate-300 px-3 text-sm text-slate-800">
+              <label className="inline-flex items-center gap-2 font-semibold">
+                <input
+                  type="checkbox"
+                  checked={form.notify_whatsapp}
+                  onChange={(event) => onChange({ notify_whatsapp: event.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-200"
+                />
+                {labels.whatsapp}
+              </label>
+              <label className="inline-flex items-center gap-2 font-semibold">
+                <input
+                  type="checkbox"
+                  checked={form.notify_email}
+                  onChange={(event) => onChange({ notify_email: event.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-200"
+                />
+                {labels.email}
+              </label>
+            </div>
+          </FormField>
           <FormField label={isEditing ? labels.newPassword : labels.password}>
             <input
               type="password"

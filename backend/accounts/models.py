@@ -14,6 +14,8 @@ class User(AbstractUser):
     department = models.CharField(max_length=20, blank=True)
     mykad_number = models.CharField(max_length=12, blank=True)
     mobile_number = models.CharField(max_length=30, blank=True)
+    notify_whatsapp = models.BooleanField(default=True)
+    notify_email = models.BooleanField(default=True)
     address = models.TextField(blank=True)
     address_line1 = models.CharField(max_length=150, blank=True)
     address_line2 = models.CharField(max_length=150, blank=True)

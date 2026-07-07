@@ -47,6 +47,14 @@ KU_TECHNICAL_MEMO_RECIPIENT = "IKL(TECHNICAL)"
 NOTIFICATION_SIDE_EFFECTS_ENABLED = False
 
 
+def user_allows_notification_channel(user, channel):
+    if channel == "email":
+        return getattr(user, "notify_email", True) is not False
+    if channel == "whatsapp":
+        return getattr(user, "notify_whatsapp", True) is not False
+    return True
+
+
 TECHNICAL_DEPARTMENT_ORDER = ("BLG", "GPM", "MNE", "IMT", "LNP", "ENG")
 TECHNICAL_DEPARTMENTS = set(TECHNICAL_DEPARTMENT_ORDER)
 PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
@@ -322,7 +330,7 @@ def notify_applicant_registration_success(account):
     )
 
     email = normalize_email(getattr(account, "email", ""))
-    if email:
+    if email and user_allows_notification_channel(account, "email"):
         create_and_send_delivery(
             application=None,
             event_key=event_key,
@@ -337,7 +345,7 @@ def notify_applicant_registration_success(account):
         )
 
     phone = normalize_phone(getattr(account, "mobile_number", ""))
-    if phone:
+    if phone and user_allows_notification_channel(account, "whatsapp"):
         create_and_send_delivery(
             application=None,
             event_key=event_key,
@@ -1129,7 +1137,7 @@ def send_license_workflow_notification(
 
     for user in recipients:
         email = normalize_email(getattr(user, "email", ""))
-        if email:
+        if email and user_allows_notification_channel(user, "email"):
             create_and_send_delivery(
                 application=application,
                 event_key=event_key,
@@ -1142,7 +1150,7 @@ def send_license_workflow_notification(
                 metadata=metadata,
             )
         phone = normalize_phone(getattr(user, "mobile_number", ""))
-        if phone:
+        if phone and user_allows_notification_channel(user, "whatsapp"):
             create_and_send_delivery(
                 application=application,
                 event_key=event_key,
@@ -1903,11 +1911,15 @@ def build_recipients(application, messages):
 
 
 def get_applicant_emails(application):
+    if not user_allows_notification_channel(application.applicant, "email"):
+        return []
     email = normalize_email(getattr(application.applicant, "email", ""))
     return [email] if email else []
 
 
 def get_applicant_whatsapp_numbers(application):
+    if not user_allows_notification_channel(application.applicant, "whatsapp"):
+        return []
     phone = normalize_phone(getattr(application.applicant, "mobile_number", ""))
     return [phone] if phone else []
 
@@ -1990,6 +2002,8 @@ def get_admin_task_email_recipients(application, users):
     recipients = []
 
     for user in users:
+        if not user_allows_notification_channel(user, "email"):
+            continue
         email = normalize_email(getattr(user, "email", ""))
         if email:
             recipients.append((user, email))
@@ -2001,6 +2015,8 @@ def get_admin_task_whatsapp_numbers(application, users):
     recipients = []
 
     for user in users:
+        if not user_allows_notification_channel(user, "whatsapp"):
+            continue
         phone = normalize_phone(getattr(user, "mobile_number", ""))
         if phone:
             recipients.append((user, phone))
