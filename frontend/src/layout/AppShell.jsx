@@ -1240,9 +1240,6 @@ function DashboardFooter({ t }) {
           <Link to="/faq?from=dashboard" className="font-medium hover:text-[#006d32]">
             {t("auth.faq")}
           </Link>
-          <a href="mailto:support@example.com" className="font-medium hover:text-[#006d32]">
-            {t("auth.contactUs")}
-          </a>
         </div>
       </div>
     </footer>

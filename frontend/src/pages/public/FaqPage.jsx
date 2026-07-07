@@ -114,9 +114,6 @@ function FaqPage() {
             <Link to={isLoggedIn ? "/faq?from=dashboard" : "/faq?from=login"} className="font-medium hover:text-[#006d32]">
               {t("auth.faq")}
             </Link>
-            <a href="mailto:support@example.com" className="font-medium hover:text-[#006d32]">
-              {t("auth.contactUs")}
-            </a>
           </div>
         </div>
       </footer>
