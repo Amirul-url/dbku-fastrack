@@ -3,12 +3,19 @@ from datetime import date
 from django.test import TestCase
 
 from accounts.models import User
-from accounts.services.management import apply_managed_account_data, normalize_managed_role
+from accounts.services.management import (
+    apply_managed_account_data,
+    normalize_managed_department,
+    normalize_managed_role,
+)
 
 
 class AccountManagementServiceTests(TestCase):
     def test_normalizes_user_role_to_applicant(self):
         self.assertEqual(normalize_managed_role(" user "), "applicant")
+
+    def test_normalizes_finance_department_to_fin(self):
+        self.assertEqual(normalize_managed_department("Bahagian Kewangan"), "FIN")
 
     def test_requires_password_when_creating_account(self):
         user = User()

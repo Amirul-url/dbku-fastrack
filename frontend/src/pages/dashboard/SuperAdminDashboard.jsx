@@ -34,6 +34,7 @@ const adminDepartments = [
   "IMT",
   "LNP",
   "ENG",
+  "FIN",
 ];
 const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
 const mphlgDepartments = ["MPHLG"];
@@ -2345,7 +2346,9 @@ function normalizeImportedRole(value) {
 }
 
 function normalizeDepartmentValue(value) {
-  return String(value || "").trim().toUpperCase();
+  const department = String(value || "").trim().toUpperCase();
+  if (["FINANCE", "KEWANGAN", "BAHAGIAN KEWANGAN"].includes(department)) return "FIN";
+  return department;
 }
 
 function isMphlgSectionDepartment(value) {

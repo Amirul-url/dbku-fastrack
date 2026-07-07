@@ -23,6 +23,13 @@ def normalize_managed_role(value):
     return role
 
 
+def normalize_managed_department(value):
+    department = str(value or "").strip().upper()
+    if department in {"FINANCE", "KEWANGAN", "BAHAGIAN KEWANGAN"}:
+        return "FIN"
+    return department
+
+
 def apply_managed_account_data(user, data, require_password=False):
     username = normalize_mykad_identifier(data.get("username", user.username or ""))
     email = normalize_email_address(data.get("email", user.email or ""))
@@ -65,7 +72,7 @@ def apply_managed_account_data(user, data, require_password=False):
     user.first_name = first_name
     user.last_name = last_name
     user.role = role
-    user.department = str(data.get("department", user.department or "")).strip().upper()
+    user.department = normalize_managed_department(data.get("department", user.department or ""))
     mykad_number = normalize_mykad_identifier(data.get("mykad_number", username))
     user.mykad_number = "" if role == "superadmin" and mykad_number == username else mykad_number
     user.mobile_number = clean_mobile_number(data.get("mobile_number", user.mobile_number or ""))
