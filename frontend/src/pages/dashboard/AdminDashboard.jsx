@@ -2227,6 +2227,7 @@ function buildResubmissionDrilldownRows(type, insights, t) {
       applicantName: getRegisteredApplicantName(entry.application),
       project: entry.project,
       remark: entry.remark || "",
+      description: entry.description || "",
       statusLabel: config.label,
       statusClassName: config.className,
       date: entry.eventDate || entry.sortDate,
@@ -2257,7 +2258,7 @@ function buildRejectedDecisionReportRows(row, t) {
       department: getRejectedApplicationDepartment(app),
       date: row.date,
       decision: "Reject",
-      remarks: row.remark || getApplicationRemark(app),
+      remarks: row.remark || getApplicationRemark(app) || row.description,
     },
   ];
 }
@@ -3341,8 +3342,12 @@ function getActivityRemark(activity) {
   const explicitRemark =
     activity?.remark ||
     activity?.remarks ||
+    activity?.previous_remark ||
+    activity?.previous_remarks ||
     activity?.metadata?.remark ||
-    activity?.metadata?.remarks;
+    activity?.metadata?.remarks ||
+    activity?.metadata?.previous_remark ||
+    activity?.metadata?.previous_remarks;
   const cleanedExplicitRemark = cleanRemark(explicitRemark);
   if (cleanedExplicitRemark) return cleanedExplicitRemark;
 

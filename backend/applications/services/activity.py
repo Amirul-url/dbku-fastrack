@@ -23,26 +23,27 @@ STAFF_SAFE_APPLICANT_ACTIVITY_TITLES = {
 }
 
 
-def append_application_activity(application, actor, title, description="", category="user"):
+def append_application_activity(application, actor, title, description="", category="user", metadata=None):
     form_data = deepcopy(application.form_data or {})
     activity_log = form_data.get("activity_log")
 
     if not isinstance(activity_log, list):
         activity_log = []
 
-    activity_log.insert(
-        0,
-        {
-            "title": title,
-            "description": description,
-            "category": category,
-            "actor": get_activity_actor_name(actor),
-            "actor_id": getattr(actor, "id", None),
-            "actor_role": getattr(actor, "role", ""),
-            "actor_department": get_user_workflow_department(actor),
-            "created_at": timezone_now_iso(),
-        },
-    )
+    activity = {
+        "title": title,
+        "description": description,
+        "category": category,
+        "actor": get_activity_actor_name(actor),
+        "actor_id": getattr(actor, "id", None),
+        "actor_role": getattr(actor, "role", ""),
+        "actor_department": get_user_workflow_department(actor),
+        "created_at": timezone_now_iso(),
+    }
+    if isinstance(metadata, dict) and metadata:
+        activity["metadata"] = metadata
+
+    activity_log.insert(0, activity)
     form_data["activity_log"] = activity_log[:MAX_ACTIVITY_LOG_ITEMS]
     application.form_data = form_data
     application.save(update_fields=["form_data", "updated_at"])

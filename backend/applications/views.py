@@ -68,6 +68,24 @@ RESUBMIT_WORKFLOW_RESET_FIELDS = [
 ]
 
 
+def get_previous_correction_remark(old_remark="", old_form_data=None):
+    correction = (old_form_data or {}).get("correction_request")
+    if not isinstance(correction, dict):
+        correction = {}
+
+    for value in [
+        old_remark,
+        correction.get("remarks"),
+        correction.get("remark"),
+        correction.get("comment"),
+    ]:
+        remark = str(value or "").strip()
+        if remark and remark not in {"-", "[]"}:
+            return remark
+
+    return ""
+
+
 def reset_workflow_on_applicant_resubmit(application, old_status, old_form_data=None):
     status_key = str(getattr(application, "status", "") or "").strip().lower()
     old_status_key = str(old_status or "").strip().lower()
@@ -392,11 +410,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 self.request.data,
                 old_status,
             )
+            activity_metadata = {}
+            if old_status_key in APPLICANT_CORRECTION_STATUSES and new_status_key in APPLICANT_RESUBMIT_STATUSES:
+                previous_remark = get_previous_correction_remark(old_remark, old_form_data)
+                if previous_remark:
+                    activity_metadata["previous_remark"] = previous_remark
             append_application_activity(
                 application,
                 self.request.user,
                 activity_title,
                 activity_description,
+                metadata=activity_metadata,
             )
         if self.request.user.role in STAFF_ROLES and (
             old_status_key != new_status_key or remark_changed

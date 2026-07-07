@@ -392,6 +392,7 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(application.status, "submitted")
         activity_log = application.form_data.get("activity_log", [])
         self.assertEqual(activity_log[0]["title"], "Application resubmitted")
+        self.assertEqual(activity_log[0]["metadata"]["previous_remark"], "Please update.")
         deliveries = NotificationDelivery.objects.filter(
             application=application,
             recipient_role="applicant",
