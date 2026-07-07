@@ -993,16 +993,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id]);
 
   useEffect(() => {
-    const savedSignature =
-      selectedRecord?.form_data?.approval_letter?.digital_signature ||
-      selectedRecord?.form_data?.kb_les_verification?.digital_signature ||
-      selectedRecord?.form_data?.management_recommendation?.digital_signature ||
-      selectedRecord?.form_data?.approval?.digital_signature ||
-      null;
-
-    setApprovalSupportSignature(savedSignature);
+    setApprovalSupportSignature(getSavedActionSignatureForDepartment(selectedRecord, userDepartment));
     setApprovalSupportSignatureError("");
-  }, [selectedRecord?.id]);
+  }, [selectedRecord?.id, selectedRecord?.updated_at, userDepartment]);
 
   useEffect(() => {
     setMphlgSupportingDocuments(getMphlgSupportingDocuments(selectedRecord));
@@ -10518,6 +10511,43 @@ function getWorkspaceDecisionLogSignature(section = {}) {
   );
 }
 
+function getDepartmentOwnedSignature(section = {}, department = "") {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (!normalizedDepartment || !section || typeof section !== "object") return null;
+
+  const sectionDepartment = normalizeDepartmentCode(
+    section.officer ||
+      section.decided_by ||
+      section.verified_by ||
+      section.reviewed_by ||
+      section.department
+  );
+
+  if (sectionDepartment !== normalizedDepartment) return null;
+
+  const signature = getWorkspaceDecisionLogSignature(section);
+  return hasDigitalSignatureContent(signature) ? signature : null;
+}
+
+function getSavedActionSignatureForDepartment(app, department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (!app || !normalizedDepartment) return null;
+
+  if (normalizedDepartment === "KB(LES)") {
+    return getDepartmentOwnedSignature(getApplicationSection(app, "kb_les_verification"), normalizedDepartment);
+  }
+
+  if (APPROVAL_SUPPORT_DEPARTMENTS.includes(normalizedDepartment)) {
+    return getDepartmentOwnedSignature(getApplicationSection(app, "management_recommendation"), normalizedDepartment);
+  }
+
+  if (MPHLG_REVIEW_DEPARTMENTS.includes(normalizedDepartment)) {
+    return getDepartmentOwnedSignature(getApplicationSection(app, "mphlg_gateway"), normalizedDepartment);
+  }
+
+  return null;
+}
+
 function isApprovalSupportDecisionLogDepartment(department) {
   return APPROVAL_SUPPORT_DEPARTMENTS.includes(normalizeDepartmentCode(department));
 }
@@ -11358,7 +11388,7 @@ function buildApprovalWorkflowPayload(app, data) {
     const kbVerificationSignature = rejected
       ? null
       : data.approvalSupportSignature ||
-        app.form_data?.kb_les_verification?.digital_signature ||
+        getSavedActionSignatureForDepartment(app, department) ||
         null;
 
     return {
@@ -11420,8 +11450,7 @@ function buildApprovalWorkflowPayload(app, data) {
         : "Not Support";
     const approvalSupportSignature =
       data.approvalSupportSignature ||
-      app.form_data?.management_recommendation?.digital_signature ||
-      app.form_data?.approval?.digital_signature ||
+      getSavedActionSignatureForDepartment(app, department) ||
       null;
     const approvalDecisionHtml =
       data.approvalDecisionHtml ||
@@ -11490,8 +11519,7 @@ function buildApprovalWorkflowPayload(app, data) {
     const rejectRemark = data.comment || getHtmlPlainText(data.memoHtml) || app.latest_remark || "";
     const mphlgSignature = approved
       ? data.approvalSupportSignature ||
-        app.form_data?.mphlg_gateway?.digital_signature ||
-        app.form_data?.approval?.digital_signature ||
+        getSavedActionSignatureForDepartment(app, department) ||
         null
       : null;
 
