@@ -844,7 +844,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     ? ""
     : getActionUnavailableMessage(config, selectedRecord, userDepartment, t);
   const showActionUnavailableNotice =
-    Boolean(actionUnavailableMessage) && !canSubmitWorkspaceAction;
+    Boolean(actionUnavailableMessage) && !canSubmitWorkspaceAction && !fromPersonalTask;
   const showSavedApprovalDecisionMemo =
     isApprovalWorkspace && Boolean(savedApprovalDecisionHtml) && !isApprovalSupportWorkspace;
   const showApprovalSupportReadOnly =
@@ -856,6 +856,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showApprovalLicenseManagementDetails = isApprovalLicenseManagement;
   const showReadOnlyGuideBanner =
     isReadOnlyActionPanel &&
+    !fromPersonalTask &&
     !showDecisionLog &&
     !showVerificationReport;
   const showApprovalMemoPreviews =
