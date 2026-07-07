@@ -858,8 +858,12 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
     type === RESUBMISSION_DRILLDOWN_TYPES.complete
       ? new URLSearchParams(location.search).get("completeId") || ""
       : "";
+  const initialRejectedRowId =
+    type === RESUBMISSION_DRILLDOWN_TYPES.rejected
+      ? new URLSearchParams(location.search).get("rejectedId") || ""
+      : "";
   const [selectedCompleteRowId, setSelectedCompleteRowId] = useState(initialCompleteRowId);
-  const [selectedRejectedRowId, setSelectedRejectedRowId] = useState("");
+  const [selectedRejectedRowId, setSelectedRejectedRowId] = useState(initialRejectedRowId);
   const title = getResubmissionDrilldownTitle(type, t);
   const description = getResubmissionDrilldownDescription(type, t);
   const isCompleteDrilldown = type === RESUBMISSION_DRILLDOWN_TYPES.complete;
@@ -969,6 +973,9 @@ function ResubmissionDrilldownPanel({ language, loading, onClose, rows, t, type 
     }
     if (type === RESUBMISSION_DRILLDOWN_TYPES.rejected) {
       setSelectedCompleteRowId("");
+      setSelectedRejectedRowId(
+        new URLSearchParams(location.search).get("rejectedId") || ""
+      );
       return;
     }
     setSelectedCompleteRowId("");
@@ -1257,6 +1264,11 @@ function RejectedApplicationCard({ row, t, language = "en" }) {
   const [showReport, setShowReport] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const reference = row.reference || getApplicationReference(app);
+  const viewPath = getResubmissionApplicationViewPath(
+    row.applicationId,
+    RESUBMISSION_DRILLDOWN_TYPES.rejected,
+    row.id
+  );
   const summaryApp = {
     ...app,
     updated_at: row.date || app.updated_at,
@@ -1274,6 +1286,15 @@ function RejectedApplicationCard({ row, t, language = "en" }) {
           updated: t("common.updated", "Updated"),
         }}
         statusLabel={row.statusLabel || t("status.rejected", "Rejected")}
+        actions={
+          <Link
+            to={viewPath}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold leading-5 text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
+          >
+            <span className="material-symbols-outlined text-[18px]">visibility</span>
+            {t("workspace.openForm", "View Form")}
+          </Link>
+        }
       />
 
       <div className="mt-5 flex flex-wrap justify-end gap-2">
@@ -2255,6 +2276,9 @@ function getResubmissionApplicationViewPath(applicationId, type, selectedRowId =
   });
   if (type === RESUBMISSION_DRILLDOWN_TYPES.complete && selectedRowId) {
     returnParams.set("completeId", selectedRowId);
+  }
+  if (type === RESUBMISSION_DRILLDOWN_TYPES.rejected && selectedRowId) {
+    returnParams.set("rejectedId", selectedRowId);
   }
   const returnTo = encodeURIComponent(`/dashboard/admin?${returnParams.toString()}`);
   const from = type === RESUBMISSION_DRILLDOWN_TYPES.complete
