@@ -2084,6 +2084,37 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
       }));
     }
 
+    const resubmissionActivities = getResubmissionActivitiesForRejectedCycles(activityLog);
+    if (resubmissionActivities.length > 0) {
+      return resubmissionActivities
+        .map((activity) => {
+          const eventDate =
+            activity?.metadata?.rejected_at ||
+            activity?.metadata?.previous_rejected_at ||
+            activity?.rejected_at ||
+            activity?.created_at ||
+            application.updated_at ||
+            application.created_at;
+
+          return {
+            type: "rejected",
+            applicationId: application.id,
+            application,
+            reference: getApplicationReference(application),
+            project: getProjectName(application),
+            eventDate,
+            eventLabel: t("status.rejected", "Rejected"),
+            remark: getActivityRemark(activity) || getApplicationRemark(application),
+            description: t(
+              "admin.dashboard.previousRejectedLogDesc",
+              "Application was rejected before applicant resubmission."
+            ),
+            sortDate: eventDate,
+          };
+        })
+        .filter((entry) => entry.eventDate);
+    }
+
     if (!isRejectedApplication(application)) return [];
 
     const eventDate = application.updated_at || application.created_at;
