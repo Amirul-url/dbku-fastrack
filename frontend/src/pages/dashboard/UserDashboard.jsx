@@ -86,6 +86,7 @@ function UserDashboard() {
   const [paymentReferenceDetails, setPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
+  const [revocationConfirmOpen, setRevocationConfirmOpen] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -434,14 +435,12 @@ function UserDashboard() {
 
   async function requestLicenseRevocation() {
     if (!selectedApplication || normalizeStatus(selectedApplication.status) !== "license_issued") return;
+    setRevocationConfirmOpen(true);
+  }
 
-    const confirmed = window.confirm(
-      t(
-        "applicant.licenseRevocationConfirm",
-        "Submit a request to revoke this license? DBKU will review the request."
-      )
-    );
-    if (!confirmed) return;
+  async function confirmLicenseRevocationRequest() {
+    if (!selectedApplication || normalizeStatus(selectedApplication.status) !== "license_issued") return;
+    setRevocationConfirmOpen(false);
 
     try {
       setSaving(true);
@@ -717,6 +716,15 @@ function UserDashboard() {
           onClose={() => setReceiptSuccessOpen(false)}
         />
       )}
+
+      {revocationConfirmOpen && (
+        <LicenseRevocationConfirmModal
+          t={t}
+          saving={saving}
+          onConfirm={confirmLicenseRevocationRequest}
+          onCancel={() => setRevocationConfirmOpen(false)}
+        />
+      )}
     </UserDashboardLayout>
   );
 }
@@ -751,6 +759,45 @@ function ReceiptSubmittedModal({ t, onClose }) {
         >
           {t("common.ok", "OK")}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function LicenseRevocationConfirmModal({ t, saving, onConfirm, onCancel }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="license-revocation-confirm-title"
+    >
+      <div className="flex min-h-[360px] w-full max-w-[1040px] flex-col justify-center rounded-lg border-2 border-slate-950 bg-white px-6 py-12 text-center shadow-xl sm:min-h-[480px] sm:px-12">
+        <h2
+          id="license-revocation-confirm-title"
+          className="text-3xl font-normal uppercase tracking-normal text-black sm:text-4xl"
+        >
+          {t("applicant.licenseRevocationConfirmTitle", "ARE YOU SURE TO REVOKE LICENSE?")}
+        </h2>
+
+        <div className="mt-28 flex flex-col items-center justify-center gap-8 sm:flex-row sm:gap-40">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-normal uppercase text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {t("applicant.licenseRevocationConfirmYes", "YES")}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#ff0f0f] px-8 text-2xl font-normal uppercase text-white transition hover:bg-[#e60000] focus:outline-none focus:ring-4 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {t("applicant.licenseRevocationConfirmNo", "NO")}
+          </button>
+        </div>
       </div>
     </div>
   );

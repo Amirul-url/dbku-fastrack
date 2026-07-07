@@ -811,6 +811,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     workspaceActions.some((action) => action.key === "issue_license");
   const isApprovalLicenseManagement =
     hasApprovalLicenseManagementRecord && !isPtIssueLicenseWorkspace;
+  const isIssuedLicenseRecord = ["license_issued", "license_revoked"].includes(
+    normalizeStatus(selectedRecord?.status)
+  );
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -2949,7 +2952,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
                   applicationType={getLocalizedApplicationType(selectedRecord, t, language)}
                   actions={
-                    !showApprovalPaymentReadOnly && (isFocusedPersonalWorkspace || tableFirstWorkspace) ? (
+                    !showApprovalPaymentReadOnly &&
+                    !isIssuedLicenseRecord &&
+                    (isFocusedPersonalWorkspace || tableFirstWorkspace) ? (
                       <Button
                         variant="secondary"
                         icon="visibility"
@@ -17103,6 +17108,12 @@ function IssuedPaymentDocumentList({ t, documents }) {
 function IssuedPaymentReceiptSection({ app, t, receiptFile, receiptSource, payment }) {
   if (!receiptSource && !receiptFile?.name && !payment?.receipt_reference) return null;
 
+  const paymentReferenceDetails = [
+    ["Reference ID", payment?.reference_id],
+    ["Recipient Reference", payment?.recipient_reference],
+    ["Payment Details", payment?.payment_details],
+  ].filter(([, value]) => String(value || "").trim());
+
   return (
     <section className="rounded-md border border-slate-200 bg-slate-50">
       <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -17148,6 +17159,14 @@ function IssuedPaymentReceiptSection({ app, t, receiptFile, receiptSource, payme
             </Button>
           )}
         </div>
+
+        {paymentReferenceDetails.length > 0 && (
+          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-2 sm:grid-cols-3">
+            {paymentReferenceDetails.map(([label, value]) => (
+              <Info key={label} label={label} value={value} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
