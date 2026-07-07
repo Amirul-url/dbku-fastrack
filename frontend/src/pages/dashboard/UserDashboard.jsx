@@ -416,7 +416,7 @@ function UserDashboard() {
     const confirmed = window.confirm(
       t(
         "applicant.licenseRevocationConfirm",
-        "Submit a request to revoke this license? PT(IKL) will review the request."
+        "Submit a request to revoke this license? DBKU will review the request."
       )
     );
     if (!confirmed) return;
@@ -448,7 +448,7 @@ function UserDashboard() {
       setLicensePanelOpen(true);
       setMessage({
         type: "success",
-        text: t("applicant.licenseRevocationRequested", "License revocation request sent to PT(IKL)."),
+        text: t("applicant.licenseRevocationRequested", "License revocation request sent to DBKU."),
       });
       window.dispatchEvent(new Event("fastrack:applications-changed"));
     } catch (err) {
@@ -1509,7 +1509,7 @@ function LicenseRevocationRequestPanel({
           {t("applicant.licenseRevokedTitle", "License revoked")}
         </h4>
         <p className="mt-1 text-sm leading-5 text-red-800">
-          {t("applicant.licenseRevokedDesc", "This e-license has been revoked by PT(IKL).")}
+          {t("applicant.licenseRevokedDesc", "This e-license has been revoked by DBKU.")}
         </p>
       </section>
     );
@@ -1524,8 +1524,8 @@ function LicenseRevocationRequestPanel({
           </h4>
           <p className="mt-1 text-sm leading-5 text-slate-500">
             {pendingRequest
-              ? t("applicant.licenseRevocationPendingDesc", "Your revocation request has been sent to PT(IKL). You can cancel it before PT(IKL) revokes the license.")
-              : t("applicant.licenseRevocationDesc", "Request PT(IKL) to revoke this e-license if you no longer need it.")}
+              ? t("applicant.licenseRevocationPendingDesc", "Your revocation request has been sent to DBKU. You can cancel it before the license is revoked.")
+              : t("applicant.licenseRevocationDesc", "Request DBKU to revoke this e-license if you no longer need it.")}
           </p>
         </div>
 
