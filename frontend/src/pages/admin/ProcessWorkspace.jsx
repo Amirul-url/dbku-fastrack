@@ -11943,6 +11943,9 @@ function buildApprovalWorkflowPayload(app, data) {
         mphlg_gateway: rejected || !kbSupportStage
           ? null
           : app.form_data?.mphlg_gateway || null,
+        technical_ku_review: rejected
+          ? null
+          : app.form_data?.technical_ku_review || null,
         sut_approval: rejected || !kbSupportStage
           ? null
           : app.form_data?.sut_approval || null,
