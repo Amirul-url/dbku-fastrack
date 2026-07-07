@@ -252,6 +252,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     redirectTo: "",
   });
+  const [receiptVerificationResultModal, setReceiptVerificationResultModal] = useState({
+    open: false,
+    result: "",
+    redirectTo: "",
+  });
   const [applicationRejectedModal, setApplicationRejectedModal] = useState({
     open: false,
     reference: "",
@@ -2089,6 +2094,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setError("");
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+      setReceiptVerificationResultModal({ open: false, result: "", redirectTo: "" });
       setApplicationRejectedModal({
         open: false,
         reference: "",
@@ -2163,6 +2169,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
       const shouldShowMphlgRejectedSuccess = shouldShowMphlgRejectedModal(action, body);
       const shouldShowReceiptRejectedSuccess = shouldShowReceiptRejectedModal(action, body);
+      const shouldShowReceiptVerifiedSuccess = shouldShowReceiptVerifiedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
       const shouldShowInvoiceGeneratedSuccess = shouldShowInvoiceGeneratedModal(action, body);
@@ -2178,6 +2185,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowApprovalSupportAmendmentModal(action, body);
       const shouldShowWorkspaceResultModal =
         shouldShowLicenseIssuedSuccess ||
+        shouldShowReceiptVerifiedSuccess ||
         shouldShowApplicationRejectedSuccess ||
         shouldShowReceiptRejectedSuccess ||
         shouldShowApplicationAmendmentSuccess ||
@@ -2229,6 +2237,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
         });
       }
+      if (shouldShowReceiptVerifiedSuccess) {
+        setReceiptVerificationResultModal({
+          open: true,
+          result: "verified",
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+        });
+      }
       if (shouldShowApplicationRejectedSuccess) {
         setApplicationRejectedModal({
           open: true,
@@ -2246,15 +2264,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         });
       }
       if (shouldShowReceiptRejectedSuccess) {
-        setApplicationRejectedModal({
+        setReceiptVerificationResultModal({
           open: true,
-          reference: getApplicationReference(selectedRecord),
+          result: "rejected",
           redirectTo:
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
-          messageKey: "workspace.receiptRejected.message",
-          defaultMessage: "Receipt Not Valid.",
         });
       }
       if (shouldShowApplicationAmendmentSuccess) {
@@ -2334,6 +2350,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         return true;
       }
       if (shouldShowLicenseIssuedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
+      if (shouldShowReceiptVerifiedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
       if (shouldShowApplicationRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
@@ -2419,6 +2438,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   function closeApplicationApprovedModal() {
     const redirectTo = applicationApprovedModal.redirectTo;
     setApplicationApprovedModal(createClosedApplicationApprovedModalState());
+    if (redirectTo) {
+      navigate(redirectTo);
+    }
+  }
+
+  function closeReceiptVerificationResultModal() {
+    const redirectTo = receiptVerificationResultModal.redirectTo;
+    setReceiptVerificationResultModal({ open: false, result: "", redirectTo: "" });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -3768,6 +3795,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {receiptVerificationResultModal.open && (
+        <ReceiptVerificationResultModal
+          result={receiptVerificationResultModal.result}
+          t={t}
+          onClose={closeReceiptVerificationResultModal}
+        />
+      )}
+
       {applicationRejectedModal.open && (
         <ApplicationRejectedModal
           defaultMessage={applicationRejectedModal.defaultMessage}
@@ -3878,6 +3913,57 @@ function shouldShowReceiptRejectedModal(action, body) {
       body.form_data?.payment?.receipt_decision === "Reject Receipt") &&
     normalizeStatus(body.status) === "invoice_generated" &&
     body.form_data?.payment?.status === "Receipt Rejected"
+  );
+}
+
+function shouldShowReceiptVerifiedModal(action, body) {
+  return (
+    Boolean(body) &&
+    action?.requiresSubmittedReceipt &&
+    body.form_data?.payment?.receipt_decision === "Approve Receipt" &&
+    normalizeStatus(body.status) === "payment_verified" &&
+    body.form_data?.payment?.status === "Payment Verified"
+  );
+}
+
+function ReceiptVerificationResultModal({ result = "verified", t, onClose }) {
+  const rejected = result === "rejected";
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="receipt-verification-result-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src={rejected ? "/red_x.png" : "/green_tick.png"}
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="receipt-verification-result-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {rejected
+            ? t("workspace.receiptVerification.rejectedTitle", "REJECTED!")
+            : t("workspace.receiptVerification.successTitle", "SUCCESS!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium leading-snug text-black">
+          {rejected
+            ? t("workspace.receiptVerification.rejectedMessage", "Receipt Not Verified.")
+            : t("workspace.receiptVerification.successMessage", "Receipt Has Been Verified.")}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
   );
 }
 
