@@ -296,6 +296,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [approvalSupportSignatureError, setApprovalSupportSignatureError] = useState("");
   const [mphlgSupportingDocuments, setMphlgSupportingDocuments] = useState([]);
   const [mphlgSupportingDocumentError, setMphlgSupportingDocumentError] = useState("");
+  const [departmentTechnicalSignature, setDepartmentTechnicalSignature] = useState(null);
   const [technicalSignatureError, setTechnicalSignatureError] = useState("");
   const [adminApprovalSeenAt, setAdminApprovalSeenAt] = useState(() =>
     getAdminApprovalRecordSeen(getStoredUser())
@@ -456,11 +457,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       deposit_calculation: saved.deposit_calculation || String(TECHNICAL_FIXED_DEPOSIT),
       processing_fee_calculation: saved.processing_fee_calculation || String(TECHNICAL_PROCESSING_FEE),
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
-      digital_signature:
-        getCurrentTechnicalDepartmentReviews(selectedDetail)?.[userDepartment]?.digital_signature ||
-        saved.digital_signature ||
-        selectedDetail?.form_data?.technical_review?.digital_signature ||
-        null,
+      digital_signature: null,
     });
     setTechnicalApplicationTypeSelection(getApplicationTypeOptionsFromApplication(selectedDetail));
     setTechnicalSizeError("");
@@ -1036,9 +1033,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id]);
 
   useEffect(() => {
-    setApprovalSupportSignature(getSavedActionSignatureForDepartment(selectedRecord, userDepartment));
+    setApprovalSupportSignature(null);
     setApprovalSupportSignatureError("");
   }, [selectedRecord?.id, selectedRecord?.updated_at, userDepartment]);
+
+  useEffect(() => {
+    if (!isDepartmentTechnicalWorkspace) return;
+    setDepartmentTechnicalSignature(null);
+    setTechnicalSignatureError("");
+  }, [isDepartmentTechnicalWorkspace, selectedRecord?.id, userDepartment]);
 
   useEffect(() => {
     setMphlgSupportingDocuments(getMphlgSupportingDocuments(selectedRecord));
@@ -2118,7 +2121,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (
       isDepartmentTechnicalWorkspace &&
       action.buildPayload === buildDepartmentTechnicalReviewPayload &&
-      !hasDigitalSignatureContent(technicalSite.digital_signature)
+      !hasDigitalSignatureContent(departmentTechnicalSignature)
     ) {
       setTechnicalSignatureError(
         t("workspace.signature.required", "Digital signature is required.")
@@ -2225,10 +2228,19 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           },
         };
       }
+      const isDepartmentTechnicalReviewSubmit =
+        isDepartmentTechnicalWorkspace &&
+        action.buildPayload === buildDepartmentTechnicalReviewPayload;
+      const submitTechnicalSite = isDepartmentTechnicalReviewSubmit
+        ? {
+            ...technicalSite,
+            digital_signature: departmentTechnicalSignature,
+          }
+        : overrides.technicalSite || technicalSite;
       const body = action.buildPayload(current, {
         decision: actionDecision,
         comment: cleanedComment,
-        technicalSite,
+        technicalSite: submitTechnicalSite,
         department: userDepartment,
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
@@ -3392,13 +3404,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         </div>
                         <ApprovalSupportSignatureBox
                           t={t}
-                          value={technicalSite.digital_signature}
+                          value={departmentTechnicalSignature}
                           error={technicalSignatureError}
                           onChange={(nextSignature) => {
-                            setTechnicalSite((prev) => ({
-                              ...prev,
-                              digital_signature: nextSignature,
-                            }));
+                            setDepartmentTechnicalSignature(nextSignature);
                             if (technicalSignatureError) setTechnicalSignatureError("");
                           }}
                           onError={setTechnicalSignatureError}
@@ -13629,6 +13638,7 @@ function IklWorkspaceSections({
     getTechnicalRecommendationInput(config.technicalActions?.[0]?.decision || "")
   );
   const [technicalDecisionError, setTechnicalDecisionError] = useState("");
+  const [technicalFinalSignature, setTechnicalFinalSignature] = useState(null);
   const technicalSiteSaveTimerRef = useRef(null);
   const latestTechnicalSiteRef = useRef(technicalSite);
   const screeningDecisionInputRef = useRef(null);
@@ -13672,6 +13682,7 @@ function IklWorkspaceSections({
     saving ||
     Boolean(selectedTechnicalAction?.disabled) ||
     technicalDecisionMustWait;
+  const disableTechnicalAutosave = true;
 
   useEffect(() => {
     const hasDecision = screeningDecisionOptions.some(
@@ -13698,11 +13709,10 @@ function IklWorkspaceSections({
       return;
     }
 
-    setScreeningSignature(selectedRecord.form_data?.auto_screening?.digital_signature || null);
+    setScreeningSignature(null);
     setScreeningSignatureError("");
   }, [
     selectedRecord.id,
-    selectedRecord.form_data?.auto_screening?.digital_signature,
     useKuIklDecisionTemplate,
   ]);
 
@@ -13719,11 +13729,10 @@ function IklWorkspaceSections({
       return;
     }
 
-    setKuSignature(selectedRecord.form_data?.technical_ku_review?.digital_signature || null);
+    setKuSignature(null);
     setKuSignatureError("");
   }, [
     selectedRecord.id,
-    selectedRecord.form_data?.technical_ku_review?.digital_signature,
     showKuTechnicalReview,
   ]);
 
@@ -13732,6 +13741,26 @@ function IklWorkspaceSections({
       setKuSignatureError("");
     }
   }, [kuSignatureError, requiresKuTechnicalSignature]);
+
+  useEffect(() => {
+    if (!showTechnicalFinalDecision) {
+      setTechnicalFinalSignature(null);
+      setTechnicalSignatureError("");
+      return;
+    }
+
+    setTechnicalFinalSignature(null);
+    setTechnicalSignatureError("");
+  }, [
+    selectedRecord.id,
+    showTechnicalFinalDecision,
+  ]);
+
+  useEffect(() => {
+    if (!requiresTechnicalFinalSignature && technicalSignatureError) {
+      setTechnicalSignatureError("");
+    }
+  }, [requiresTechnicalFinalSignature, setTechnicalSignatureError, technicalSignatureError]);
 
   useEffect(() => {
     const savedDecision =
@@ -13816,13 +13845,15 @@ function IklWorkspaceSections({
         application_subtype: nextSubtype,
       })
     );
-    saveTechnicalApplicationTypeSelection(nextSelection, nextSubtype, {
-      displayType: nextDisplayType,
-      advertisementType: getTechnicalAdvertisementTypeValue(
-        selectedRecord.form_data?.step_1 || {},
-        nextDisplayType
-      ),
-    });
+    if (!disableTechnicalAutosave) {
+      saveTechnicalApplicationTypeSelection(nextSelection, nextSubtype, {
+        displayType: nextDisplayType,
+        advertisementType: getTechnicalAdvertisementTypeValue(
+          selectedRecord.form_data?.step_1 || {},
+          nextDisplayType
+        ),
+      });
+    }
   }
 
   function handleTechnicalApplicationSubtypeChange(nextSubtype, advertisementMeta = {}) {
@@ -13841,11 +13872,13 @@ function IklWorkspaceSections({
         application_subtype: normalizedSubtype,
       })
     );
-    saveTechnicalApplicationTypeSelection(
-      nextSelection,
-      normalizedSubtype,
-      advertisementMeta
-    );
+    if (!disableTechnicalAutosave) {
+      saveTechnicalApplicationTypeSelection(
+        nextSelection,
+        normalizedSubtype,
+        advertisementMeta
+      );
+    }
   }
 
   function mergeTechnicalSiteWithCurrentSignature(nextSite, fallbackSite = latestTechnicalSiteRef.current) {
@@ -13876,24 +13909,14 @@ function IklWorkspaceSections({
 
     if (technicalSiteSaveTimerRef.current) {
       window.clearTimeout(technicalSiteSaveTimerRef.current);
+      technicalSiteSaveTimerRef.current = null;
     }
+
+    if (disableTechnicalAutosave) return;
 
     technicalSiteSaveTimerRef.current = window.setTimeout(() => {
       saveTechnicalSiteVisitDraft(siteWithSignature);
     }, 600);
-  }
-
-  function handleTechnicalFinalSignatureChange(nextSignature) {
-    const nextSite = {
-      ...latestTechnicalSiteRef.current,
-      digital_signature: nextSignature,
-    };
-    latestTechnicalSiteRef.current = nextSite;
-    setTechnicalSite((prev) => ({
-      ...prev,
-      digital_signature: nextSignature,
-    }));
-    scheduleTechnicalSiteVisitDraftSave(nextSite);
   }
 
   async function handleSitePhotoUpload(files) {
@@ -13929,9 +13952,11 @@ function IklWorkspaceSections({
 
     setTechnicalSite(nextSite);
     latestTechnicalSiteRef.current = nextSite;
-    saveTechnicalSiteVisitDraft({
-      ...nextSite,
-    });
+    if (!disableTechnicalAutosave) {
+      saveTechnicalSiteVisitDraft({
+        ...nextSite,
+      });
+    }
   }
 
   function submitKuTechnicalReview() {
@@ -13991,7 +14016,7 @@ function IklWorkspaceSections({
 
     if (
       requiresTechnicalFinalSignature &&
-      !hasDigitalSignatureContent(technicalSite.digital_signature)
+      !hasDigitalSignatureContent(technicalFinalSignature)
     ) {
       setTechnicalSignatureError(
         t("workspace.signature.required", "Digital signature is required.")
@@ -14002,6 +14027,10 @@ function IklWorkspaceSections({
     submitAction(selectedTechnicalAction, {
       comment: technicalSite.site_remarks,
       checkDecisionRemark: true,
+      technicalSite: {
+        ...technicalSite,
+        digital_signature: requiresTechnicalFinalSignature ? technicalFinalSignature : null,
+      },
     });
   }
 
@@ -14376,10 +14405,10 @@ function IklWorkspaceSections({
               {requiresTechnicalFinalSignature && (
                 <ApprovalSupportSignatureBox
                   t={t}
-                  value={technicalSite.digital_signature}
+                  value={technicalFinalSignature}
                   error={technicalSignatureError}
                   onChange={(nextSignature) => {
-                    handleTechnicalFinalSignatureChange(nextSignature);
+                    setTechnicalFinalSignature(nextSignature);
                     if (technicalSignatureError) setTechnicalSignatureError("");
                   }}
                   onError={setTechnicalSignatureError}
