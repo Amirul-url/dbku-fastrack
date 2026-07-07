@@ -342,6 +342,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     digital_signature: null,
   });
   const technicalSiteRef = useRef(technicalSite);
+  const technicalSiteDetailIdRef = useRef(null);
 
   useEffect(() => {
     technicalSiteRef.current = technicalSite;
@@ -419,6 +420,26 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       selectedDetail,
       saved.cycle_id || selectedDetail?.form_data?.technical_review_cycle
     );
+    const canPreserveLocalTechnicalSite =
+      userDepartment === "IKL (TECHNICAL)" &&
+      String(technicalSiteDetailIdRef.current || "") === String(selectedDetail?.id || "");
+    const localTechnicalSite = canPreserveLocalTechnicalSite
+      ? technicalSiteRef.current || {}
+      : {};
+    const localPendingPhotos =
+      userDepartment === "IKL (TECHNICAL)"
+        ? (technicalSiteRef.current?.site_photos || []).filter(
+            (photo) =>
+              photo?.localPending &&
+              String(photo.application_id || photo.applicationId || "") === String(selectedDetail?.id || "")
+          )
+        : [];
+    const nextSitePhotos = [
+      ...currentPhotos,
+      ...localPendingPhotos.filter(
+        (photo) => !currentPhotos.some((currentPhoto) => currentPhoto?.id && currentPhoto.id === photo.id)
+      ),
+    ];
     const feeItems = normalizeTechnicalFeeItems(saved.fee_items);
     const feeTotals = getTechnicalFeeTotals(feeItems);
     const applicationSubtype = getApplicationSubtypeFromApplication(selectedDetail);
@@ -434,12 +455,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       ...preparedSite,
       application_subtype: applicationSubtype,
     });
-    setTechnicalSite({
+    const nextTechnicalSite = {
       ...preparedSite,
       application_subtype: applicationSubtype,
       fee_schedule_key: saved.fee_schedule_key || calculatedFees.scheduleKey || "",
       fee_schedule_no: saved.fee_schedule_no || calculatedFees.scheduleNumber || "",
-      site_photos: currentPhotos,
+      site_photos: nextSitePhotos,
       fee_date: saved.fee_date || new Date().toISOString().slice(0, 10),
       fee_items: feeItems,
       advertisement_rows: preparedSite.advertisement_rows || [],
@@ -458,7 +479,40 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       processing_fee_calculation: saved.processing_fee_calculation || String(TECHNICAL_PROCESSING_FEE),
       site_remarks: saved.site_remarks || saved.site_photo_note || "",
       digital_signature: null,
-    });
+    };
+    const preserveLocalValue = (field) =>
+      Object.prototype.hasOwnProperty.call(localTechnicalSite, field)
+        ? localTechnicalSite[field]
+        : nextTechnicalSite[field];
+    setTechnicalSite(
+      canPreserveLocalTechnicalSite
+        ? {
+            ...nextTechnicalSite,
+            application_subtype: preserveLocalValue("application_subtype"),
+            fee_schedule_key: preserveLocalValue("fee_schedule_key"),
+            fee_schedule_no: preserveLocalValue("fee_schedule_no"),
+            site_photos: nextSitePhotos,
+            fee_date: preserveLocalValue("fee_date"),
+            fee_items: preserveLocalValue("fee_items"),
+            advertisement_rows: preserveLocalValue("advertisement_rows"),
+            width_ft: preserveLocalValue("width_ft"),
+            height_ft: preserveLocalValue("height_ft"),
+            area_sqft: preserveLocalValue("area_sqft"),
+            area_sqm: preserveLocalValue("area_sqm"),
+            chargeable_area_sqm: preserveLocalValue("chargeable_area_sqm"),
+            first_area_fee: preserveLocalValue("first_area_fee"),
+            additional_area_sqm: preserveLocalValue("additional_area_sqm"),
+            additional_area_fee: preserveLocalValue("additional_area_fee"),
+            fee_total: preserveLocalValue("fee_total"),
+            payable_total: preserveLocalValue("payable_total"),
+            license_fee_calculation: preserveLocalValue("license_fee_calculation"),
+            deposit_calculation: preserveLocalValue("deposit_calculation"),
+            processing_fee_calculation: preserveLocalValue("processing_fee_calculation"),
+            site_remarks: preserveLocalValue("site_remarks"),
+          }
+        : nextTechnicalSite
+    );
+    technicalSiteDetailIdRef.current = selectedDetail?.id || null;
     setTechnicalApplicationTypeSelection(getApplicationTypeOptionsFromApplication(selectedDetail));
     setTechnicalSizeError("");
     setTechnicalSignatureError("");
@@ -7338,8 +7392,8 @@ function buildDecisionLogTechnicalReportSnapshotHtml(report, language = "en") {
         .map((row) =>
           calculateTechnicalFee({
             application_subtype: row.subtype,
-            width_ft: row.width_ft || row.widthFt || "",
-            height_ft: row.height_ft || row.heightFt || "",
+            width_ft: getTechnicalInputValue(row.width_ft, row.widthFt),
+            height_ft: getTechnicalInputValue(row.height_ft, row.heightFt),
             area_sqm: row.area_sqm || row.areaSqm || row.areaRequired || row.area_required || "",
           }).scheduleNumber
         )
@@ -7502,8 +7556,8 @@ function buildDecisionLogTechnicalFeeRowHtml(row, index, language = "en") {
     language
   );
   const labels = getDecisionLogTechnicalLabels(language);
-  const widthValue = row.width_ft || row.widthFt || "";
-  const heightValue = row.height_ft || row.heightFt || "";
+  const widthValue = getTechnicalInputValue(row.width_ft, row.widthFt);
+  const heightValue = getTechnicalInputValue(row.height_ft, row.heightFt);
   const fee = calculateTechnicalFee({
     application_subtype: row.subtype,
     width_ft: widthValue,
@@ -11412,6 +11466,11 @@ function formatTechnicalAmountInput(value) {
     : "";
 }
 
+function getTechnicalInputValue(...values) {
+  const value = values.find((item) => item !== undefined && item !== null);
+  return value === undefined ? "" : value;
+}
+
 function mergeTechnicalFeeCalculation(site = {}) {
   const fees = calculateTechnicalFee(site);
   return {
@@ -11473,8 +11532,8 @@ function calculateTechnicalFeeRows(rows = []) {
     const applicationSubtype = row.subtype || "";
     const fees = calculateTechnicalFee({
       application_subtype: applicationSubtype,
-      width_ft: row.width_ft || row.widthFt || "",
-      height_ft: row.height_ft || row.heightFt || "",
+      width_ft: getTechnicalInputValue(row.width_ft, row.widthFt),
+      height_ft: getTechnicalInputValue(row.height_ft, row.heightFt),
       area_sqm: "",
     });
 
@@ -11500,6 +11559,7 @@ function calculateTechnicalFeeRows(rows = []) {
 function mergeTechnicalFeeRowsCalculation(site = {}) {
   const calculatedRows = calculateTechnicalFeeRows(getTechnicalFeeRowsFromSite(site));
   const primaryRow = calculatedRows[0] || {};
+  const hasCalculatedRows = calculatedRows.length > 0;
   const totals = calculatedRows.reduce(
     (sum, row) => ({
       feeTotal: sum.feeTotal + parseTechnicalNumber(row.fee_total),
@@ -11514,8 +11574,8 @@ function mergeTechnicalFeeRowsCalculation(site = {}) {
     application_subtype: site.application_subtype || primaryRow.subtype || primaryRow.application_subtype || "",
     fee_schedule_key: primaryRow.fee_schedule_key || site.fee_schedule_key || "",
     fee_schedule_no: primaryRow.fee_schedule_no || site.fee_schedule_no || "",
-    width_ft: primaryRow.width_ft || primaryRow.widthFt || site.width_ft || "",
-    height_ft: primaryRow.height_ft || primaryRow.heightFt || site.height_ft || "",
+    width_ft: getTechnicalInputValue(primaryRow.width_ft, primaryRow.widthFt, site.width_ft),
+    height_ft: getTechnicalInputValue(primaryRow.height_ft, primaryRow.heightFt, site.height_ft),
     area_sqft: primaryRow.area_sqft || site.area_sqft || "",
     area_sqm: primaryRow.area_sqm || site.area_sqm || "",
     chargeable_area_sqm: primaryRow.chargeable_area_sqm || site.chargeable_area_sqm || "",
@@ -11523,9 +11583,9 @@ function mergeTechnicalFeeRowsCalculation(site = {}) {
     first_area_fee: primaryRow.first_area_fee || site.first_area_fee || "",
     additional_area_sqm: primaryRow.additional_area_sqm || site.additional_area_sqm || "0",
     additional_area_fee: primaryRow.additional_area_fee || site.additional_area_fee || "0",
-    fee_total: totals.feeTotal ? String(totals.feeTotal) : site.fee_total || "",
-    payable_total: totals.payableTotal ? String(totals.payableTotal) : site.payable_total || "",
-    license_fee_calculation: totals.feeTotal ? String(totals.feeTotal) : site.license_fee_calculation || "",
+    fee_total: totals.feeTotal ? String(totals.feeTotal) : hasCalculatedRows ? "" : site.fee_total || "",
+    payable_total: totals.payableTotal ? String(totals.payableTotal) : hasCalculatedRows ? "" : site.payable_total || "",
+    license_fee_calculation: totals.feeTotal ? String(totals.feeTotal) : hasCalculatedRows ? "" : site.license_fee_calculation || "",
     deposit_calculation: String(TECHNICAL_FIXED_DEPOSIT),
     processing_fee_calculation: String(TECHNICAL_PROCESSING_FEE),
   };
@@ -12354,8 +12414,8 @@ function getTechnicalFeeRowsFromApplication(app, savedRows = []) {
 
     return {
       ...normalized,
-      width_ft: row.width_ft || row.widthFt || row.width || row.width_ft_value || "",
-      height_ft: row.height_ft || row.heightFt || row.height || row.height_ft_value || "",
+      width_ft: getTechnicalInputValue(row.width_ft, row.widthFt, row.width, row.width_ft_value),
+      height_ft: getTechnicalInputValue(row.height_ft, row.heightFt, row.height, row.height_ft_value),
       area_sqm:
         row.area_sqm ||
         row.areaSqm ||
@@ -13663,6 +13723,7 @@ function IklWorkspaceSections({
   );
   const [technicalDecisionError, setTechnicalDecisionError] = useState("");
   const [technicalFinalSignature, setTechnicalFinalSignature] = useState(null);
+  const technicalDecisionRecordIdRef = useRef(null);
   const technicalSiteSaveTimerRef = useRef(null);
   const latestTechnicalSiteRef = useRef(technicalSite);
   const screeningDecisionInputRef = useRef(null);
@@ -13767,18 +13828,9 @@ function IklWorkspaceSections({
   }, [kuSignatureError, requiresKuTechnicalSignature]);
 
   useEffect(() => {
-    if (!showTechnicalFinalDecision) {
-      setTechnicalFinalSignature(null);
-      setTechnicalSignatureError("");
-      return;
-    }
-
     setTechnicalFinalSignature(null);
     setTechnicalSignatureError("");
-  }, [
-    selectedRecord.id,
-    showTechnicalFinalDecision,
-  ]);
+  }, [selectedRecord.id]);
 
   useEffect(() => {
     if (!requiresTechnicalFinalSignature && technicalSignatureError) {
@@ -13787,6 +13839,8 @@ function IklWorkspaceSections({
   }, [requiresTechnicalFinalSignature, setTechnicalSignatureError, technicalSignatureError]);
 
   useEffect(() => {
+    if (technicalDecisionRecordIdRef.current === selectedRecord.id) return;
+    technicalDecisionRecordIdRef.current = selectedRecord.id;
     const savedDecision =
       selectedRecord.form_data?.technical_review?.final_decision ||
       selectedRecord.form_data?.technical_review?.decision ||
@@ -13955,7 +14009,10 @@ function IklWorkspaceSections({
       latestTechnicalSiteRef.current.cycle_id ||
       selectedRecord.form_data?.technical_review_cycle ||
       "";
-    const cyclePhotos = await createLocalTechnicalSitePhotos(fileList, cycleId);
+    const cyclePhotos = (await createLocalTechnicalSitePhotos(fileList, cycleId)).map((photo) => ({
+      ...photo,
+      application_id: selectedRecord.id,
+    }));
 
     if (technicalSiteSaveTimerRef.current) {
       window.clearTimeout(technicalSiteSaveTimerRef.current);
@@ -14418,6 +14475,7 @@ function IklWorkspaceSections({
 
               {requiresTechnicalFinalSignature && (
                 <ApprovalSupportSignatureBox
+                  key={`ikl-technical-final-signature-${selectedRecord.id}`}
                   t={t}
                   value={technicalFinalSignature}
                   error={technicalSignatureError}
@@ -15920,8 +15978,8 @@ function TechnicalSiteVisitFields({
         if (index !== rowIndex) return row;
         const nextRow = { ...row, [field]: nextValue };
         const hasCompleteSize =
-          parseTechnicalNumber(nextRow.width_ft || nextRow.widthFt) > 0 &&
-          parseTechnicalNumber(nextRow.height_ft || nextRow.heightFt) > 0;
+          parseTechnicalNumber(getTechnicalInputValue(nextRow.width_ft, nextRow.widthFt)) > 0 &&
+          parseTechnicalNumber(getTechnicalInputValue(nextRow.height_ft, nextRow.heightFt)) > 0;
 
         if (hasCompleteSize) return nextRow;
 
@@ -16086,8 +16144,8 @@ function TechnicalFeeCalculationSheet({
         .map((row) =>
           calculateTechnicalFee({
             application_subtype: row.subtype,
-            width_ft: row.width_ft || row.widthFt || "",
-            height_ft: row.height_ft || row.heightFt || "",
+            width_ft: getTechnicalInputValue(row.width_ft, row.widthFt),
+            height_ft: getTechnicalInputValue(row.height_ft, row.heightFt),
             area_sqm: row.area_sqm || row.areaSqm || row.areaRequired || row.area_required || "",
           }).scheduleNumber
         )
@@ -16217,12 +16275,12 @@ function TechnicalFeeCalculationRow({
   );
   const fee = calculateTechnicalFee({
     application_subtype: row.subtype,
-    width_ft: row.width_ft || row.widthFt || "",
-    height_ft: row.height_ft || row.heightFt || "",
+    width_ft: getTechnicalInputValue(row.width_ft, row.widthFt),
+    height_ft: getTechnicalInputValue(row.height_ft, row.heightFt),
     area_sqm: "",
   });
-  const widthValue = row.width_ft || row.widthFt || "";
-  const heightValue = row.height_ft || row.heightFt || "";
+  const widthValue = getTechnicalInputValue(row.width_ft, row.widthFt);
+  const heightValue = getTechnicalInputValue(row.height_ft, row.heightFt);
   const hasCompleteSize = parseTechnicalNumber(widthValue) > 0 && parseTechnicalNumber(heightValue) > 0;
   const areaValue = hasCompleteSize ? fee.areaSqm : 0;
   const totalPayable = hasCompleteSize && fee.feeTotal ? fee.totalPayable : 0;
@@ -16306,8 +16364,8 @@ function ReadOnlyCalculationInput({ label, value }) {
 }
 
 function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
-  const width = parseTechnicalNumber(row.width_ft || row.widthFt);
-  const height = parseTechnicalNumber(row.height_ft || row.heightFt);
+  const width = parseTechnicalNumber(getTechnicalInputValue(row.width_ft, row.widthFt));
+  const height = parseTechnicalNumber(getTechnicalInputValue(row.height_ft, row.heightFt));
   const hasCompleteSize = width > 0 && height > 0;
   const areaSqft = hasCompleteSize ? width * height : 0;
   const areaSqm = hasCompleteSize ? fee.areaSqm : 0;
