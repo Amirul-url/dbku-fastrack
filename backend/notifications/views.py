@@ -31,7 +31,6 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
             if department == "PT(IKL)":
                 allowed_event_statuses = {
                     "approved",
-                    "payment_submitted",
                     "payment_verified",
                     "license_revocation_requested",
                     "license_revocation_withdrawn",
@@ -58,6 +57,12 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
             elif department in {"KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
                 allowed_event_statuses = {"management_review", "approved"}
+                if department == "FIN":
+                    allowed_event_statuses = {
+                        "management_review",
+                        "approved",
+                        "payment_submitted",
+                    }
                 if department == "KB(LES)":
                     allowed_event_statuses = {
                         "management_review",

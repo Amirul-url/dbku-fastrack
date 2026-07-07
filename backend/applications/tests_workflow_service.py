@@ -86,6 +86,46 @@ class ApplicationWorkflowServiceTests(SimpleTestCase):
             {"status": "payment_submitted", "form_data": {"payment": {"receipt_reference": "R1"}}},
         )
 
+    def test_only_fin_can_verify_or_reject_payment_receipt(self):
+        ensure_staff_can_update_workflow(
+            application("payment_submitted"),
+            user("admin", "FIN"),
+            {"status": "payment_verified"},
+        )
+        ensure_staff_can_update_workflow(
+            application("payment_submitted"),
+            user("admin", "FIN"),
+            {"status": "invoice_generated"},
+        )
+
+        with self.assertRaises(PermissionDenied):
+            ensure_staff_can_update_workflow(
+                application("payment_submitted"),
+                user("admin", "PT(IKL)"),
+                {"status": "payment_verified"},
+            )
+
+        with self.assertRaises(PermissionDenied):
+            ensure_staff_can_update_workflow(
+                application("payment_submitted"),
+                user("admin", "PT(IKL)"),
+                {"status": "invoice_generated"},
+            )
+
+    def test_only_pt_ikl_can_issue_license_after_payment_verified(self):
+        ensure_staff_can_update_workflow(
+            application("payment_verified"),
+            user("admin", "PT(IKL)"),
+            {"status": "license_issued"},
+        )
+
+        with self.assertRaises(PermissionDenied):
+            ensure_staff_can_update_workflow(
+                application("payment_verified"),
+                user("admin", "FIN"),
+                {"status": "license_issued"},
+            )
+
     def test_applicant_can_request_license_revocation_after_license_issued(self):
         ensure_applicant_can_update(
             application("license_issued"),

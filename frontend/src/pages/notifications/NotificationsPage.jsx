@@ -1384,11 +1384,11 @@ function getWorkflowMemoCopy(status, reference, isMalay) {
     payment_submitted: {
       en: {
         subject: "Payment proof submitted",
-        lines: [`Applicant has uploaded payment proof for application ${reference}. Please verify the receipt.`],
+        lines: [`Applicant has uploaded payment proof for application ${reference}. FIN must verify the receipt.`],
       },
       ms: {
         subject: "Bukti bayaran dihantar",
-        lines: [`Pemohon telah memuat naik bukti bayaran untuk permohonan ${reference}. Sila sahkan resit tersebut.`],
+        lines: [`Pemohon telah memuat naik bukti bayaran untuk permohonan ${reference}. FIN perlu mengesahkan resit tersebut.`],
       },
     },
     payment_verified: {

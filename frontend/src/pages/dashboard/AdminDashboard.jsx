@@ -124,7 +124,6 @@ const units = [
       "incomplete",
       "approved",
       "bill_pending_ku",
-      "payment_submitted",
       "payment_verified",
     ],
     historyStatuses: IKL_HISTORY_STATUSES,
@@ -261,7 +260,7 @@ const units = [
     descriptionKey: "admin.unit.fin.desc",
     icon: "account_balance_wallet",
     color: "bg-rose-600",
-    statuses: ["management_review"],
+    statuses: ["management_review", "payment_submitted"],
     historyStatuses: APPROVAL_HISTORY_STATUSES,
     path: "/admin/approval",
   },
@@ -2709,7 +2708,7 @@ function getPaymentReceiptDecisionLogValue(payment = {}) {
   const result = String(payment.verification_result || "").trim().toLowerCase();
 
   if (result === "valid" || status === "payment verified") {
-    return "Verify Receipt";
+    return "Approve Receipt";
   }
 
   if (
@@ -4464,6 +4463,10 @@ function isApprovalPersonalTaskForDepartment(application, department) {
     return status === "management_review" && !isKbLesVerified(application);
   }
 
+  if (department === "FIN" && status === "payment_submitted") {
+    return true;
+  }
+
   if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
     return (
       status === "management_review" &&
@@ -4493,9 +4496,17 @@ function getAdminTaskWorkspacePath(application, unit) {
   const status = normalizeStatus(application?.status);
 
   if (unit?.department === "PT(IKL)") {
-    if (["approved", "payment_submitted", "payment_verified"].includes(status)) {
+    if (["approved", "bill_pending_ku"].includes(status)) {
       return "/admin/e-licenses/payment";
     }
+
+    if (status === "payment_verified") {
+      return "/admin/e-licenses/license";
+    }
+  }
+
+  if (unit?.department === "FIN" && status === "payment_submitted") {
+    return "/admin/e-licenses/payment";
   }
 
   return unit?.path || "/dashboard/admin";

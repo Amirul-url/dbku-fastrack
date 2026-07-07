@@ -527,7 +527,11 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
     return department === "PT(IKL)";
   }
 
-  if (["payment_submitted", "payment_verified"].includes(normalizedStatus)) {
+  if (normalizedStatus === "payment_submitted") {
+    return department === "FIN";
+  }
+
+  if (normalizedStatus === "payment_verified") {
     return department === "PT(IKL)";
   }
 
@@ -940,8 +944,8 @@ function buildAdminNotifications(app, user) {
         "warning",
         "Payment proof submitted",
         "Bukti bayaran dihantar",
-        `${reference} has uploaded payment proof for PT(IKL) verification.`,
-        `${reference} telah memuat naik bukti bayaran untuk pengesahan PT(IKL).`,
+        `${reference} has uploaded payment proof for FIN verification.`,
+        `${reference} telah memuat naik bukti bayaran untuk pengesahan FIN.`,
         user
       )
     );

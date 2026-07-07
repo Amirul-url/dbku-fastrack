@@ -692,6 +692,7 @@ class NotificationRoutingTests(TestCase):
             "IKL (TECHNICAL)",
             "KB(LES)",
             "TP(RES)",
+            "FIN",
             "MPHLG",
             "SUT",
         ]
@@ -766,7 +767,7 @@ class NotificationRoutingTests(TestCase):
             ("mphlg_decision_received", "mphlg_processing", {}, ["SUT"]),
             ("approved", "management_review", {}, ["PT(IKL)"]),
             ("bill_pending_ku", "approved", {}, ["PT(IKL)"]),
-            ("payment_submitted", "invoice_generated", {}, ["PT(IKL)"]),
+            ("payment_submitted", "invoice_generated", {}, ["FIN"]),
             ("payment_verified", "payment_submitted", {}, ["PT(IKL)"]),
         ]
 

@@ -857,7 +857,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
     config.key === "payment" &&
-    userDepartment === "PT(IKL)" &&
+    userDepartment === "FIN" &&
     normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
     workspaceActions.some((action) => action.requiresSubmittedReceipt);
   const showPaymentDocumentDecision =
@@ -924,8 +924,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     (!selectedPaymentReceiptAction.requiresLicenseDocument ||
       getPaymentDocumentSource(selectedRecord?.form_data?.license?.license_file))
   );
-  const requiresPaymentReceiptSignature =
-    showPaymentReceiptDecision && selectedPaymentReceiptAction?.label === "Verify Receipt";
+  const requiresPaymentReceiptSignature = false;
   const selectedPaymentReceiptActionRequirementsReady =
     !selectedPaymentReceiptAction ||
     (selectedPaymentReceiptActionReady &&
@@ -2094,9 +2093,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       });
       setApplicationAmendmentModal(createClosedApplicationAmendmentModalState());
       setApplicationApprovedModal(createClosedApplicationApprovedModalState());
-      const shouldShowLicenseIssuedSuccess =
-        action.key === "issue_license" ||
-        (action.requiresSubmittedReceipt && /^verify receipt$/i.test(String(action.label || actionDecision || "")));
+      const shouldShowLicenseIssuedSuccess = action.key === "issue_license";
 
       if (action.key === "issue_license") {
         if (manualLicenseDraftTimerRef.current) {
@@ -3623,14 +3620,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           }}
                           disabled={saving}
                           variant="primary"
-                          icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "qr_code_2"}
+                          icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "verified"}
                           className="min-w-40"
                         >
                           {saving
                             ? t("workspace.saving")
                             : selectedPaymentReceiptAction?.label === "Reject Receipt"
                               ? t("common.submit", "Submit")
-                              : t("workspace.action.issueLicense", "Issue License")}
+                              : t(selectedPaymentReceiptAction?.labelKey, selectedPaymentReceiptAction?.label || "Submit")}
                         </Button>
                       ) : canSubmitWorkspaceAction && showApprovalDecisionButtons ? (
                         <>
@@ -9599,10 +9596,14 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
   if (config?.key === "payment") {
     if (userDepartment === "PT(IKL)") {
       if (normalizeStatus(selectedRecord?.status) === "payment_submitted") {
-        return t("workspace.payment.ptReceiptAction", "Review the uploaded receipt, then verify or reject it.");
+        return t("workspace.payment.ptReceiptAction", "The uploaded receipt is awaiting FIN verification.");
       }
 
-      return t("workspace.payment.ptAction", "Prepare the approval letter, send it to the applicant, then verify uploaded payment proof.");
+      return t("workspace.payment.ptAction", "Prepare the approval letter and bill, then send them to the applicant for payment.");
+    }
+
+    if (userDepartment === "FIN") {
+      return t("workspace.payment.finReceiptAction", "Review the uploaded receipt, then approve or reject it.");
     }
 
     return "";
@@ -10061,8 +10062,12 @@ function getPaymentActionUnavailableMessage(app, department) {
 
   if (
     department === "PT(IKL)" &&
-    ["approved", "bill_pending_ku", "payment_submitted"].includes(status)
+    ["approved", "bill_pending_ku"].includes(status)
   ) {
+    return "";
+  }
+
+  if (department === "FIN" && status === "payment_submitted") {
     return "";
   }
 
@@ -10075,7 +10080,7 @@ function getPaymentActionUnavailableMessage(app, department) {
   }
 
   if (department === "KU(IKL)" && status === "payment_submitted") {
-    return "The payment receipt has been submitted and is awaiting PT(IKL) verification.";
+    return "The payment receipt has been submitted and is awaiting FIN verification.";
   }
 
   if (department === "KU(IKL)" && status === "payment_verified") {
@@ -10091,7 +10096,11 @@ function getPaymentActionUnavailableMessage(app, department) {
   }
 
   if (department === "PT(IKL)" && status === "payment_verified") {
-    return "Payment is verified. The record is available for reference.";
+    return "Payment is verified. Continue in Advertisement License / QR to issue the license.";
+  }
+
+  if (department === "FIN" && status === "payment_verified") {
+    return "Payment is verified and the record is now waiting for PT(IKL) license issuance.";
   }
 
   if (department === "KU(IKL)") {
@@ -10658,7 +10667,7 @@ function getWorkspacePaymentReceiptDecisionLogValue(payment = {}) {
   const result = String(payment.verification_result || "").trim().toLowerCase();
 
   if (result === "valid" || status === "payment verified") {
-    return "Verify Receipt";
+    return "Approve Receipt";
   }
 
   if (
@@ -12271,11 +12280,12 @@ function getWorkspaceStatusScope(config, department) {
         "approved",
         "bill_pending_ku",
         "invoice_generated",
-        "payment_submitted",
-        "payment_verified",
       ];
     }
 
+    if (department === "FIN") {
+      return ["payment_submitted"];
+    }
   }
 
   if (config?.key === "approval") {
@@ -12614,7 +12624,7 @@ const configs = {
   },
   payment: {
     key: "payment",
-    allowedDepartments: ["PT(IKL)"],
+    allowedDepartments: ["PT(IKL)", "FIN"],
     statuses: ["approved", "bill_pending_ku", "invoice_generated", "payment_submitted", "payment_verified"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.payment.listEyebrow",
@@ -12626,11 +12636,11 @@ const configs = {
     eyebrowKey: "workspace.payment.eyebrow",
     title: "Bill and Payment",
     titleKey: "workspace.payment.title",
-    description: "PT(IKL) prepares approval letters, the applicant uploads payment proof, and PT(IKL) verifies the receipt.",
+    description: "PT(IKL) prepares approval letters and bills. FIN verifies uploaded payment receipts before PT(IKL) issues the license.",
     descriptionKey: "workspace.payment.description",
     queueTitle: "Payment Queue",
     queueTitleKey: "workspace.payment.queue",
-    actionDescription: "Prepare an approval letter, send it to the applicant, then verify whether the uploaded receipt is valid.",
+    actionDescription: "Prepare the approval letter and bill, or verify the uploaded payment receipt when it is assigned to FIN.",
     actionDescriptionKey: "workspace.payment.action",
     showComment: true,
     commentLabel: "Receipt Verification Notes",
@@ -12705,123 +12715,33 @@ const configs = {
         },
       },
       {
-        label: "Verify Receipt",
+        label: "Approve Receipt",
         labelKey: "workspace.action.verifyPayment",
         icon: "verified",
-        success: "Payment verified and e-license issued.",
+        success: "Receipt approved. PT(IKL) can issue the license.",
         successKey: "workspace.message.paymentVerified",
         requiresComment: true,
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
-        requiresPaymentDocuments: true,
         isAvailable: (app, department) =>
-          department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
+          department === "FIN" && normalizeStatus(app?.status) === "payment_submitted",
         buildPayload: (app, data) => {
-          const translate = data?.t || ((key, fallback) => fallback || key);
-          const now = new Date();
-          const timestamp = now.toISOString();
-          const savedApprovalLetter = app.form_data?.approval_letter || {};
-          const savedLicense = app.form_data?.license || {};
-          const validityYears = Number(savedLicense.validity_years) || 1;
-          const issueDate = parseDateOrFallback(savedLicense.issue_date, now);
-          const expiryDate = parseDateOrFallback(
-            savedLicense.expiry_date,
-            addCalendarYears(issueDate, validityYears)
-          );
-          const licenseId = savedLicense.license_id || getLicenseId(app);
-          const officialReceiptNo = getGeneratedOfficialReceiptNumber(app);
-          const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
-          const savedManualLicense = savedLicense.manual_license || {};
-          const { manual_license: _oldManualLicense, ...savedLicenseWithoutManualTemplate } =
-            savedLicense || {};
-          const nextLicenseBase = {
-            ...savedLicenseWithoutManualTemplate,
-            creation_mode: "generated",
-            license_file: null,
-            license_id: licenseId,
-            status: "Active",
-            holder: getApplicantName(app),
-            type: getApplicationType(app),
-            location: getApplicationLocation(app),
-            issue_date: issueDate.toISOString(),
-            expiry_date: expiryDate.toISOString(),
-            validity_years: validityYears,
-            verification_url: getLicenseVerificationUrl(licenseId),
-            issued_at: timestamp,
-            renewal_reminders: [
-              { months_before_expiry: 3, status: "Scheduled" },
-              { months_before_expiry: 2, status: "Scheduled" },
-              { months_before_expiry: 1, status: "Scheduled" },
-            ],
-          };
-          const documentApp = {
-            ...app,
-            form_data: {
-              ...(app.form_data || {}),
-              approval_letter: {
-                ...savedApprovalLetter,
-                manual_receipt: {
-                  ...savedManualReceipt,
-                  receipt_no: officialReceiptNo,
-                },
-              },
-              payment: {
-                ...(app.form_data?.payment || {}),
-                official_receipt_no: officialReceiptNo,
-              },
-              license: nextLicenseBase,
-            },
-          };
-          const receiptDocumentHtml =
-            savedManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
-          const licenseDocumentHtml =
-            savedManualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(documentApp, translate);
+          const timestamp = new Date().toISOString();
 
           return {
-            status: "license_issued",
+            status: "payment_verified",
             latest_remark: "",
             form_data: mergeFormData(app, {
-              approval_letter: {
-                ...savedApprovalLetter,
-                official_receipt_file: null,
-                manual_receipt: {
-                  ...savedManualReceipt,
-                  template: "dbku_official_receipt_acc_3_88_v1",
-                  name: "Official Receipt",
-                  receipt_no: officialReceiptNo,
-                  document_html: receiptDocumentHtml,
-                  status: "Sent to Applicant",
-                  generated_by: "PT(IKL)",
-                  generated_at: timestamp,
-                  saved_at: timestamp,
-                  sent_at: timestamp,
-                },
-              },
               payment: {
                 ...(app.form_data?.payment || {}),
-                official_receipt_no: officialReceiptNo,
                 status: "Payment Verified",
-                recommendation: "Verify Receipt",
-                receipt_decision: "Verify Receipt",
+                recommendation: "Approve Receipt",
+                receipt_decision: "Approve Receipt",
                 verification_result: "Valid",
                 verification_notes: "",
                 internal_verification_notes: data.comment,
-                digital_signature: data.approvalSupportSignature || app.form_data?.payment?.digital_signature || null,
+                verified_by: "FIN",
                 verified_at: timestamp,
-              },
-              license: {
-                ...nextLicenseBase,
-                manual_license: {
-                  ...savedManualLicense,
-                  template: "dbku_advertisement_license_borang_b_v1",
-                  name: translate("workspace.license.documentTitle", "Advertisement License"),
-                  document_html: licenseDocumentHtml,
-                  status: "Sent to Applicant",
-                  generated_by: "PT(IKL)",
-                  generated_at: timestamp,
-                  saved_at: timestamp,
-                  sent_at: timestamp,
-                },
               },
             }),
           };
@@ -12837,7 +12757,7 @@ const configs = {
         requiresReceipt: true,
         requiresSubmittedReceipt: true,
         isAvailable: (app, department) =>
-          department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_submitted",
+          department === "FIN" && normalizeStatus(app?.status) === "payment_submitted",
         success: "Receipt rejected. Applicant can upload a new receipt.",
         successKey: "workspace.message.receiptRejected",
         buildPayload: (app, data) => ({
@@ -12962,40 +12882,109 @@ const configs = {
         icon: "qr_code_2",
         success: "E-license issued.",
         successKey: "workspace.message.licenseIssued",
-        requiresLicenseDocument: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "payment_verified",
         buildPayload: (app, data) => {
+          const translate = data?.t || ((key, fallback) => fallback || key);
           const today = new Date();
+          const timestamp = today.toISOString();
           const validityYears = Number(data?.licenseExpiryYears) || 1;
+          const savedApprovalLetter = app.form_data?.approval_letter || {};
+          const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
           const savedLicense = app.form_data?.license || {};
+          const savedManualLicense = savedLicense.manual_license || {};
+          const { manual_license: _oldManualLicense, ...savedLicenseWithoutManualTemplate } =
+            savedLicense || {};
           const issueDate = parseDateOrFallback(savedLicense.issue_date, today);
           const expiry = parseDateOrFallback(
             savedLicense.expiry_date,
             addCalendarYears(issueDate, validityYears)
           );
-          const licenseId = getLicenseId(app);
+          const licenseId = savedLicense.license_id || getLicenseId(app);
+          const officialReceiptNo =
+            app.form_data?.payment?.official_receipt_no ||
+            savedManualReceipt.receipt_no ||
+            getGeneratedOfficialReceiptNumber(app);
+          const nextLicenseBase = {
+            ...savedLicenseWithoutManualTemplate,
+            creation_mode: "generated",
+            license_file: savedLicense.license_file || null,
+            license_id: licenseId,
+            status: "Active",
+            holder: getApplicantName(app),
+            type: getApplicationType(app),
+            location: getApplicationLocation(app),
+            issue_date: issueDate.toISOString(),
+            expiry_date: expiry.toISOString(),
+            validity_years: validityYears,
+            verification_url: getLicenseVerificationUrl(licenseId),
+            issued_at: timestamp,
+            renewal_reminders: [
+              { months_before_expiry: 3, status: "Scheduled" },
+              { months_before_expiry: 2, status: "Scheduled" },
+              { months_before_expiry: 1, status: "Scheduled" },
+            ],
+          };
+          const documentApp = {
+            ...app,
+            form_data: {
+              ...(app.form_data || {}),
+              approval_letter: {
+                ...savedApprovalLetter,
+                manual_receipt: {
+                  ...savedManualReceipt,
+                  receipt_no: officialReceiptNo,
+                },
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                official_receipt_no: officialReceiptNo,
+              },
+              license: nextLicenseBase,
+            },
+          };
+          const receiptDocumentHtml =
+            savedManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+          const licenseDocumentHtml =
+            savedManualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(documentApp, translate);
+
           return {
             status: "license_issued",
             form_data: mergeFormData(app, {
+              approval_letter: {
+                ...savedApprovalLetter,
+                official_receipt_file: savedApprovalLetter.official_receipt_file || null,
+                manual_receipt: {
+                  ...savedManualReceipt,
+                  template: "dbku_official_receipt_acc_3_88_v1",
+                  name: "Official Receipt",
+                  receipt_no: officialReceiptNo,
+                  document_html: receiptDocumentHtml,
+                  status: "Sent to Applicant",
+                  generated_by: "PT(IKL)",
+                  generated_at: timestamp,
+                  saved_at: timestamp,
+                  sent_at: timestamp,
+                },
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                official_receipt_no: officialReceiptNo,
+                status: "Payment Verified",
+              },
               license: {
-                ...savedLicense,
-                creation_mode: "upload",
-                license_id: licenseId,
-                status: "Active",
-                holder: getApplicantName(app),
-                type: getApplicationType(app),
-                location: getApplicationLocation(app),
-                issue_date: issueDate.toISOString(),
-                expiry_date: expiry.toISOString(),
-                validity_years: validityYears,
-                verification_url: getLicenseVerificationUrl(licenseId),
-                issued_at: new Date().toISOString(),
-                renewal_reminders: [
-                  { months_before_expiry: 3, status: "Scheduled" },
-                  { months_before_expiry: 2, status: "Scheduled" },
-                  { months_before_expiry: 1, status: "Scheduled" },
-                ],
+                ...nextLicenseBase,
+                manual_license: {
+                  ...savedManualLicense,
+                  template: "dbku_advertisement_license_borang_b_v1",
+                  name: translate("workspace.license.documentTitle", "Advertisement License"),
+                  document_html: licenseDocumentHtml,
+                  status: "Sent to Applicant",
+                  generated_by: "PT(IKL)",
+                  generated_at: timestamp,
+                  saved_at: timestamp,
+                  sent_at: timestamp,
+                },
               },
             }),
           };
@@ -16223,7 +16212,7 @@ function PaymentDetails({
   const canUploadDocuments =
     !readOnly && userDepartment === "PT(IKL)" && status === "approved";
   const isReceiptVerification =
-    !readOnly && userDepartment === "PT(IKL)" && status === "payment_submitted";
+    !readOnly && userDepartment === "FIN" && status === "payment_submitted";
   const showReceiptDetails = Boolean(
     readOnly ||
     receiptFile?.name ||
@@ -16233,7 +16222,7 @@ function PaymentDetails({
     payment.verification_notes
   );
   const isRejectReceiptDecision = paymentReceiptDecision === "Reject Receipt";
-  const showVerificationUploads = isReceiptVerification && !isRejectReceiptDecision;
+  const showVerificationUploads = false;
   const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
   const canShowSavedIssueDocuments =

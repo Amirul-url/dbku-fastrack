@@ -656,15 +656,15 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(set(applicant_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
         self.assertIn("proof of payment", applicant_deliveries.get(channel="email").message)
 
-    def test_applicant_submit_receipt_notifies_pt_ikl_all_channels(self):
+    def test_applicant_submit_receipt_notifies_fin_all_channels(self):
         User = get_user_model()
-        pt_ikl = User.objects.create_user(
-            username="pt-ikl-receipt-review",
-            email="pt-ikl-receipt-review@example.com",
+        fin = User.objects.create_user(
+            username="fin-receipt-review",
+            email="fin-receipt-review@example.com",
             password="testpass123",
             mobile_number="0162223333",
             role="admin",
-            department="PT(IKL)",
+            department="FIN",
             is_active=True,
         )
         application = Application.objects.create(
@@ -718,7 +718,7 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         )
         self.assertEqual(staff_deliveries.count(), 3)
         self.assertEqual(set(staff_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
-        self.assertEqual(staff_deliveries.get(channel="web").user, pt_ikl)
+        self.assertEqual(staff_deliveries.get(channel="web").user, fin)
         self.assertIn("uploaded payment proof", staff_deliveries.get(channel="email").message)
 
     def test_applicant_submit_creates_safe_applicant_and_internal_staff_notifications(self):

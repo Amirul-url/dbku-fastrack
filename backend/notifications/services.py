@@ -100,7 +100,7 @@ STATUS_MESSAGES = {
     "payment_submitted": (
         "Payment proof submitted",
         "",
-        "Applicant has uploaded payment proof for application {reference}. Please verify the receipt.",
+        "Applicant has uploaded payment proof for application {reference}. FIN must verify the receipt.",
     ),
     "payment_verified": (
         "License issuance required",
@@ -1933,7 +1933,10 @@ def get_admin_task_web_recipients(application):
     if status_key == "bill_pending_ku":
         return [user for user in users if is_pt_ikl_user(user)]
 
-    if status_key in {"payment_submitted", "payment_verified"}:
+    if status_key == "payment_submitted":
+        return [user for user in users if is_fin_user(user)]
+
+    if status_key == "payment_verified":
         return [user for user in users if is_pt_ikl_user(user)]
 
     if status_key == "ku_ikl_review":
@@ -2117,6 +2120,10 @@ def is_approval_support_user(user):
     return normalize_department(getattr(user, "department", "")) in APPROVAL_SUPPORT_DEPARTMENTS
 
 
+def is_fin_user(user):
+    return normalize_department(getattr(user, "department", "")) == "FIN"
+
+
 def is_mphlg_review_user(user):
     return normalize_department(getattr(user, "department", "")) in MPHLG_REVIEW_DEPARTMENTS
 
@@ -2218,7 +2225,10 @@ def should_user_receive_admin_notification(user, application, status_key=None):
     if status == "bill_pending_ku":
         return department == "PT(IKL)"
 
-    if status in {"payment_submitted", "payment_verified"}:
+    if status == "payment_submitted":
+        return department == "FIN"
+
+    if status == "payment_verified":
         return department == "PT(IKL)"
 
     if status == "technical_review_completed":

@@ -26,7 +26,6 @@ const PT_IKL_TASK_STATUSES = new Set([
   "incomplete",
   "approved",
   "bill_pending_ku",
-  "payment_submitted",
   "payment_verified",
 ]);
 const KU_IKL_TASK_STATUSES = new Set([
@@ -851,7 +850,10 @@ function getAdminTaskCounts(applications, user, approvalSeenAt = {}) {
         counts.approval += 1;
       }
 
-      if (department === "PT(IKL)" && isELicensePaymentTask(application)) {
+      if (
+        (department === "PT(IKL)" && isELicensePaymentTask(application)) ||
+        (department === "FIN" && normalizeWorkflowStatus(application?.status) === "payment_submitted")
+      ) {
         counts.eLicensePayment += 1;
       }
 
@@ -932,7 +934,7 @@ function isMphlgUser(user) {
 }
 
 function isELicensePaymentTask(application) {
-  return ["approved", "bill_pending_ku", "payment_submitted"].includes(
+  return ["approved", "bill_pending_ku"].includes(
     normalizeWorkflowStatus(application?.status)
   );
 }
@@ -978,6 +980,10 @@ function isPersonalTaskForDepartment(application, department) {
 
   if (department === "KB(LES)") {
     return status === "management_review" && !isKbLesVerified(application);
+  }
+
+  if (department === "FIN" && status === "payment_submitted") {
+    return true;
   }
 
   if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {

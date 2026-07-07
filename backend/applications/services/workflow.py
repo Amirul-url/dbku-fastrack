@@ -75,13 +75,18 @@ def ensure_staff_can_update_workflow(application, user, request_data):
         return
 
     if requested_status == "invoice_generated" and current_status == "payment_submitted":
-        if department != "PT(IKL)":
-            raise PermissionDenied("Only PT(IKL) can reject payment proof.")
+        if department != "FIN":
+            raise PermissionDenied("Only FIN can reject payment proof.")
         return
 
-    if requested_status in {"payment_verified", "license_issued", "license_revoked"}:
+    if requested_status == "payment_verified" and current_status == "payment_submitted":
+        if department != "FIN":
+            raise PermissionDenied("Only FIN can approve payment proof.")
+        return
+
+    if requested_status in {"license_issued", "license_revoked"}:
         if department != "PT(IKL)":
-            raise PermissionDenied("Only PT(IKL) can complete payment and license actions.")
+            raise PermissionDenied("Only PT(IKL) can complete license actions.")
 
 
 def is_management_support_memo_save(application, department, request_data):
