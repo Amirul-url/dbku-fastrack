@@ -369,7 +369,7 @@ function UserDashboard() {
         return;
       }
 
-      const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails);
+      const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails, { trim: true });
       const missingPaymentDetail = Object.values(referenceDetails).some((value) => !value);
       if (missingPaymentDetail) {
         setMessage({ type: "error", text: t("applicant.paymentReferenceDetailsRequired") });
@@ -1013,7 +1013,8 @@ function LicenseSection({
   const isReceiptSubmitted = normalizeStatus(app?.status) === "payment_submitted" && !isReceiptRejected;
   const isPaymentLocked = !canSubmitPaymentProof || isReceiptSubmitted;
   const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails || payment);
-  const isPaymentReferenceDetailsComplete = Object.values(referenceDetails).every(Boolean);
+  const trimmedReferenceDetails = getPaymentReferenceDetails(referenceDetails, { trim: true });
+  const isPaymentReferenceDetailsComplete = Object.values(trimmedReferenceDetails).every(Boolean);
   const canSubmitReceipt = Boolean(paymentReceipt) && isPaymentReferenceDetailsComplete;
 
   return (
@@ -2309,11 +2310,16 @@ function getApplicationPayment(app) {
   return app?.form_data?.payment || app?.payment || {};
 }
 
-function getPaymentReferenceDetails(payment = {}) {
+function getPaymentReferenceDetails(payment = {}, options = {}) {
+  const maybeTrim = (value) => {
+    const text = String(value || "");
+    return options.trim ? text.trim() : text;
+  };
+
   return {
-    reference_id: String(payment.reference_id || "").trim(),
-    recipient_reference: String(payment.recipient_reference || "").trim(),
-    payment_details: String(payment.payment_details || "").trim(),
+    reference_id: maybeTrim(payment.reference_id),
+    recipient_reference: maybeTrim(payment.recipient_reference),
+    payment_details: maybeTrim(payment.payment_details),
   };
 }
 
