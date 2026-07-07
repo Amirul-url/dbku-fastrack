@@ -734,15 +734,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     );
   const isPtPaymentVerifiedPersonalTask =
     fromPersonalTask &&
-    (isApprovalWorkspace || config.key === "license") &&
+    (isApprovalWorkspace || ["payment", "license"].includes(config.key)) &&
     normalizedUserDepartment === "PT(IKL)" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified";
+  const actionConfig = isPtPaymentVerifiedPersonalTask ? configs.license : config;
   const workspaceActions =
     forceReadOnlyApprovalPanel && !hasApprovalLicenseManagementRecord && !isPtPaymentVerifiedPersonalTask
       ? []
-      : isPtPaymentVerifiedPersonalTask
-        ? getWorkspaceActions(configs.license, selectedRecord, userDepartment)
-      : getWorkspaceActions(config, selectedRecord, userDepartment);
+      : getWorkspaceActions(actionConfig, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction =
     (!forceReadOnlyApprovalPanel || hasApprovalLicenseManagementRecord || isPtPaymentVerifiedPersonalTask) &&
     (isIklWorkspace || workspaceActions.length > 0);
@@ -755,7 +754,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     canViewSelectedWorkspace &&
     (forceReadOnlyApprovalPanel || !canSubmitWorkspaceAction);
   const canChooseLicenseExpiry =
-    config.key === "license" &&
+    actionConfig.key === "license" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified" &&
     workspaceActions.some((action) => action.key === "issue_license");
   const tableRowsHaveActions = useMemo(
@@ -875,12 +874,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
-    config.key === "payment" &&
+    actionConfig.key === "payment" &&
     userDepartment === "FIN" &&
     normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
     workspaceActions.some((action) => action.requiresSubmittedReceipt);
   const showPaymentDocumentDecision =
-    config.key === "payment" &&
+    actionConfig.key === "payment" &&
     userDepartment === "PT(IKL)" &&
     workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
   const showPaymentTypedDecision = showPaymentReceiptDecision || showPaymentDocumentDecision;
@@ -909,11 +908,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showIssueLicenseDecision;
   const showWorkspaceCommentField =
     !isApprovalLicenseManagement &&
-    (config.showComment || showIssueLicenseDecision) &&
+    (actionConfig.showComment || showIssueLicenseDecision) &&
     canSubmitWorkspaceAction &&
     !useApprovalSignatureTemplate &&
     (
-      config.key !== "payment" ||
+      actionConfig.key !== "payment" ||
       workspaceActions.some((action) =>
         action.requiresComment ||
         action.requiresPaymentDocuments ||
@@ -922,7 +921,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       )
     );
   const showDetailsBeforeComment =
-    config.key === "payment" &&
+    actionConfig.key === "payment" &&
     (showPaymentDocumentDecision || workspaceActions.some((action) => action.requiresSubmittedReceipt));
   const selectedIssueLicenseAction = showIssueLicenseDecision
     ? workspaceActions.find((action) => action.key === "issue_license")
@@ -2073,10 +2072,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const actionDecision = overrides.decision || action.decision || decision;
     const cleanedComment = cleanRemark(overrides.comment ?? comment);
     const requiresDecisionRemark =
-      (overrides.checkDecisionRemark ?? config.showComment) &&
+      (overrides.checkDecisionRemark ?? actionConfig.showComment) &&
       /reject|amendment|condition|not supported|not verify|not verified/i.test(String(actionDecision || ""));
 
-    if (config.showDecision && !isApprovalLicenseManagement && !actionDecision) {
+    if (actionConfig.showDecision && !isApprovalLicenseManagement && !actionDecision) {
       setError(t("workspace.decision.required", "Please select a recommendation."));
       return;
     }
@@ -3194,7 +3193,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     detailLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     ) : (
-                      config.details && (
+                      !showApprovalLicenseManagementDetails && config.details && (
                         <config.details
                           app={selectedRecord}
                           t={t}
@@ -3660,7 +3659,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     )
                   ) : (
-                    !showDetailsBeforeComment && config.details && (
+                    !showDetailsBeforeComment && !showApprovalLicenseManagementDetails && config.details && (
                       <config.details
                         app={selectedRecord}
                         t={t}
