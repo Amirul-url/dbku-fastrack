@@ -54,10 +54,11 @@ const TECHNICAL_LOG_DEPARTMENTS = new Set(["IKL (TECHNICAL)", ...EXTERNAL_TECHNI
 const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const APPROVAL_WORKFLOW_DEPARTMENTS = new Set([
   "KB(LES)",
+  "FIN",
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   "MPHLG",
 ]);
-const APPROVAL_PROCESS_LIST_DEPARTMENTS = new Set(["KB(LES)", "TP(RES)", "PGH"]);
+const APPROVAL_PROCESS_LIST_DEPARTMENTS = new Set(["KB(LES)", "TP(RES)", "PGH", "FIN"]);
 const APPROVAL_HISTORY_STATUSES = [
   "management_review",
   "mphlg_processing",
@@ -249,6 +250,17 @@ const units = [
     descriptionKey: "admin.workflow.tpPghShort",
     icon: "approval",
     color: "bg-fuchsia-600",
+    statuses: ["management_review"],
+    historyStatuses: APPROVAL_HISTORY_STATUSES,
+    path: "/admin/approval",
+  },
+  {
+    code: "FIN",
+    department: "FIN",
+    title: "FIN",
+    descriptionKey: "admin.unit.fin.desc",
+    icon: "account_balance_wallet",
+    color: "bg-rose-600",
     statuses: ["management_review"],
     historyStatuses: APPROVAL_HISTORY_STATUSES,
     path: "/admin/approval",
