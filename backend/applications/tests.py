@@ -722,6 +722,76 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(staff_deliveries.get(channel="web").user, fin)
         self.assertIn("uploaded payment proof", staff_deliveries.get(channel="email").message)
 
+    def test_fin_reject_receipt_notifies_applicant_all_channels_with_remark(self):
+        User = get_user_model()
+        fin = User.objects.create_user(
+            username="fin-reject-receipt",
+            email="fin-reject-receipt@example.com",
+            password="testpass123",
+            mobile_number="0162223333",
+            role="admin",
+            department="FIN",
+            is_active=True,
+        )
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="Receipt rejection application",
+            status="payment_submitted",
+            form_data={
+                "approval_letter": {
+                    "manual_letter": {
+                        "name": "Approval Letter",
+                        "document_html": "<html><body>Approval Letter</body></html>",
+                    },
+                    "manual_bill": {
+                        "name": "Bill",
+                        "document_html": "<html><body>Bill</body></html>",
+                    },
+                    "status": "Sent to Applicant",
+                },
+                "payment": {
+                    "status": "Payment Submitted",
+                    "receipt_file": {"name": "Receipt.png"},
+                },
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=fin)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "invoice_generated",
+                "latest_remark": "Your receipt not valid.",
+                "form_data": {
+                    "payment": {
+                        "status": "Receipt Rejected",
+                        "receipt_decision": "Reject Receipt",
+                        "verification_result": "Invalid",
+                        "verification_notes": "Your receipt not valid.",
+                        "internal_verification_notes": "Your receipt not valid.",
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "invoice_generated")
+        self.assertEqual(application.latest_remark, "Your receipt not valid.")
+
+        applicant_deliveries = NotificationDelivery.objects.filter(
+            application=application,
+            recipient_role="applicant",
+            metadata__event_status="invoice_generated",
+        )
+        self.assertEqual(applicant_deliveries.count(), 3)
+        self.assertEqual(set(applicant_deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        for delivery in applicant_deliveries:
+            self.assertIn("Payment receipt rejected", delivery.subject)
+            self.assertIn("Your receipt not valid.", delivery.message)
+
     def test_applicant_submit_creates_safe_applicant_and_internal_staff_notifications(self):
         application = Application.objects.create(
             applicant=self.applicant,

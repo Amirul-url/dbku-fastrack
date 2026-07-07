@@ -1305,13 +1305,57 @@ class NotificationRoutingTests(TestCase):
             old_form_data=old_form_data,
         )
 
-        delivery = NotificationDelivery.objects.get(
-            channel="web",
+        deliveries = NotificationDelivery.objects.filter(
             recipient_role="applicant",
             metadata__event_status="invoice_generated",
         )
-        self.assertIn("Payment receipt rejected", delivery.subject)
-        self.assertIn("Your receipt not valid.", delivery.message)
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        for delivery in deliveries:
+            self.assertIn("Payment receipt rejected", delivery.subject)
+            self.assertIn("Your receipt not valid.", delivery.message)
+
+    @override_settings(
+        NOTIFICATION_SIDE_EFFECTS_ENABLED=True,
+        NOTIFICATION_EMAIL_ENABLED=True,
+        EMAIL_HOST="smtp.example.test",
+        DEFAULT_FROM_EMAIL="noreply@dbku.gov.my",
+        WHATSAPP_ENABLED=True,
+        WHATSAPP_PROVIDER="webhook",
+        WHATSAPP_WEBHOOK_URL="https://example.test/webhook",
+    )
+    def test_rejected_payment_receipt_sends_email_and_whatsapp_with_remark(self):
+        NotificationDelivery.objects.all().delete()
+        self.application.status = "invoice_generated"
+        self.application.latest_remark = "Your receipt not valid."
+        self.application.form_data = {
+            **self.application.form_data,
+            "payment": {
+                "status": "Receipt Rejected",
+                "receipt_decision": "Reject Receipt",
+                "verification_result": "Invalid",
+                "verification_notes": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["status", "latest_remark", "form_data"])
+
+        with patch("notifications.services.send_email") as send_email, patch(
+            "notifications.services.send_whatsapp"
+        ) as send_whatsapp:
+            notify_application_status_change(self.application, "payment_submitted")
+
+        send_email.assert_called_once()
+        send_whatsapp.assert_called_once()
+        self.assertIn("Your receipt not valid.", send_email.call_args.args[2])
+        self.assertIn("Your receipt not valid.", send_whatsapp.call_args.args[1])
+        self.assertEqual(
+            set(
+                NotificationDelivery.objects.filter(recipient_role="applicant").values_list(
+                    "channel",
+                    "status",
+                )
+            ),
+            {("web", "sent"), ("email", "sent"), ("whatsapp", "sent")},
+        )
 
     def test_license_issued_notifies_applicant_ready_to_download_all_channels(self):
         self.notify_status("license_issued", old_status="payment_submitted")
