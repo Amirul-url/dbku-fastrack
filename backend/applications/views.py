@@ -569,7 +569,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         department = normalize_department(getattr(request.user, "department", ""))
 
-        if request.user.role not in STAFF_ROLES or department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+        if request.user.role not in STAFF_ROLES or department not in {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
             return Response(
                 {
                     "error": "You do not have permission to approve applications."

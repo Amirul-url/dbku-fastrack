@@ -51,7 +51,7 @@ const TECHNICAL_DEPARTMENT_STATUS_SET = new Set([
 const IKL_DEPARTMENTS = new Set(["PT(IKL)", "KU(IKL)", "IKL (TECHNICAL)"]);
 const EXTERNAL_TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 const TECHNICAL_LOG_DEPARTMENTS = new Set(["IKL (TECHNICAL)", ...EXTERNAL_TECHNICAL_DEPARTMENTS]);
-const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"]);
 const APPROVAL_WORKFLOW_DEPARTMENTS = new Set([
   "KB(LES)",
   "FIN",
@@ -3781,7 +3781,7 @@ function isRelevantRecentActivity(application, userDepartment) {
     return isUnitHistoryApplication(application, assignedUnit, userDepartment);
   }
 
-  if (["KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"].includes(userDepartment)) {
+  if (["KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"].includes(userDepartment)) {
     if (userDepartment === "KB(LES)") {
       return status === "management_review";
     }
@@ -4384,6 +4384,7 @@ function isApprovalWorkflowUser(user) {
     department === "KB(LES)" ||
     department === "TP(RES)" ||
     department === "PGH" ||
+    department === "FIN" ||
     department === "TP(RES)/PGH" ||
     department === "TP/PGH"
   );

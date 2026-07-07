@@ -31,6 +31,7 @@ function isApprovalWorkflowUser() {
       department === "KB(LES)" ||
       department === "TP(RES)" ||
       department === "PGH" ||
+      department === "FIN" ||
       department === "TP(RES)/PGH" ||
       department === "TP/PGH" ||
       department === "MPHLG"

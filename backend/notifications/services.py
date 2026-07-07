@@ -53,7 +53,7 @@ PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
 KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
 IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL"}
 APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
-APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
+APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}
 MPHLG_REVIEW_DEPARTMENTS = {"MPHLG"}
 SUT_APPROVAL_DEPARTMENTS = {"SUT", "SUT APPROVAL"}
 KB_LES_COMPLETE_STATUSES = {"verified", "supported", "completed"}
@@ -1575,7 +1575,7 @@ def is_kb_les_returned_to_ku(application):
     correction = get_form_section(application, "correction_request")
     source = normalize_department(correction.get("source"))
     return (
-        source in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH", "MPHLG"}
+        source in {"KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH", "MPHLG"}
         and normalize_department(correction.get("target")) == "KU(IKL)"
     )
 

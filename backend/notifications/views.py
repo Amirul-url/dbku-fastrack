@@ -56,7 +56,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 }
             elif department in {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}:
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
-            elif department in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+            elif department in {"KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
                 allowed_event_statuses = {"management_review", "approved"}
                 if department == "KB(LES)":
                     allowed_event_statuses = {

@@ -30,7 +30,7 @@ def ensure_staff_can_update_workflow(application, user, request_data):
         return
 
     if requested_status == "technical_review_completed" and current_status == "management_review":
-        if department not in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+        if department not in {"KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
             raise PermissionDenied("Only KB(LES) or TP(RES)/PGH can return the application to KU(IKL) at this stage.")
         return
 
@@ -55,12 +55,12 @@ def ensure_staff_can_update_workflow(application, user, request_data):
         return
 
     if requested_status == "approved" and current_status == "management_review":
-        if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+        if department not in {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
             raise PermissionDenied("Only TP(RES)/PGH can make the final approval decision.")
         return
 
     if requested_status == "rejected" and current_status == "management_review":
-        if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+        if department not in {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
             raise PermissionDenied("Only TP(RES)/PGH can reject at this approval stage.")
         return
 
@@ -85,7 +85,7 @@ def ensure_staff_can_update_workflow(application, user, request_data):
 
 
 def is_management_support_memo_save(application, department, request_data):
-    if department not in {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
+    if department not in {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
         return False
 
     form_data = request_data.get("form_data") or {}

@@ -21,7 +21,7 @@ import {
   normalizeStatus,
 } from "../../../utils/workflow";
 
-const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"]);
 const TECHNICAL_DEPARTMENTS = new Set(["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"]);
 const COMPLETED_VIEW_DEPARTMENTS = new Set([
   "PT(IKL)",
@@ -36,6 +36,7 @@ const COMPLETED_VIEW_DEPARTMENTS = new Set([
   "KB(LES)",
   "TP(RES)",
   "PGH",
+  "FIN",
   "TP(RES)/PGH",
   "TP/PGH",
   "MPHLG",

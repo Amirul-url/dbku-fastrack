@@ -140,7 +140,7 @@ const KU_IKL_TECHNICAL_TRACKING_STATUSES = new Set([
   "technical_amendment",
   "technical_review_completed",
 ]);
-const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"];
+const APPROVAL_SUPPORT_DEPARTMENTS = ["TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"];
 const MPHLG_REVIEW_DEPARTMENTS = ["MPHLG"];
 const APPROVAL_TECHNICAL_REPORT_DEPARTMENTS = [
   "KB(LES)",
@@ -12901,7 +12901,7 @@ const configs = {
   },
   license: {
     key: "license",
-    allowedDepartments: ["PT(IKL)", "KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH", "MPHLG"],
+    allowedDepartments: ["PT(IKL)", "KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH", "MPHLG"],
     statuses: ["payment_verified", "license_issued", "license_revoked"],
     listEyebrow: "E-Licenses",
     listEyebrowKey: "workspace.license.listEyebrow",
