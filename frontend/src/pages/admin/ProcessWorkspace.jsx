@@ -11696,6 +11696,16 @@ function buildIklTechnicalDecisionPayload(app, data) {
         officer_role: "PT/PO/KP Unit Iklan",
         visited_at: now,
       },
+      technical_ku_review: null,
+      kb_les_verification: null,
+      management_recommendation: null,
+      mphlg_gateway: null,
+      sut_approval: null,
+      approval: null,
+      approval_letter: null,
+      payment: null,
+      license: null,
+      license_revocation_request: null,
       correction_request: notSupported
         ? {
             source: "IKL(TECHNICAL)",
@@ -11711,6 +11721,10 @@ function buildIklTechnicalDecisionPayload(app, data) {
 function buildKuTechnicalReviewPayload(app, data) {
   const now = new Date().toISOString();
   const amendmentRequired = data.decision === "KU(IKL) Request Technical Amendment";
+  const amendmentCycle =
+    app.form_data?.technical_review_cycle ||
+    getActiveTechnicalReviewCycle(app) ||
+    getNextTechnicalReviewCycle(app);
 
   return {
     status: amendmentRequired ? "technical_amendment" : "management_review",
@@ -11728,6 +11742,15 @@ function buildKuTechnicalReviewPayload(app, data) {
         reviewed_by: "KU(IKL)",
         reviewed_at: now,
       },
+      technical_review: amendmentRequired
+        ? null
+        : app.form_data?.technical_review || null,
+      technical_site_visit: amendmentRequired
+        ? createFreshTechnicalSiteVisit(app, now, amendmentCycle)
+        : app.form_data?.technical_site_visit || null,
+      technical_review_cycle: amendmentRequired
+        ? amendmentCycle
+        : app.form_data?.technical_review_cycle || null,
       correction_request: amendmentRequired
         ? {
             source: "KU(IKL)",
@@ -11747,10 +11770,12 @@ function buildKuTechnicalReviewPayload(app, data) {
           },
       management_recommendation: null,
       mphlg_gateway: null,
-      sut_approval: amendmentRequired
-        ? app.form_data?.sut_approval || null
-        : app.form_data?.sut_approval || null,
+      sut_approval: null,
       approval: null,
+      approval_letter: null,
+      payment: null,
+      license: null,
+      license_revocation_request: null,
     }),
   };
 }
@@ -11793,17 +11818,38 @@ function buildApprovalWorkflowPayload(app, data) {
         },
         management_recommendation: rejected
           ? null
-          : {
-              ...(app.form_data?.management_recommendation || {}),
-              officer: kbSupportStage ? "KB(LES)" : app.form_data?.management_recommendation?.officer,
-              status: kbSupportStage ? "Supported" : "Pending TP(RES)/PGH Approval",
-              recommendation: kbSupportStage ? decision : app.form_data?.management_recommendation?.recommendation,
-              decision: kbSupportStage ? decision : app.form_data?.management_recommendation?.decision,
-              remarks: kbSupportStage ? data.comment : app.form_data?.management_recommendation?.remarks,
-              routed_from: "KB(LES)",
-              routed_at: now,
-              supported_at: kbSupportStage ? now : app.form_data?.management_recommendation?.supported_at,
-            },
+          : kbSupportStage
+            ? {
+                ...(app.form_data?.management_recommendation || {}),
+                officer: "KB(LES)",
+                status: "Supported",
+                recommendation: decision,
+                decision,
+                remarks: data.comment,
+                routed_from: "KB(LES)",
+                routed_at: now,
+                supported_at: now,
+              }
+            : {
+                officer: "",
+                status: "Pending TP(RES)/PGH Approval",
+                recommendation: "",
+                decision: "",
+                remarks: "",
+                routed_from: "KB(LES)",
+                routed_at: now,
+              },
+        mphlg_gateway: rejected || !kbSupportStage
+          ? null
+          : app.form_data?.mphlg_gateway || null,
+        sut_approval: rejected || !kbSupportStage
+          ? null
+          : app.form_data?.sut_approval || null,
+        approval: null,
+        approval_letter: null,
+        payment: null,
+        license: null,
+        license_revocation_request: null,
         correction_request: rejected
           ? {
               source: "KB(LES)",
@@ -11813,7 +11859,6 @@ function buildApprovalWorkflowPayload(app, data) {
               requested_at: now,
             }
           : app.form_data?.correction_request || null,
-        approval: null,
       }),
     };
   }
@@ -11856,15 +11901,19 @@ function buildApprovalWorkflowPayload(app, data) {
           digital_signature: approvalSupportSignature,
           decided_at: now,
         },
-        mphlg_gateway: rejected || finalApproval
-          ? app.form_data?.mphlg_gateway || null
+        mphlg_gateway: rejected
+          ? null
+          : finalApproval
+            ? app.form_data?.mphlg_gateway || null
           : {
-              ...(app.form_data?.mphlg_gateway || {}),
               status: "Pending MPHLG Approval",
               routed_from: department,
               routed_at: now,
               memo_html: data.memoHtml || app.form_data?.mphlg_gateway?.memo_html || "",
             },
+        sut_approval: rejected || !finalApproval
+          ? null
+          : app.form_data?.sut_approval || null,
         correction_request: rejected
           ? {
               source: department,
@@ -11875,7 +11924,7 @@ function buildApprovalWorkflowPayload(app, data) {
             }
           : app.form_data?.correction_request || null,
         approval: rejected || !finalApproval
-          ? app.form_data?.approval || null
+          ? null
           : {
               ...(app.form_data?.approval || {}),
               officer: department,
@@ -11888,6 +11937,10 @@ function buildApprovalWorkflowPayload(app, data) {
               digital_signature: approvalSupportSignature,
               approved_at: now,
             },
+        approval_letter: null,
+        payment: null,
+        license: null,
+        license_revocation_request: null,
       }),
     };
   }
@@ -11930,7 +11983,7 @@ function buildApprovalWorkflowPayload(app, data) {
               memo_html: data.memoHtml || "",
               requested_at: now,
             },
-        sut_approval: app.form_data?.sut_approval || null,
+        sut_approval: approved ? app.form_data?.sut_approval || null : null,
         approval: approved
           ? {
               ...(app.form_data?.approval || {}),
@@ -11943,7 +11996,11 @@ function buildApprovalWorkflowPayload(app, data) {
               digital_signature: mphlgSignature,
               approved_at: now,
             }
-          : app.form_data?.approval || null,
+          : null,
+        approval_letter: null,
+        payment: null,
+        license: null,
+        license_revocation_request: null,
       }),
     };
   }
@@ -13067,18 +13124,21 @@ const configs = {
                 letter_bill_decision: decision,
                 remarks,
                 digital_signature: digitalSignature,
+                official_receipt_file: null,
+                manual_receipt: null,
                 submitted_by: "PT(IKL)",
                 submitted_at: timestamp,
                 sent_to_applicant_at: timestamp,
               },
               payment: {
-                ...(app.form_data?.payment || {}),
                 invoice_no: getInvoiceNo(app),
                 amount: getBillAmount(app),
                 status: "Awaiting Payment",
                 generated_by: "PT(IKL)",
                 generated_at: timestamp,
               },
+              license: null,
+              license_revocation_request: null,
             }),
           };
         },
@@ -13113,6 +13173,8 @@ const configs = {
                 verified_by: "FIN",
                 verified_at: timestamp,
               },
+              license: null,
+              license_revocation_request: null,
             }),
           };
         },
@@ -13143,8 +13205,12 @@ const configs = {
               verification_notes: data.comment,
               internal_verification_notes: data.comment,
               digital_signature: null,
+              verified_by: "",
+              verified_at: "",
               rejected_at: new Date().toISOString(),
             },
+            license: null,
+            license_revocation_request: null,
           }),
         }),
       },
