@@ -55,6 +55,11 @@ const APPLICANT_STATUS_FILTER_OPTIONS = [
   "rejected",
   "approved",
 ];
+const EMPTY_PAYMENT_REFERENCE_DETAILS = {
+  reference_id: "",
+  recipient_reference: "",
+  payment_details: "",
+};
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -78,6 +83,7 @@ function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
+  const [paymentReferenceDetails, setPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
@@ -116,6 +122,11 @@ function UserDashboard() {
 
       setSelectedApplication(data);
       setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
+      setPaymentReferenceDetails(
+        receiptWasRejected
+          ? EMPTY_PAYMENT_REFERENCE_DETAILS
+          : getPaymentReferenceDetails(paymentData)
+      );
       if (options.setDefaultPanelTab) {
         setLicensePanelTab(getDefaultLicensePanelTab(data));
       }
@@ -252,6 +263,7 @@ function UserDashboard() {
       setLicensePanelOpen(false);
       setSelectedApplication(null);
       setPaymentReceipt(null);
+      setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
       setReceiptSuccessOpen(false);
       setMessage({ type: "", text: "" });
     }
@@ -314,6 +326,7 @@ function UserDashboard() {
     setLicensePanelOpen(false);
     setSelectedApplication(null);
     setPaymentReceipt(null);
+    setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     setSearchParams({ tab: "status" });
@@ -329,6 +342,7 @@ function UserDashboard() {
     setLicensePanelOpen(false);
     setSelectedApplication(null);
     setPaymentReceipt(null);
+    setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     const params = { tab: "status" };
@@ -355,10 +369,18 @@ function UserDashboard() {
         return;
       }
 
+      const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails);
+      const missingPaymentDetail = Object.values(referenceDetails).some((value) => !value);
+      if (missingPaymentDetail) {
+        setMessage({ type: "error", text: t("applicant.paymentReferenceDetailsRequired") });
+        return;
+      }
+
       const receipt = receiptFile.name || currentPayment.receipt_reference || `RECEIPT-${Date.now()}`;
       const submittedAt = new Date().toISOString();
       const nextPayment = {
         ...currentPayment,
+        ...referenceDetails,
         invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
         amount: currentPayment.amount || "",
         status: "Payment Submitted",
@@ -553,6 +575,14 @@ function UserDashboard() {
     setMessage({ type: "", text: "" });
   }
 
+  function handlePaymentReferenceDetailsChange(field, value) {
+    setPaymentReferenceDetails((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setMessage({ type: "", text: "" });
+  }
+
   async function downloadPaymentReceipt() {
     const source = getPaymentReceiptSource(paymentReceipt);
     if (!source) return;
@@ -632,12 +662,14 @@ function UserDashboard() {
             app={activeApplication}
             payment={payment}
             paymentReceipt={paymentReceipt}
+            paymentReferenceDetails={paymentReferenceDetails}
             saving={saving}
             t={t}
             onViewApplicationSteps={openSubmittedApplicationSteps}
             onReceiptChange={handlePaymentReceiptChange}
             onReceiptRemove={handlePaymentReceiptRemove}
             onReceiptDownload={downloadPaymentReceipt}
+            onPaymentReferenceDetailsChange={handlePaymentReferenceDetailsChange}
             onSubmitPayment={submitPayment}
             onRequestRevocation={requestLicenseRevocation}
             onCancelRevocationRequest={cancelLicenseRevocationRequest}
@@ -961,12 +993,14 @@ function LicenseSection({
   app,
   payment,
   paymentReceipt,
+  paymentReferenceDetails,
   saving,
   t,
   onViewApplicationSteps,
   onReceiptChange,
   onReceiptRemove,
   onReceiptDownload,
+  onPaymentReferenceDetailsChange,
   onSubmitPayment,
   onRequestRevocation,
   onCancelRevocationRequest,
@@ -978,6 +1012,9 @@ function LicenseSection({
   const isReceiptRejected = isPaymentReceiptRejected(payment);
   const isReceiptSubmitted = normalizeStatus(app?.status) === "payment_submitted" && !isReceiptRejected;
   const isPaymentLocked = !canSubmitPaymentProof || isReceiptSubmitted;
+  const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails || payment);
+  const isPaymentReferenceDetailsComplete = Object.values(referenceDetails).every(Boolean);
+  const canSubmitReceipt = Boolean(paymentReceipt) && isPaymentReferenceDetailsComplete;
 
   return (
     <section className="space-y-4">
@@ -1101,19 +1138,76 @@ function LicenseSection({
               </div>
 
               {canSubmitPaymentProof && (
-                <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="border-t border-slate-200 bg-white px-3 py-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
                       2
                     </span>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900">
+                        {t("applicant.paymentReferenceDetailsTitle", "Payment reference details")}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                        {t("applicant.paymentReferenceDetailsHint", "Enter the payment reference details from your bank transfer or receipt.")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-600">
+                        {t("applicant.paymentReferenceId", "Reference ID")} <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        value={referenceDetails.reference_id}
+                        onChange={(event) => onPaymentReferenceDetailsChange?.("reference_id", event.target.value)}
+                        disabled={isPaymentLocked}
+                        className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-600">
+                        {t("applicant.paymentRecipientReference", "Recipient Reference")} <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        value={referenceDetails.recipient_reference}
+                        onChange={(event) => onPaymentReferenceDetailsChange?.("recipient_reference", event.target.value)}
+                        disabled={isPaymentLocked}
+                        className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-semibold text-slate-600">
+                        {t("applicant.paymentDetails", "Payment Details")} <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        value={referenceDetails.payment_details}
+                        onChange={(event) => onPaymentReferenceDetailsChange?.("payment_details", event.target.value)}
+                        disabled={isPaymentLocked}
+                        className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {canSubmitPaymentProof && (
+                <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+                      3
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">
                         {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                        {paymentReceipt
+                        {canSubmitReceipt
                           ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
-                          : t("applicant.submitReceiptDisabledHint", "Choose a receipt file first.")}
+                          : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
                       </p>
                     </div>
                   </div>
@@ -1128,7 +1222,7 @@ function LicenseSection({
                     <button
                       type="button"
                       onClick={onSubmitPayment}
-                      disabled={saving || !paymentReceipt}
+                      disabled={saving || !canSubmitReceipt}
                       className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                     >
                       <span className="material-symbols-outlined text-[16px] text-white">
@@ -2213,6 +2307,14 @@ function isReceiptSubmissionNewerThanRejection(payment = {}) {
 
 function getApplicationPayment(app) {
   return app?.form_data?.payment || app?.payment || {};
+}
+
+function getPaymentReferenceDetails(payment = {}) {
+  return {
+    reference_id: String(payment.reference_id || "").trim(),
+    recipient_reference: String(payment.recipient_reference || "").trim(),
+    payment_details: String(payment.payment_details || "").trim(),
+  };
 }
 
 function getApplicationAppliedDate(app) {

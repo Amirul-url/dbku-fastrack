@@ -16222,6 +16222,11 @@ function PaymentDetails({
     payment.verification_notes
   );
   const isRejectReceiptDecision = paymentReceiptDecision === "Reject Receipt";
+  const paymentReferenceDetails = [
+    ["Reference ID", payment.reference_id],
+    ["Recipient Reference", payment.recipient_reference],
+    ["Payment Details", payment.payment_details],
+  ].filter(([, value]) => String(value || "").trim());
   const showVerificationUploads = false;
   const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
@@ -16384,6 +16389,13 @@ function PaymentDetails({
           </div>
         )}
       </div>
+      {paymentReferenceDetails.length > 0 && (
+        <div className="grid gap-2 border-t border-slate-100 px-3 pb-3 pt-2 sm:grid-cols-3">
+          {paymentReferenceDetails.map(([label, value]) => (
+            <Info key={label} label={label} value={value} />
+          ))}
+        </div>
+      )}
     </section>
   ) : null;
 
