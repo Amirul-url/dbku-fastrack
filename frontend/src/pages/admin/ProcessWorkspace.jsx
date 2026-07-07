@@ -928,6 +928,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !fromPersonalTask &&
     !showDecisionLog &&
     !showVerificationReport;
+  const showViewFormAction =
+    Boolean(selectedRecord) &&
+    showActionPanel &&
+    !showApprovalPaymentReadOnly &&
+    !isIssuedLicenseRecord &&
+    (
+      isFocusedPersonalWorkspace ||
+      tableFirstWorkspace ||
+      fromPersonalTask ||
+      location.pathname.startsWith("/admin/")
+    );
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
@@ -3053,9 +3064,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   statusLabel={getWorkspaceStatusLabel(selectedRecord, config, t, userDepartment)}
                   applicationType={getLocalizedApplicationType(selectedRecord, t, language)}
                   actions={
-                    !showApprovalPaymentReadOnly &&
-                    !isIssuedLicenseRecord &&
-                    (isFocusedPersonalWorkspace || tableFirstWorkspace) ? (
+                    showViewFormAction ? (
                       <Button
                         variant="secondary"
                         icon="visibility"
