@@ -362,9 +362,13 @@ function UserDashboard() {
         invoice_no: currentPayment.invoice_no || getInvoiceNo(current),
         amount: currentPayment.amount || "",
         status: "Payment Submitted",
-        verification_result: null,
+        recommendation: "",
+        receipt_decision: "",
+        verification_result: "",
         verification_notes: "",
+        internal_verification_notes: "",
         rejected_at: null,
+        verified_at: null,
         receipt_reference: receipt,
         receipt_file: receiptFile,
         submitted_at: submittedAt,
@@ -1830,12 +1834,13 @@ function ReferenceNewBadge({ t }) {
 function getApplicationRemark(app) {
   const status = normalizeStatus(app?.status);
   const formData = app?.form_data || {};
+  const payment = getApplicationPayment(app);
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
-    return isPaymentReceiptRejected(formData.payment)
+    return isPaymentReceiptRejected(payment)
       ? cleanRemark(
-          formData.payment?.verification_notes ||
-            formData.payment?.internal_verification_notes ||
+          payment.verification_notes ||
+            payment.internal_verification_notes ||
             app?.display_remark ||
             app?.latest_remark
         )
@@ -2006,12 +2011,36 @@ function cleanRemark(value) {
 }
 
 function isPaymentReceiptRejected(payment = {}) {
+  const status = normalizePaymentValue(payment.status);
+  const verificationResult = normalizePaymentValue(payment.verification_result);
+  const receiptDecision = normalizePaymentValue(payment.receipt_decision);
+  const recommendation = normalizePaymentValue(payment.recommendation);
+
+  if (status === "payment_submitted" || isReceiptSubmissionNewerThanRejection(payment)) {
+    return false;
+  }
+
   return (
-    normalizeStatus(payment.status) === "receipt_rejected" ||
-    normalizeStatus(payment.verification_result) === "invalid_fake" ||
-    normalizeStatus(payment.receipt_decision) === "reject_receipt" ||
-    normalizeStatus(payment.recommendation) === "reject_receipt"
+    status === "receipt_rejected" ||
+    ["invalid", "invalid_fake"].includes(verificationResult) ||
+    receiptDecision === "reject_receipt" ||
+    recommendation === "reject_receipt"
   );
+}
+
+function normalizePaymentValue(value) {
+  return normalizeStatus(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function isReceiptSubmissionNewerThanRejection(payment = {}) {
+  const submittedAt = Date.parse(payment.submitted_at || "");
+  const rejectedAt = Date.parse(payment.rejected_at || "");
+
+  return Number.isFinite(submittedAt) && Number.isFinite(rejectedAt) && submittedAt > rejectedAt;
+}
+
+function getApplicationPayment(app) {
+  return app?.form_data?.payment || app?.payment || {};
 }
 
 function getApplicationAppliedDate(app) {
@@ -2083,6 +2112,10 @@ function getApplicantFilterStatus(app) {
 
   if (status === "draft") {
     return "draft";
+  }
+
+  if (isPaymentReceiptRejected(getApplicationPayment(app))) {
+    return "rejected";
   }
 
   if (isApprovedApplication(app)) {
@@ -2375,6 +2408,10 @@ function isPendingApplication(app) {
 }
 
 function isApprovedApplication(app) {
+  if (isPaymentReceiptRejected(getApplicationPayment(app))) {
+    return false;
+  }
+
   return [
     "approved",
     "approved_with_conditions",
@@ -3439,12 +3476,15 @@ function escapeHtml(value) {
 }
 
 function isRejectedApplication(app) {
-  return ["incomplete", "rejected"].includes(normalizeStatus(app.status));
+  return (
+    ["incomplete", "rejected"].includes(normalizeStatus(app.status)) ||
+    isPaymentReceiptRejected(getApplicationPayment(app))
+  );
 }
 
 function getPaymentHint(app, t) {
   const status = normalizeStatus(app?.status);
-  const payment = app?.form_data?.payment || {};
+  const payment = getApplicationPayment(app);
 
   if (status === "draft") return t("applicant.paymentHintDraft");
   if (status === "rejected") return t("applicant.paymentHintRejected");
@@ -3460,7 +3500,7 @@ function getPaymentHint(app, t) {
 
 function getPaymentStatusText(app, t) {
   const status = normalizeStatus(app?.status);
-  const payment = app?.form_data?.payment || {};
+  const payment = getApplicationPayment(app);
 
   if (isPaymentReceiptRejected(payment)) {
     return t("applicant.paymentStatusReceiptRejected");

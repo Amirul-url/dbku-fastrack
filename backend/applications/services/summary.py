@@ -1,4 +1,5 @@
 from applications.services.activity import clean_remark
+from django.utils.dateparse import parse_datetime
 
 
 def get_application_applicant_name(application):
@@ -140,13 +141,7 @@ def get_public_application_display_remark(application):
     if status_key in {"invoice_generated", "payment_submitted"}:
         approval_letter = section("approval_letter")
         payment = section("payment")
-        payment_rejected = (
-            str(payment.get("receipt_decision") or payment.get("recommendation") or "").strip().lower()
-            == "reject receipt"
-            or str(payment.get("verification_result") or "").strip().lower() in {"invalid", "invalid/fake"}
-            or str(payment.get("status") or "").strip().lower() == "receipt rejected"
-        )
-        if payment_rejected:
+        if is_payment_receipt_rejected(payment):
             remark = clean_remark(
                 payment.get("verification_notes")
                 or payment.get("internal_verification_notes")
@@ -195,13 +190,7 @@ def get_latest_remark_from_form_data(form_data, status=""):
     if status_key in {"invoice_generated", "payment_submitted"}:
         approval_letter = section("approval_letter")
         payment = section("payment")
-        payment_rejected = (
-            str(payment.get("receipt_decision") or payment.get("recommendation") or "").strip().lower()
-            == "reject receipt"
-            or str(payment.get("verification_result") or "").strip().lower() in {"invalid", "invalid/fake"}
-            or str(payment.get("status") or "").strip().lower() == "receipt rejected"
-        )
-        if payment_rejected:
+        if is_payment_receipt_rejected(payment):
             remark = clean_remark(
                 payment.get("verification_notes")
                 or payment.get("internal_verification_notes")
@@ -213,7 +202,6 @@ def get_latest_remark_from_form_data(form_data, status=""):
             approval_letter.get("remarks")
             or approval_letter.get("comment")
             or approval_letter.get("notes")
-            or payment.get("verification_notes")
         )
         if remark:
             return remark
@@ -266,7 +254,6 @@ def get_latest_remark_from_form_data(form_data, status=""):
         section("management_recommendation").get("remarks"),
         section("approval").get("notes"),
         section("approval").get("comment"),
-        section("payment").get("verification_notes"),
     ]
 
     for value in candidates:
@@ -275,3 +262,40 @@ def get_latest_remark_from_form_data(form_data, status=""):
             return remark
 
     return ""
+
+
+def is_payment_receipt_rejected(payment):
+    if not isinstance(payment, dict):
+        return False
+
+    payment_status = normalize_payment_value(payment.get("status"))
+    if payment_status == "payment_submitted" or is_receipt_submission_newer_than_rejection(payment):
+        return False
+
+    receipt_decision = normalize_payment_value(
+        payment.get("receipt_decision") or payment.get("recommendation")
+    )
+    verification_result = normalize_payment_value(payment.get("verification_result"))
+
+    return (
+        receipt_decision == "reject_receipt"
+        or verification_result in {"invalid", "invalid_fake"}
+        or payment_status == "receipt_rejected"
+    )
+
+
+def normalize_payment_value(value):
+    return "_".join(str(value or "").strip().lower().split())
+
+
+def is_receipt_submission_newer_than_rejection(payment):
+    submitted_at = parse_datetime(str(payment.get("submitted_at") or ""))
+    rejected_at = parse_datetime(str(payment.get("rejected_at") or ""))
+
+    if not submitted_at or not rejected_at:
+        return False
+
+    try:
+        return submitted_at.timestamp() > rejected_at.timestamp()
+    except (OSError, ValueError):
+        return False

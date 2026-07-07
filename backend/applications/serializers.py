@@ -134,6 +134,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     sut_approval = serializers.SerializerMethodField()
     approval = serializers.SerializerMethodField()
     approval_letter = serializers.SerializerMethodField()
+    payment = serializers.SerializerMethodField()
     latest_remark = serializers.SerializerMethodField()
     display_remark = serializers.SerializerMethodField()
     activity_log = serializers.SerializerMethodField()
@@ -166,6 +167,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "sut_approval",
             "approval",
             "approval_letter",
+            "payment",
             "display_remark",
             "activity_log",
             "created_at",
@@ -250,6 +252,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_approval(self, obj):
         return self.get_form_section(obj, "approval")
+
+    def get_payment(self, obj):
+        return self.get_form_section(obj, "payment")
 
     def get_approval_letter(self, obj):
         approval_letter = (obj.form_data or {}).get("approval_letter", {})

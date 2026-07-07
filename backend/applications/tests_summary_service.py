@@ -7,6 +7,7 @@ from applications.services.summary import (
     get_application_applicant_profile,
     get_application_display_remark,
     get_application_registered_applicant_name,
+    get_public_application_display_remark,
     get_latest_remark_from_form_data,
     get_project_location_from_form_data,
     join_user_address,
@@ -127,6 +128,22 @@ class ApplicationSummaryServiceTests(SimpleTestCase):
             get_latest_remark_from_form_data(form_data, "invoice_generated"),
             "Uploaded receipt is unreadable.",
         )
+
+    def test_resubmitted_receipt_ignores_previous_rejection_remark(self):
+        form_data = {
+            "payment": {
+                "status": "Payment Submitted",
+                "receipt_decision": "Reject Receipt",
+                "verification_result": "Invalid/Fake",
+                "verification_notes": "Old rejection note.",
+                "rejected_at": "2026-07-07T07:59:00Z",
+                "submitted_at": "2026-07-07T08:15:00Z",
+            },
+        }
+        app = application(form_data=form_data, status="payment_submitted", latest_remark="Old rejection note.")
+
+        self.assertEqual(get_latest_remark_from_form_data(form_data, "payment_submitted"), "")
+        self.assertEqual(get_public_application_display_remark(app), "")
 
     def test_latest_remark_uses_mphlg_approved_remark(self):
         form_data = {

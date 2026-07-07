@@ -218,6 +218,10 @@ function getApplicantFilterStatus(app) {
     return "Draft";
   }
 
+  if (isPaymentReceiptRejected(getApplicationPayment(app))) {
+    return "Rejected";
+  }
+
   if (["approved", "approved_with_conditions", "invoice_generated", "payment_submitted", "payment_verified", "license_issued"].includes(status)) {
     return "Approved";
   }
@@ -241,13 +245,25 @@ function getApplicationRemark(app) {
   const status = normalizeStatus(app?.status);
   const formData = app?.form_data || {};
   const approvalLetter = formData.approval_letter || app?.approval_letter || {};
+  const payment = getApplicationPayment(app);
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
+    if (isPaymentReceiptRejected(payment)) {
+      return cleanRemark(
+        payment.verification_notes ||
+          payment.internal_verification_notes ||
+          app?.display_remark ||
+          app?.latest_remark
+      );
+    }
+
     return cleanRemark(
       approvalLetter.remarks ||
         approvalLetter.comment ||
         approvalLetter.notes ||
-        formData.payment?.verification_notes
+        payment.verification_notes ||
+        app?.display_remark ||
+        app?.latest_remark
     );
   }
 
@@ -265,6 +281,39 @@ function getApplicationRemark(app) {
 function cleanRemark(value) {
   const remark = String(value || "").trim();
   return ["", "-", "[]"].includes(remark) ? "" : remark;
+}
+
+function isPaymentReceiptRejected(payment = {}) {
+  const status = normalizePaymentValue(payment.status);
+  const verificationResult = normalizePaymentValue(payment.verification_result);
+  const receiptDecision = normalizePaymentValue(payment.receipt_decision);
+  const recommendation = normalizePaymentValue(payment.recommendation);
+
+  if (status === "payment_submitted" || isReceiptSubmissionNewerThanRejection(payment)) {
+    return false;
+  }
+
+  return (
+    status === "receipt_rejected" ||
+    ["invalid", "invalid_fake"].includes(verificationResult) ||
+    receiptDecision === "reject_receipt" ||
+    recommendation === "reject_receipt"
+  );
+}
+
+function normalizePaymentValue(value) {
+  return normalizeStatus(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function isReceiptSubmissionNewerThanRejection(payment = {}) {
+  const submittedAt = Date.parse(payment.submitted_at || "");
+  const rejectedAt = Date.parse(payment.rejected_at || "");
+
+  return Number.isFinite(submittedAt) && Number.isFinite(rejectedAt) && submittedAt > rejectedAt;
+}
+
+function getApplicationPayment(app) {
+  return app?.form_data?.payment || app?.payment || {};
 }
 
 export default UserApplicationsPage;

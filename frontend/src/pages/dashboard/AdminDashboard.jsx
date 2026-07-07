@@ -2681,6 +2681,11 @@ function formatDecisionLogRecommendation(value, department = "", section = {}, t
 function getPaymentReceiptDecisionLogValue(payment = {}) {
   if (!payment || typeof payment !== "object") return "";
 
+  const status = String(payment.status || "").trim().toLowerCase();
+  if (status === "payment submitted") {
+    return "Payment Submitted";
+  }
+
   const explicitDecision = cleanRemark(
     payment.recommendation ||
       payment.decision ||
@@ -2690,7 +2695,6 @@ function getPaymentReceiptDecisionLogValue(payment = {}) {
   if (explicitDecision) return explicitDecision;
 
   const result = String(payment.verification_result || "").trim().toLowerCase();
-  const status = String(payment.status || "").trim().toLowerCase();
 
   if (result === "valid" || status === "payment verified") {
     return "Verify Receipt";

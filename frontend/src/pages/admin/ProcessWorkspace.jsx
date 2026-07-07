@@ -10569,6 +10569,11 @@ function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (k
 function getWorkspacePaymentReceiptDecisionLogValue(payment = {}) {
   if (!payment || typeof payment !== "object") return "";
 
+  const status = String(payment.status || "").trim().toLowerCase();
+  if (status === "payment submitted") {
+    return "Payment Submitted";
+  }
+
   const explicitDecision = cleanRemark(
     payment.recommendation ||
       payment.decision ||
@@ -10578,7 +10583,6 @@ function getWorkspacePaymentReceiptDecisionLogValue(payment = {}) {
   if (explicitDecision) return explicitDecision;
 
   const result = String(payment.verification_result || "").trim().toLowerCase();
-  const status = String(payment.status || "").trim().toLowerCase();
 
   if (result === "valid" || status === "payment verified") {
     return "Verify Receipt";
@@ -10593,6 +10597,10 @@ function getWorkspacePaymentReceiptDecisionLogValue(payment = {}) {
   }
 
   return "";
+}
+
+function formatReceiptVerificationResult(value) {
+  return String(value || "").trim().toLowerCase() === "invalid/fake" ? "Invalid" : value;
 }
 
 function getWorkspaceDecisionLogRemarks(section = {}) {
@@ -12551,7 +12559,7 @@ const configs = {
     descriptionKey: "workspace.payment.description",
     queueTitle: "Payment Queue",
     queueTitleKey: "workspace.payment.queue",
-    actionDescription: "Prepare an approval letter, send it to the applicant, then verify whether the uploaded receipt is valid or fake.",
+    actionDescription: "Prepare an approval letter, send it to the applicant, then verify whether the uploaded receipt is valid.",
     actionDescriptionKey: "workspace.payment.action",
     showComment: true,
     commentLabel: "Receipt Verification Notes",
@@ -12770,7 +12778,7 @@ const configs = {
               status: "Receipt Rejected",
               recommendation: "Reject Receipt",
               receipt_decision: "Reject Receipt",
-              verification_result: "Invalid/Fake",
+              verification_result: "Invalid",
               verification_notes: data.comment,
               internal_verification_notes: data.comment,
               digital_signature: null,
@@ -16264,7 +16272,7 @@ function PaymentDetails({
             {receiptFile?.name || payment.receipt_reference || t("workspace.info.notSubmitted")}
           </p>
           {payment.verification_result && (
-            <p className="mt-1 text-xs text-slate-500">{payment.verification_result}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatReceiptVerificationResult(payment.verification_result)}</p>
           )}
         </div>
 
