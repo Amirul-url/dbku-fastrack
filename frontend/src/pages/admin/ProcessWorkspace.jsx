@@ -252,6 +252,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     redirectTo: "",
   });
+  const [licenseActionConfirmationModal, setLicenseActionConfirmationModal] = useState({
+    open: false,
+    action: null,
+  });
   const [receiptVerificationResultModal, setReceiptVerificationResultModal] = useState({
     open: false,
     result: "",
@@ -2062,6 +2066,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     submitAction(action);
   }
 
+  function requestLicenseManagementAction(action) {
+    if (isLicenseConfirmationAction(action)) {
+      setLicenseActionConfirmationModal({ open: true, action });
+      return;
+    }
+
+    submitWorkspaceAction(action);
+  }
+
+  function closeLicenseActionConfirmationModal() {
+    if (saving) return;
+    setLicenseActionConfirmationModal({ open: false, action: null });
+  }
+
+  function confirmLicenseAction() {
+    const action = licenseActionConfirmationModal.action;
+    setLicenseActionConfirmationModal({ open: false, action: null });
+    if (action) {
+      submitWorkspaceAction(action);
+    }
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -2996,8 +3022,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     onEditReceipt={() => setShowManualReceiptEditor(true)}
                     onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
-                    licenseManagementActions={isPtIssueLicenseWorkspace ? [] : workspaceActions}
-                    onLicenseManagementAction={isPtIssueLicenseWorkspace ? null : submitWorkspaceAction}
+                    licenseManagementActions={
+                      isPtIssueLicenseWorkspace || fromPersonalTask ? [] : workspaceActions
+                    }
+                    onLicenseManagementAction={
+                      isPtIssueLicenseWorkspace || fromPersonalTask ? null : requestLicenseManagementAction
+                    }
                   />
                 </div>
               )}
@@ -3933,6 +3963,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {licenseActionConfirmationModal.open && (
+        <LicenseActionConfirmationModal
+          action={licenseActionConfirmationModal.action}
+          t={t}
+          saving={saving}
+          onConfirm={confirmLicenseAction}
+          onCancel={closeLicenseActionConfirmationModal}
+        />
+      )}
+
       {receiptVerificationResultModal.open && (
         <ReceiptVerificationResultModal
           result={receiptVerificationResultModal.result}
@@ -4100,6 +4140,59 @@ function ReceiptVerificationResultModal({ result = "verified", t, onClose }) {
         >
           {t("common.ok", "OK")}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function isLicenseConfirmationAction(action) {
+  return ["revoke_license", "reinstate_license"].includes(action?.key);
+}
+
+function LicenseActionConfirmationModal({ action, t, saving, onConfirm, onCancel }) {
+  const isReinstate = action?.key === "reinstate_license";
+  const title = isReinstate
+    ? t(
+        "workspace.license.confirmReinstate",
+        "ARE YOU SURE TO REINSTATE LICENSE?"
+      )
+    : t(
+        "workspace.license.confirmRevoke",
+        "ARE YOU SURE TO REVOKE LICENSE?"
+      );
+
+  return (
+    <div
+      className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="license-action-confirmation-title"
+    >
+      <div className="w-full max-w-[1040px] rounded-xl border-2 border-slate-950 bg-white px-6 py-20 text-center shadow-xl sm:px-10">
+        <h2
+          id="license-action-confirmation-title"
+          className="text-3xl font-medium uppercase tracking-normal text-black sm:text-4xl"
+        >
+          {title}
+        </h2>
+        <div className="mt-32 flex flex-col items-center justify-center gap-8 sm:flex-row sm:gap-40">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-medium uppercase text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {t("common.yes", "YES")}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#ff1010] px-8 text-2xl font-medium uppercase text-white transition hover:bg-[#e60000] focus:outline-none focus:ring-4 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {t("common.no", "NO")}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -9000,6 +9093,26 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     { corner: "bottom-right", className: "-bottom-1.5 -right-1.5 cursor-nwse-resize" },
   ];
 
+  function blurPreviousFieldForSignatureInteraction(event) {
+    const target = event.target;
+    if (
+      target?.closest?.(
+        "input, textarea, select, [contenteditable='true']"
+      )
+    ) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement !== document.body &&
+      typeof activeElement.blur === "function"
+    ) {
+      activeElement.blur();
+    }
+  }
+
   return (
     <div>
       <span className="mb-1.5 block text-[13px] font-semibold leading-5 text-slate-700">
@@ -9008,6 +9121,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       </span>
       <div
         className={`max-w-[56rem] rounded border bg-white p-3 ${error ? "border-red-300 shadow-[0_0_0_3px_rgba(220,38,38,0.08)]" : "border-slate-200"}`}
+        onPointerDownCapture={blurPreviousFieldForSignatureInteraction}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -13030,6 +13144,7 @@ const configs = {
         }),
       },
       {
+        key: "revoke_license",
         label: "Revoke License",
         labelKey: "workspace.action.revokeLicense",
         icon: "block",
@@ -13065,6 +13180,7 @@ const configs = {
         },
       },
       {
+        key: "reinstate_license",
         label: "Reinstate License",
         labelKey: "workspace.action.restoreLicense",
         icon: "restart_alt",
@@ -16697,22 +16813,20 @@ function PaymentDetails({
   ) : null;
   const licenseManagementActionSection =
     !showRevocationRequestNotice && showLicenseManagementActions ? (
-      <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
-        <div className="flex flex-wrap justify-end gap-2">
-          {licenseManagementActions.map((action) => (
-            <Button
-              key={action.label}
-              onClick={() => onLicenseManagementAction(action)}
-              disabled={saving}
-              variant={action.variant || "primary"}
-              icon={action.icon}
-              className="min-w-40"
-            >
-              {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-            </Button>
-          ))}
-        </div>
-      </section>
+      <div className="flex flex-wrap justify-end gap-2">
+        {licenseManagementActions.map((action) => (
+          <Button
+            key={action.label}
+            onClick={() => onLicenseManagementAction(action)}
+            disabled={saving}
+            variant={action.variant || "primary"}
+            icon={action.icon}
+            className="min-w-40"
+          >
+            {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+          </Button>
+        ))}
+      </div>
     ) : null;
 
   const issuedDocumentSection = isIssuedLicenseView ? (
@@ -16804,15 +16918,13 @@ function PaymentDetails({
 
         <div className="space-y-4">
           {isIssuedLicenseView ? (
-            <div className="rounded-md border border-slate-200 bg-white">
-              <div className="grid items-start gap-4 p-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
-                {documentPreviewSection}
-                <div className="space-y-4">
-                  {revocationRequestNotice}
-                  {licenseManagementActionSection}
-                  {issuedDocumentSection}
-                  {issuedReceiptSection}
-                </div>
+            <div className="grid items-start gap-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
+              {documentPreviewSection}
+              <div className="space-y-4">
+                {revocationRequestNotice}
+                {issuedDocumentSection}
+                {issuedReceiptSection}
+                {licenseManagementActionSection}
               </div>
             </div>
           ) : isReceiptVerification ? (
