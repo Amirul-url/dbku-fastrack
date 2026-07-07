@@ -61,7 +61,7 @@ PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
 KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
 IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL"}
 APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
-APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}
+APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
 MPHLG_REVIEW_DEPARTMENTS = {"MPHLG"}
 SUT_APPROVAL_DEPARTMENTS = {"SUT", "SUT APPROVAL"}
 KB_LES_COMPLETE_STATUSES = {"verified", "supported", "completed"}
@@ -264,8 +264,21 @@ def notify_application_status_change(
     if new_status not in NOTIFIABLE_STATUSES:
         return
 
-    if not status_changed and not routing_changed and not (
-        new_status in REMARK_REPEAT_STATUSES and remark_changed
+    payment_receipt_rejected_changed = (
+        new_status == "invoice_generated"
+        and is_payment_receipt_rejected(application)
+        and (
+            status_changed
+            or remark_changed
+            or not is_payment_receipt_rejected_form_data(old_form_data or {})
+        )
+    )
+
+    if (
+        not status_changed
+        and not routing_changed
+        and not (new_status in REMARK_REPEAT_STATUSES and remark_changed)
+        and not payment_receipt_rejected_changed
     ):
         return
 
@@ -1796,6 +1809,7 @@ def get_latest_remark(application):
         section("approval").get("notes"),
         section("approval").get("comment"),
         section("payment").get("verification_notes"),
+        section("payment").get("internal_verification_notes"),
     ]
 
     for value in candidates:
@@ -2057,6 +2071,16 @@ def get_pending_technical_departments(application):
 
 def is_payment_receipt_rejected(application):
     payment = get_form_section(application, "payment")
+    return normalize_status_value(payment.get("status")) == "receipt rejected"
+
+
+def is_payment_receipt_rejected_form_data(form_data):
+    form_data = form_data or {}
+    if not isinstance(form_data, dict):
+        return False
+    payment = form_data.get("payment") or {}
+    if not isinstance(payment, dict):
+        return False
     return normalize_status_value(payment.get("status")) == "receipt rejected"
 
 

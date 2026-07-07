@@ -37,7 +37,7 @@ const applicantNotificationStatuses = new Set([
 ]);
 const technicalDepartmentOrder = ["BLG", "GPM", "MNE", "IMT", "LNP", "ENG"];
 const technicalDepartments = new Set(technicalDepartmentOrder);
-const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"]);
+const approvalSupportDepartments = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const mphlgReviewDepartments = new Set(["MPHLG"]);
 const adminTechnicalTaskStatuses = new Set([
   "technical_review",

@@ -258,6 +258,83 @@ class NotificationRoutingTests(TestCase):
         self.assertEqual(data[0]["recipient_email"], "ku-admin@sample.com")
         self.assertEqual(data[0]["recipient_mobile_number"], "0161112222")
 
+    def test_fin_notification_endpoint_only_includes_payment_tasks(self):
+        fin_user = User.objects.create_user(
+            username="fin-notifications",
+            email="fin@example.com",
+            password="Password123",
+            role="admin",
+            department="FIN",
+            is_active=True,
+        )
+        tp_user = User.objects.create_user(
+            username="tp-notifications",
+            email="tp@example.com",
+            password="Password123",
+            role="supervisor",
+            department="TP(RES)",
+            is_active=True,
+        )
+        self.application.status = "management_review"
+        self.application.form_data = {
+            **self.application.form_data,
+            "kb_les_verification": {"status": "Supported"},
+            "management_recommendation": {"status": "Pending TP(RES)/PGH Approval"},
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        notify_application_status_change(
+            self.application,
+            old_status="technical_review_completed",
+        )
+
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                user=tp_user,
+                metadata__event_status="management_review",
+            ).exists()
+        )
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                user=fin_user,
+                metadata__event_status="management_review",
+            ).exists()
+        )
+
+        NotificationDelivery.objects.create(
+            application=self.application,
+            user=fin_user,
+            event_key="legacy-management-review-fin",
+            recipient_role="admin",
+            channel="web",
+            recipient="fin@example.com",
+            subject="Legacy approval notification",
+            message="Should not be visible to FIN.",
+            metadata={"event_status": "management_review"},
+            status="sent",
+        )
+        NotificationDelivery.objects.create(
+            application=self.application,
+            user=fin_user,
+            event_key="payment-submitted-fin",
+            recipient_role="admin",
+            channel="web",
+            recipient="fin@example.com",
+            subject="Payment proof submitted",
+            message="FIN must verify the receipt.",
+            metadata={"event_status": "payment_submitted"},
+            status="sent",
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=fin_user)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["metadata"]["event_status"], "payment_submitted")
+
     def test_payment_request_notifies_applicant_only(self):
         self.application.form_data = {
             **self.application.form_data,
@@ -1197,6 +1274,44 @@ class NotificationRoutingTests(TestCase):
         self.assertIn("Receipt image is unclear", deliveries.get(channel="web").message)
         self.assertNotIn("We have no objection", deliveries.get(channel="email").message)
         self.assertNotIn("We have no objection", deliveries.get(channel="whatsapp").message)
+
+    def test_rejected_payment_receipt_notifies_applicant_when_status_stays_invoice_generated(self):
+        NotificationDelivery.objects.all().delete()
+        old_form_data = {
+            **self.application.form_data,
+            "payment": {
+                "status": "Receipt Uploaded",
+                "receipt_decision": "",
+                "internal_verification_notes": "",
+            },
+        }
+        self.application.status = "invoice_generated"
+        self.application.latest_remark = "Your receipt not valid."
+        self.application.form_data = {
+            **self.application.form_data,
+            "payment": {
+                "status": "Receipt Rejected",
+                "receipt_decision": "Reject Receipt",
+                "verification_result": "Invalid",
+                "internal_verification_notes": self.application.latest_remark,
+            },
+        }
+        self.application.save(update_fields=["status", "latest_remark", "form_data"])
+
+        notify_application_status_change(
+            self.application,
+            old_status="invoice_generated",
+            old_remark="",
+            old_form_data=old_form_data,
+        )
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="applicant",
+            metadata__event_status="invoice_generated",
+        )
+        self.assertIn("Payment receipt rejected", delivery.subject)
+        self.assertIn("Your receipt not valid.", delivery.message)
 
     def test_license_issued_notifies_applicant_ready_to_download_all_channels(self):
         self.notify_status("license_issued", old_status="payment_submitted")
