@@ -12015,6 +12015,9 @@ function buildApprovalWorkflowPayload(app, data) {
               routed_at: now,
               memo_html: data.memoHtml || app.form_data?.mphlg_gateway?.memo_html || "",
             },
+        technical_ku_review: rejected
+          ? null
+          : app.form_data?.technical_ku_review || null,
         sut_approval: rejected || !finalApproval
           ? null
           : app.form_data?.sut_approval || null,
