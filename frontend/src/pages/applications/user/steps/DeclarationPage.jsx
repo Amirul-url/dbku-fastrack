@@ -191,12 +191,13 @@ function DeclarationPage({
   );
 
   const applicantName = getFirstValue(
+    currentUserProfile.name,
+    currentUserProfile.full_name,
+    applicantProfile.full_name,
+    applicantProfile.name,
     step3.full_name,
     step1.applicant,
     savedDeclarationValues.name,
-    applicantProfile.full_name,
-    currentUserProfile.name,
-    currentUserProfile.full_name,
     "Applicant"
   );
 
@@ -208,19 +209,19 @@ function DeclarationPage({
     savedDeclarationValues.companyName
   );
   const applicantAddress = normalizeAddressState(getFirstValue(
-    savedDeclarationValues.address,
-    applicantProfile.address,
-    applicantProfileAddress,
+    currentUserAddress,
     currentUserProfile.address,
-    currentUserAddress
+    applicantProfileAddress,
+    applicantProfile.address,
+    savedDeclarationValues.address
   ));
   const identityCardNo = getFirstValue(
-    step3.identity_card_no,
-    savedDeclarationValues.icNumber,
+    currentUserProfile.mykad_number,
+    currentUserProfile.username,
     applicantProfile.mykad_number,
     applicantProfile.username,
-    currentUserProfile.mykad_number,
-    currentUserProfile.username
+    step3.identity_card_no,
+    savedDeclarationValues.icNumber
   );
   const companyAddress = joinAddress(
     [
