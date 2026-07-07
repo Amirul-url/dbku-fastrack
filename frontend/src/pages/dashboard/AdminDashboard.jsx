@@ -2061,16 +2061,14 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
   const now = new Date();
   const rejectedEntries = applications.flatMap((application) => {
     const activityLog = getApplicationActivityLog(application);
-    const rejectedActivities = activityLog
+    const explicitRejectedEntries = activityLog
       .filter(isRejectedActivity)
       .map((activity) => ({
         activity,
         createdAt: activity.created_at || application.updated_at || application.created_at,
       }))
-      .filter((item) => item.createdAt);
-
-    if (rejectedActivities.length > 0) {
-      return rejectedActivities.map(({ activity, createdAt }) => ({
+      .filter((item) => item.createdAt)
+      .map(({ activity, createdAt }) => ({
         type: "rejected",
         applicationId: application.id,
         application,
@@ -2082,37 +2080,42 @@ function buildInternalResubmissionInsights(applications, t, language = "en", fil
         description: activity.description || "",
         sortDate: createdAt,
       }));
-    }
 
-    const resubmissionActivities = getResubmissionActivitiesForRejectedCycles(activityLog);
-    if (resubmissionActivities.length > 0) {
-      return resubmissionActivities
-        .map((activity) => {
-          const eventDate =
-            activity?.metadata?.rejected_at ||
-            activity?.metadata?.previous_rejected_at ||
-            activity?.rejected_at ||
-            activity?.created_at ||
-            application.updated_at ||
-            application.created_at;
+    const historicalRejectedEntries = getResubmissionActivitiesMissingRejectedLog(activityLog)
+      .map((activity) => {
+        const eventDate =
+          activity?.metadata?.rejected_at ||
+          activity?.metadata?.previous_rejected_at ||
+          activity?.rejected_at ||
+          activity?.created_at ||
+          application.updated_at ||
+          application.created_at;
 
-          return {
-            type: "rejected",
-            applicationId: application.id,
-            application,
-            reference: getApplicationReference(application),
-            project: getProjectName(application),
-            eventDate,
-            eventLabel: t("status.rejected", "Rejected"),
-            remark: getActivityRemark(activity) || getApplicationRemark(application),
-            description: t(
-              "admin.dashboard.previousRejectedLogDesc",
-              "Application was rejected before applicant resubmission."
-            ),
-            sortDate: eventDate,
-          };
-        })
-        .filter((entry) => entry.eventDate);
+        return {
+          type: "rejected",
+          applicationId: application.id,
+          application,
+          reference: getApplicationReference(application),
+          project: getProjectName(application),
+          eventDate,
+          eventLabel: t("status.rejected", "Rejected"),
+          remark: getActivityRemark(activity) || getApplicationRemark(application),
+          description: t(
+            "admin.dashboard.previousRejectedLogDesc",
+            "Application was rejected before applicant resubmission."
+          ),
+          sortDate: eventDate,
+        };
+      })
+      .filter((entry) => entry.eventDate);
+
+    const activityEntries = [
+      ...explicitRejectedEntries,
+      ...historicalRejectedEntries,
+    ];
+
+    if (activityEntries.length > 0) {
+      return activityEntries;
     }
 
     if (!isRejectedApplication(application)) return [];
@@ -3323,6 +3326,29 @@ function getResubmissionActivitiesForRejectedCycles(activityLog) {
       return (explicitResubmission || cycleCandidates[0])?.activity || null;
     })
     .filter(Boolean);
+}
+
+function getResubmissionActivitiesMissingRejectedLog(activityLog) {
+  const sortedActivities = [...activityLog]
+    .map((activity) => ({
+      activity,
+      timestamp: getActivityTimestamp(activity),
+    }))
+    .filter((item) => Number.isFinite(item.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const rejectedItems = sortedActivities.filter((item) => isRejectedActivity(item.activity));
+  const resubmissionItems = sortedActivities.filter((item) => isResubmissionActivity(item.activity));
+
+  return resubmissionItems
+    .filter((item, index) => {
+      const previousResubmissionTime = resubmissionItems[index - 1]?.timestamp || -Infinity;
+      return !rejectedItems.some(
+        (rejectedItem) =>
+          rejectedItem.timestamp > previousResubmissionTime &&
+          rejectedItem.timestamp < item.timestamp
+      );
+    })
+    .map((item) => item.activity);
 }
 
 function getActivityTimestamp(activity) {

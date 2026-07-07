@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import Application, SupportingDocument
 from .services.activity import (
-    enrich_activity_log_with_rejection_remarks,
     get_request_user,
     scope_activity_log_for_user,
 )
@@ -293,7 +292,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             return []
 
         scoped_log = scope_activity_log_for_user(activity_log, get_request_user(self))
-        return enrich_activity_log_with_rejection_remarks(obj, scoped_log[:80])
+        return scoped_log[:80]
 
 
 class ApplicationDetailSerializer(serializers.ModelSerializer):
