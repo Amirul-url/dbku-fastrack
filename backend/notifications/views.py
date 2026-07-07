@@ -33,6 +33,8 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                     "approved",
                     "payment_submitted",
                     "payment_verified",
+                    "license_revocation_requested",
+                    "license_revocation_withdrawn",
                     "license_renewal_3m",
                     "license_renewal_2m",
                     "license_renewal_1m",

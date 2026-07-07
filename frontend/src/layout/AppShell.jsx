@@ -942,7 +942,15 @@ function isKuELicensePaymentTask() {
 }
 
 function isELicenseLicenseTask(application) {
-  return normalizeWorkflowStatus(application?.status) === "payment_verified";
+  return (
+    normalizeWorkflowStatus(application?.status) === "payment_verified" ||
+    hasPendingLicenseRevocationRequest(application)
+  );
+}
+
+function hasPendingLicenseRevocationRequest(application) {
+  const request = application?.license_revocation_request || application?.form_data?.license_revocation_request || {};
+  return normalizeWorkflowStatus(request.status) === "pending";
 }
 
 function isPersonalTaskForDepartment(application, department) {

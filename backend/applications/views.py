@@ -42,6 +42,7 @@ from notifications.services import (
     notify_applicant_application_resubmitted,
     notify_applicant_application_submitted,
     notify_application_status_change,
+    notify_license_revocation_request,
     notify_staff_application_resubmitted,
 )
 
@@ -112,6 +113,19 @@ def get_applicant_activity_message(application, request_data, old_status=""):
         return (
             "Payment receipt submitted",
             "You submitted your payment receipt. ALiS will verify it before issuing the e-license.",
+        )
+
+    if form_keys and form_keys.issubset({"license_revocation_request"}):
+        revocation_request = form_data.get("license_revocation_request") or {}
+        revocation_status = str(revocation_request.get("status") or "").strip().lower()
+        if revocation_status == "withdrawn":
+            return (
+                "License revocation request cancelled",
+                "You cancelled your license revocation request.",
+            )
+        return (
+            "License revocation requested",
+            "You requested PT(IKL) to revoke your e-license.",
         )
 
     if old_status_key in APPLICANT_CORRECTION_STATUSES and requested_status in APPLICANT_RESUBMIT_STATUSES:
@@ -350,12 +364,28 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             and request_form_keys
             and request_form_keys.issubset({"payment"})
         )
+        old_revocation_request = (
+            old_form_data.get("license_revocation_request")
+            if isinstance(old_form_data, dict)
+            else {}
+        ) or {}
+        new_revocation_request = (application.form_data or {}).get("license_revocation_request") or {}
+        old_revocation_status = str(old_revocation_request.get("status") or "").strip().lower()
+        new_revocation_status = str(new_revocation_request.get("status") or "").strip().lower()
+        applicant_revocation_request_changed = (
+            self.request.user.role not in STAFF_ROLES
+            and "license_revocation_request" in request_form_keys
+            and new_revocation_status in {"pending", "withdrawn"}
+            and old_revocation_status != new_revocation_status
+        )
         if self.request.user.role not in STAFF_ROLES:
             if old_status_key in APPLICANT_CORRECTION_STATUSES and new_status_key in APPLICANT_RESUBMIT_STATUSES:
                 notify_applicant_application_resubmitted(application)
                 notify_staff_application_resubmitted(application)
             elif old_status_key != "submitted" and new_status_key == "submitted":
                 notify_applicant_application_submitted(application)
+            if applicant_revocation_request_changed:
+                notify_license_revocation_request(application, new_revocation_status)
         if self.request.user.role not in STAFF_ROLES:
             activity_title, activity_description = get_applicant_activity_message(
                 application,

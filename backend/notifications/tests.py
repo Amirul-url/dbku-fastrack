@@ -14,6 +14,7 @@ from .services import (
     notify_applicant_registration_success,
     notify_account_created,
     notify_application_status_change,
+    notify_license_revocation_request,
     process_license_renewal_reminders,
 )
 from .channels import send_brevo_email, send_smtp_email, send_webhook_whatsapp
@@ -288,6 +289,35 @@ class NotificationRoutingTests(TestCase):
             self.assertNotIn("please download", delivery.message)
             self.assertNotIn("please download", delivery.metadata["message"])
             self.assertTrue(delivery.metadata["suppress_remark"])
+
+    def test_license_revocation_request_notifies_pt_ikl_web(self):
+        ku_admin = User.objects.create_user(
+            username="ku-revocation",
+            email="ku-revocation@sample.com",
+            password="Password123",
+            role="admin",
+            department="KU(IKL)",
+            is_active=True,
+        )
+        self.application.status = "license_issued"
+        self.application.save(update_fields=["status"])
+
+        notify_license_revocation_request(self.application, "pending")
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            recipient_role="admin",
+            metadata__event_status="license_revocation_requested",
+        )
+        self.assertEqual(delivery.user, self.admin)
+        self.assertIn(self.application.reference_no, delivery.message)
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=ku_admin,
+                metadata__event_status="license_revocation_requested",
+            ).exists()
+        )
 
     def test_pt_ikl_rejection_notifies_applicant_all_channels(self):
         self.application.latest_remark = "Please correct the applicant details."

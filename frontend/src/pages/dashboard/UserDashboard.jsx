@@ -410,6 +410,99 @@ function UserDashboard() {
     }
   }
 
+  async function requestLicenseRevocation() {
+    if (!selectedApplication || normalizeStatus(selectedApplication.status) !== "license_issued") return;
+
+    const confirmed = window.confirm(
+      t(
+        "applicant.licenseRevocationConfirm",
+        "Submit a request to revoke this license? PT(IKL) will review the request."
+      )
+    );
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setMessage({ type: "", text: "" });
+
+      const timestamp = new Date().toISOString();
+      const updatedApplication = await apiRequest(`/applications/${selectedApplication.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: {
+            license_revocation_request: {
+              status: "pending",
+              requested_at: timestamp,
+              requested_by: "applicant",
+              withdrawn_at: "",
+              completed_at: "",
+            },
+          },
+        }),
+      });
+
+      markApplicationSeen("all", updatedApplication);
+      await fetchApplications();
+      setSelectedApplication(updatedApplication);
+      setSelectedId(String(updatedApplication.id));
+      setLicensePanelOpen(true);
+      setMessage({
+        type: "success",
+        text: t("applicant.licenseRevocationRequested", "License revocation request sent to PT(IKL)."),
+      });
+      window.dispatchEvent(new Event("fastrack:applications-changed"));
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err.message || t("applicant.licenseRevocationRequestFailed", "Unable to request license revocation."),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancelLicenseRevocationRequest() {
+    if (!selectedApplication || !hasPendingLicenseRevocationRequest(selectedApplication)) return;
+
+    try {
+      setSaving(true);
+      setMessage({ type: "", text: "" });
+
+      const timestamp = new Date().toISOString();
+      const currentRequest = selectedApplication.form_data?.license_revocation_request || {};
+      const updatedApplication = await apiRequest(`/applications/${selectedApplication.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          form_data: {
+            license_revocation_request: {
+              ...currentRequest,
+              status: "withdrawn",
+              withdrawn_at: timestamp,
+            },
+          },
+        }),
+      });
+
+      markApplicationSeen("all", updatedApplication);
+      await fetchApplications();
+      setSelectedApplication(updatedApplication);
+      setSelectedId(String(updatedApplication.id));
+      setLicensePanelOpen(true);
+      setMessage({
+        type: "success",
+        text: t("applicant.licenseRevocationCancelled", "License revocation request cancelled."),
+      });
+      window.dispatchEvent(new Event("fastrack:applications-changed"));
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err.message || t("applicant.licenseRevocationCancelFailed", "Unable to cancel the revocation request."),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handlePaymentReceiptChange(file) {
     if (!file) return;
 
@@ -546,6 +639,8 @@ function UserDashboard() {
             onReceiptRemove={handlePaymentReceiptRemove}
             onReceiptDownload={downloadPaymentReceipt}
             onSubmitPayment={submitPayment}
+            onRequestRevocation={requestLicenseRevocation}
+            onCancelRevocationRequest={cancelLicenseRevocationRequest}
             onBack={returnToLicenseList}
             activePanelTab={licensePanelTab}
             onPanelTabChange={setLicensePanelTab}
@@ -873,6 +968,8 @@ function LicenseSection({
   onReceiptRemove,
   onReceiptDownload,
   onSubmitPayment,
+  onRequestRevocation,
+  onCancelRevocationRequest,
   onBack,
   activePanelTab = "bank",
   onPanelTabChange,
@@ -911,6 +1008,14 @@ function LicenseSection({
               app={app}
               t={t}
               onViewApplicationSteps={onViewApplicationSteps}
+            />
+
+            <LicenseRevocationRequestPanel
+              app={app}
+              saving={saving}
+              t={t}
+              onRequestRevocation={onRequestRevocation}
+              onCancelRevocationRequest={onCancelRevocationRequest}
             />
 
             <section className="rounded-md border border-slate-200 bg-slate-50">
@@ -1378,6 +1483,73 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             )}
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function LicenseRevocationRequestPanel({
+  app,
+  saving,
+  t,
+  onRequestRevocation,
+  onCancelRevocationRequest,
+}) {
+  const status = normalizeStatus(app?.status);
+  const pendingRequest = hasPendingLicenseRevocationRequest(app);
+
+  if (!["license_issued", "license_revoked"].includes(status) && !pendingRequest) {
+    return null;
+  }
+
+  if (status === "license_revoked") {
+    return (
+      <section className="rounded-md border border-red-200 bg-red-50 px-3 py-3">
+        <h4 className="text-sm font-semibold text-red-900">
+          {t("applicant.licenseRevokedTitle", "License revoked")}
+        </h4>
+        <p className="mt-1 text-sm leading-5 text-red-800">
+          {t("applicant.licenseRevokedDesc", "This e-license has been revoked by PT(IKL).")}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold text-slate-950">
+            {t("applicant.licenseRevocationTitle", "License revocation request")}
+          </h4>
+          <p className="mt-1 text-sm leading-5 text-slate-500">
+            {pendingRequest
+              ? t("applicant.licenseRevocationPendingDesc", "Your revocation request has been sent to PT(IKL). You can cancel it before PT(IKL) revokes the license.")
+              : t("applicant.licenseRevocationDesc", "Request PT(IKL) to revoke this e-license if you no longer need it.")}
+          </p>
+        </div>
+
+        {pendingRequest ? (
+          <button
+            type="button"
+            onClick={onCancelRevocationRequest}
+            disabled={saving}
+            className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[16px]">undo</span>
+            {t("applicant.cancelRevocationRequest", "Cancel Request")}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onRequestRevocation}
+            disabled={saving}
+            className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-[16px]">block</span>
+            {t("applicant.requestLicenseRevocation", "Request Revoke")}
+          </button>
+        )}
       </div>
     </section>
   );
@@ -3480,6 +3652,11 @@ function isRejectedApplication(app) {
     ["incomplete", "rejected"].includes(normalizeStatus(app.status)) ||
     isPaymentReceiptRejected(getApplicationPayment(app))
   );
+}
+
+function hasPendingLicenseRevocationRequest(app) {
+  const request = app?.license_revocation_request || app?.form_data?.license_revocation_request || {};
+  return normalizeStatus(request.status) === "pending";
 }
 
 function getPaymentHint(app, t) {

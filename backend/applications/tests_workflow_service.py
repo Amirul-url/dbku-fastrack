@@ -86,6 +86,21 @@ class ApplicationWorkflowServiceTests(SimpleTestCase):
             {"status": "payment_submitted", "form_data": {"payment": {"receipt_reference": "R1"}}},
         )
 
+    def test_applicant_can_request_license_revocation_after_license_issued(self):
+        ensure_applicant_can_update(
+            application("license_issued"),
+            user("applicant"),
+            {"form_data": {"license_revocation_request": {"status": "pending"}}},
+        )
+
+    def test_applicant_cannot_request_license_revocation_before_license_issued(self):
+        with self.assertRaises(PermissionDenied):
+            ensure_applicant_can_update(
+                application("approved"),
+                user("applicant"),
+                {"form_data": {"license_revocation_request": {"status": "pending"}}},
+            )
+
     def test_applicant_cannot_update_submitted_application_form(self):
         with self.assertRaises(PermissionDenied):
             ensure_applicant_can_update(

@@ -12796,37 +12796,58 @@ const configs = {
         successKey: "workspace.message.licenseRevoked",
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "license_issued",
-        buildPayload: (app) => ({
-          status: "license_revoked",
-          form_data: mergeFormData(app, {
-            license: {
-              ...(app.form_data?.license || {}),
-              status: "Revoked",
-              revoked_at: new Date().toISOString(),
-            },
-          }),
-        }),
+        buildPayload: (app) => {
+          const timestamp = new Date().toISOString();
+          const currentRequest = app.form_data?.license_revocation_request || {};
+
+          return {
+            status: "license_revoked",
+            form_data: mergeFormData(app, {
+              license: {
+                ...(app.form_data?.license || {}),
+                status: "Revoked",
+                revoked_at: timestamp,
+              },
+              license_revocation_request: {
+                ...currentRequest,
+                status: "completed",
+                completed_at: timestamp,
+                completed_by: "PT(IKL)",
+              },
+            }),
+          };
+        },
       },
       {
-        label: "Restore License",
+        label: "Reinstate License",
         labelKey: "workspace.action.restoreLicense",
         icon: "restart_alt",
         success: "License restored.",
         successKey: "workspace.message.licenseRestored",
         isAvailable: (app, department) =>
           department === "PT(IKL)" && normalizeStatus(app?.status) === "license_revoked",
-        buildPayload: (app) => ({
-          status: "license_issued",
-          form_data: mergeFormData(app, {
-            license: {
-              ...(app.form_data?.license || {}),
-              status: "Active",
-              reinstated_at: new Date().toISOString(),
-              revoked_at: "",
-              revocation_reason: "",
-            },
-          }),
-        }),
+        buildPayload: (app) => {
+          const timestamp = new Date().toISOString();
+          const currentRequest = app.form_data?.license_revocation_request || {};
+
+          return {
+            status: "license_issued",
+            form_data: mergeFormData(app, {
+              license: {
+                ...(app.form_data?.license || {}),
+                status: "Active",
+                reinstated_at: timestamp,
+                revoked_at: "",
+                revocation_reason: "",
+              },
+              license_revocation_request: {
+                ...currentRequest,
+                status: "reinstated",
+                reinstated_at: timestamp,
+              },
+            }),
+          };
+        },
       },
     ],
     details: PaymentDetails,
@@ -16300,6 +16321,19 @@ function PaymentDetails({
     </section>
   ) : null;
 
+  const revocationRequest = app.form_data?.license_revocation_request || {};
+  const showRevocationRequestNotice = normalizeStatus(revocationRequest.status) === "pending";
+  const revocationRequestNotice = showRevocationRequestNotice ? (
+    <section className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
+      <p className="text-sm font-semibold text-amber-900">
+        {t("workspace.license.revocationRequestTitle", "Applicant requested license revocation")}
+      </p>
+      <p className="mt-1 text-sm leading-5 text-amber-800">
+        {t("workspace.license.revocationRequestDesc", "Review the request and use Revoke License if the license should be revoked. Reinstate License is available after revocation.")}
+      </p>
+    </section>
+  ) : null;
+
   const issuedDocumentSection = isIssuedLicenseView ? (
     <IssuedPaymentDocumentList
       t={t}
@@ -16393,6 +16427,7 @@ function PaymentDetails({
               <div className="grid items-start gap-4 p-4 lg:grid-cols-[max-content_minmax(0,1fr)]">
                 {documentPreviewSection}
                 <div className="space-y-4">
+                  {revocationRequestNotice}
                   {issuedDocumentSection}
                   {issuedReceiptSection}
                 </div>
@@ -16411,6 +16446,7 @@ function PaymentDetails({
               <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
                 {documentPreviewSection}
                 <div className="space-y-4">
+                  {revocationRequestNotice}
                   {documentSection}
                   {receiptSection}
                 </div>

@@ -199,6 +199,8 @@ ADMIN_NOTIFICATION_STATUSES = {
     "bill_pending_ku",
     "payment_submitted",
     "payment_verified",
+    "license_revocation_requested",
+    "license_revocation_withdrawn",
     "management_review",
     "mphlg_processing",
     "mphlg_decision_received",
@@ -1010,6 +1012,46 @@ def notify_license_cancellation_released(application):
     )
 
 
+def notify_license_revocation_request(application, request_status="pending"):
+    normalized_status = str(request_status or "").strip().lower()
+    if normalized_status not in {"pending", "withdrawn"}:
+        return
+
+    event_status = (
+        "license_revocation_withdrawn"
+        if normalized_status == "withdrawn"
+        else "license_revocation_requested"
+    )
+    title = (
+        "License revocation request withdrawn"
+        if normalized_status == "withdrawn"
+        else "Applicant requested license revocation"
+    )
+    body = (
+        f"The applicant has withdrawn the license revocation request for application {application.reference_no}."
+        if normalized_status == "withdrawn"
+        else f"The applicant has requested license revocation for application {application.reference_no}. Please review and revoke the license if appropriate."
+    )
+
+    send_license_workflow_notification(
+        application=application,
+        event_status=event_status,
+        title=title,
+        body=body,
+        recipients=get_pt_ikl_web_recipients(),
+        recipient_role="admin",
+        action_url=f"/admin/e-licenses/payment?id={application.id}",
+        extra_metadata={"occurrence": timezone.now().isoformat()},
+        force_web=True,
+    )
+
+
+def get_pt_ikl_web_recipients():
+    User = get_user_model()
+    users = User.objects.filter(role__in=["admin", "supervisor", "staff"], is_active=True)
+    return [user for user in users if is_pt_ikl_user(user)]
+
+
 def send_license_workflow_notification(
     application,
     event_status,
@@ -1020,6 +1062,7 @@ def send_license_workflow_notification(
     action_url,
     extra_metadata=None,
     include_external=False,
+    force_web=False,
 ):
     subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     message = format_license_workflow_message(title, body, application, recipient_role)
@@ -1038,6 +1081,8 @@ def send_license_workflow_notification(
     event_key = f"application:{application.id}:{event_status}"
     if extra_metadata and extra_metadata.get("months_before_expiry"):
         event_key = f"{event_key}:{extra_metadata['months_before_expiry']}"
+    if extra_metadata and extra_metadata.get("occurrence"):
+        event_key = f"{event_key}:{extra_metadata['occurrence']}"
 
     for user in recipients:
         if not user:
@@ -1052,6 +1097,7 @@ def send_license_workflow_notification(
             subject=subject,
             message=message,
             metadata=metadata,
+            force=force_web,
         )
 
     if include_external and recipient_role == "applicant":

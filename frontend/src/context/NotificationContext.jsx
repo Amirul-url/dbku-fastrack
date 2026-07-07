@@ -60,6 +60,8 @@ adminNotificationStatuses.add("license_renewal_supervisor_confirmation");
 adminNotificationStatuses.add("license_cancellation_pending");
 adminNotificationStatuses.add("license_cancellation_supervisor_confirmation");
 adminNotificationStatuses.add("license_cancellation_kb_support");
+adminNotificationStatuses.add("license_revocation_requested");
+adminNotificationStatuses.add("license_revocation_withdrawn");
 const superadminNotificationStatuses = new Set(["account_created"]);
 
 function readStoredIds() {
@@ -505,6 +507,10 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   const department = getUserDepartment(user);
   const normalizedStatus = normalizeStatus(status);
 
+  if (normalizedStatus === "license_revocation_requested") {
+    return department === "PT(IKL)";
+  }
+
   if (normalizedStatus === "submitted") {
     return department === "KU(IKL)";
   }
@@ -567,6 +573,11 @@ function isAdminNotificationAllowedForUser(status, user, app = null) {
   }
 
   return false;
+}
+
+function hasPendingLicenseRevocationRequest(app) {
+  const request = app?.license_revocation_request || app?.form_data?.license_revocation_request || {};
+  return normalizeStatus(request.status) === "pending";
 }
 
 function getNotificationUrl(role, app, category, user = null) {
@@ -744,6 +755,25 @@ function buildAdminNotifications(app, user) {
   const location = getApplicationLocation(app);
   const type = getApplicationType(app);
   const notifications = [];
+
+  if (hasPendingLicenseRevocationRequest(app) && getUserDepartment(user) === "PT(IKL)") {
+    notifications.push(
+      buildBaseNotification(
+        {
+          ...app,
+          status: "license_revocation_requested",
+        },
+        "admin",
+        "license",
+        "warning",
+        "Applicant requested license revocation",
+        "Pemohon memohon pembatalan lesen",
+        `${reference} has a pending applicant request to revoke the e-license.`,
+        `${reference} mempunyai permohonan pemohon untuk membatalkan e-lesen.`,
+        user
+      )
+    );
+  }
 
   if (status === "submitted" && isAdminNotificationAllowedForUser(status, user, app)) {
     notifications.push(

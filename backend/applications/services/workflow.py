@@ -129,13 +129,23 @@ def ensure_applicant_can_update(application, user, request_data):
     form_data = request_data.get("form_data") or {}
     form_keys = set(form_data.keys()) if isinstance(form_data, dict) else set()
     is_payment_only_update = form_keys and form_keys.issubset({"payment"})
+    is_license_revocation_request_update = (
+        form_keys
+        and form_keys.issubset({"license_revocation_request"})
+        and requested_status == current_status
+        and current_status in {"license_issued", "license_revoked"}
+    )
     is_payment_proof_update = (
         is_payment_only_update
         and requested_status == "payment_submitted"
         and current_status in {"invoice_generated", "payment_submitted"}
     )
 
-    if current_status in APPLICANT_EDITABLE_STATUSES or is_payment_proof_update:
+    if (
+        current_status in APPLICANT_EDITABLE_STATUSES
+        or is_payment_proof_update
+        or is_license_revocation_request_update
+    ):
         return
 
     if form_keys or "current_step" in request_data or "status" in request_data:
