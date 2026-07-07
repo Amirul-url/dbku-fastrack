@@ -734,7 +734,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     );
   const isPtPaymentVerifiedPersonalTask =
     fromPersonalTask &&
-    isApprovalWorkspace &&
+    (isApprovalWorkspace || config.key === "license") &&
     normalizedUserDepartment === "PT(IKL)" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified";
   const workspaceActions =
@@ -909,7 +909,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showIssueLicenseDecision;
   const showWorkspaceCommentField =
     !isApprovalLicenseManagement &&
-    config.showComment &&
+    (config.showComment || showIssueLicenseDecision) &&
     canSubmitWorkspaceAction &&
     !useApprovalSignatureTemplate &&
     (
