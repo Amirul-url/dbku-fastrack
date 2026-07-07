@@ -729,6 +729,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     normalizedUserDepartment === "PT(IKL)" &&
     (
+      normalizeStatus(selectedRecord?.status) === "payment_verified" ||
       ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status)) ||
       hasPendingLicenseRevocationRequest(selectedRecord)
     );
@@ -852,8 +853,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showApprovalPaymentReadOnly =
     isApprovalWorkspace &&
     isPostApprovalPaymentRecord(selectedRecord) &&
+    !(normalizedUserDepartment === "PT(IKL)" && normalizeStatus(selectedRecord?.status) === "payment_verified") &&
     !isApprovalLicenseManagement;
-  const showApprovalLicenseManagementDetails = isApprovalLicenseManagement;
+  const showApprovalLicenseManagementDetails =
+    isApprovalLicenseManagement ||
+    (
+      isApprovalWorkspace &&
+      normalizedUserDepartment === "PT(IKL)" &&
+      normalizeStatus(selectedRecord?.status) === "payment_verified"
+    );
   const showReadOnlyGuideBanner =
     isReadOnlyActionPanel &&
     !fromPersonalTask &&
@@ -2945,6 +2953,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     userDepartment={userDepartment}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
+                    onEditReceipt={() => setShowManualReceiptEditor(true)}
+                    onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
                     licenseManagementActions={workspaceActions}
                     onLicenseManagementAction={submitWorkspaceAction}
                   />
@@ -9655,6 +9665,16 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
   if (config?.key === "approval") {
     if (
       userDepartment === "PT(IKL)" &&
+      normalizeStatus(selectedRecord?.status) === "payment_verified"
+    ) {
+      return t(
+        "workspace.approval.ptIssueLicenseAction",
+        "Review the official receipt and advertisement license, then issue the license to the applicant."
+      );
+    }
+
+    if (
+      userDepartment === "PT(IKL)" &&
       ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status))
     ) {
       return t(
@@ -9794,6 +9814,13 @@ function getWorkspaceActions(config, app, department) {
       if (typeof action.isAvailable !== "function") return true;
       return action.isAvailable(app, normalizedDepartment);
     });
+  }
+
+  if (
+    normalizedDepartment === "PT(IKL)" &&
+    normalizeStatus(app?.status) === "payment_verified"
+  ) {
+    return getWorkspaceActions(configs.license, app, normalizedDepartment);
   }
 
   if (
@@ -16320,7 +16347,10 @@ function PaymentDetails({
     ["Recipient Reference", payment.recipient_reference],
     ["Payment Details", payment.payment_details],
   ].filter(([, value]) => String(value || "").trim());
-  const showVerificationUploads = false;
+  const showVerificationUploads =
+    !readOnly &&
+    normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
+    status === "payment_verified";
   const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
   const canShowSavedIssueDocuments =
@@ -16652,6 +16682,15 @@ function PaymentDetails({
               {documentPreviewSection}
               <div className="space-y-4">
                 {documentSection}
+                {verificationDocumentSection}
+                {receiptSection}
+              </div>
+            </div>
+          ) : showVerificationUploads ? (
+            <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+              {documentPreviewSection}
+              <div className="space-y-4">
+                {licenseManagementActionSection}
                 {verificationDocumentSection}
                 {receiptSection}
               </div>
