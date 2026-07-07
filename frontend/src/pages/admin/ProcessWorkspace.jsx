@@ -849,6 +849,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isPostApprovalPaymentRecord(selectedRecord) &&
     !isApprovalLicenseManagement;
   const showApprovalLicenseManagementDetails = isApprovalLicenseManagement;
+  const showReadOnlyGuideBanner =
+    isReadOnlyActionPanel &&
+    !showDecisionLog &&
+    !showVerificationReport &&
+    !showApprovalPaymentReadOnly;
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
@@ -2779,21 +2784,36 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         )}
 
         {!isFocusedPersonalWorkspace && tableFirstWorkspace && showActionPanel && (
-          <div className="flex justify-start">
-            <Button
-              type="button"
-              variant="secondary"
-              icon="arrow_back"
-              onClick={returnToTaskList}
-            >
-              {isSimpleApprovalWorkspace
-                ? fromCompletedApprovals
-                  ? t("workspace.backToCompleted", "Back to Completed")
-                  : t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
-                : fromPersonalTask
-                  ? t("workspace.backToPersonalTask", "Back to Personal Task")
-                  : t("workspace.backToELicenseList", "Back to E-Licenses List")}
-            </Button>
+          <div className="space-y-4">
+            <div className="flex justify-start">
+              <Button
+                type="button"
+                variant="secondary"
+                icon="arrow_back"
+                onClick={returnToTaskList}
+              >
+                {isSimpleApprovalWorkspace
+                  ? fromCompletedApprovals
+                    ? t("workspace.backToCompleted", "Back to Completed")
+                    : t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
+                  : fromPersonalTask
+                    ? t("workspace.backToPersonalTask", "Back to Personal Task")
+                    : t("workspace.backToELicenseList", "Back to E-Licenses List")}
+              </Button>
+            </div>
+            {showReadOnlyGuideBanner && (
+              <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-5 text-sky-950">
+                <p className="font-semibold">
+                  {t("workspace.approval.readOnlyGuideTitle", "Read-only view")}
+                </p>
+                <p className="mt-1 text-sky-900">
+                  {t(
+                    "workspace.approval.readOnlyGuide",
+                    "View the application, decisions, and verification report."
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -2859,23 +2879,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   </Button>
                 </div>
               )}
-
-              {isReadOnlyActionPanel &&
-                !showDecisionLog &&
-                !showVerificationReport &&
-                !showApprovalPaymentReadOnly && (
-                  <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-5 text-sky-950">
-                    <p className="font-semibold">
-                      {t("workspace.approval.readOnlyGuideTitle", "Read-only view")}
-                    </p>
-                    <p className="mt-1 text-sky-900">
-                      {t(
-                        "workspace.approval.readOnlyGuide",
-                        "View the application, decisions, and verification report."
-                      )}
-                    </p>
-                  </div>
-                )}
 
               {showWorkspaceDecisionLog && showDecisionLog && (
                 <WorkspaceDecisionLogReport
