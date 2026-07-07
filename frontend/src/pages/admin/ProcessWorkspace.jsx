@@ -1972,6 +1972,41 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function uploadPendingTechnicalSitePhotos(site = technicalSite) {
+    const photos = Array.isArray(site?.site_photos) ? site.site_photos : [];
+    if (!selectedRecord?.id || !photos.some((photo) => photo?.localFile)) return site;
+
+    const uploadedPhotos = await Promise.all(
+      photos.map(async (photo) => {
+        if (!photo?.localFile) return photo;
+
+        const uploaded = await uploadApplicationDocument(
+          selectedRecord.id,
+          "Technical Site Photo",
+          photo.localFile
+        );
+
+        return {
+          ...uploaded,
+          cycle_id:
+            photo.cycle_id ||
+            site.cycle_id ||
+            selectedRecord.form_data?.technical_review_cycle ||
+            "",
+        };
+      })
+    );
+
+    const nextSite = {
+      ...site,
+      site_photos: uploadedPhotos,
+      site_photo: uploadedPhotos[0] || null,
+    };
+
+    setTechnicalSite(nextSite);
+    return nextSite;
+  }
+
   function submitApprovalSupport(decisionValue) {
     const [availableAction] = workspaceActions;
     const action = availableAction || (canSendSavedApprovalMemoToMphlg ? config.actions?.[0] : null);
@@ -2237,10 +2272,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             digital_signature: departmentTechnicalSignature,
           }
         : overrides.technicalSite || technicalSite;
+      const preparedTechnicalSite = await uploadPendingTechnicalSitePhotos(submitTechnicalSite);
       const body = action.buildPayload(current, {
         decision: actionDecision,
         comment: cleanedComment,
-        technicalSite: submitTechnicalSite,
+        technicalSite: preparedTechnicalSite,
         department: userDepartment,
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
@@ -3674,23 +3710,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       onFileChange={async (files) => {
                         const fileList = Array.from(files || []);
                         if (fileList.length === 0) return;
-                        const sitePhotos = await Promise.all(
-                          fileList.map((file) =>
-                            uploadApplicationDocument(
-                              selectedRecord.id,
-                              "Technical Site Photo",
-                              file
-                            )
-                          )
-                        );
                         const cycleId =
                           technicalSite.cycle_id ||
                           selectedRecord.form_data?.technical_review_cycle ||
                           "";
-                        const cyclePhotos = sitePhotos.map((photo) => ({
-                          ...photo,
-                          cycle_id: cycleId,
-                        }));
+                        const cyclePhotos = await createLocalTechnicalSitePhotos(fileList, cycleId);
                         setTechnicalSite((prev) => ({
                           ...prev,
                           site_photos: [...(prev.site_photos || []), ...cyclePhotos],
@@ -13923,23 +13947,11 @@ function IklWorkspaceSections({
     const fileList = Array.from(files || []);
     if (fileList.length === 0) return;
 
-    const sitePhotos = await Promise.all(
-      fileList.map((file) =>
-        uploadApplicationDocument(
-          selectedRecord.id,
-          "Technical Site Photo",
-          file
-        )
-      )
-    );
     const cycleId =
       latestTechnicalSiteRef.current.cycle_id ||
       selectedRecord.form_data?.technical_review_cycle ||
       "";
-    const cyclePhotos = sitePhotos.map((photo) => ({
-      ...photo,
-      cycle_id: cycleId,
-    }));
+    const cyclePhotos = await createLocalTechnicalSitePhotos(fileList, cycleId);
 
     if (technicalSiteSaveTimerRef.current) {
       window.clearTimeout(technicalSiteSaveTimerRef.current);
@@ -16526,6 +16538,33 @@ function getSitePhotoSource(photo, applicationId) {
     photo?.file_url ||
     photo?.file ||
     ""
+  );
+}
+
+function createLocalTechnicalSitePhoto(file, cycleId = "") {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        id: `local-site-photo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: file.name,
+        size: file.size || 0,
+        type: file.type,
+        lastModified: file.lastModified,
+        dataUrl: String(reader.result || ""),
+        localFile: file,
+        localPending: true,
+        cycle_id: cycleId,
+      });
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function createLocalTechnicalSitePhotos(files, cycleId = "") {
+  return Promise.all(
+    Array.from(files || []).map((file) => createLocalTechnicalSitePhoto(file, cycleId))
   );
 }
 
