@@ -838,7 +838,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showApprovalSupportReadOnly =
     isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
   const showApprovalPaymentReadOnly =
-    isApprovalWorkspace && isPostApprovalPaymentRecord(selectedRecord);
+    isApprovalWorkspace &&
+    isPostApprovalPaymentRecord(selectedRecord) &&
+    !isApprovalLicenseManagement;
+  const showApprovalLicenseManagementDetails = isApprovalLicenseManagement;
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
   const showPaymentReceiptDecision =
@@ -2706,7 +2709,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   label: t("common.status"),
                   className: "w-[16%]",
                   render: (app) => (
-                    <StatusPill value={getWorkspaceStatusLabel(app, config, t, userDepartment)} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill value={getWorkspaceStatusLabel(app, config, t, userDepartment)} />
+                      {hasPendingLicenseRevocationRequest(app) && (
+                        <span className="inline-flex rounded-full bg-red-600 px-2 py-1 text-[11px] font-bold uppercase leading-none text-white shadow-sm">
+                          {t("workspace.license.revokeRequestedBadge", "Revoke Requested")}
+                        </span>
+                      )}
+                    </div>
                   ),
                 },
                 {
@@ -2893,6 +2903,34 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                   readOnly
                 />
+              )}
+
+              {showApprovalLicenseManagementDetails && (
+                <div className="space-y-3">
+                  <PaymentDetails
+                    app={selectedRecord}
+                    t={t}
+                    userDepartment={userDepartment}
+                    saving={saving}
+                    onOpenForm={() => openSelectedFormView(selectedRecord.id)}
+                  />
+                  {workspaceActions.length > 0 && (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {workspaceActions.map((action) => (
+                        <Button
+                          key={action.label}
+                          onClick={() => submitWorkspaceAction(action)}
+                          disabled={saving}
+                          variant={action.variant || "primary"}
+                          icon={action.icon}
+                          className="min-w-40"
+                        >
+                          {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               {isIklWorkspace ? (
@@ -3532,7 +3570,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )
                   )}
 
-                  {(canSubmitWorkspaceAction || showBottomFormButton) && (
+                  {((canSubmitWorkspaceAction && !showApprovalLicenseManagementDetails) || showBottomFormButton) && (
                     <div className={actionGridClass}>
                       {showBottomFormButton && (
                         <Button
@@ -9888,6 +9926,11 @@ function isPostApprovalPaymentRecord(app) {
     "license_issued",
     "license_revoked",
   ].includes(normalizeStatus(app?.status));
+}
+
+function hasPendingLicenseRevocationRequest(app) {
+  const request = app?.license_revocation_request || app?.form_data?.license_revocation_request || {};
+  return normalizeStatus(request.status) === "pending";
 }
 
 function isApprovalActionDepartment(department) {
