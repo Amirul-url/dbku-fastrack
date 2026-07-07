@@ -924,7 +924,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     (!selectedPaymentReceiptAction.requiresLicenseDocument ||
       getPaymentDocumentSource(selectedRecord?.form_data?.license?.license_file))
   );
-  const requiresPaymentReceiptSignature = false;
+  const requiresPaymentReceiptSignature =
+    showPaymentReceiptDecision &&
+    selectedPaymentReceiptAction?.label === "Approve Receipt";
   const selectedPaymentReceiptActionRequirementsReady =
     !selectedPaymentReceiptAction ||
     (selectedPaymentReceiptActionReady &&
@@ -1063,9 +1065,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   useEffect(() => {
     if (!requiresPaymentReceiptSignature) {
+      if (showPaymentReceiptDecision) {
+        setApprovalSupportSignature(null);
+      }
       setApprovalSupportSignatureError("");
     }
-  }, [requiresPaymentReceiptSignature]);
+  }, [requiresPaymentReceiptSignature, showPaymentReceiptDecision]);
 
   function handleApprovalSupportDecisionChange(nextDecision) {
     setDecision(nextDecision);
@@ -10373,7 +10378,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
 
   addWorkspaceDecisionLogRow(rows, {
     id: "payment-receipt-verification",
-    department: "PT(IKL)",
+    department: "FIN",
     section: payment,
     decision: getWorkspacePaymentReceiptDecisionLogValue(payment),
     remarks: payment.internal_verification_notes,
@@ -12740,6 +12745,7 @@ const configs = {
                 verification_result: "Valid",
                 verification_notes: "",
                 internal_verification_notes: data.comment,
+                digital_signature: data.approvalSupportSignature || null,
                 verified_by: "FIN",
                 verified_at: timestamp,
               },
