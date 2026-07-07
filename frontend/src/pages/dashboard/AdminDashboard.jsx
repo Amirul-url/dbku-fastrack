@@ -2258,7 +2258,7 @@ function buildRejectedDecisionReportRows(row, t) {
       department: getRejectedApplicationDepartment(app),
       date: row.date,
       decision: "Reject",
-      remarks: row.remark || getApplicationRemark(app) || row.description,
+      remarks: row.remark || getApplicationRemark(app),
     },
   ];
 }
