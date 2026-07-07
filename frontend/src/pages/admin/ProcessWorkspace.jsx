@@ -785,7 +785,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isApprovalLicenseManagement =
     isApprovalWorkspace &&
     userDepartment === "PT(IKL)" &&
-    ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status));
+    (
+      ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status)) ||
+      hasPendingLicenseRevocationRequest(selectedRecord)
+    );
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -2913,23 +2916,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     userDepartment={userDepartment}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
+                    licenseManagementActions={workspaceActions}
+                    onLicenseManagementAction={submitWorkspaceAction}
                   />
-                  {workspaceActions.length > 0 && (
-                    <div className="flex flex-wrap justify-end gap-2">
-                      {workspaceActions.map((action) => (
-                        <Button
-                          key={action.label}
-                          onClick={() => submitWorkspaceAction(action)}
-                          disabled={saving}
-                          variant={action.variant || "primary"}
-                          icon={action.icon}
-                          className="min-w-40"
-                        >
-                          {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -9715,7 +9704,10 @@ function getWorkspaceActions(config, app, department) {
 
   if (
     department === "PT(IKL)" &&
-    ["license_issued", "license_revoked"].includes(normalizeStatus(app?.status))
+    (
+      ["license_issued", "license_revoked"].includes(normalizeStatus(app?.status)) ||
+      hasPendingLicenseRevocationRequest(app)
+    )
   ) {
     return getWorkspaceActions(configs.payment, app, department);
   }
@@ -12838,7 +12830,11 @@ const configs = {
         success: "License revoked.",
         successKey: "workspace.message.licenseRevoked",
         isAvailable: (app, department) =>
-          department === "PT(IKL)" && normalizeStatus(app?.status) === "license_issued",
+          department === "PT(IKL)" &&
+          (
+            normalizeStatus(app?.status) === "license_issued" ||
+            hasPendingLicenseRevocationRequest(app)
+          ),
         buildPayload: (app) => {
           const timestamp = new Date().toISOString();
           const currentRequest = app.form_data?.license_revocation_request || {};
@@ -16168,6 +16164,8 @@ function PaymentDetails({
   onOpenForm,
   paymentReceiptDecision = "",
   readOnly = false,
+  licenseManagementActions = [],
+  onLicenseManagementAction = null,
 }) {
   const payment = app.form_data?.payment || {};
   const approvalLetter = app.form_data?.approval_letter || {};
@@ -16366,6 +16364,11 @@ function PaymentDetails({
 
   const revocationRequest = app.form_data?.license_revocation_request || {};
   const showRevocationRequestNotice = normalizeStatus(revocationRequest.status) === "pending";
+  const showLicenseManagementActions =
+    !readOnly &&
+    Array.isArray(licenseManagementActions) &&
+    licenseManagementActions.length > 0 &&
+    typeof onLicenseManagementAction === "function";
   const revocationRequestNotice = showRevocationRequestNotice ? (
     <section className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
       <p className="text-sm font-semibold text-amber-900">
@@ -16374,8 +16377,43 @@ function PaymentDetails({
       <p className="mt-1 text-sm leading-5 text-amber-800">
         {t("workspace.license.revocationRequestDesc", "Review the request and use Revoke License if the license should be revoked. Reinstate License is available after revocation.")}
       </p>
+      {showLicenseManagementActions && (
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          {licenseManagementActions.map((action) => (
+            <Button
+              key={action.label}
+              onClick={() => onLicenseManagementAction(action)}
+              disabled={saving}
+              variant={action.variant || "primary"}
+              icon={action.icon}
+              className="min-w-40"
+            >
+              {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+            </Button>
+          ))}
+        </div>
+      )}
     </section>
   ) : null;
+  const licenseManagementActionSection =
+    !showRevocationRequestNotice && showLicenseManagementActions ? (
+      <section className="rounded-md border border-slate-200 bg-white px-3 py-3">
+        <div className="flex flex-wrap justify-end gap-2">
+          {licenseManagementActions.map((action) => (
+            <Button
+              key={action.label}
+              onClick={() => onLicenseManagementAction(action)}
+              disabled={saving}
+              variant={action.variant || "primary"}
+              icon={action.icon}
+              className="min-w-40"
+            >
+              {saving ? t("workspace.saving") : t(action.labelKey, action.label)}
+            </Button>
+          ))}
+        </div>
+      </section>
+    ) : null;
 
   const issuedDocumentSection = isIssuedLicenseView ? (
     <IssuedPaymentDocumentList
@@ -16471,6 +16509,7 @@ function PaymentDetails({
                 {documentPreviewSection}
                 <div className="space-y-4">
                   {revocationRequestNotice}
+                  {licenseManagementActionSection}
                   {issuedDocumentSection}
                   {issuedReceiptSection}
                 </div>
@@ -16490,6 +16529,7 @@ function PaymentDetails({
                 {documentPreviewSection}
                 <div className="space-y-4">
                   {revocationRequestNotice}
+                  {licenseManagementActionSection}
                   {documentSection}
                   {receiptSection}
                 </div>
