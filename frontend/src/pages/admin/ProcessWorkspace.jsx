@@ -16558,6 +16558,7 @@ function PaymentDetails({
             <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               {documentPreviewSection}
               <div className="space-y-4">
+                {documentSection}
                 {verificationDocumentSection}
                 {receiptSection}
               </div>
