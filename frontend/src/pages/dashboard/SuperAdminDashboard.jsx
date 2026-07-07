@@ -34,9 +34,8 @@ const adminDepartments = [
   "IMT",
   "LNP",
   "ENG",
-  "FIN",
 ];
-const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH"];
+const supervisorDepartments = ["KB(LES)", "TP(RES)", "PGH", "FIN"];
 const mphlgDepartments = ["MPHLG"];
 const recentActivityPageSize = 5;
 const accountPageSize = 5;
