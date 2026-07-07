@@ -531,6 +531,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isDepartmentTechnicalWorkspace = config.key === "technical";
   const isApprovalWorkspace = config.key === "approval";
   const isSimpleApprovalWorkspace = isApprovalWorkspace;
+  const normalizedUserDepartment = normalizeDepartmentCode(userDepartment);
   const forceReadOnlyApprovalPanel = isApprovalWorkspace && forceReadOnlyActionPanel;
   const tableFirstWorkspace = isTableFirstWorkspace(config);
   const isELicenseWorkspace = isELicenseTableWorkspace(config);
@@ -719,12 +720,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
   const isKbLesSupportWorkspace =
     isApprovalWorkspace && userDepartment === "KB(LES)" && approvalStageKey === "kb_support";
+  const hasApprovalLicenseManagementRecord =
+    isApprovalWorkspace &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    (
+      ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status)) ||
+      hasPendingLicenseRevocationRequest(selectedRecord)
+    );
   const workspaceActions =
-    forceReadOnlyApprovalPanel
+    forceReadOnlyApprovalPanel && !hasApprovalLicenseManagementRecord
       ? []
       : getWorkspaceActions(config, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction =
-    !forceReadOnlyApprovalPanel && (isIklWorkspace || workspaceActions.length > 0);
+    (!forceReadOnlyApprovalPanel || hasApprovalLicenseManagementRecord) &&
+    (isIklWorkspace || workspaceActions.length > 0);
   const canViewSelectedWorkspace =
     tableFirstWorkspace &&
     Boolean(selectedRecord) &&
@@ -783,12 +792,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     selectedRecord?.updated_at,
   ]);
   const isApprovalLicenseManagement =
-    isApprovalWorkspace &&
-    userDepartment === "PT(IKL)" &&
-    (
-      ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status)) ||
-      hasPendingLicenseRevocationRequest(selectedRecord)
-    );
+    hasApprovalLicenseManagementRecord;
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -9695,21 +9699,23 @@ function getDefaultWorkspaceDecision(config, app, department) {
 }
 
 function getWorkspaceActions(config, app, department) {
+  const normalizedDepartment = normalizeDepartmentCode(department);
+
   if (config?.key !== "approval") {
     return (config.actions || []).filter((action) => {
       if (typeof action.isAvailable !== "function") return true;
-      return action.isAvailable(app, department);
+      return action.isAvailable(app, normalizedDepartment);
     });
   }
 
   if (
-    department === "PT(IKL)" &&
+    normalizedDepartment === "PT(IKL)" &&
     (
       ["license_issued", "license_revoked"].includes(normalizeStatus(app?.status)) ||
       hasPendingLicenseRevocationRequest(app)
     )
   ) {
-    return getWorkspaceActions(configs.payment, app, department);
+    return getWorkspaceActions(configs.payment, app, normalizedDepartment);
   }
 
   const stage = getApprovalStageKey(app);
@@ -9717,11 +9723,11 @@ function getWorkspaceActions(config, app, department) {
     return [];
   }
 
-  const canKbVerify = department === "KB(LES)" && (stage === "kb" || stage === "kb_support");
+  const canKbVerify = normalizedDepartment === "KB(LES)" && (stage === "kb" || stage === "kb_support");
   const canSupport =
-    APPROVAL_SUPPORT_DEPARTMENTS.includes(department) && stage === "support";
+    APPROVAL_SUPPORT_DEPARTMENTS.includes(normalizedDepartment) && stage === "support";
   const canMphlgApprove =
-    MPHLG_REVIEW_DEPARTMENTS.includes(department) && stage === "mphlg";
+    MPHLG_REVIEW_DEPARTMENTS.includes(normalizedDepartment) && stage === "mphlg";
 
   return canKbVerify || canSupport || canMphlgApprove ? config.actions || [] : [];
 }
