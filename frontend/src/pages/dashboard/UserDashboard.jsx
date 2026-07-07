@@ -83,7 +83,6 @@ function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
-  const [paymentReceiptUploading, setPaymentReceiptUploading] = useState(false);
   const [paymentReferenceDetails, setPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
@@ -98,31 +97,10 @@ function UserDashboard() {
   const [statusFilterMonth, setStatusFilterMonth] = useState("all");
   const [statusFilterYear, setStatusFilterYear] = useState("all");
   const [recordSeen, setRecordSeen] = useState(() => getApplicantRecordSeen(getStoredUser()));
-  const paymentReceiptPreviewUrlRef = useRef("");
-  const paymentReceiptUploadRunRef = useRef(0);
 
   useEffect(() => {
     tRef.current = t;
   }, [t]);
-
-  useEffect(() => {
-    return () => {
-      releasePaymentReceiptPreview();
-      paymentReceiptUploadRunRef.current += 1;
-    };
-  }, []);
-
-  function releasePaymentReceiptPreview() {
-    if (!paymentReceiptPreviewUrlRef.current) return;
-    URL.revokeObjectURL(paymentReceiptPreviewUrlRef.current);
-    paymentReceiptPreviewUrlRef.current = "";
-  }
-
-  function cancelPaymentReceiptUpload() {
-    paymentReceiptUploadRunRef.current += 1;
-    setPaymentReceiptUploading(false);
-    releasePaymentReceiptPreview();
-  }
 
   const fetchApplications = useCallback(async ({ silent = false } = {}) => {
     try {
@@ -211,7 +189,6 @@ function UserDashboard() {
 
     setLicensePanelOpen(false);
     setSelectedApplication(null);
-    cancelPaymentReceiptUpload();
     setPaymentReceipt(null);
     setMessage({ type: "", text: "" });
   }, [activeSection, normalizedQueryStatusFilter, querySelectedId]);
@@ -286,7 +263,6 @@ function UserDashboard() {
     if (tab !== "status") {
       setLicensePanelOpen(false);
       setSelectedApplication(null);
-      cancelPaymentReceiptUpload();
       setPaymentReceipt(null);
       setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
       setReceiptSuccessOpen(false);
@@ -338,7 +314,6 @@ function UserDashboard() {
   }
 
   function openLicenseRecord(app) {
-    cancelPaymentReceiptUpload();
     setSelectedId(String(app.id));
     setSelectedApplication(app);
     setLicensePanelOpen(true);
@@ -351,7 +326,6 @@ function UserDashboard() {
   function returnToLicenseList() {
     setLicensePanelOpen(false);
     setSelectedApplication(null);
-    cancelPaymentReceiptUpload();
     setPaymentReceipt(null);
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
@@ -368,7 +342,6 @@ function UserDashboard() {
     setStatusFilterYear("all");
     setLicensePanelOpen(false);
     setSelectedApplication(null);
-    cancelPaymentReceiptUpload();
     setPaymentReceipt(null);
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
@@ -382,10 +355,6 @@ function UserDashboard() {
 
   async function submitPayment() {
     if (!selectedApplication || !canSubmitPayment(selectedApplication)) return;
-    if (paymentReceiptUploading) {
-      setMessage({ type: "error", text: t("applicant.receiptUploadInProgress", "Please wait for the receipt upload to finish.") });
-      return;
-    }
 
     try {
       setSaving(true);
@@ -558,60 +527,32 @@ function UserDashboard() {
   async function handlePaymentReceiptChange(file) {
     if (!file) return;
 
-    const uploadRun = paymentReceiptUploadRunRef.current + 1;
-    paymentReceiptUploadRunRef.current = uploadRun;
-    releasePaymentReceiptPreview();
-
     try {
       if (!activeApplication?.id) {
         setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
         return;
       }
 
-      const previewUrl = URL.createObjectURL(file);
-      paymentReceiptPreviewUrlRef.current = previewUrl;
-      setPaymentReceipt({
-        name: file.name,
-        filename: file.name,
-        type: file.type,
-        size: file.size,
-        file: previewUrl,
-        uploadPending: true,
-      });
-      setPaymentReceiptUploading(true);
-      setMessage({ type: "", text: "" });
-
       const receipt = await uploadApplicationDocument(
         activeApplication.id,
         "Payment Receipt",
         file
       );
-      if (paymentReceiptUploadRunRef.current !== uploadRun) return;
-
       markApplicationSeen("all", {
         ...activeApplication,
         updated_at: receipt.uploaded_at || new Date().toISOString(),
       });
+      const refreshed = await fetchApplicationDetails(activeApplication.id, { markSeen: true });
       setPaymentReceipt(receipt);
-      setPaymentReceiptUploading(false);
-      releasePaymentReceiptPreview();
-      markApplicationSeen("all", activeApplication);
+      markApplicationSeen("all", refreshed || activeApplication);
       setMessage({ type: "", text: "" });
     } catch (err) {
       console.error("Receipt upload failed:", err);
-      if (paymentReceiptUploadRunRef.current === uploadRun) {
-        setPaymentReceipt(null);
-        setPaymentReceiptUploading(false);
-        releasePaymentReceiptPreview();
-      }
       setMessage({ type: "error", text: t("applicant.receiptUploadFailed") });
     }
   }
 
   function handlePaymentReceiptRemove() {
-    paymentReceiptUploadRunRef.current += 1;
-    setPaymentReceiptUploading(false);
-    releasePaymentReceiptPreview();
     setPaymentReceipt(null);
     setSelectedApplication((current) => {
       if (!current) return current;
@@ -645,34 +586,27 @@ function UserDashboard() {
     const source = getPaymentReceiptSource(paymentReceipt);
     if (!source) return;
 
-    const temporaryUrls = [];
     try {
       const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
       const url = isInlineFile
         ? source
         : URL.createObjectURL(await fetchAuthenticatedBlob(source));
-      if (!isInlineFile) temporaryUrls.push(url);
       const title = `${getApplicationReference(activeApplication)} ${t("applicant.paymentReceipt", "Payment Receipt")}`;
 
       if (isImageReceipt(paymentReceipt, url)) {
-        const printUrl = await createOptimizedReceiptPrintImageUrl(url);
-        if (printUrl !== url) temporaryUrls.push(printUrl);
         await printHtmlDocument(
-          buildApplicantReceiptPrintHtml(paymentReceipt, printUrl, title),
+          buildApplicantReceiptPrintHtml(paymentReceipt, url, title),
           title
         );
       } else {
         await printUrlDocument(url, title);
       }
 
-      if (temporaryUrls.length > 0) {
-        setTimeout(() => {
-          temporaryUrls.forEach((item) => URL.revokeObjectURL(item));
-        }, 120000);
+      if (!isInlineFile) {
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
     } catch (err) {
       console.error("Failed to download payment receipt:", err);
-      temporaryUrls.forEach((item) => URL.revokeObjectURL(item));
       setMessage({
         type: "error",
         text: t("applicant.receiptViewFailed", "Unable to open the receipt. Please try again."),
@@ -727,7 +661,6 @@ function UserDashboard() {
             app={activeApplication}
             payment={payment}
             paymentReceipt={paymentReceipt}
-            paymentReceiptUploading={paymentReceiptUploading}
             paymentReferenceDetails={paymentReferenceDetails}
             saving={saving}
             t={t}
@@ -1107,7 +1040,6 @@ function LicenseSection({
   app,
   payment,
   paymentReceipt,
-  paymentReceiptUploading = false,
   paymentReferenceDetails,
   saving,
   t,
@@ -1130,7 +1062,7 @@ function LicenseSection({
   const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails || payment);
   const trimmedReferenceDetails = getPaymentReferenceDetails(referenceDetails, { trim: true });
   const isPaymentReferenceDetailsComplete = Object.values(trimmedReferenceDetails).every(Boolean);
-  const canSubmitReceipt = Boolean(paymentReceipt) && isPaymentReferenceDetailsComplete && !paymentReceiptUploading;
+  const canSubmitReceipt = Boolean(paymentReceipt) && isPaymentReferenceDetailsComplete;
 
   return (
     <section className="space-y-4">
@@ -1199,9 +1131,7 @@ function LicenseSection({
                       </p>
                       {!isPaymentLocked && (
                         <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                          {paymentReceiptUploading
-                            ? t("applicant.receiptUploading", "Uploading receipt...")
-                            : paymentReceipt
+                          {paymentReceipt
                             ? t("applicant.receiptReadyToSubmit", "Receipt selected. Submit it for ALiS verification.")
                             : t("applicant.receiptAcceptedFormats", "Choose a PDF, JPG, or PNG file.")}
                         </p>
@@ -1323,9 +1253,7 @@ function LicenseSection({
                         {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                        {paymentReceiptUploading
-                          ? t("applicant.receiptUploading", "Uploading receipt...")
-                          : canSubmitReceipt
+                        {canSubmitReceipt
                           ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
                           : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
                       </p>
@@ -2866,46 +2794,6 @@ function isImageReceipt(receipt, source = "") {
     .split("?")[0]
     .toLowerCase();
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(filename);
-}
-
-async function createOptimizedReceiptPrintImageUrl(source) {
-  if (String(source || "").startsWith("data:image/svg")) return source;
-
-  const image = await loadImageElement(source);
-  const width = Number(image.naturalWidth || image.width || 0);
-  const height = Number(image.naturalHeight || image.height || 0);
-  const maxDimension = 1800;
-
-  if (!width || !height || Math.max(width, height) <= maxDimension) {
-    return source;
-  }
-
-  const scale = maxDimension / Math.max(width, height);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = Math.max(1, Math.round(height * scale));
-  const context = canvas.getContext("2d", { alpha: false });
-
-  if (!context) return source;
-
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  const blob = await new Promise((resolve) => {
-    canvas.toBlob(resolve, "image/jpeg", 0.88);
-  });
-
-  return blob ? URL.createObjectURL(blob) : source;
-}
-
-function loadImageElement(source) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = source;
-  });
 }
 
 function buildApplicantReceiptPrintHtml(receipt, url, title) {
