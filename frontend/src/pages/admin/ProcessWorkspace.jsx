@@ -8742,12 +8742,16 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const uploadResizeRef = useRef(null);
   const suppressUploadClickUntilRef = useRef(0);
   const localUploadSessionRef = useRef(false);
+  const sessionBaseSignatureSourceRef = useRef("");
+  const localDrawDataUrlRef = useRef("");
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(
     !getDecisionLogSignatureSource(value) && value?.mode !== "upload"
   );
   const [activeUploadItemId, setActiveUploadItemId] = useState("");
   const [persistingSignature, setPersistingSignature] = useState(false);
+  const [sessionBaseSignatureSource, setSessionBaseSignatureSourceState] = useState("");
+  const [localDrawPreviewDataUrl, setLocalDrawPreviewDataUrl] = useState("");
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
   const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
   function getUploadedItemsFromSignature(signature) {
@@ -8770,6 +8774,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
   useEffect(() => {
     localUploadSessionRef.current = false;
+    setSessionBaseSignatureSource("");
+    setLocalDrawDataUrl("");
     setUploadedItems(getUploadedItemsFromSignature(value));
   }, [applicationId]);
 
@@ -8852,6 +8858,16 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     return outputCanvas.toDataURL("image/png");
   }
 
+  function setSessionBaseSignatureSource(source = "") {
+    sessionBaseSignatureSourceRef.current = source;
+    setSessionBaseSignatureSourceState(source);
+  }
+
+  function setLocalDrawDataUrl(dataUrl = "") {
+    localDrawDataUrlRef.current = dataUrl;
+    setLocalDrawPreviewDataUrl(dataUrl);
+  }
+
   function beginDraw(event) {
     if (!isDrawingEnabled) return;
     event.preventDefault();
@@ -8887,7 +8903,17 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
     if (!hasDrawingRef.current) return;
     const drawDataUrl = getSignatureDataUrl();
-    if (uploadedItems.length) {
+    const existingSignatureSource = getDecisionLogSignatureSource(value);
+    if (
+      existingSignatureSource &&
+      !sessionBaseSignatureSourceRef.current &&
+      !localUploadSessionRef.current
+    ) {
+      setSessionBaseSignatureSource(existingSignatureSource);
+    }
+
+    if (uploadedItems.length || sessionBaseSignatureSourceRef.current || existingSignatureSource) {
+      setLocalDrawDataUrl(drawDataUrl);
       await commitUploadedItems(uploadedItems, { mode: "upload", drawDataUrl });
       return;
     }
@@ -8905,6 +8931,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     hasDrawingRef.current = false;
     if (fileInputRef.current) fileInputRef.current.value = "";
     localUploadSessionRef.current = false;
+    setSessionBaseSignatureSource("");
+    setLocalDrawDataUrl("");
     setUploadedItems([]);
     onChange(null);
   }
@@ -8992,14 +9020,23 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
   }
 
-  async function composeUploadedSignature(items, drawDataUrl = "") {
-    if (!items.length && !drawDataUrl) return "";
+  async function composeUploadedSignature(items, drawDataUrl = "", baseSignatureSource = "") {
+    if (!items.length && !drawDataUrl && !baseSignatureSource) return "";
 
     const outputCanvas = document.createElement("canvas");
     outputCanvas.width = uploadCanvasSize.width;
     outputCanvas.height = uploadCanvasSize.height;
     const outputContext = outputCanvas.getContext("2d");
     outputContext.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+
+    if (baseSignatureSource) {
+      const baseImage = await loadSignatureImage(baseSignatureSource);
+      const baseHeight = Math.min(
+        outputCanvas.height,
+        outputCanvas.width * (baseImage.naturalHeight / baseImage.naturalWidth)
+      );
+      outputContext.drawImage(baseImage, 0, 0, outputCanvas.width, baseHeight);
+    }
 
     if (items.length) {
       await Promise.all(
@@ -9029,8 +9066,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   }
 
   async function commitUploadedItems(items, overrides = {}) {
-    const drawDataUrl = overrides.drawDataUrl ?? "";
-    const dataUrl = await composeUploadedSignature(items, drawDataUrl);
+    const drawDataUrl = overrides.drawDataUrl ?? localDrawDataUrlRef.current ?? "";
+    const baseSignatureSource = overrides.baseSignatureSource ?? sessionBaseSignatureSourceRef.current ?? "";
+    const dataUrl = await composeUploadedSignature(items, drawDataUrl, baseSignatureSource);
     setUploadedItems(items);
     await persistSignatureDataUrl(dataUrl, { ...overrides, mode: "upload" });
   }
@@ -9113,7 +9151,11 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
     try {
       const readFiles = await Promise.all(files.map(readSignatureFile));
-      const baseItems = value?.mode === "upload" ? uploadedItems : [];
+      if (!localUploadSessionRef.current) {
+        setSessionBaseSignatureSource(getDecisionLogSignatureSource(value));
+        setLocalDrawDataUrl("");
+      }
+      const baseItems = localUploadSessionRef.current ? uploadedItems : [];
       const newItems = readFiles.map((file, index) => ({
         ...file,
         id: `${Date.now()}-${index}-${file.fileName}`,
@@ -9248,6 +9290,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     },
   ];
   const signaturePreviewSource = getDecisionLogSignatureSource(value);
+  const visibleStaticSignatureSource =
+    uploadedItems.length > 0 ? sessionBaseSignatureSource : signaturePreviewSource;
   const uploadResizeHandles = [
     { corner: "top-left", className: "-left-1.5 -top-1.5 cursor-nwse-resize" },
     { corner: "top-right", className: "-right-1.5 -top-1.5 cursor-nesw-resize" },
@@ -9304,6 +9348,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
               className="min-h-8 px-3 py-1.5 text-[13px]"
               disabled={persistingSignature}
               onClick={() => {
+                if (!isDrawingEnabled && !sessionBaseSignatureSourceRef.current) {
+                  setSessionBaseSignatureSource(getDecisionLogSignatureSource(value));
+                }
                 setMode("draw");
                 setIsDrawingEnabled((current) => !current);
             }}
@@ -9410,9 +9457,17 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
             )}
 
             <div className="relative col-start-3 row-start-1">
-              {!isDrawingEnabled && !uploadedItems.length && signaturePreviewSource && (
+              {visibleStaticSignatureSource && (
                 <img
-                  src={signaturePreviewSource}
+                  src={visibleStaticSignatureSource}
+                  alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                  className="pointer-events-none absolute inset-0 z-10 h-full w-full select-none object-fill"
+                  draggable={false}
+                />
+              )}
+              {!isDrawingEnabled && uploadedItems.length > 0 && localDrawPreviewDataUrl && (
+                <img
+                  src={localDrawPreviewDataUrl}
                   alt={t("workspace.signature.previewAlt", "Digital signature preview")}
                   className="pointer-events-none absolute inset-0 z-30 h-full w-full select-none object-fill"
                   draggable={false}
@@ -9421,7 +9476,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
               {isDrawingEnabled && (
                   <canvas
                     ref={canvasRef}
-                    className="absolute inset-0 z-30 h-full w-full touch-none bg-transparent"
+                    className="absolute inset-0 z-40 h-full w-full touch-none bg-transparent"
                     onPointerDown={beginDraw}
                     onPointerMove={continueDraw}
                     onPointerUp={finishDraw}
