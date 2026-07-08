@@ -8741,6 +8741,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const uploadDragRef = useRef(null);
   const uploadResizeRef = useRef(null);
   const suppressUploadClickUntilRef = useRef(0);
+  const localUploadSessionRef = useRef(false);
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(
     !getDecisionLogSignatureSource(value) && value?.mode !== "upload"
@@ -8763,9 +8764,14 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   );
 
   useEffect(() => {
-    if (uploadDragRef.current || uploadResizeRef.current) return;
+    if (uploadDragRef.current || uploadResizeRef.current || localUploadSessionRef.current) return;
     setUploadedItems(getUploadedItemsFromSignature(value));
   }, [value?.dataUrl, value?.fileName, value?.items, value?.mode, value?.type]);
+
+  useEffect(() => {
+    localUploadSessionRef.current = false;
+    setUploadedItems(getUploadedItemsFromSignature(value));
+  }, [applicationId]);
 
   useEffect(() => {
     if (value?.mode === "upload") {
@@ -8898,6 +8904,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
     hasDrawingRef.current = false;
     if (fileInputRef.current) fileInputRef.current.value = "";
+    localUploadSessionRef.current = false;
     setUploadedItems([]);
     onChange(null);
   }
@@ -9117,6 +9124,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       setMode("upload");
       setIsDrawingEnabled(false);
       setActiveUploadItemId(newItems[newItems.length - 1]?.id || "");
+      localUploadSessionRef.current = true;
       setUploadedItems([...baseItems, ...newItems]);
       await commitUploadedItems([...baseItems, ...newItems]);
     } catch (err) {
@@ -9209,6 +9217,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
   async function removeUploadedItem(itemId) {
     const nextItems = uploadedItems.filter((item) => item.id !== itemId);
+    if (!nextItems.length) {
+      localUploadSessionRef.current = false;
+    }
     setActiveUploadItemId(nextItems[nextItems.length - 1]?.id || "");
     await commitUploadedItems(nextItems);
   }
