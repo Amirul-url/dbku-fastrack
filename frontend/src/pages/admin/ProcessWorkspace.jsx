@@ -8744,7 +8744,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const suppressUploadClickUntilRef = useRef(0);
   const localUploadSessionRef = useRef(false);
   const sessionBaseSignatureSourceRef = useRef("");
-  const localDrawDataUrlRef = useRef("");
+  const localDrawSourceRef = useRef("");
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(
     !getDecisionLogSignatureSource(value) && value?.mode !== "upload"
@@ -8752,7 +8752,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const [activeUploadItemId, setActiveUploadItemId] = useState("");
   const [persistingSignature, setPersistingSignature] = useState(false);
   const [sessionBaseSignatureSource, setSessionBaseSignatureSourceState] = useState("");
-  const [localDrawPreviewDataUrl, setLocalDrawPreviewDataUrl] = useState("");
+  const [localDrawPreviewSource, setLocalDrawPreviewSource] = useState("");
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
   const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
   function getUploadedItemsFromSignature(signature) {
@@ -8776,7 +8776,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   useEffect(() => {
     localUploadSessionRef.current = false;
     setSessionBaseSignatureSource("");
-    setLocalDrawDataUrl("");
+    setLocalDrawSource("");
     setUploadedItems(getUploadedItemsFromSignature(value));
   }, [applicationId]);
 
@@ -8843,7 +8843,23 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     };
   }
 
-  function getSignatureDataUrl({ fillBackground = false } = {}) {
+  function canvasToSignatureFile(canvas, fileName = "digital-signature.png") {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Could not prepare the signature file."));
+            return;
+          }
+
+          resolve(new File([blob], fileName, { type: "image/png" }));
+        },
+        "image/png"
+      );
+    });
+  }
+
+  async function getSignatureCanvasFile({ fillBackground = false } = {}) {
     const sourceCanvas = canvasRef.current;
     const outputCanvas = document.createElement("canvas");
     outputCanvas.width = signatureCanvasSize.width * 2;
@@ -8856,7 +8872,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       outputContext.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
     }
     outputContext.drawImage(sourceCanvas, 0, 0, outputCanvas.width, outputCanvas.height);
-    return outputCanvas.toDataURL("image/png");
+    return canvasToSignatureFile(outputCanvas);
   }
 
   function setSessionBaseSignatureSource(source = "") {
@@ -8864,9 +8880,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     setSessionBaseSignatureSourceState(source);
   }
 
-  function setLocalDrawDataUrl(dataUrl = "") {
-    localDrawDataUrlRef.current = dataUrl;
-    setLocalDrawPreviewDataUrl(dataUrl);
+  function setLocalDrawSource(source = "") {
+    localDrawSourceRef.current = source;
+    setLocalDrawPreviewSource(source);
   }
 
   function beginDraw(event) {
@@ -8903,7 +8919,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     suppressUploadClickUntilRef.current = Date.now() + 500;
 
     if (!hasDrawingRef.current) return;
-    const drawDataUrl = getSignatureDataUrl();
+    const drawFile = await getSignatureCanvasFile();
+    const drawSource = URL.createObjectURL(drawFile);
     const existingSignatureSource = getDecisionLogSignatureSource(value);
     if (
       existingSignatureSource &&
@@ -8914,12 +8931,12 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
 
     if (uploadedItems.length || sessionBaseSignatureSourceRef.current || existingSignatureSource) {
-      setLocalDrawDataUrl(drawDataUrl);
-      await commitUploadedItems(uploadedItems, { mode: "upload", drawDataUrl });
+      setLocalDrawSource(drawSource);
+      await commitUploadedItems(uploadedItems, { mode: "upload", drawSource });
       return;
     }
 
-    await persistSignatureDataUrl(drawDataUrl, { mode: "draw" });
+    await persistSignatureFile(drawFile, { mode: "draw" });
   }
 
   function clearSignature() {
@@ -8933,25 +8950,18 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     if (fileInputRef.current) fileInputRef.current.value = "";
     localUploadSessionRef.current = false;
     setSessionBaseSignatureSource("");
-    setLocalDrawDataUrl("");
+    setLocalDrawSource("");
     setUploadedItems([]);
     onChange(null);
   }
 
   function readSignatureFile(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        resolve({
-          dataUrl: String(reader.result || ""),
-          fileName: file.name,
-          type: file.type,
-          size: file.size,
-        });
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    return {
+      source: URL.createObjectURL(file),
+      fileName: file.name,
+      type: file.type,
+      size: file.size,
+    };
   }
 
   async function resolveSignatureImageSource(source) {
@@ -8961,40 +8971,28 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       trimmedSource.startsWith("data:") ||
       trimmedSource.startsWith("blob:")
     ) {
-      return trimmedSource;
+      return { source: trimmedSource, revoke: false };
     }
 
     const blob = await fetchAuthenticatedBlob(normalizeFileUrl(trimmedSource));
-    return URL.createObjectURL(blob);
+    return { source: URL.createObjectURL(blob), revoke: true };
   }
 
-  async function loadSignatureImage(dataUrl) {
-    const imageSource = await resolveSignatureImageSource(dataUrl);
+  async function loadSignatureImage(source) {
+    const imageSource = await resolveSignatureImageSource(source);
 
     return new Promise((resolve, reject) => {
       const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = reject;
-      image.src = imageSource;
+      image.onload = () => {
+        if (imageSource.revoke) URL.revokeObjectURL(imageSource.source);
+        resolve(image);
+      };
+      image.onerror = () => {
+        if (imageSource.revoke) URL.revokeObjectURL(imageSource.source);
+        reject(new Error("Could not load the signature image."));
+      };
+      image.src = imageSource.source;
     });
-  }
-
-  function dataUrlToFile(dataUrl, fileName = "digital-signature.png") {
-    const [metadata = "", payload = ""] = String(dataUrl || "").split(",");
-    const mimeMatch = metadata.match(/^data:([^;]+);base64$/);
-    const mimeType = mimeMatch?.[1] || "image/png";
-
-    if (!payload) {
-      throw new Error("Signature image data is empty.");
-    }
-
-    const binary = atob(payload);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-
-    return new File([bytes], fileName, { type: mimeType });
   }
 
   function buildPersistedSignature(uploaded, overrides = {}) {
@@ -9023,8 +9021,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     };
   }
 
-  async function persistSignatureDataUrl(dataUrl, overrides = {}) {
-    if (!dataUrl) return;
+  async function persistSignatureFile(file, overrides = {}) {
+    if (!file) return;
 
     if (!applicationId) {
       onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
@@ -9033,7 +9031,6 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
     try {
       setPersistingSignature(true);
-      const file = dataUrlToFile(dataUrl);
       const uploaded = await uploadApplicationDocument(
         applicationId,
         "Digital Signature",
@@ -9052,8 +9049,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
   }
 
-  async function composeUploadedSignature(items, drawDataUrl = "", baseSignatureSource = "") {
-    if (!items.length && !drawDataUrl && !baseSignatureSource) return "";
+  async function composeUploadedSignatureFile(items, drawSource = "", baseSignatureSource = "") {
+    if (!items.length && !drawSource && !baseSignatureSource) return null;
 
     const outputCanvas = document.createElement("canvas");
     outputCanvas.width = uploadCanvasSize.width;
@@ -9083,8 +9080,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       );
     }
 
-    if (drawDataUrl) {
-      const drawingImage = await loadSignatureImage(drawDataUrl);
+    if (drawSource) {
+      const drawingImage = await loadSignatureImage(drawSource);
       outputContext.drawImage(
         drawingImage,
         0,
@@ -9094,15 +9091,15 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       );
     }
 
-    return outputCanvas.toDataURL("image/png");
+    return canvasToSignatureFile(outputCanvas);
   }
 
   async function commitUploadedItems(items, overrides = {}) {
-    const drawDataUrl = overrides.drawDataUrl ?? localDrawDataUrlRef.current ?? "";
+    const drawSource = overrides.drawSource ?? localDrawSourceRef.current ?? "";
     const baseSignatureSource = overrides.baseSignatureSource ?? sessionBaseSignatureSourceRef.current ?? "";
-    const dataUrl = await composeUploadedSignature(items, drawDataUrl, baseSignatureSource);
+    const signatureFile = await composeUploadedSignatureFile(items, drawSource, baseSignatureSource);
     setUploadedItems(items);
-    await persistSignatureDataUrl(dataUrl, { ...overrides, mode: "upload" });
+    await persistSignatureFile(signatureFile, { ...overrides, mode: "upload" });
   }
 
   async function updateUploadedItemWidth(itemId, width, { commit = false } = {}) {
@@ -9182,10 +9179,10 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
 
     try {
-      const readFiles = await Promise.all(files.map(readSignatureFile));
+      const readFiles = files.map(readSignatureFile);
       if (!localUploadSessionRef.current) {
         setSessionBaseSignatureSource(getDecisionLogSignatureSource(value));
-        setLocalDrawDataUrl("");
+        setLocalDrawSource("");
       }
       const baseItems = localUploadSessionRef.current ? uploadedItems : [];
       const newItems = readFiles.map((file, index) => ({
@@ -9502,9 +9499,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
                   draggable={false}
                 />
               )}
-              {!isDrawingEnabled && uploadedItems.length > 0 && localDrawPreviewDataUrl && (
+              {!isDrawingEnabled && uploadedItems.length > 0 && localDrawPreviewSource && (
                 <img
-                  src={localDrawPreviewDataUrl}
+                  src={localDrawPreviewSource}
                   alt={t("workspace.signature.previewAlt", "Digital signature preview")}
                   className="pointer-events-none absolute inset-0 z-30 h-full w-full select-none object-fill"
                   draggable={false}
