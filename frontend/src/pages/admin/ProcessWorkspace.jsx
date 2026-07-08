@@ -8937,6 +8937,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
 
     await persistSignatureFile(drawFile, { mode: "draw" });
+    setSessionBaseSignatureSource(drawSource);
   }
 
   function clearSignature() {
@@ -9181,7 +9182,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     try {
       const readFiles = files.map(readSignatureFile);
       if (!localUploadSessionRef.current) {
-        setSessionBaseSignatureSource(getDecisionLogSignatureSource(value));
+        setSessionBaseSignatureSource(
+          sessionBaseSignatureSourceRef.current || getDecisionLogSignatureSource(value)
+        );
         setLocalDrawSource("");
       }
       const baseItems = localUploadSessionRef.current ? uploadedItems : [];
@@ -9200,7 +9203,10 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       await commitUploadedItems([...baseItems, ...newItems]);
     } catch (err) {
       console.error("Failed to read signature file:", err);
-      onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
+      onError(
+        err?.message ||
+          t("workspace.signature.uploadFailed", "Could not read the signature file.")
+      );
     } finally {
       event.target.value = "";
     }
