@@ -8616,11 +8616,14 @@ function DecisionLogSignatureConfirmation({
 
   if (hasReportSnapshot) {
     return (
-      <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
+      <div
+        className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}
+        style={fullSize ? { width: "100%", maxWidth: "56rem" } : undefined}
+      >
         <AuthenticatedImage
           src={signatureReportSource}
           alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-          className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} block h-auto select-none`}
+          className="block h-auto w-full select-none"
           draggable={false}
           style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
         />
