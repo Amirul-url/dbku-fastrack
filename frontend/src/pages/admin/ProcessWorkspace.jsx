@@ -9410,7 +9410,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
             )}
 
             <div className="relative col-start-3 row-start-1">
-              {!isDrawingEnabled && signaturePreviewSource && (
+              {!isDrawingEnabled && !uploadedItems.length && signaturePreviewSource && (
                 <img
                   src={signaturePreviewSource}
                   alt={t("workspace.signature.previewAlt", "Digital signature preview")}
