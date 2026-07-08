@@ -8520,7 +8520,7 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullS
   return (
     <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
       <div
-        className={`${fullSize ? "w-full max-w-[760px]" : "w-full"} rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950`}
+        className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950`}
         style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
       >
         <p className="text-[13px] font-bold uppercase leading-5">
