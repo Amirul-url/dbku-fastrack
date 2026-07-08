@@ -8979,10 +8979,22 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     });
   }
 
-  async function dataUrlToFile(dataUrl, fileName = "digital_signature.png") {
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-    return new File([blob], fileName, { type: blob.type || "image/png" });
+  function dataUrlToFile(dataUrl, fileName = "digital-signature.png") {
+    const [metadata = "", payload = ""] = String(dataUrl || "").split(",");
+    const mimeMatch = metadata.match(/^data:([^;]+);base64$/);
+    const mimeType = mimeMatch?.[1] || "image/png";
+
+    if (!payload) {
+      throw new Error("Signature image data is empty.");
+    }
+
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new File([bytes], fileName, { type: mimeType });
   }
 
   function buildPersistedSignature(uploaded, overrides = {}) {
@@ -9021,7 +9033,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
     try {
       setPersistingSignature(true);
-      const file = await dataUrlToFile(dataUrl);
+      const file = dataUrlToFile(dataUrl);
       const uploaded = await uploadApplicationDocument(
         applicationId,
         "Digital Signature",
@@ -9031,7 +9043,10 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       setIsDrawingEnabled(false);
     } catch (err) {
       console.error("Failed to upload signature:", err);
-      onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
+      onError(
+        err?.message ||
+          t("workspace.signature.uploadFailed", "Could not read the signature file.")
+      );
     } finally {
       setPersistingSignature(false);
     }
