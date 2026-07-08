@@ -3566,29 +3566,47 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         </div>
                       </div>
                     ) : (
-                      <Field
-                        label={
-                          <>
-                            {useTypedApprovalDecision
-                              || showPaymentTypedDecision
-                              || showIssueLicenseDecision
-                              ? t("workspace.comment.remarks", "Remarks")
-                              : t(config.commentLabelKey, config.commentLabel || "Notes")}
-                            {workspaceCommentRequired && (
-                              <span className="ml-1 text-red-600">*</span>
-                            )}
-                          </>
-                        }
-                        labelClassName={showPaymentTypedDecision || showIssueLicenseDecision ? "!text-[13px]" : ""}
-                      >
-                        {showPaymentTypedDecision || showIssueLicenseDecision ? (
-                          <div
-                            className={`relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
-                            style={{
-                              backgroundImage:
-                                "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
-                            }}
-                          >
+                      <>
+                        <Field
+                          label={
+                            <>
+                              {useTypedApprovalDecision
+                                || showPaymentTypedDecision
+                                || showIssueLicenseDecision
+                                ? t("workspace.comment.remarks", "Remarks")
+                                : t(config.commentLabelKey, config.commentLabel || "Notes")}
+                              {workspaceCommentRequired && (
+                                <span className="ml-1 text-red-600">*</span>
+                              )}
+                            </>
+                          }
+                          labelClassName={showPaymentTypedDecision || showIssueLicenseDecision ? "!text-[13px]" : ""}
+                        >
+                          {showPaymentTypedDecision || showIssueLicenseDecision ? (
+                            <div
+                              className={`relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                              style={{
+                                backgroundImage:
+                                  "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+                              }}
+                            >
+                              <textarea
+                                ref={commentRef}
+                                value={comment}
+                                onChange={(event) => {
+                                  setComment(event.target.value);
+                                  if (commentError) setCommentError("");
+                                }}
+                                rows="8"
+                                required={workspaceCommentRequired}
+                                aria-required={workspaceCommentRequired}
+                                aria-invalid={Boolean(commentError)}
+                                className="h-full min-h-[220px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                                placeholder={t("workspace.comment.approvalPlaceholder", "Add comments")}
+                                style={RULED_TEXTAREA_STYLE}
+                              />
+                            </div>
+                          ) : (
                             <textarea
                               ref={commentRef}
                               value={comment}
@@ -3596,36 +3614,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                                 setComment(event.target.value);
                                 if (commentError) setCommentError("");
                               }}
-                              rows="8"
+                              rows="5"
                               required={workspaceCommentRequired}
                               aria-required={workspaceCommentRequired}
                               aria-invalid={Boolean(commentError)}
-                              className="h-full min-h-[220px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
-                              placeholder={t("workspace.comment.approvalPlaceholder", "Add comments")}
-                              style={RULED_TEXTAREA_STYLE}
+                              className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                              placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
                             />
-                          </div>
-                        ) : (
-                          <textarea
-                            ref={commentRef}
-                            value={comment}
-                            onChange={(event) => {
-                              setComment(event.target.value);
-                              if (commentError) setCommentError("");
-                            }}
-                            rows="5"
-                            required={workspaceCommentRequired}
-                            aria-required={workspaceCommentRequired}
-                            aria-invalid={Boolean(commentError)}
-                            className={`form-input ${commentError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                            placeholder={t(config.commentPlaceholderKey, config.commentPlaceholder || "Enter notes")}
-                          />
-                        )}
-                        {commentError && (
-                          <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
-                            {commentError}
-                          </p>
-                        )}
+                          )}
+                          {commentError && (
+                            <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                              {commentError}
+                            </p>
+                          )}
+                        </Field>
                         {(requiresPaymentReceiptSignature || requiresIssueLicenseSignature) && (
                           <div className="mt-4">
                             <ApprovalSupportSignatureBox
@@ -3640,7 +3642,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             />
                           </div>
                         )}
-                      </Field>
+                      </>
                     )
                   )}
 
