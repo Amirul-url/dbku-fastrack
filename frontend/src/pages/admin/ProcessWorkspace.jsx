@@ -11,6 +11,7 @@ import {
   fetchAuthenticatedBlob,
   getApplicationDocumentUrl,
   getStoredUser,
+  normalizeFileUrl,
   uploadApplicationDocument,
 } from "../../services/api";
 import { enrichApplicationListApplicantNames } from "../../utils/applicationList";
@@ -8953,12 +8954,28 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     });
   }
 
-  function loadSignatureImage(dataUrl) {
+  async function resolveSignatureImageSource(source) {
+    const trimmedSource = String(source || "").trim();
+    if (
+      !trimmedSource ||
+      trimmedSource.startsWith("data:") ||
+      trimmedSource.startsWith("blob:")
+    ) {
+      return trimmedSource;
+    }
+
+    const blob = await fetchAuthenticatedBlob(normalizeFileUrl(trimmedSource));
+    return URL.createObjectURL(blob);
+  }
+
+  async function loadSignatureImage(dataUrl) {
+    const imageSource = await resolveSignatureImageSource(dataUrl);
+
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
       image.onerror = reject;
-      image.src = dataUrl;
+      image.src = imageSource;
     });
   }
 
