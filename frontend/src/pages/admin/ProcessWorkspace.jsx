@@ -8757,7 +8757,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const [sessionBaseSignatureSource, setSessionBaseSignatureSourceState] = useState("");
   const [localDrawPreviewSource, setLocalDrawPreviewSource] = useState("");
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
-  const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
+  const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 336 }), []);
+  const uploadCanvasDrawHeight = useMemo(() => 144, []);
   function getUploadedItemsFromSignature(signature) {
     if (Array.isArray(signature?.items)) return signature.items;
     return [];
@@ -9091,7 +9092,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
         0,
         0,
         outputCanvas.width,
-        signatureCanvasSize.height
+        uploadCanvasDrawHeight
       );
     }
 
