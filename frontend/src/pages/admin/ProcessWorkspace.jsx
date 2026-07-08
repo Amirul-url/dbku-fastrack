@@ -8481,6 +8481,8 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullS
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
   const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
   const savedSnapshotSource = !uploadedItems.length && signatureSource ? signatureSource : "";
+  const savedSnapshotUsesFullArea =
+    Boolean(savedSnapshotSource) && signatureDetails.mode === "upload";
   const drawPreviewDataUrl = savedSnapshotSource
     ? ""
     : signatureDetails.drawDataUrl ||
