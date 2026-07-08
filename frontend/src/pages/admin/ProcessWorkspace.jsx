@@ -8922,9 +8922,29 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       logging: false,
       scale: 2,
       useCORS: true,
+      onclone: (_document, clonedElement) => {
+        clonedElement.querySelectorAll("*").forEach((element) => {
+          element.style.color = "#0f172a";
+          element.style.borderColor = "#0f172a";
+          if (element.tagName !== "IMG") {
+            element.style.backgroundColor = "transparent";
+          }
+        });
+        clonedElement.style.backgroundColor = "#ffffff";
+        clonedElement.style.borderColor = "#cbd5e1";
+      },
     });
 
     return canvasToSignatureFile(snapshotCanvas, "digital-signature-report.png");
+  }
+
+  async function tryCaptureSignatureReportSnapshotFile() {
+    try {
+      return await captureSignatureReportSnapshotFile();
+    } catch (err) {
+      console.warn("Failed to capture signature report snapshot:", err);
+      return null;
+    }
   }
 
   async function getSignatureCanvasFile({ fillBackground = false } = {}) {
@@ -9108,7 +9128,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     try {
       setPersistingSignature(true);
       const reportSnapshotFile =
-        overrides.reportSnapshotFile ?? (await captureSignatureReportSnapshotFile());
+        overrides.reportSnapshotFile ?? (await tryCaptureSignatureReportSnapshotFile());
       const uploaded = await uploadApplicationDocument(
         applicationId,
         "Digital Signature",
