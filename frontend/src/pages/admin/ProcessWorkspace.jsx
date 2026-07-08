@@ -6858,6 +6858,7 @@ function normalizeMphlgSupportingDocumentAttachment(applicationId, uploaded, fil
 export function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
   const [selectedLog, setSelectedLog] = useState(null);
   const logs = buildWorkspaceDecisionLogRows(app, t);
+  const applicationId = app?.id || app?.pk || app?.application_id || "";
 
   return (
     <>
@@ -6920,6 +6921,7 @@ export function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
       {selectedLog && (
         <DecisionLogTemplateModal
           log={selectedLog}
+          applicationId={applicationId}
           t={t}
           language={language}
           onClose={() => setSelectedLog(null)}
@@ -6929,10 +6931,13 @@ export function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
   );
 }
 
-function buildDecisionLogSnapshotHtml(log, language = "en") {
+function buildDecisionLogSnapshotHtml(log, language = "en", applicationId = "") {
   const labels = getDecisionLogDownloadLabels(language);
   const signatureSource = getDecisionLogSignatureSource(log.signature);
-  const signatureReportSource = getDecisionLogSignatureReportSource(log.signature);
+  const signatureReportSource = getDecisionLogSignatureReportSource(
+    log.signature,
+    applicationId
+  );
   const decisionHtml = log.decision
     ? `
       <div class="decision-field">
@@ -8129,7 +8134,13 @@ function sanitizeFilenamePart(value) {
     .replace(/^-|-$/g, "");
 }
 
-function DecisionLogTemplateModal({ log, t, language = "en", onClose }) {
+function DecisionLogTemplateModal({
+  log,
+  applicationId = "",
+  t,
+  language = "en",
+  onClose,
+}) {
   const hasSupportingDocuments = Array.isArray(log?.supportingDocuments) && log.supportingDocuments.length > 0;
   const modalWidthClass = log?.technicalReport
     ? "max-w-[min(96vw,92rem)]"
@@ -8161,7 +8172,12 @@ function DecisionLogTemplateModal({ log, t, language = "en", onClose }) {
         </div>
 
         <div className="max-h-[calc(92vh-64px)] overflow-y-auto px-4 py-4">
-          <DecisionLogRecordedTemplate log={log} t={t} language={language} />
+          <DecisionLogRecordedTemplate
+            log={log}
+            applicationId={applicationId}
+            t={t}
+            language={language}
+          />
         </div>
       </div>
     </div>
@@ -8219,9 +8235,17 @@ function getDecisionLogLanguage(language = "") {
   return "en";
 }
 
-function DecisionLogRecordedTemplate({ log, t, language = "en" }) {
+function DecisionLogRecordedTemplate({
+  log,
+  applicationId = "",
+  t,
+  language = "en",
+}) {
   const signatureSource = getDecisionLogSignatureSource(log.signature);
-  const signatureReportSource = getDecisionLogSignatureReportSource(log.signature);
+  const signatureReportSource = getDecisionLogSignatureReportSource(
+    log.signature,
+    applicationId
+  );
 
   return (
     <div className="space-y-4 text-[13px] leading-5 text-slate-950">
@@ -8493,6 +8517,55 @@ function DecisionLogSignatureCell({ department, signature, t }) {
   );
 }
 
+function AuthenticatedImage({ src, alt, className = "", style, draggable = false }) {
+  const [displaySrc, setDisplaySrc] = useState(src || "");
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = "";
+    const normalizedSource = String(src || "").trim();
+
+    async function loadImageSource() {
+      if (
+        !normalizedSource ||
+        normalizedSource.startsWith("blob:") ||
+        normalizedSource.startsWith("data:")
+      ) {
+        setDisplaySrc(normalizedSource);
+        return;
+      }
+
+      try {
+        const blob = await fetchAuthenticatedBlob(normalizeFileUrl(normalizedSource));
+        if (cancelled) return;
+
+        objectUrl = URL.createObjectURL(blob);
+        setDisplaySrc(objectUrl);
+      } catch (err) {
+        console.warn("Failed to load authenticated image:", err);
+        if (!cancelled) setDisplaySrc(normalizeFileUrl(normalizedSource));
+      }
+    }
+
+    loadImageSource();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src]);
+
+  return (
+    <img
+      src={displaySrc}
+      alt={alt}
+      className={className}
+      draggable={draggable}
+      style={style}
+    />
+  );
+}
+
 function DecisionLogSignatureConfirmation({
   signature,
   signatureSource,
@@ -8544,7 +8617,7 @@ function DecisionLogSignatureConfirmation({
   if (hasReportSnapshot) {
     return (
       <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
-        <img
+        <AuthenticatedImage
           src={signatureReportSource}
           alt={t("workspace.signature.previewAlt", "Digital signature preview")}
           className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} block h-auto select-none`}
@@ -11326,9 +11399,19 @@ function getDecisionLogSignatureSource(signature) {
   ).trim();
 }
 
-function getDecisionLogSignatureReportSource(signature) {
+function getDecisionLogSignatureReportSource(signature, applicationId = "") {
   if (!signature || typeof signature !== "object") {
     return getDecisionLogSignatureSource(signature);
+  }
+
+  const documentId =
+    signature.report_snapshot_document_id ||
+    signature.reportSnapshotDocumentId ||
+    signature.report_snapshot_id ||
+    "";
+
+  if (documentId && applicationId) {
+    return getApplicationDocumentUrl(applicationId, documentId);
   }
 
   return String(
