@@ -7851,8 +7851,11 @@ function buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource,
       `;
     })
     .join("");
+  const savedSnapshotClass = signatureDetails.mode === "upload"
+    ? "single-upload-image"
+    : "draw-image";
   const savedSnapshotImage = shouldRenderSavedSnapshot
-    ? `<img class="draw-image" src="${escapeHtml(signatureSource)}" alt="${alt}" />`
+    ? `<img class="${savedSnapshotClass}" src="${escapeHtml(signatureSource)}" alt="${alt}" />`
     : "";
   const drawImage = drawPreviewDataUrl
     ? `<img class="draw-image" src="${escapeHtml(drawPreviewDataUrl)}" alt="${alt}" />`
@@ -7966,6 +7969,9 @@ async function downloadDecisionLogReportPdfLegacy(log, reference, t, language = 
 
 async function drawDecisionLogSignaturePdf(pdf, signature, signatureSource, t, x, y, width) {
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
+  const usesFullSignatureOverlay =
+    signatureDetails.mode === "upload" && signatureSource && !uploadedItems.length;
   const rows = [
     { key: "signatureStamp", label: t("workspace.signature.signatureAndStamp", "Signature & Stamp") },
     { key: "name", label: t("workspace.signature.name", "Name") },
@@ -7982,8 +7988,8 @@ async function drawDecisionLogSignaturePdf(pdf, signature, signatureSource, t, x
   const colonX = x + 72;
   const lineX = x + 82;
   const lineWidth = width - 90;
-  const overlayY = boxY + 40;
-  const overlayHeight = 52;
+  const overlayY = usesFullSignatureOverlay ? boxY + 34 : boxY + 40;
+  const overlayHeight = usesFullSignatureOverlay ? 74 : 52;
 
   pdf.setDrawColor(203, 213, 225);
   pdf.setLineDashPattern([1.2, 1.2], 0);
@@ -8520,28 +8526,37 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullS
         </p>
 
         <div className={confirmationGridClass}>
-          {uploadedItems.length > 0 && (
+          {(uploadedItems.length > 0 || savedSnapshotUsesFullArea) && (
             <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
-              {uploadedItems.map((item, index) => (
+              {uploadedItems.length > 0 ? (
+                uploadedItems.map((item, index) => (
+                  <img
+                    key={item.id || `${item.fileName || "signature"}-${index}`}
+                    src={item.dataUrl || signatureSource}
+                    alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                    className="absolute max-h-full max-w-full select-none object-contain"
+                    draggable={false}
+                    style={{
+                      left: `${item.x ?? 50}%`,
+                      top: `${item.y ?? 50}%`,
+                      width: `${getUploadedItemWidth(item)}%`,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  />
+                ))
+              ) : (
                 <img
-                  key={item.id || `${item.fileName || "signature"}-${index}`}
-                  src={item.dataUrl || signatureSource}
+                  src={savedSnapshotSource}
                   alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                  className="absolute max-h-full max-w-full select-none object-contain"
+                  className="absolute inset-0 h-full w-full select-none object-fill"
                   draggable={false}
-                  style={{
-                    left: `${item.x ?? 50}%`,
-                    top: `${item.y ?? 50}%`,
-                    width: `${getUploadedItemWidth(item)}%`,
-                    transform: "translate(-50%, -50%)",
-                  }}
                 />
-              ))}
+              )}
             </div>
           )}
 
           <div className="relative col-start-3 row-start-1">
-            {(savedSnapshotSource || drawPreviewDataUrl) && (
+            {!savedSnapshotUsesFullArea && (savedSnapshotSource || drawPreviewDataUrl) && (
               <img
                 src={savedSnapshotSource || drawPreviewDataUrl}
                 alt={t("workspace.signature.previewAlt", "Digital signature preview")}
