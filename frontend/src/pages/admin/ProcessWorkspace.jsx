@@ -9365,7 +9365,12 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
               className="min-h-8 px-3 py-1.5 text-[13px]"
               disabled={persistingSignature}
               onClick={() => {
-                if (!isDrawingEnabled && !sessionBaseSignatureSourceRef.current) {
+                if (
+                  !isDrawingEnabled &&
+                  !uploadedItems.length &&
+                  !localUploadSessionRef.current &&
+                  !sessionBaseSignatureSourceRef.current
+                ) {
                   setSessionBaseSignatureSource(getDecisionLogSignatureSource(value));
                 }
                 setMode("draw");
