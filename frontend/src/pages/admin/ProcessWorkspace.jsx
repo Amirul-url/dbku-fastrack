@@ -7831,11 +7831,11 @@ function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, label
 
 function buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource, labels) {
   const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
-  const drawPreviewDataUrl =
-    signatureDetails.drawDataUrl ||
-    (signatureDetails.mode === "draw" ? signatureSource : "");
-  const shouldRenderComposedUpload =
-    !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
+  const shouldRenderSavedSnapshot = !uploadedItems.length && signatureSource;
+  const drawPreviewDataUrl = shouldRenderSavedSnapshot
+    ? ""
+    : signatureDetails.drawDataUrl ||
+      (signatureDetails.mode === "draw" ? signatureSource : "");
   const alt = escapeHtml(labels.signatureAlt);
   const uploadedImages = uploadedItems
     .map((item) => {
@@ -7851,8 +7851,8 @@ function buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource,
       `;
     })
     .join("");
-  const singleUploadImage = shouldRenderComposedUpload
-    ? `<img class="single-upload-image" src="${escapeHtml(signatureSource)}" alt="${alt}" />`
+  const savedSnapshotImage = shouldRenderSavedSnapshot
+    ? `<img class="draw-image" src="${escapeHtml(signatureSource)}" alt="${alt}" />`
     : "";
   const drawImage = drawPreviewDataUrl
     ? `<img class="draw-image" src="${escapeHtml(drawPreviewDataUrl)}" alt="${alt}" />`
@@ -7860,7 +7860,7 @@ function buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource,
 
   return `
     <div class="signature-overlay">
-      ${uploadedImages || singleUploadImage}
+      ${uploadedImages || savedSnapshotImage}
       ${drawImage}
     </div>
   `;
@@ -8028,14 +8028,14 @@ async function drawDecisionLogSignaturePdf(pdf, signature, signatureSource, t, x
 
 async function buildDecisionLogSignatureOverlay(signatureDetails, signatureSource) {
   const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
-  const drawPreviewDataUrl =
-    signatureDetails.drawDataUrl ||
-    (signatureDetails.mode === "draw" ? signatureSource : "");
-  const shouldRenderComposedUpload =
-    !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
+  const savedSnapshotSource = !uploadedItems.length && signatureSource ? signatureSource : "";
+  const drawPreviewDataUrl = savedSnapshotSource
+    ? ""
+    : signatureDetails.drawDataUrl ||
+      (signatureDetails.mode === "draw" ? signatureSource : "");
 
-  if (!uploadedItems.length && !shouldRenderComposedUpload) {
-    return drawPreviewDataUrl || signatureSource;
+  if (!uploadedItems.length) {
+    return savedSnapshotSource || drawPreviewDataUrl || signatureSource;
   }
 
   const canvas = document.createElement("canvas");
@@ -8043,11 +8043,6 @@ async function buildDecisionLogSignatureOverlay(signatureDetails, signatureSourc
   canvas.height = 420;
   const context = canvas.getContext("2d");
   context.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (shouldRenderComposedUpload) {
-    const image = await loadImageForPdf(signatureSource);
-    if (image) context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  }
 
   for (const item of uploadedItems) {
     const image = await loadImageForPdf(item.dataUrl || signatureSource);
@@ -8479,11 +8474,11 @@ function DecisionLogSignatureCell({ department, signature, t }) {
 function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullSize = false }) {
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
   const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
-  const drawPreviewDataUrl =
-    signatureDetails.drawDataUrl ||
-    (signatureDetails.mode === "draw" ? signatureSource : "");
-  const shouldRenderComposedUpload =
-    !uploadedItems.length && signatureDetails.mode === "upload" && signatureSource;
+  const savedSnapshotSource = !uploadedItems.length && signatureSource ? signatureSource : "";
+  const drawPreviewDataUrl = savedSnapshotSource
+    ? ""
+    : signatureDetails.drawDataUrl ||
+      (signatureDetails.mode === "draw" ? signatureSource : "");
   const rows = [
     {
       key: "signatureStamp",
@@ -8525,39 +8520,30 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullS
         </p>
 
         <div className={confirmationGridClass}>
-          {(uploadedItems.length > 0 || shouldRenderComposedUpload) && (
+          {uploadedItems.length > 0 && (
             <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
-              {uploadedItems.length > 0 ? (
-                uploadedItems.map((item, index) => (
-                  <img
-                    key={item.id || `${item.fileName || "signature"}-${index}`}
-                    src={item.dataUrl || signatureSource}
-                    alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                    className="absolute max-h-full max-w-full select-none object-contain"
-                    draggable={false}
-                    style={{
-                      left: `${item.x ?? 50}%`,
-                      top: `${item.y ?? 50}%`,
-                      width: `${getUploadedItemWidth(item)}%`,
-                      transform: "translate(-50%, -50%)",
-                    }}
-                  />
-                ))
-              ) : (
+              {uploadedItems.map((item, index) => (
                 <img
-                  src={signatureSource}
+                  key={item.id || `${item.fileName || "signature"}-${index}`}
+                  src={item.dataUrl || signatureSource}
                   alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                  className="absolute inset-0 h-full w-full select-none object-fill"
+                  className="absolute max-h-full max-w-full select-none object-contain"
                   draggable={false}
+                  style={{
+                    left: `${item.x ?? 50}%`,
+                    top: `${item.y ?? 50}%`,
+                    width: `${getUploadedItemWidth(item)}%`,
+                    transform: "translate(-50%, -50%)",
+                  }}
                 />
-              )}
+              ))}
             </div>
           )}
 
           <div className="relative col-start-3 row-start-1">
-            {drawPreviewDataUrl && (
+            {(savedSnapshotSource || drawPreviewDataUrl) && (
               <img
-                src={drawPreviewDataUrl}
+                src={savedSnapshotSource || drawPreviewDataUrl}
                 alt={t("workspace.signature.previewAlt", "Digital signature preview")}
                 className="absolute inset-0 z-30 h-full w-full select-none object-fill"
                 draggable={false}
