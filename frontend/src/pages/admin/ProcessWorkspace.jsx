@@ -1,6 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
@@ -8545,17 +8544,13 @@ function DecisionLogSignatureConfirmation({
   if (hasReportSnapshot) {
     return (
       <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
-        <div
-          className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} rounded border border-dashed border-slate-300 bg-white`}
+        <img
+          src={signatureReportSource}
+          alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+          className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} block h-auto select-none`}
+          draggable={false}
           style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
-        >
-          <img
-            src={signatureReportSource}
-            alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-            className="block h-auto w-full select-none"
-            draggable={false}
-          />
-        </div>
+        />
       </div>
     );
   }
@@ -8912,28 +8907,132 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     await new Promise((resolve) => requestAnimationFrame(resolve));
   }
 
+  function getRelativeSignatureRect(element, baseRect) {
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.left - baseRect.left,
+      y: rect.top - baseRect.top,
+      width: rect.width,
+      height: rect.height,
+      bottom: rect.bottom - baseRect.top,
+    };
+  }
+
+  function drawSignatureSnapshotText(context, element, baseRect, text, options = {}) {
+    const value = String(text || "").trim();
+    if (!value) return;
+
+    const rect = getRelativeSignatureRect(element, baseRect);
+    const fontSize = options.fontSize || 13;
+    const fontWeight = options.fontWeight || 600;
+    context.save();
+    context.fillStyle = options.color || "#0f172a";
+    context.font = `${fontWeight} ${fontSize}px Arial, sans-serif`;
+    context.textBaseline = "alphabetic";
+    context.textAlign = options.align || "left";
+    const x =
+      options.align === "center"
+        ? rect.x + rect.width / 2
+        : options.align === "right"
+          ? rect.x + rect.width
+          : rect.x;
+    const y = options.y === "top" ? rect.y + fontSize : rect.bottom - 4;
+    context.fillText(options.uppercase ? value.toUpperCase() : value, x, y);
+    context.restore();
+  }
+
+  function drawSignatureSnapshotLine(context, element, baseRect) {
+    const rect = getRelativeSignatureRect(element, baseRect);
+    context.save();
+    context.strokeStyle = "#0f172a";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(rect.x, rect.bottom - 0.5);
+    context.lineTo(rect.x + rect.width, rect.bottom - 0.5);
+    context.stroke();
+    context.restore();
+  }
+
+  async function drawSignatureSnapshotImages(context, snapshotElement, baseRect) {
+    const images = Array.from(snapshotElement.querySelectorAll("img")).filter(
+      (image) => image.offsetWidth > 0 && image.offsetHeight > 0 && image.src
+    );
+
+    for (const imageElement of images) {
+      const rect = getRelativeSignatureRect(imageElement, baseRect);
+      try {
+        const image = await loadSignatureImage(imageElement.currentSrc || imageElement.src);
+        context.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+      } catch (err) {
+        console.warn("Skipped a signature snapshot image:", err);
+      }
+    }
+  }
+
   async function captureSignatureReportSnapshotFile() {
     const snapshotElement = signatureSnapshotRef.current;
     if (!snapshotElement) return null;
 
     await waitForSignatureFrame();
-    const snapshotCanvas = await html2canvas(snapshotElement, {
-      backgroundColor: "#ffffff",
-      logging: false,
-      scale: 2,
-      useCORS: true,
-      onclone: (_document, clonedElement) => {
-        clonedElement.querySelectorAll("*").forEach((element) => {
-          element.style.color = "#0f172a";
-          element.style.borderColor = "#0f172a";
-          if (element.tagName !== "IMG") {
-            element.style.backgroundColor = "transparent";
-          }
+    await document.fonts?.ready;
+
+    const baseRect = snapshotElement.getBoundingClientRect();
+    if (!baseRect.width || !baseRect.height) return null;
+
+    const scale = 2;
+    const snapshotCanvas = document.createElement("canvas");
+    snapshotCanvas.width = Math.ceil(baseRect.width * scale);
+    snapshotCanvas.height = Math.ceil(baseRect.height * scale);
+    const context = snapshotCanvas.getContext("2d");
+    context.scale(scale, scale);
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, baseRect.width, baseRect.height);
+
+    context.save();
+    context.strokeStyle = "#cbd5e1";
+    context.lineWidth = 1;
+    context.setLineDash([4, 3]);
+    context.strokeRect(0.5, 0.5, baseRect.width - 1, baseRect.height - 1);
+    context.restore();
+
+    const confirmationTitle = snapshotElement.querySelector(
+      "[data-signature-confirmation-title]"
+    );
+    if (confirmationTitle) {
+      drawSignatureSnapshotText(
+        context,
+        confirmationTitle,
+        baseRect,
+        confirmationTitle.textContent,
+        { fontWeight: 700, y: "top", uppercase: true }
+      );
+    }
+
+    confirmationRows.forEach((row) => {
+      const label = snapshotElement.querySelector(
+        `[data-signature-row-label="${row.key}"]`
+      );
+      const colon = snapshotElement.querySelector(
+        `[data-signature-row-colon="${row.key}"]`
+      );
+      const line = snapshotElement.querySelector(
+        `[data-signature-row-line="${row.key}"]`
+      );
+      const valueInput = snapshotElement.querySelector(
+        `[data-signature-row-value="${row.key}"]`
+      );
+
+      if (label) drawSignatureSnapshotText(context, label, baseRect, row.label);
+      if (colon) drawSignatureSnapshotText(context, colon, baseRect, ":");
+      if (line) drawSignatureSnapshotLine(context, line, baseRect);
+      if (valueInput) {
+        drawSignatureSnapshotText(context, valueInput, baseRect, valueInput.value, {
+          uppercase: true,
         });
-        clonedElement.style.backgroundColor = "#ffffff";
-        clonedElement.style.borderColor = "#cbd5e1";
-      },
+      }
     });
+
+    await drawSignatureSnapshotImages(context, snapshotElement, baseRect);
 
     return canvasToSignatureFile(snapshotCanvas, "digital-signature-report.png");
   }
@@ -9525,7 +9624,10 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
           ref={signatureSnapshotRef}
           className={`rounded border border-dashed bg-white px-5 py-6 ${error ? "border-red-300" : "border-slate-300"}`}
         >
-          <p className="text-[13px] font-bold uppercase leading-5 text-slate-950">
+          <p
+            className="text-[13px] font-bold uppercase leading-5 text-slate-950"
+            data-signature-confirmation-title
+          >
             {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
           </p>
 
@@ -9640,12 +9742,19 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
             {confirmationRows.map((row, index) => (
               <Fragment key={row.key}>
                 <div className="col-start-1 flex items-end" style={{ gridRow: index + 1 }}>
-                  <p>{row.label}</p>
+                  <p data-signature-row-label={row.key}>{row.label}</p>
                 </div>
-                <span className="col-start-2 flex items-end pb-1" style={{ gridRow: index + 1 }}>:</span>
+                <span
+                  className="col-start-2 flex items-end pb-1"
+                  data-signature-row-colon={row.key}
+                  style={{ gridRow: index + 1 }}
+                >
+                  :
+                </span>
                 {row.key === "signatureStamp" ? (
                   <div
                     className="col-start-3 h-8 w-full self-end border-b border-slate-900"
+                    data-signature-row-line={row.key}
                     style={{ gridRow: index + 1 }}
                   />
                 ) : (
@@ -9654,6 +9763,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
                     value={value?.[row.key] || ""}
                     onChange={(event) => updateSignatureText(row.key, event.target.value)}
                     aria-label={row.label}
+                    data-signature-row-line={row.key}
+                    data-signature-row-value={row.key}
                     className="col-start-3 h-8 w-full border-0 border-b border-slate-900 bg-transparent px-0 text-[13px] font-semibold uppercase text-slate-950 outline-none focus:border-emerald-700 focus:ring-0"
                     style={{ gridRow: index + 1 }}
                   />
