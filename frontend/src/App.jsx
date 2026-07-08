@@ -253,12 +253,12 @@ function SessionManager() {
     }
   }, []);
 
-  const handleLogout = useCallback(async () => {
+  const handleLogout = useCallback(() => {
     clearResponseTimer();
-    await recordLogoutSession();
+    void recordLogoutSession();
     clearAuthSession();
-    navigate("/login/malaysian", { replace: true });
-  }, [clearResponseTimer, navigate]);
+    window.location.replace("/login/malaysian");
+  }, [clearResponseTimer]);
 
   useEffect(() => {
     const initialCheckId = window.setTimeout(scheduleSessionWarning, 0);

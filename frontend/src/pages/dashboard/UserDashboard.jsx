@@ -60,6 +60,12 @@ const EMPTY_PAYMENT_REFERENCE_DETAILS = {
   recipient_reference: "",
   payment_details: "",
 };
+const MAX_PAYMENT_RECEIPT_BYTES = 15 * 1024 * 1024;
+const ACCEPTED_PAYMENT_RECEIPT_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+]);
 
 function UserDashboard() {
   const navigate = useNavigate();
@@ -83,6 +89,7 @@ function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
   const [paymentReferenceDetails, setPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
@@ -97,6 +104,7 @@ function UserDashboard() {
   const [statusFilterMonth, setStatusFilterMonth] = useState("all");
   const [statusFilterYear, setStatusFilterYear] = useState("all");
   const [recordSeen, setRecordSeen] = useState(() => getApplicantRecordSeen(getStoredUser()));
+  const receiptUploadRequestRef = useRef(0);
 
   useEffect(() => {
     tRef.current = t;
@@ -122,7 +130,9 @@ function UserDashboard() {
       const receiptWasRejected = isPaymentReceiptRejected(paymentData);
 
       setSelectedApplication(data);
-      setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
+      if (receiptUploadRequestRef.current === 0) {
+        setPaymentReceipt(receiptWasRejected ? null : paymentData.receipt_file || null);
+      }
       setPaymentReferenceDetails(
         receiptWasRejected
           ? EMPTY_PAYMENT_REFERENCE_DETAILS
@@ -527,32 +537,68 @@ function UserDashboard() {
   async function handlePaymentReceiptChange(file) {
     if (!file) return;
 
+    let previewUrl = "";
+    const uploadRequestId = receiptUploadRequestRef.current + 1;
+    receiptUploadRequestRef.current = uploadRequestId;
+
     try {
       if (!activeApplication?.id) {
         setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
+        receiptUploadRequestRef.current = 0;
         return;
       }
+
+      previewUrl = URL.createObjectURL(file);
+      setReceiptUploading(true);
+      setPaymentReceipt({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        url: previewUrl,
+        isUploading: true,
+      });
+      setMessage({ type: "", text: "" });
 
       const receipt = await uploadApplicationDocument(
         activeApplication.id,
         "Payment Receipt",
         file
       );
+
+      if (receiptUploadRequestRef.current !== uploadRequestId) return;
+
       markApplicationSeen("all", {
         ...activeApplication,
         updated_at: receipt.uploaded_at || new Date().toISOString(),
       });
       const refreshed = await fetchApplicationDetails(activeApplication.id, { markSeen: true });
+
+      if (receiptUploadRequestRef.current !== uploadRequestId) return;
+
       setPaymentReceipt(receipt);
       markApplicationSeen("all", refreshed || activeApplication);
       setMessage({ type: "", text: "" });
     } catch (err) {
       console.error("Receipt upload failed:", err);
-      setMessage({ type: "error", text: t("applicant.receiptUploadFailed") });
+      if (receiptUploadRequestRef.current === uploadRequestId) {
+        setPaymentReceipt(null);
+        setMessage({ type: "error", text: t("applicant.receiptUploadFailed") });
+      }
+    } finally {
+      if (receiptUploadRequestRef.current === uploadRequestId) {
+        receiptUploadRequestRef.current = 0;
+        setReceiptUploading(false);
+      }
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
     }
   }
 
   function handlePaymentReceiptRemove() {
+    receiptUploadRequestRef.current = 0;
+    setReceiptUploading(false);
     setPaymentReceipt(null);
     setSelectedApplication((current) => {
       if (!current) return current;
@@ -661,6 +707,7 @@ function UserDashboard() {
             app={activeApplication}
             payment={payment}
             paymentReceipt={paymentReceipt}
+            receiptUploading={receiptUploading}
             paymentReferenceDetails={paymentReferenceDetails}
             saving={saving}
             t={t}
@@ -1040,6 +1087,7 @@ function LicenseSection({
   app,
   payment,
   paymentReceipt,
+  receiptUploading = false,
   paymentReferenceDetails,
   saving,
   t,
@@ -1062,7 +1110,7 @@ function LicenseSection({
   const referenceDetails = getPaymentReferenceDetails(paymentReferenceDetails || payment);
   const trimmedReferenceDetails = getPaymentReferenceDetails(referenceDetails, { trim: true });
   const isPaymentReferenceDetailsComplete = Object.values(trimmedReferenceDetails).every(Boolean);
-  const canSubmitReceipt = Boolean(paymentReceipt) && isPaymentReferenceDetailsComplete;
+  const canSubmitReceipt = Boolean(paymentReceipt) && !receiptUploading && isPaymentReferenceDetailsComplete;
 
   return (
     <section className="space-y-4">
@@ -1119,71 +1167,15 @@ function LicenseSection({
                 </div>
               )}
 
-              <div className="border-t border-slate-200 bg-white px-3 py-2">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
-                      1
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {paymentReceipt?.name || t("applicant.uploadReceiptFile", "Upload receipt file")}
-                      </p>
-                      {!isPaymentLocked && (
-                        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                          {paymentReceipt
-                            ? t("applicant.receiptReadyToSubmit", "Receipt selected. Submit it for ALiS verification.")
-                            : t("applicant.receiptAcceptedFormats", "Choose a PDF, JPG, or PNG file.")}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-                    {paymentReceipt && getPaymentReceiptSource(paymentReceipt) && (
-                      <button
-                        type="button"
-                        onClick={onReceiptDownload}
-                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">
-                          download
-                        </span>
-                        {t("common.download", "Download")}
-                      </button>
-                    )}
-                    {!isPaymentLocked && !paymentReceipt && (
-                      <label className="inline-flex min-h-9 cursor-pointer items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800">
-                        <span className="material-symbols-outlined text-[16px] text-white">
-                          upload_file
-                        </span>
-                        <span>{t("common.chooseFile", "Choose File")}</span>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          className="hidden"
-                          onChange={(event) => {
-                            onReceiptChange(event.target.files?.[0]);
-                            event.target.value = "";
-                          }}
-                        />
-                      </label>
-                    )}
-                    {!isPaymentLocked && paymentReceipt && (
-                      <button
-                        type="button"
-                        onClick={onReceiptRemove}
-                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
-                      >
-                        <span className="material-symbols-outlined text-[16px]">
-                          delete
-                        </span>
-                        {t("common.remove", "Remove")}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <PaymentReceiptUpload
+                receipt={paymentReceipt}
+                uploading={receiptUploading}
+                locked={isPaymentLocked}
+                t={t}
+                onChange={onReceiptChange}
+                onRemove={onReceiptRemove}
+                onDownload={onReceiptDownload}
+              />
 
               {canSubmitPaymentProof && (
                 <div className="border-t border-slate-200 bg-white px-3 py-3">
@@ -1255,6 +1247,8 @@ function LicenseSection({
                       <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                         {canSubmitReceipt
                           ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
+                          : receiptUploading
+                            ? t("applicant.receiptUploadingHint", "Uploading receipt. Please wait.")
                           : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
                       </p>
                     </div>
@@ -1296,6 +1290,147 @@ function LicenseSection({
         </div>
       </div>
     </section>
+  );
+}
+
+function PaymentReceiptUpload({
+  receipt,
+  uploading = false,
+  locked = false,
+  t,
+  onChange,
+  onRemove,
+  onDownload,
+}) {
+  function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+
+    if (!isAcceptedPaymentReceiptFile(file) || file.size > MAX_PAYMENT_RECEIPT_BYTES) {
+      window.alert(
+        t(
+          "applicant.receiptInvalidFile",
+          "Please upload a PDF, JPG, or PNG file up to 15MB."
+        )
+      );
+      return;
+    }
+
+    onChange?.(file);
+  }
+
+  const receiptSource = getPaymentReceiptSource(receipt);
+  const receiptName = receipt?.name || t("applicant.paymentReceipt", "Payment Receipt");
+
+  return (
+    <div className="border-t border-slate-200 bg-white px-3 py-3">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+              1
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                {t("applicant.uploadReceiptFile", "Upload receipt file")}
+              </p>
+              {!locked && (
+                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                  {receipt
+                    ? uploading
+                      ? t("applicant.receiptUploadingHint", "Uploading receipt. Please wait.")
+                      : t("applicant.receiptReadyToSubmit", "Receipt selected. Submit it for ALiS verification.")
+                    : t("applicant.receiptAcceptedFormats", "Choose a PDF, JPG, or PNG file. Maximum upload size: 15MB.")}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {!locked && (
+            <label className={`inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold leading-5 text-white sm:w-auto ${
+              uploading
+                ? "cursor-not-allowed border-slate-400 bg-slate-400"
+                : "cursor-pointer border-emerald-700 bg-emerald-700 hover:bg-emerald-800"
+            }`}>
+              <span className="material-symbols-outlined text-[16px] text-white">
+                upload_file
+              </span>
+              {uploading
+                ? t("applicant.receiptUploading", "Uploading...")
+                : receipt
+                  ? t("applicant.replaceReceiptFile", "Replace receipt file")
+                  : t("common.uploadReceipt", "Upload Receipt")}
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="hidden"
+              />
+            </label>
+          )}
+        </div>
+
+        {receipt ? (
+          <div className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="material-symbols-outlined text-xl text-slate-500">
+                {uploading ? "hourglass_top" : isImageReceipt(receipt, receiptSource) ? "image" : "description"}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-700">
+                  {receiptName}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {uploading
+                    ? t("applicant.receiptUploadingHint", "Uploading receipt. Please wait.")
+                    : getPaymentReceiptMeta(receipt)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              {receiptSource && !uploading && (
+                <button
+                  type="button"
+                  onClick={onDownload}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
+                  title={t("common.download", "Download")}
+                  aria-label={t("common.download", "Download")}
+                >
+                  <span className="material-symbols-outlined text-xl">download</span>
+                </button>
+              )}
+              {!locked && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  disabled={uploading}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-white hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={t("common.remove", "Remove")}
+                  aria-label={t("common.remove", "Remove")}
+                >
+                  <span className="material-symbols-outlined text-xl">delete</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
+            <p className="text-xs font-semibold text-slate-500">
+              {t("applicant.noReceiptUploaded", "No payment receipt uploaded.")}
+            </p>
+          </div>
+        )}
+
+        {!locked && (
+          <p className="text-[11px] text-slate-500">
+            {t("applicant.receiptUploadHint", "PDF or image accepted as payment proof.")}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2781,6 +2916,50 @@ function shouldHideApplicantAction(app) {
 
 function getPaymentReceiptSource(receipt) {
   return receipt?.dataUrl || receipt?.url || receipt?.file_url || receipt?.file || "";
+}
+
+function isAcceptedPaymentReceiptFile(file) {
+  const extension = String(file?.name || "").toLowerCase().split(".").pop();
+
+  return (
+    ACCEPTED_PAYMENT_RECEIPT_TYPES.has(file?.type) ||
+    ["pdf", "png", "jpg", "jpeg"].includes(extension)
+  );
+}
+
+function getPaymentReceiptFormat(receipt) {
+  const type = String(
+    receipt?.type || receipt?.mime_type || receipt?.content_type || ""
+  ).toLowerCase();
+  const name = String(receipt?.name || receipt?.filename || getPaymentReceiptSource(receipt))
+    .split("?")[0]
+    .toLowerCase();
+  const extension = name.includes(".") ? name.split(".").pop() : "";
+
+  if (type === "application/pdf" || extension === "pdf") return "PDF";
+  if (type === "image/png" || extension === "png") return "PNG";
+  if (type === "image/jpeg" || extension === "jpg" || extension === "jpeg") return "JPG";
+
+  return extension ? extension.toUpperCase() : "FILE";
+}
+
+function formatPaymentReceiptSize(bytes) {
+  const size = Number(bytes || 0);
+  if (!Number.isFinite(size) || size <= 0) return "";
+
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getPaymentReceiptMeta(receipt) {
+  return [
+    getPaymentReceiptFormat(receipt),
+    formatPaymentReceiptSize(receipt?.size),
+  ]
+    .filter(Boolean)
+    .join(" - ");
 }
 
 function isImageReceipt(receipt, source = "") {

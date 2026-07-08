@@ -419,10 +419,10 @@ function AppShell({ children, role = "admin" }) {
     return () => window.clearTimeout(syncMenuStateId);
   }, [location.pathname, location.search, role]);
 
-  async function handleLogout() {
-    await recordLogoutSession();
+  function handleLogout() {
+    void recordLogoutSession();
     clearAuthSession();
-    navigate("/login/malaysian", { replace: true });
+    window.location.replace("/login/malaysian");
   }
 
   function toggleProfile() {
