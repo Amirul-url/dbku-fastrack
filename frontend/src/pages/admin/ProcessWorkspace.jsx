@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
@@ -6932,6 +6933,7 @@ export function WorkspaceDecisionLogReport({ app, t, language = "en" }) {
 function buildDecisionLogSnapshotHtml(log, language = "en") {
   const labels = getDecisionLogDownloadLabels(language);
   const signatureSource = getDecisionLogSignatureSource(log.signature);
+  const signatureReportSource = getDecisionLogSignatureReportSource(log.signature);
   const decisionHtml = log.decision
     ? `
       <div class="decision-field">
@@ -7241,6 +7243,11 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
           padding: 24px 20px;
           background: #ffffff;
         }
+        .signature-report-snapshot {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
         .confirmation-title {
           margin: 0;
           font-size: 13px;
@@ -7348,7 +7355,7 @@ function buildDecisionLogSnapshotHtml(log, language = "en") {
             <p class="remarks-text">${escapeHtml(log.remarks || "")}</p>
           </div>
         </div>
-        ${signatureSource ? buildDecisionLogSignatureSnapshotHtml(log.signature, signatureSource, labels) : ""}
+        ${signatureSource ? buildDecisionLogSignatureSnapshotHtml(log.signature, signatureSource, labels, signatureReportSource) : ""}
       </div>
     </div>
   `;
@@ -7791,8 +7798,10 @@ function formatDecisionLogCompactDateTime(value, language = "en") {
   return `${day} ${month} ${year}, ${String(hour).padStart(2, "0")}:${minute} ${suffix}`;
 }
 
-function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, labels) {
+function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, labels, signatureReportSource = "") {
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const hasReportSnapshot =
+    signatureReportSource && signatureReportSource !== signatureSource;
   const signatureModeClass = signatureDetails.mode === "upload"
     ? "signature-grid-upload"
     : "signature-grid-draw";
@@ -7808,22 +7817,26 @@ function buildDecisionLogSignatureSnapshotHtml(signature, signatureSource, label
     <div class="signature-section">
       <p class="signature-label">${escapeHtml(labels.signatureTitle)}</p>
       <div class="signature-box">
-        <p class="confirmation-title">${escapeHtml(labels.confirmation)}</p>
-        <div class="signature-grid ${signatureModeClass}">
-          ${buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource, labels)}
-          ${rows
-            .map((row, index) => {
-              const gridRow = index + 1;
-              return `
-                <div class="signature-row-label" style="grid-column:1;grid-row:${gridRow};">${escapeHtml(row.label)}</div>
-                <div class="signature-row-colon" style="grid-column:2;grid-row:${gridRow};">:</div>
-                <div class="signature-row-line signature-row-line-${row.key}" style="grid-column:3;grid-row:${gridRow};">
-                  <div class="signature-row-value signature-row-value-${row.key}">${escapeHtml(signatureDetails[row.key] || "")}</div>
-                </div>
-              `;
-            })
-            .join("")}
-        </div>
+        ${hasReportSnapshot
+          ? `<img class="signature-report-snapshot" src="${escapeHtml(signatureReportSource)}" alt="${escapeHtml(labels.signatureAlt)}" />`
+          : `
+            <p class="confirmation-title">${escapeHtml(labels.confirmation)}</p>
+            <div class="signature-grid ${signatureModeClass}">
+              ${buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource, labels)}
+              ${rows
+                .map((row, index) => {
+                  const gridRow = index + 1;
+                  return `
+                    <div class="signature-row-label" style="grid-column:1;grid-row:${gridRow};">${escapeHtml(row.label)}</div>
+                    <div class="signature-row-colon" style="grid-column:2;grid-row:${gridRow};">:</div>
+                    <div class="signature-row-line signature-row-line-${row.key}" style="grid-column:3;grid-row:${gridRow};">
+                      <div class="signature-row-value signature-row-value-${row.key}">${escapeHtml(signatureDetails[row.key] || "")}</div>
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+          `}
       </div>
     </div>
   `;
@@ -8209,6 +8222,7 @@ function getDecisionLogLanguage(language = "") {
 
 function DecisionLogRecordedTemplate({ log, t, language = "en" }) {
   const signatureSource = getDecisionLogSignatureSource(log.signature);
+  const signatureReportSource = getDecisionLogSignatureReportSource(log.signature);
 
   return (
     <div className="space-y-4 text-[13px] leading-5 text-slate-950">
@@ -8260,6 +8274,7 @@ function DecisionLogRecordedTemplate({ log, t, language = "en" }) {
             <DecisionLogSignatureConfirmation
               signature={log.signature}
               signatureSource={signatureSource}
+              signatureReportSource={signatureReportSource}
               t={t}
               fullSize
             />
@@ -8448,6 +8463,7 @@ function DecisionLogSitePhotoList({ t, title, emptyText, applicationId, photos }
 
 function DecisionLogSignatureCell({ department, signature, t }) {
   const signatureSource = getDecisionLogSignatureSource(signature);
+  const signatureReportSource = getDecisionLogSignatureReportSource(signature);
 
   if (!signatureSource) {
     return <span className="text-slate-400">-</span>;
@@ -8458,6 +8474,7 @@ function DecisionLogSignatureCell({ department, signature, t }) {
       <DecisionLogSignatureConfirmation
         signature={signature}
         signatureSource={signatureSource}
+        signatureReportSource={signatureReportSource}
         t={t}
       />
     );
@@ -8477,8 +8494,16 @@ function DecisionLogSignatureCell({ department, signature, t }) {
   );
 }
 
-function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullSize = false }) {
+function DecisionLogSignatureConfirmation({
+  signature,
+  signatureSource,
+  signatureReportSource = "",
+  t,
+  fullSize = false,
+}) {
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
+  const hasReportSnapshot =
+    signatureReportSource && signatureReportSource !== signatureSource;
   const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
   const savedSnapshotSource = !uploadedItems.length && signatureSource ? signatureSource : "";
   const savedSnapshotUsesFullArea =
@@ -8516,6 +8541,24 @@ function DecisionLogSignatureConfirmation({ signature, signatureSource, t, fullS
     const width = Number(item?.width ?? 38);
     return Number.isFinite(width) ? width : 38;
   };
+
+  if (hasReportSnapshot) {
+    return (
+      <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
+        <div
+          className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} rounded border border-dashed border-slate-300 bg-white`}
+          style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
+        >
+          <img
+            src={signatureReportSource}
+            alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+            className="block h-auto w-full select-none"
+            draggable={false}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
@@ -8739,6 +8782,7 @@ function getSignatureItemSource(item = {}) {
 function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange, onError }) {
   const canvasRef = useRef(null);
   const uploadAreaRef = useRef(null);
+  const signatureSnapshotRef = useRef(null);
   const fileInputRef = useRef(null);
   const drawingRef = useRef(false);
   const hasDrawingRef = useRef(false);
@@ -8861,6 +8905,26 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
         "image/png"
       );
     });
+  }
+
+  async function waitForSignatureFrame() {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+
+  async function captureSignatureReportSnapshotFile() {
+    const snapshotElement = signatureSnapshotRef.current;
+    if (!snapshotElement) return null;
+
+    await waitForSignatureFrame();
+    const snapshotCanvas = await html2canvas(snapshotElement, {
+      backgroundColor: "#ffffff",
+      logging: false,
+      scale: 2,
+      useCORS: true,
+    });
+
+    return canvasToSignatureFile(snapshotCanvas, "digital-signature-report.png");
   }
 
   async function getSignatureCanvasFile({ fillBackground = false } = {}) {
@@ -9002,6 +9066,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
   function buildPersistedSignature(uploaded, overrides = {}) {
     const existing = value && typeof value === "object" ? value : {};
+    const reportSnapshot = overrides.reportSnapshot || null;
     const textFields = ["signatureStamp", "name", "position", "agency", "date"].reduce(
       (fields, key) => {
         if (existing[key]) fields[key] = existing[key];
@@ -9022,6 +9087,12 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       file_url: uploaded.file_url,
       file: uploaded.file,
       uploaded_at: uploaded.uploaded_at,
+      report_snapshot_document_id:
+        reportSnapshot?.document_id || existing.report_snapshot_document_id,
+      report_snapshot_url: reportSnapshot?.url || existing.report_snapshot_url,
+      report_snapshot_file_url:
+        reportSnapshot?.file_url || existing.report_snapshot_file_url,
+      report_snapshot_file: reportSnapshot?.file || existing.report_snapshot_file,
       updatedAt: new Date().toISOString(),
     };
   }
@@ -9036,12 +9107,21 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
     try {
       setPersistingSignature(true);
+      const reportSnapshotFile =
+        overrides.reportSnapshotFile ?? (await captureSignatureReportSnapshotFile());
       const uploaded = await uploadApplicationDocument(
         applicationId,
         "Digital Signature",
         file
       );
-      onChange(buildPersistedSignature(uploaded, overrides));
+      const reportSnapshot = reportSnapshotFile
+        ? await uploadApplicationDocument(
+            applicationId,
+            "Digital Signature Report Snapshot",
+            reportSnapshotFile
+          )
+        : null;
+      onChange(buildPersistedSignature(uploaded, { ...overrides, reportSnapshot }));
       setIsDrawingEnabled(false);
     } catch (err) {
       console.error("Failed to upload signature:", err);
@@ -9421,7 +9501,10 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
           />
         </div>
 
-        <div className={`rounded border border-dashed bg-white px-5 py-6 ${error ? "border-red-300" : "border-slate-300"}`}>
+        <div
+          ref={signatureSnapshotRef}
+          className={`rounded border border-dashed bg-white px-5 py-6 ${error ? "border-red-300" : "border-slate-300"}`}
+        >
           <p className="text-[13px] font-bold uppercase leading-5 text-slate-950">
             {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
           </p>
@@ -11110,6 +11193,20 @@ function getDecisionLogSignatureSource(signature) {
       getSignatureItemSource(signature.items?.find?.((item) => getSignatureItemSource(item))) ||
       ""
   ).trim();
+}
+
+function getDecisionLogSignatureReportSource(signature) {
+  if (!signature || typeof signature !== "object") {
+    return getDecisionLogSignatureSource(signature);
+  }
+
+  return String(
+    signature.report_snapshot_url ||
+      signature.reportSnapshotUrl ||
+      signature.report_snapshot_file_url ||
+      signature.report_snapshot_file ||
+      ""
+  ).trim() || getDecisionLogSignatureSource(signature);
 }
 
 function hasDigitalSignatureContent(signature) {
