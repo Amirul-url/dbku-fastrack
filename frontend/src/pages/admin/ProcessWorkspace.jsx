@@ -3503,6 +3503,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         </div>
                         <ApprovalSupportSignatureBox
                           t={t}
+                          applicationId={selectedRecord.id}
                           value={departmentTechnicalSignature}
                           error={technicalSignatureError}
                           onChange={(nextSignature) => {
@@ -3555,6 +3556,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         <div className="mt-4">
                           <ApprovalSupportSignatureBox
                             t={t}
+                            applicationId={selectedRecord.id}
                             value={approvalSupportSignature}
                             error={approvalSupportSignatureError}
                             onChange={(nextSignature) => {
@@ -3632,6 +3634,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           <div className="mt-4">
                             <ApprovalSupportSignatureBox
                               t={t}
+                              applicationId={selectedRecord.id}
                               value={approvalSupportSignature}
                               error={approvalSupportSignatureError}
                               onChange={(nextSignature) => {
@@ -3752,6 +3755,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       {showApprovalSupportSignature && (
                         <ApprovalSupportSignatureBox
                           t={t}
+                          applicationId={selectedRecord.id}
                           value={approvalSupportSignature}
                           error={approvalSupportSignatureError}
                           onChange={(nextSignature) => {
@@ -8716,7 +8720,19 @@ function ApprovalDecisionMemoPreview({ memoHtml, t }) {
   );
 }
 
-function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
+function getSignatureItemSource(item = {}) {
+  return String(
+    item.dataUrl ||
+      item.url ||
+      item.file_url ||
+      item.preview_url ||
+      item.source ||
+      item.file ||
+      ""
+  ).trim();
+}
+
+function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange, onError }) {
   const canvasRef = useRef(null);
   const uploadAreaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -8726,26 +8742,15 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   const uploadResizeRef = useRef(null);
   const suppressUploadClickUntilRef = useRef(0);
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
-  const [isDrawingEnabled, setIsDrawingEnabled] = useState(value?.mode !== "upload");
+  const [isDrawingEnabled, setIsDrawingEnabled] = useState(
+    !getDecisionLogSignatureSource(value) && value?.mode !== "upload"
+  );
   const [activeUploadItemId, setActiveUploadItemId] = useState("");
+  const [persistingSignature, setPersistingSignature] = useState(false);
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
   const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 360 }), []);
   function getUploadedItemsFromSignature(signature) {
     if (Array.isArray(signature?.items)) return signature.items;
-    if (signature?.mode === "upload" && signature?.dataUrl) {
-      return [
-        {
-          id: "legacy-upload",
-          dataUrl: signature.dataUrl,
-          fileName: signature.fileName || "signature.png",
-          type: signature.type || "image/png",
-          size: signature.size || 0,
-          x: 50,
-          y: 50,
-          width: 38,
-        },
-      ];
-    }
     return [];
   }
 
@@ -8765,13 +8770,17 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   useEffect(() => {
     if (value?.mode === "upload") {
       setMode("upload");
+      setIsDrawingEnabled(false);
       return;
     }
 
     if (value?.mode === "draw") {
       setMode("draw");
+      if (getDecisionLogSignatureSource(value)) {
+        setIsDrawingEnabled(false);
+      }
     }
-  }, [value?.mode]);
+  }, [value]);
 
   useEffect(() => {
     if (!uploadedItems.length) {
@@ -8800,8 +8809,8 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     context.strokeStyle = "#0f172a";
     hasDrawingRef.current = false;
 
-    const drawDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
-    if (!drawDataUrl) return;
+    const signatureSource = getDecisionLogSignatureSource(value);
+    if (!signatureSource || !signatureSource.startsWith("data:")) return;
 
     const image = new Image();
     image.onload = () => {
@@ -8809,8 +8818,8 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       context.drawImage(image, 0, 0, signatureCanvasSize.width, signatureCanvasSize.height);
       hasDrawingRef.current = true;
     };
-    image.src = drawDataUrl;
-  }, [isDrawingEnabled, signatureCanvasSize, value?.dataUrl, value?.drawDataUrl, value?.mode]);
+    image.src = signatureSource;
+  }, [isDrawingEnabled, signatureCanvasSize, value]);
 
   function getCanvasPoint(event) {
     const canvas = canvasRef.current;
@@ -8873,19 +8882,11 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     if (!hasDrawingRef.current) return;
     const drawDataUrl = getSignatureDataUrl();
     if (uploadedItems.length) {
-      await commitUploadedItems(uploadedItems, { drawDataUrl });
+      await commitUploadedItems(uploadedItems, { mode: "upload", drawDataUrl });
       return;
     }
 
-    onChange({
-      ...(value || {}),
-      mode: "draw",
-      dataUrl: drawDataUrl,
-      drawDataUrl,
-      fileName: "digital_signature.png",
-      type: "image/png",
-      updatedAt: new Date().toISOString(),
-    });
+    await persistSignatureDataUrl(drawDataUrl, { mode: "draw" });
   }
 
   function clearSignature() {
@@ -8926,6 +8927,65 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     });
   }
 
+  async function dataUrlToFile(dataUrl, fileName = "digital_signature.png") {
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    return new File([blob], fileName, { type: blob.type || "image/png" });
+  }
+
+  function buildPersistedSignature(uploaded, overrides = {}) {
+    const existing = value && typeof value === "object" ? value : {};
+    const textFields = ["signatureStamp", "name", "position", "agency", "date"].reduce(
+      (fields, key) => {
+        if (existing[key]) fields[key] = existing[key];
+        return fields;
+      },
+      {}
+    );
+
+    return {
+      ...textFields,
+      mode: overrides.mode || existing.mode || mode,
+      document_id: uploaded.document_id,
+      title: uploaded.title,
+      name: uploaded.name,
+      fileName: uploaded.name,
+      size: uploaded.size,
+      type: uploaded.type || "image/png",
+      url: uploaded.url,
+      file_url: uploaded.file_url,
+      file: uploaded.file,
+      uploaded_at: uploaded.uploaded_at,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async function persistSignatureDataUrl(dataUrl, overrides = {}) {
+    if (!dataUrl) return;
+
+    if (!applicationId) {
+      onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
+      return;
+    }
+
+    try {
+      setPersistingSignature(true);
+      const file = await dataUrlToFile(dataUrl);
+      const uploaded = await uploadApplicationDocument(
+        applicationId,
+        "Digital Signature",
+        file
+      );
+      onChange(buildPersistedSignature(uploaded, overrides));
+      setIsDrawingEnabled(false);
+    } catch (err) {
+      console.error("Failed to upload signature:", err);
+      onError(t("workspace.signature.uploadFailed", "Could not read the signature file."));
+    } finally {
+      setPersistingSignature(false);
+    }
+  }
+
   async function composeUploadedSignature(items, drawDataUrl = "") {
     if (!items.length && !drawDataUrl) return "";
 
@@ -8938,7 +8998,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
     if (items.length) {
       await Promise.all(
         items.map(async (item) => {
-          const image = await loadSignatureImage(item.dataUrl);
+          const image = await loadSignatureImage(getSignatureItemSource(item));
           const width = outputCanvas.width * ((Number(item.width) || 38) / 100);
           const height = width * (image.naturalHeight / image.naturalWidth);
           const x = outputCanvas.width * ((Number(item.x) || 50) / 100) - width / 2;
@@ -8963,20 +9023,10 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
   }
 
   async function commitUploadedItems(items, overrides = {}) {
-    const drawDataUrl = overrides.drawDataUrl ?? value?.drawDataUrl ?? "";
+    const drawDataUrl = overrides.drawDataUrl ?? "";
     const dataUrl = await composeUploadedSignature(items, drawDataUrl);
     setUploadedItems(items);
-    onChange({
-      ...(value || {}),
-      ...overrides,
-      mode: "upload",
-      items,
-      dataUrl,
-      drawDataUrl,
-      fileName: items.map((item) => item.fileName).join(", "),
-      type: "image/png",
-      updatedAt: new Date().toISOString(),
-    });
+    await persistSignatureDataUrl(dataUrl, { ...overrides, mode: "upload" });
   }
 
   async function updateUploadedItemWidth(itemId, width, { commit = false } = {}) {
@@ -9187,7 +9237,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
       label: t("workspace.signature.date", "Date"),
     },
   ];
-  const drawPreviewDataUrl = value?.drawDataUrl || (value?.mode === "draw" ? value?.dataUrl : "");
+  const signaturePreviewSource = getDecisionLogSignatureSource(value);
   const uploadResizeHandles = [
     { corner: "top-left", className: "-left-1.5 -top-1.5 cursor-nwse-resize" },
     { corner: "top-right", className: "-right-1.5 -top-1.5 cursor-nesw-resize" },
@@ -9227,34 +9277,37 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            icon="upload_file"
-            className="min-h-8 px-3 py-1.5 text-[13px]"
-            onClick={openSignatureFilePicker}
-          >
+            <Button
+              type="button"
+              variant="secondary"
+              icon="upload_file"
+              className="min-h-8 px-3 py-1.5 text-[13px]"
+              disabled={persistingSignature}
+              onClick={openSignatureFilePicker}
+            >
             {t("workspace.signature.upload", "Upload File")}
           </Button>
-          <Button
-            type="button"
-            variant={isDrawingEnabled ? "primary" : "secondary"}
-            icon="draw"
-            className="min-h-8 px-3 py-1.5 text-[13px]"
-            onClick={() => {
-              setMode("draw");
-              setIsDrawingEnabled((current) => !current);
+            <Button
+              type="button"
+              variant={isDrawingEnabled ? "primary" : "secondary"}
+              icon="draw"
+              className="min-h-8 px-3 py-1.5 text-[13px]"
+              disabled={persistingSignature}
+              onClick={() => {
+                setMode("draw");
+                setIsDrawingEnabled((current) => !current);
             }}
           >
             {t("workspace.signature.draw", "Draw Signature")}
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            icon="backspace"
-            className="min-h-8 px-3 py-1.5 text-[13px]"
-            onClick={clearSignature}
-          >
+            <Button
+              type="button"
+              variant="secondary"
+              icon="backspace"
+              className="min-h-8 px-3 py-1.5 text-[13px]"
+              disabled={persistingSignature}
+              onClick={clearSignature}
+            >
             {t("common.clear", "Clear")}
           </Button>
           <input
@@ -9298,7 +9351,7 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
                     onPointerCancel={finishUploadDrag}
                   >
                     <img
-                      src={item.dataUrl}
+                      src={getSignatureItemSource(item)}
                       alt={t("workspace.signature.previewAlt", "Digital signature preview")}
                       className="block h-auto w-full max-w-none select-none object-contain"
                       draggable={false}
@@ -9347,9 +9400,9 @@ function ApprovalSupportSignatureBox({ t, value, error, onChange, onError }) {
             )}
 
             <div className="relative col-start-3 row-start-1">
-              {!isDrawingEnabled && drawPreviewDataUrl && (
+              {!isDrawingEnabled && signaturePreviewSource && (
                 <img
-                  src={drawPreviewDataUrl}
+                  src={signaturePreviewSource}
                   alt={t("workspace.signature.previewAlt", "Digital signature preview")}
                   className="pointer-events-none absolute inset-0 z-30 h-full w-full select-none object-fill"
                   draggable={false}
@@ -10937,14 +10990,15 @@ function getDecisionLogSignatureSource(signature) {
   if (typeof signature !== "object") return "";
 
   return String(
-    signature.dataUrl ||
-      signature.drawDataUrl ||
-      signature.data_url ||
+    signature.file_url ||
       signature.url ||
-      signature.file_url ||
+      signature.file ||
       signature.preview_url ||
       signature.source ||
-      signature.items?.find?.((item) => String(item?.dataUrl || "").trim())?.dataUrl ||
+      signature.dataUrl ||
+      signature.drawDataUrl ||
+      signature.data_url ||
+      getSignatureItemSource(signature.items?.find?.((item) => getSignatureItemSource(item))) ||
       ""
   ).trim();
 }
@@ -10956,7 +11010,7 @@ function hasDigitalSignatureContent(signature) {
 
   if (
     Array.isArray(signature.items) &&
-    signature.items.some((item) => String(item?.dataUrl || "").trim())
+    signature.items.some((item) => getSignatureItemSource(item))
   ) {
     return true;
   }
@@ -10964,11 +11018,11 @@ function hasDigitalSignatureContent(signature) {
   if (String(signature.drawDataUrl || "").trim()) return true;
 
   if (signature.mode === "draw") {
-    return Boolean(String(signature.dataUrl || "").trim());
+    return Boolean(String(signature.dataUrl || "").trim() || getDecisionLogSignatureSource(signature));
   }
 
   if (signature.mode === "upload") {
-    return false;
+    return Boolean(getDecisionLogSignatureSource(signature));
   }
 
   return Boolean(getDecisionLogSignatureSource(signature));
@@ -14288,6 +14342,7 @@ function IklWorkspaceSections({
             {showKuIklScreeningSignature && (
               <ApprovalSupportSignatureBox
                 t={t}
+                applicationId={selectedRecord.id}
                 value={screeningSignature}
                 error={screeningSignatureError}
                 onChange={(nextSignature) => {
@@ -14494,6 +14549,7 @@ function IklWorkspaceSections({
                 <ApprovalSupportSignatureBox
                   key={`ikl-technical-final-signature-${selectedRecord.id}`}
                   t={t}
+                  applicationId={selectedRecord.id}
                   value={technicalFinalSignature}
                   error={technicalSignatureError}
                   onChange={(nextSignature) => {
@@ -14650,6 +14706,7 @@ function IklWorkspaceSections({
               {requiresKuTechnicalSignature && (
                 <ApprovalSupportSignatureBox
                   t={t}
+                  applicationId={selectedRecord.id}
                   value={kuSignature}
                   error={kuSignatureError}
                   onChange={(nextSignature) => {

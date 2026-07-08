@@ -22,12 +22,11 @@ def strip_inline_file_data(value, preserve_inline_data=False):
         cleaned = {}
 
         for key, item in value.items():
-            keep_inline_data = preserve_inline_data or key == "digital_signature"
             if key in ["dataUrl", "site_image_preview"] and isinstance(item, str):
-                cleaned[key] = item if keep_inline_data or not item.startswith("data:") else ""
+                cleaned[key] = item if preserve_inline_data or not item.startswith("data:") else ""
                 continue
 
-            cleaned[key] = strip_inline_file_data(item, preserve_inline_data=keep_inline_data)
+            cleaned[key] = strip_inline_file_data(item, preserve_inline_data=preserve_inline_data)
 
         return cleaned
 
@@ -74,6 +73,10 @@ def merge_dicts(current, updates):
     merged = dict(current or {})
 
     for key, value in (updates or {}).items():
+        if key == "digital_signature":
+            merged[key] = value
+            continue
+
         if isinstance(merged.get(key), dict) and isinstance(value, dict):
             merged[key] = merge_dicts(merged[key], value)
         else:
@@ -378,7 +381,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
 
         if next_form_data is not None:
-            instance.form_data = merge_dicts(instance.form_data, next_form_data)
+            instance.form_data = strip_inline_file_data(
+                merge_dicts(instance.form_data, next_form_data)
+            )
             sync_application_summary(instance)
 
         instance.save()

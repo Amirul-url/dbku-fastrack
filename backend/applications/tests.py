@@ -158,7 +158,7 @@ class ApplicationReferenceTests(TestCase):
         )
         self.assertNotEqual(data[0]["applicant_full_name"], "THE WATERFRONT HOTEL")
 
-    def test_application_detail_preserves_digital_signature_data_url(self):
+    def test_application_detail_strips_digital_signature_data_url(self):
         User = get_user_model()
         applicant = User.objects.create_user(
             username="signature-applicant",
@@ -200,9 +200,61 @@ class ApplicationReferenceTests(TestCase):
         form_data = response.data["form_data"]
         self.assertEqual(
             form_data["management_recommendation"]["digital_signature"]["dataUrl"],
-            signature_data_url,
+            "",
         )
         self.assertEqual(form_data["technical_site_visit"]["site_image_preview"], "")
+
+    def test_digital_signature_update_replaces_legacy_data_url(self):
+        User = get_user_model()
+        applicant = User.objects.create_user(
+            username="signature-update-applicant",
+            password="testpass123",
+            role="applicant",
+        )
+        staff = User.objects.create_user(
+            username="signature-update-staff",
+            password="testpass123",
+            role="admin",
+            department="KB(LES)",
+            is_staff=True,
+        )
+        application = Application.objects.create(
+            applicant=applicant,
+            title="LED signage",
+            status="management_review",
+            form_data={
+                "management_recommendation": {
+                    "digital_signature": {
+                        "mode": "draw",
+                        "dataUrl": "data:image/png;base64,abc123",
+                    },
+                },
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=staff)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "form_data": {
+                    "management_recommendation": {
+                        "digital_signature": {
+                            "mode": "draw",
+                            "document_id": 123,
+                            "file_url": "/media/supporting_documents/signature.png",
+                        },
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        signature = application.form_data["management_recommendation"]["digital_signature"]
+        self.assertNotIn("dataUrl", signature)
+        self.assertEqual(signature["document_id"], 123)
 
     def test_applicant_submit_marks_application_submitted(self):
         User = get_user_model()
