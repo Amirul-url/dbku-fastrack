@@ -9644,6 +9644,24 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     const nextItems = uploadedItems.filter((item) => item.id !== itemId);
     if (!nextItems.length) {
       localUploadSessionRef.current = false;
+      setUploadedItems([]);
+      setActiveUploadItemId("");
+
+      if (!sessionBaseSignatureSourceRef.current && !localDrawSourceRef.current) {
+        const existing = value && typeof value === "object" ? value : {};
+        const textFields = ["signatureStamp", "name", "position", "agency", "date"].reduce(
+          (fields, key) => {
+            if (existing[key]) fields[key] = existing[key];
+            return fields;
+          },
+          {}
+        );
+
+        setSessionBaseSignatureSource("");
+        setLocalDrawSource("");
+        onChange(Object.keys(textFields).length ? textFields : null);
+        return;
+      }
     }
     setActiveUploadItemId(nextItems[nextItems.length - 1]?.id || "");
     await commitUploadedItems(nextItems);
