@@ -9054,6 +9054,25 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
   }
 
+  function drawSignatureSnapshotCanvases(context, snapshotElement, baseRect) {
+    const canvases = Array.from(snapshotElement.querySelectorAll("canvas")).filter(
+      (canvas) =>
+        canvas.offsetWidth > 0 &&
+        canvas.offsetHeight > 0 &&
+        canvas.width > 0 &&
+        canvas.height > 0
+    );
+
+    canvases.forEach((canvas) => {
+      const rect = getRelativeSignatureRect(canvas, baseRect);
+      try {
+        context.drawImage(canvas, rect.x, rect.y, rect.width, rect.height);
+      } catch (err) {
+        console.warn("Skipped a signature snapshot canvas:", err);
+      }
+    });
+  }
+
   async function captureSignatureReportSnapshotFile() {
     const snapshotElement = signatureSnapshotRef.current;
     if (!snapshotElement) return null;
@@ -9117,6 +9136,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       }
     });
 
+    drawSignatureSnapshotCanvases(context, snapshotElement, baseRect);
     await drawSignatureSnapshotImages(context, snapshotElement, baseRect);
 
     return canvasToSignatureFile(snapshotCanvas, "digital-signature-report.png");
