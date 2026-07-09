@@ -8873,6 +8873,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const sessionBaseSignatureSourceRef = useRef("");
   const sessionBaseSignatureModeRef = useRef("");
   const localDrawSourceRef = useRef("");
+  const ignorePersistedSignatureSourceRef = useRef(false);
   const [mode, setMode] = useState(value?.mode === "upload" ? "upload" : "draw");
   const [isDrawingEnabled, setIsDrawingEnabled] = useState(
     !getDecisionLogSignatureSource(value) && value?.mode !== "upload"
@@ -8881,6 +8882,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   const [persistingSignature, setPersistingSignature] = useState(false);
   const [sessionBaseSignatureSource, setSessionBaseSignatureSourceState] = useState("");
   const [localDrawPreviewSource, setLocalDrawPreviewSource] = useState("");
+  const [ignorePersistedSignatureSource, setIgnorePersistedSignatureSourceState] =
+    useState(false);
   const signatureCanvasSize = useMemo(() => ({ width: 1200, height: 300 }), []);
   const uploadCanvasSize = useMemo(() => ({ width: 1200, height: 336 }), []);
   const uploadCanvasDrawHeight = useMemo(() => 144, []);
@@ -8906,6 +8909,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     localUploadSessionRef.current = false;
     setSessionBaseSignatureSource("");
     setLocalDrawSource("");
+    setIgnorePersistedSignatureSource(false);
     setUploadedItems(getUploadedItemsFromSignature(value));
   }, [applicationId]);
 
@@ -9179,6 +9183,21 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     setLocalDrawPreviewSource(source);
   }
 
+  function setIgnorePersistedSignatureSource(shouldIgnore) {
+    ignorePersistedSignatureSourceRef.current = Boolean(shouldIgnore);
+    setIgnorePersistedSignatureSourceState(Boolean(shouldIgnore));
+  }
+
+  function getReusablePersistedSignatureSource() {
+    if (ignorePersistedSignatureSourceRef.current) return "";
+    return getDecisionLogSignatureSource(value);
+  }
+
+  function getReusablePersistedSignatureMode() {
+    if (ignorePersistedSignatureSourceRef.current) return "";
+    return value?.mode || "";
+  }
+
   function beginDraw(event) {
     if (!isDrawingEnabled) return;
     event.preventDefault();
@@ -9215,7 +9234,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     if (!hasDrawingRef.current) return;
     const drawFile = await getSignatureCanvasFile();
     const drawSource = URL.createObjectURL(drawFile);
-    const existingSignatureSource = getDecisionLogSignatureSource(value);
+    const existingSignatureSource = getReusablePersistedSignatureSource();
     if (
       existingSignatureSource &&
       !sessionBaseSignatureSourceRef.current &&
@@ -9246,6 +9265,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     localUploadSessionRef.current = false;
     setSessionBaseSignatureSource("");
     setLocalDrawSource("");
+    setIgnorePersistedSignatureSource(true);
     setUploadedItems([]);
     onChange(null);
   }
@@ -9348,6 +9368,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
           )
         : null;
       onChange(buildPersistedSignature(uploaded, { ...overrides, reportSnapshot }));
+      setIgnorePersistedSignatureSource(false);
       setIsDrawingEnabled(false);
     } catch (err) {
       console.error("Failed to upload signature:", err);
@@ -9492,11 +9513,12 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     try {
       const readFiles = files.map(readSignatureFile);
       if (!localUploadSessionRef.current) {
+        const persistedSignatureSource = getReusablePersistedSignatureSource();
         setSessionBaseSignatureSource(
-          sessionBaseSignatureSourceRef.current || getDecisionLogSignatureSource(value),
+          sessionBaseSignatureSourceRef.current || persistedSignatureSource,
           sessionBaseSignatureSourceRef.current
             ? sessionBaseSignatureModeRef.current
-            : value?.mode || ""
+            : getReusablePersistedSignatureMode()
         );
         setLocalDrawSource("");
       }
@@ -9640,6 +9662,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
 
         setSessionBaseSignatureSource("");
         setLocalDrawSource("");
+        setIgnorePersistedSignatureSource(true);
         onChange(Object.keys(textFields).length ? textFields : null);
         return;
       }
@@ -9671,7 +9694,9 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       label: t("workspace.signature.date", "Date"),
     },
   ];
-  const signaturePreviewSource = getDecisionLogSignatureSource(value);
+  const signaturePreviewSource = ignorePersistedSignatureSource
+    ? ""
+    : getDecisionLogSignatureSource(value);
   const visibleStaticSignatureSource =
     uploadedItems.length > 0 ? sessionBaseSignatureSource : signaturePreviewSource;
   const uploadResizeHandles = [
@@ -9737,8 +9762,8 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
                   !sessionBaseSignatureSourceRef.current
                 ) {
                   setSessionBaseSignatureSource(
-                    getDecisionLogSignatureSource(value),
-                    value?.mode || ""
+                    getReusablePersistedSignatureSource(),
+                    getReusablePersistedSignatureMode()
                   );
                 }
                 setMode("draw");
