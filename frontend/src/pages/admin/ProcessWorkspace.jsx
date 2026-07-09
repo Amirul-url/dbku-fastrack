@@ -9329,6 +9329,35 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
     }
   }
 
+  async function refreshSignatureReportSnapshot() {
+    if (!applicationId || !getDecisionLogSignatureSource(value)) return;
+
+    try {
+      setPersistingSignature(true);
+      const reportSnapshotFile = await tryCaptureSignatureReportSnapshotFile();
+      if (!reportSnapshotFile) return;
+
+      const reportSnapshot = await uploadApplicationDocument(
+        applicationId,
+        "Digital Signature Report Snapshot",
+        reportSnapshotFile
+      );
+
+      onChange({
+        ...(value || {}),
+        report_snapshot_document_id: reportSnapshot.document_id,
+        report_snapshot_url: reportSnapshot.url,
+        report_snapshot_file_url: reportSnapshot.file_url,
+        report_snapshot_file: reportSnapshot.file,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.warn("Failed to refresh signature report snapshot:", err);
+    } finally {
+      setPersistingSignature(false);
+    }
+  }
+
   async function composeUploadedSignatureFile(items, drawSource = "", baseSignatureSource = "") {
     if (!items.length && !drawSource && !baseSignatureSource) return null;
 
@@ -9497,8 +9526,19 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
   }
 
   function updateSignatureText(field, text) {
+    const {
+      report_snapshot_document_id: _reportSnapshotDocumentId,
+      reportSnapshotDocumentId: _reportSnapshotDocumentIdAlt,
+      report_snapshot_id: _reportSnapshotId,
+      report_snapshot_url: _reportSnapshotUrl,
+      reportSnapshotUrl: _reportSnapshotUrlAlt,
+      report_snapshot_file_url: _reportSnapshotFileUrl,
+      report_snapshot_file: _reportSnapshotFile,
+      ...signatureWithoutStaleSnapshot
+    } = value || {};
+
     onChange({
-      ...(value || {}),
+      ...signatureWithoutStaleSnapshot,
       mode: value?.mode || mode,
       [field]: text,
     });
@@ -9838,6 +9878,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
                     type="text"
                     value={value?.[row.key] || ""}
                     onChange={(event) => updateSignatureText(row.key, event.target.value)}
+                    onBlur={refreshSignatureReportSnapshot}
                     aria-label={row.label}
                     data-signature-row-line={row.key}
                     data-signature-row-value={row.key}
