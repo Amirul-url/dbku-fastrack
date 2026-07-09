@@ -1665,8 +1665,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         }),
       });
 
-      setSelectedDetail(response?.data || response || selectedRecord);
-      await fetchApplications({ silent: true });
+      applySelectedApplicationUpdate(response?.data || response || selectedRecord);
       setShowManualReceiptEditor(false);
       setSuccess(t("workspace.payment.receiptSaved", "Official receipt saved."));
     } catch (err) {
@@ -1712,8 +1711,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         }),
       });
 
-      setSelectedDetail(response?.data || response || selectedRecord);
-      await fetchApplications({ silent: true });
+      applySelectedApplicationUpdate(response?.data || response || selectedRecord);
       setShowManualAdvertisementLicenseEditor(false);
       setSuccess(t("workspace.license.saved", "Advertisement license saved."));
     } catch (err) {
