@@ -2530,7 +2530,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             : shouldShowMphlgFinalApprovedSuccess
             ? "Application {reference} Has Been Approve."
             : shouldShowDepartmentTechnicalReviewSavedSuccess
-              ? "Your review has been recorded and sent to Technical Advertisement Review."
+              ? "Your review on Application {reference} has been recorded!"
             : shouldShowInvoiceGeneratedSuccess
             ? "Approval Letter & Bill For Application {reference} Has Been Generated."
             : shouldShowApprovalSupportMphlgSuccess
@@ -2539,8 +2539,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               ? "Application {reference} has been sent to TP(RES)/PGH Final Approval."
             : shouldShowKbVerificationSuccess
               ? "Application {reference} has been sent to KB(LES) Verification."
-              : shouldShowTechnicalSiteVisitSuccess
-                ? "Application {reference} has been sent for Technical Site Visit."
+            : shouldShowTechnicalSiteVisitSuccess
+                ? "Your review on Application {reference} has been recorded and sent for Technical Site Visit."
                 : "Application {reference} has been sent to Technical Review.",
         });
       }
