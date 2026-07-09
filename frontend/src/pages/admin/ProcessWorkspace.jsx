@@ -548,6 +548,19 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  function applySelectedApplicationUpdate(nextRecord) {
+    if (!nextRecord?.id) return;
+
+    setSelectedDetail(nextRecord);
+    setApplications((currentApplications) =>
+      currentApplications.map((application) =>
+        String(application.id) === String(nextRecord.id)
+          ? { ...application, ...nextRecord }
+          : application
+      )
+    );
+  }
+
   useEffect(() => {
     let active = true;
 
@@ -1537,8 +1550,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         }),
       });
 
-      setSelectedDetail(response?.data || response || selectedRecord);
-      await fetchApplications({ silent: true });
+      applySelectedApplicationUpdate(response?.data || response || selectedRecord);
       setShowManualApprovalLetterEditor(false);
       setSuccess(t("workspace.payment.approvalLetterSaved", "Approval letter saved."));
     } catch (err) {
@@ -1605,8 +1617,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         }),
       });
 
-      setSelectedDetail(response?.data || response || selectedRecord);
-      await fetchApplications({ silent: true });
+      applySelectedApplicationUpdate(response?.data || response || selectedRecord);
       setShowManualBillEditor(false);
       setSuccess(t("workspace.payment.billSaved", "Bill saved."));
     } catch (err) {
