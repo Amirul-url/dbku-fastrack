@@ -4938,8 +4938,11 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     table { width: 100%; border-collapse: collapse; font-size: 10.5pt; font-weight: 700; }
     th, td { border: 1.25px solid #111; height: 5.8mm; padding: .5mm 1.2mm; }
     th { text-align: center; line-height: 1.1; }
-    .amount-title { display: block; }
-    .amount-columns { display: grid; grid-template-columns: 27mm 11mm; align-items: center; }
+    thead th { height: 10.4mm; }
+    .amount-header { padding: 0; }
+    .amount-title { display: block; height: 4.4mm; line-height: 4.4mm; font-size: 10.5pt; }
+    .amount-columns { display: grid; grid-template-columns: 27mm 11mm; width: 100%; height: 5.8mm; align-items: center; font-size: 16.5pt; line-height: 1; }
+    .amount-columns span { display: flex; align-items: center; justify-content: center; height: 100%; }
     td.amount { text-align: right; }
     .credit { width: 53mm; }
     .rm { width: 27mm; }
@@ -4995,7 +4998,7 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
         <thead>
           <tr>
             <th class="credit">For credit of</th>
-            <th colspan="2">
+            <th colspan="2" class="amount-header">
               <span class="amount-title">Amount</span>
               <span class="amount-columns"><span>RM</span><span>Sen</span></span>
             </th>
