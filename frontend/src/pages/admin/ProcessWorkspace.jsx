@@ -2366,6 +2366,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
       const shouldShowInvoiceGeneratedSuccess = shouldShowInvoiceGeneratedModal(action, body);
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
+      const shouldShowDepartmentTechnicalReviewSavedSuccess =
+        isDepartmentTechnicalReviewSubmit && !shouldShowTechnicalSiteVisitSuccess;
       const shouldShowKuFinalCheckSuccess = shouldShowKuFinalCheckModal(action, body);
       const shouldShowKbVerificationSuccess = shouldShowKbVerificationModal(action, body);
       const shouldShowKbApprovalSupportSuccess = shouldShowKbApprovalSupportModal(action, body);
@@ -2382,6 +2384,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowReceiptRejectedSuccess ||
         shouldShowApplicationAmendmentSuccess ||
         shouldShowApplicationApprovedSuccess ||
+        shouldShowDepartmentTechnicalReviewSavedSuccess ||
         shouldShowInvoiceGeneratedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
@@ -2489,6 +2492,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
       if (
         shouldShowApplicationApprovedSuccess ||
+        shouldShowDepartmentTechnicalReviewSavedSuccess ||
         shouldShowInvoiceGeneratedSuccess ||
         shouldShowTechnicalSiteVisitSuccess ||
         shouldShowKuFinalCheckSuccess ||
@@ -2508,6 +2512,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             ? "workspace.kuFinalCheck.message"
             : shouldShowMphlgFinalApprovedSuccess
             ? "workspace.mphlgFinalApproved.message"
+            : shouldShowDepartmentTechnicalReviewSavedSuccess
+              ? "workspace.departmentTechnicalReview.message"
             : shouldShowInvoiceGeneratedSuccess
             ? "workspace.invoiceGenerated.message"
             : shouldShowApprovalSupportMphlgSuccess
@@ -2523,6 +2529,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             ? "Application {reference} has been sent to KU(IKL) Final Check."
             : shouldShowMphlgFinalApprovedSuccess
             ? "Application {reference} Has Been Approve."
+            : shouldShowDepartmentTechnicalReviewSavedSuccess
+              ? "Your review has been recorded and sent to IKL Technical Review."
             : shouldShowInvoiceGeneratedSuccess
             ? "Approval Letter & Bill For Application {reference} Has Been Generated."
             : shouldShowApprovalSupportMphlgSuccess
@@ -2558,6 +2566,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
       if (
         (shouldShowApplicationApprovedSuccess ||
+          shouldShowDepartmentTechnicalReviewSavedSuccess ||
           shouldShowInvoiceGeneratedSuccess ||
           shouldShowTechnicalSiteVisitSuccess ||
           shouldShowKuFinalCheckSuccess ||
