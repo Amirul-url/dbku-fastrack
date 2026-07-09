@@ -25,7 +25,7 @@ import {
   WORKFLOW_STATUS,
 } from "../../../utils/workflow";
 
-const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"]);
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 const WORKFLOW_STATUS_FILTER_OPTIONS = Object.values(WORKFLOW_STATUS);
 
 function normalizeDepartmentCode(value) {

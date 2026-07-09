@@ -55,14 +55,8 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 }
             elif department in {"BLG", "GPM", "MNE", "IMT", "LNP", "ENG"}:
                 allowed_event_statuses = ADMIN_TECHNICAL_TASK_STATUSES
-            elif department in {"KB(LES)", "TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}:
+            elif department in {"KB(LES)", "TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}:
                 allowed_event_statuses = {"management_review", "approved"}
-                if department == "FIN":
-                    allowed_event_statuses = {
-                        "management_review",
-                        "approved",
-                        "payment_submitted",
-                    }
                 if department == "KB(LES)":
                     allowed_event_statuses = {
                         "management_review",
@@ -74,6 +68,8 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                         "license_renewal_supervisor_confirmation",
                         "license_cancellation_supervisor_confirmation",
                     }
+            elif department == "FIN":
+                allowed_event_statuses = {"payment_submitted"}
             elif department == "MPHLG":
                 allowed_event_statuses = {"mphlg_processing"}
             elif department == "SUT":

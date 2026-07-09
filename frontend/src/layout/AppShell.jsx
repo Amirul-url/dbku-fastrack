@@ -47,7 +47,7 @@ const APPROVAL_TASK_STATUSES = new Set([
   "mphlg_processing",
   "mphlg_decision_received",
 ]);
-const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"]);
+const APPROVAL_SUPPORT_DEPARTMENTS = new Set(["TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"]);
 
 function readSessionBoolean(key, fallback = false) {
   try {

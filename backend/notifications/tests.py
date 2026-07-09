@@ -1455,6 +1455,15 @@ class NotificationRoutingTests(TestCase):
             department="TP(RES)",
             is_active=True,
         )
+        fin_user = User.objects.create_user(
+            username="fin-approval-routing",
+            email="fin-routing@example.com",
+            password="Password123",
+            mobile_number="60123450002",
+            role="admin",
+            department="FIN",
+            is_active=True,
+        )
         User.objects.create_user(
             username="kb-les",
             email="",
@@ -1484,14 +1493,70 @@ class NotificationRoutingTests(TestCase):
             user=tp_user,
         )
         self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                recipient_role="admin",
+                metadata__event_status="management_review",
+                user=fin_user,
+            ).exists()
+        )
         for delivery in deliveries:
             self.assertIn("Verified by KB(LES), please proceed.", delivery.message)
             self.assertIn("Verified by KB(LES), please proceed.", delivery.metadata["message_en"])
             self.assertNotIn("older remark", delivery.message)
         delivery = deliveries.get(channel="web")
+        self.assertEqual(delivery.metadata["display_status"], "approval_support")
+        self.assertEqual(delivery.metadata["to"], "TP(RES)/PGH")
         self.assertIn("TP(RES)/PGH approval", delivery.metadata["title_en"])
         self.assertIn("TP(RES)/PGH final approval", delivery.metadata["message_en"])
         self.assertNotIn("KB(LES) support", delivery.metadata["title_en"])
+
+    def test_fin_inbox_excludes_approval_support_notifications(self):
+        fin_user = User.objects.create_user(
+            username="fin-inbox-filter",
+            email="fin-inbox@example.com",
+            password="Password123",
+            mobile_number="60123450003",
+            role="admin",
+            department="FIN",
+            is_active=True,
+        )
+        NotificationDelivery.objects.create(
+            application=self.application,
+            user=fin_user,
+            event_key=f"legacy-management-review:{self.application.id}",
+            recipient_role="admin",
+            channel="web",
+            recipient=fin_user.email,
+            subject="ALiS - legacy management review",
+            message=f"Application {self.application.reference_no} requires TP(RES)/PGH approval.",
+            metadata={
+                "event_status": "management_review",
+                "display_status": "approval_support",
+                "title_en": f"Application {self.application.reference_no} requires TP(RES)/PGH approval",
+            },
+            status="sent",
+        )
+        NotificationDelivery.objects.create(
+            application=self.application,
+            user=fin_user,
+            event_key=f"payment-submitted:{self.application.id}",
+            recipient_role="admin",
+            channel="web",
+            recipient=fin_user.email,
+            subject="ALiS - payment proof submitted",
+            message=f"Applicant has uploaded payment proof for application {self.application.reference_no}.",
+            metadata={"event_status": "payment_submitted"},
+            status="sent",
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=fin_user)
+        response = client.get("/api/notifications/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertEqual([item["metadata"]["event_status"] for item in data], ["payment_submitted"])
 
     def test_management_review_same_status_reroute_notifies_tp_pgh(self):
         tp_user = User.objects.create_user(

@@ -61,7 +61,7 @@ PT_IKL_DEPARTMENTS = {"PT(IKL)", "PT IKL", "UNIT IKLAN"}
 KU_IKL_DEPARTMENTS = {"KU(IKL)", "KU IKL"}
 IKL_TECHNICAL_DEPARTMENTS = {"IKL (TECHNICAL)", "IKL(TECHNICAL)", "IKL TECHNICAL"}
 APPROVAL_VERIFICATION_DEPARTMENTS = {"KB(LES)"}
-APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "FIN", "TP(RES)/PGH", "TP/PGH"}
+APPROVAL_SUPPORT_DEPARTMENTS = {"TP(RES)", "PGH", "TP(RES)/PGH", "TP/PGH"}
 MPHLG_REVIEW_DEPARTMENTS = {"MPHLG"}
 SUT_APPROVAL_DEPARTMENTS = {"SUT", "SUT APPROVAL"}
 KB_LES_COMPLETE_STATUSES = {"verified", "supported", "completed"}
@@ -1378,9 +1378,10 @@ def build_web_metadata(application, title, body, recipient_role, include_remark=
         metadata["from"] = "KU(IKL)"
         metadata["sender"] = "KU(IKL)"
         metadata["to"] = "KB(LES)"
-    elif memo_html and is_management_support_pending(application):
-        metadata["memo_html"] = memo_html
-        metadata["memo_template"] = "kb_les_to_tp_pgh"
+    elif status_key == "management_review" and is_management_support_pending(application):
+        if memo_html:
+            metadata["memo_html"] = memo_html
+            metadata["memo_template"] = "kb_les_to_tp_pgh"
         metadata["display_status"] = "approval_support"
         metadata["from"] = "KB(LES)"
         metadata["sender"] = sender or "KB(LES) <ALiS Notification Center>"
