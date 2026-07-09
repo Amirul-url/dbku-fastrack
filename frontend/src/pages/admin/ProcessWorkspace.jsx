@@ -2530,7 +2530,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             : shouldShowMphlgFinalApprovedSuccess
             ? "Application {reference} Has Been Approve."
             : shouldShowDepartmentTechnicalReviewSavedSuccess
-              ? "Your review has been recorded and sent to IKL Technical Review."
+              ? "Your review has been recorded and sent to Technical Advertisement Review."
             : shouldShowInvoiceGeneratedSuccess
             ? "Approval Letter & Bill For Application {reference} Has Been Generated."
             : shouldShowApprovalSupportMphlgSuccess
