@@ -1,27 +1,4 @@
-from django.contrib.auth.hashers import make_password
 from django.db import migrations
-
-
-def seed_default_accounts(apps, schema_editor):
-    User = apps.get_model("accounts", "User")
-
-    defaults = [
-        {
-            "username": "admin",
-            "password": make_password("Admin@12345"),
-            "email": "",
-            "first_name": "System",
-            "last_name": "Administrator",
-            "role": "admin",
-            "is_staff": True,
-            "is_superuser": True,
-            "is_active": True,
-        },
-    ]
-
-    for account in defaults:
-        username = account.pop("username")
-        User.objects.update_or_create(username=username, defaults=account)
 
 
 class Migration(migrations.Migration):
@@ -30,6 +7,4 @@ class Migration(migrations.Migration):
         ("accounts", "0001_initial"),
     ]
 
-    operations = [
-        migrations.RunPython(seed_default_accounts, migrations.RunPython.noop),
-    ]
+    operations = []

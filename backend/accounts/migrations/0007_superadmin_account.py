@@ -1,23 +1,4 @@
-from django.contrib.auth.hashers import make_password
 from django.db import migrations, models
-
-
-def seed_superadmin_account(apps, schema_editor):
-    User = apps.get_model("accounts", "User")
-
-    User.objects.update_or_create(
-        username="superadmin",
-        defaults={
-            "password": make_password("SuperAdmin@12345"),
-            "email": "",
-            "first_name": "Super",
-            "last_name": "Administrator",
-            "role": "superadmin",
-            "is_staff": True,
-            "is_superuser": True,
-            "is_active": True,
-        },
-    )
 
 
 class Migration(migrations.Migration):
@@ -41,5 +22,4 @@ class Migration(migrations.Migration):
                 max_length=20,
             ),
         ),
-        migrations.RunPython(seed_superadmin_account, migrations.RunPython.noop),
     ]
