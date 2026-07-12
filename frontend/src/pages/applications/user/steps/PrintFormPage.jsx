@@ -181,6 +181,7 @@ function PrintFormPage({
         title: tx("generatedFormTitle"),
         language,
         noAttachmentText: tx("noAttachment"),
+        applicantRequiredDocuments,
         requiredDocuments,
         otherDocuments,
         step1,
@@ -234,6 +235,7 @@ function PrintFormPage({
     savedRequiredDocuments,
     legacyTitleDocuments
   );
+  const applicantRequiredDocuments = getApplicantRequiredDocuments(step3, tx);
   const otherDocuments = Array.isArray(step10.other_documents)
     ? step10.other_documents
     : [];
@@ -527,6 +529,13 @@ function PrintFormPage({
                     <PrintLine label={tx("email")} value={step3.email} />
                     <PrintLine label={tx("countryCode")} value={formatPrintUpper(step3.fax_country_code)} />
                     <PrintLine label={tx("faxNo")} value={formatPhone(step3.fax_country_code, step3.fax_no)} />
+                    <DocumentSummary
+                      title={tx("applicantRequiredDocuments")}
+                      rows={applicantRequiredDocuments}
+                      language={language}
+                      noAttachmentText={tx("noAttachment")}
+                      applicationId={applicationId}
+                    />
                   </PrintSection>
                 </PrintPage>
 
@@ -716,6 +725,7 @@ function buildPrintFormPdf({
   title,
   language,
   noAttachmentText,
+  applicantRequiredDocuments,
   requiredDocuments,
   otherDocuments,
   step1,
@@ -730,7 +740,14 @@ function buildPrintFormPdf({
   });
 
   pdf.setProperties({ title });
-  drawPdfPageOne(pdf, { title, step3, tx });
+  drawPdfPageOne(pdf, {
+    title,
+    language,
+    noAttachmentText,
+    applicantRequiredDocuments,
+    step3,
+    tx,
+  });
   pdf.addPage("a4", "portrait");
   drawPdfPageTwo(pdf, { title, step1, tx, language });
   pdf.addPage("a4", "portrait");
@@ -746,7 +763,14 @@ function buildPrintFormPdf({
   return pdf;
 }
 
-function drawPdfPageOne(pdf, { title, step3, tx }) {
+function drawPdfPageOne(pdf, {
+  title,
+  language,
+  noAttachmentText,
+  applicantRequiredDocuments,
+  step3,
+  tx,
+}) {
   let y = drawPdfHeader(pdf, title);
 
   y = drawPdfSectionTitle(pdf, tx("step1Print"), y);
@@ -771,7 +795,7 @@ function drawPdfPageOne(pdf, { title, step3, tx }) {
   );
 
   y = drawPdfSubheading(pdf, tx("submittingPerson"), y + 1);
-  drawPdfFieldRows(
+  y = drawPdfFieldRows(
     pdf,
     [
       { label: tx("honoraryTitle"), value: formatPrintUpper(step3.honorary_title) },
@@ -797,6 +821,15 @@ function drawPdfPageOne(pdf, { title, step3, tx }) {
     ],
     y,
   );
+
+  drawPdfDocumentSummary(pdf, {
+    title: tx("applicantRequiredDocuments"),
+    rows: applicantRequiredDocuments,
+    language,
+    noAttachmentText,
+    other: false,
+    y: y + 4,
+  });
 
   drawPdfFooter(pdf, 1, PRINT_FORM_TOTAL_PAGES);
 }
@@ -1752,6 +1785,25 @@ function mergeRequiredDocuments(requiredDocuments, legacyTitleDocuments) {
       required: false,
       attachment: row?.attachment || null,
     })),
+  ];
+}
+
+function getApplicantRequiredDocuments(step3 = {}, tx) {
+  return [
+    {
+      title: tx("letterAppointmentDocument"),
+      description: tx("letterAppointmentHelp"),
+      format: "PDF",
+      required: true,
+      attachment: step3.letter_appointment_document || null,
+    },
+    {
+      title: tx("lhdnDocument"),
+      description: tx("lhdnDocumentHelp"),
+      format: "PDF",
+      required: true,
+      attachment: step3.lhdn_document || null,
+    },
   ];
 }
 
