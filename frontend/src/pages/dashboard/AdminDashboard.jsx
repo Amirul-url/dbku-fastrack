@@ -463,6 +463,8 @@ function AdminOverviewStatPage({ statKey, user }) {
   const navigate = useNavigate();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
+  const [dateFilter, setDateFilter] = useState("");
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -505,7 +507,22 @@ function AdminOverviewStatPage({ statKey, user }) {
     () => buildAdminOverviewStatRows(applications, statKey, userDepartment, t),
     [applications, statKey, t, userDepartment]
   );
+  const filteredRows = useMemo(
+    () => filterAdminOverviewStatRowsByDate(rows, dateFilter),
+    [dateFilter, rows]
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / RECENT_ACTIVITY_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const visibleRows = filteredRows.slice(
+    currentPage * RECENT_ACTIVITY_PAGE_SIZE,
+    (currentPage + 1) * RECENT_ACTIVITY_PAGE_SIZE
+  );
+  const showPagination = filteredRows.length > 0;
   const title = getAdminOverviewStatTitle(statKey, t);
+
+  useEffect(() => {
+    setPage(0);
+  }, [dateFilter, statKey]);
 
   return (
     <AdminDashboardLayout>
@@ -513,10 +530,16 @@ function AdminOverviewStatPage({ statKey, user }) {
 
       <AdminOverviewStatTable
         activeKey={statKey}
+        currentPage={currentPage}
+        dateFilter={dateFilter}
         loading={loading}
-        rows={rows}
+        onDateFilterChange={setDateFilter}
+        onPageChange={setPage}
+        rows={visibleRows}
+        showPagination={showPagination}
         title={title}
         t={t}
+        totalPages={totalPages}
         onClose={() => navigate("/dashboard/admin?view=dashboard")}
       />
     </AdminDashboardLayout>
@@ -607,7 +630,20 @@ function AdminOverviewStatusCard({
   );
 }
 
-function AdminOverviewStatTable({ activeKey, loading, rows, title, t, onClose }) {
+function AdminOverviewStatTable({
+  activeKey,
+  currentPage = 0,
+  dateFilter = "",
+  loading,
+  onClose,
+  onDateFilterChange,
+  onPageChange,
+  rows,
+  showPagination = false,
+  title,
+  t,
+  totalPages = 1,
+}) {
   const columns = [
     {
       key: "reference",
@@ -659,10 +695,50 @@ function AdminOverviewStatTable({ activeKey, loading, rows, title, t, onClose })
         <div>
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
         </div>
-        <Button type="button" variant="secondary" onClick={onClose}>
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          {t("common.back", "Back")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 w-9 p-0"
+            onClick={() => onPageChange?.(Math.max(currentPage - 1, 0))}
+            disabled={loading || !showPagination || currentPage === 0}
+            aria-label={t("common.previous", "Previous")}
+            title={t("common.previous", "Previous")}
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 w-9 p-0"
+            onClick={() => onPageChange?.(Math.min(currentPage + 1, totalPages - 1))}
+            disabled={loading || !showPagination || currentPage >= totalPages - 1}
+            aria-label={t("common.next", "Next")}
+            title={t("common.next", "Next")}
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+          </Button>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(event) => onDateFilterChange?.(event.target.value)}
+            aria-label={t("common.date", "Date")}
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 px-3"
+            onClick={() => onDateFilterChange?.("")}
+            disabled={!dateFilter}
+          >
+            {t("common.reset", "Reset")}
+          </Button>
+          <Button type="button" variant="secondary" className="h-9 min-h-9 px-3" onClick={onClose}>
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            {t("common.back", "Back")}
+          </Button>
+        </div>
       </div>
       <div className="p-4">
         <DataTable
@@ -796,6 +872,12 @@ function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
       statusLabel: formatWorkflowStatus(app.status),
       updatedAt: app.updated_at || app.created_at,
     }));
+}
+
+function filterAdminOverviewStatRowsByDate(rows, dateFilter) {
+  if (!dateFilter) return rows;
+
+  return rows.filter((row) => getActivityDateKey(row.updatedAt) === dateFilter);
 }
 
 function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
