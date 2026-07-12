@@ -1527,7 +1527,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       template: "dbku_approval_letter_3_page_blank_v1",
       name: t("workspace.payment.approvalLetter", "Approval Letter"),
       editable_body_html: bodyHtml,
-      document_html: buildManualApprovalLetterDocumentHtml(bodyHtml),
+      document_html: buildManualApprovalLetterDocumentHtml(bodyHtml, selectedRecord),
       status: "Draft",
       saved_by: userDepartment,
       saved_at: now,
@@ -1592,9 +1592,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           amount: row.amount,
           validity: row.validity || "Per Permohonan",
           account_code: row.accountCode,
-        })),
+      })),
       editable_body_html: bodyHtml,
-      document_html: buildManualBillDocumentHtml(bodyHtml),
+      document_html: buildManualBillDocumentHtml(bodyHtml, selectedRecord),
       status: "Draft",
       saved_by: userDepartment,
       saved_at: now,
@@ -4617,15 +4617,24 @@ function LicenseIssuedSuccessModal({ t, onClose }) {
 
 function ManualApprovalLetterEditorModal({ app, t, saving, onClose, onSave }) {
   const editorRef = useRef(null);
+  const initialBodyHtmlRef = useRef(null);
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
-  const initialBodyHtml =
-    syncManualApprovalLetterAutoFields(
-      manualLetter.editable_body_html || buildManualApprovalLetterTemplateBodyHtml(app),
-      app
-    );
+
+  if (initialBodyHtmlRef.current === null) {
+    initialBodyHtmlRef.current = manualLetter.editable_body_html
+      ? migrateManualApprovalLetterLabels(manualLetter.editable_body_html, app)
+      : syncManualApprovalLetterAutoFields(buildManualApprovalLetterTemplateBodyHtml(app), app);
+  }
+
+  useEffect(() => {
+    if (!editorRef.current || editorRef.current.dataset.initialized === "true") return;
+
+    editorRef.current.innerHTML = initialBodyHtmlRef.current || "";
+    editorRef.current.dataset.initialized = "true";
+  }, []);
 
   function handleSave() {
-    const bodyHtml = editorRef.current?.innerHTML || initialBodyHtml;
+    const bodyHtml = editorRef.current?.innerHTML || initialBodyHtmlRef.current || "";
     onSave?.(bodyHtml);
   }
 
@@ -4673,7 +4682,6 @@ function ManualApprovalLetterEditorModal({ app, t, saving, onClose, onSave }) {
             suppressContentEditableWarning
             spellCheck={false}
             className="manual-approval-letter-pages outline-none"
-            dangerouslySetInnerHTML={{ __html: initialBodyHtml }}
           />
         </div>
       </div>
@@ -4681,7 +4689,12 @@ function ManualApprovalLetterEditorModal({ app, t, saving, onClose, onSave }) {
   );
 }
 
-function buildManualApprovalLetterDocumentHtml(bodyHtml) {
+function buildManualApprovalLetterDocumentHtml(bodyHtml, app = null) {
+  const migratedBodyHtml = migrateManualApprovalLetterLabels(
+    bodyHtml || buildManualApprovalLetterTemplateBodyHtml(app),
+    app
+  );
+
   return `<!doctype html>
 <html>
 <head>
@@ -4692,7 +4705,7 @@ function buildManualApprovalLetterDocumentHtml(bodyHtml) {
 <body>
   <div class="print-actions"><button onclick="window.print()">Print</button></div>
   <main class="manual-approval-letter-pages">
-    ${bodyHtml || buildManualApprovalLetterTemplateBodyHtml()}
+    ${migratedBodyHtml}
   </main>
 </body>
 </html>`;
@@ -4773,7 +4786,12 @@ function ManualBillEditorModal({ app, t, saving, onClose, onSave }) {
   );
 }
 
-function buildManualBillDocumentHtml(bodyHtml) {
+function buildManualBillDocumentHtml(bodyHtml, app = null) {
+  const migratedBodyHtml = migrateManualBillBodyHtml(
+    bodyHtml || buildManualBillTemplateBodyHtml(app),
+    app
+  );
+
   return `<!doctype html>
 <html>
 <head>
@@ -4784,7 +4802,7 @@ function buildManualBillDocumentHtml(bodyHtml) {
 <body>
   <div class="print-actions"><button onclick="window.print()">Print</button></div>
   <main class="manual-bill-pages">
-    ${bodyHtml || buildManualBillTemplateBodyHtml()}
+    ${migratedBodyHtml}
   </main>
 </body>
 </html>`;
@@ -4795,11 +4813,11 @@ function syncManualBillAutoFields(bodyHtml, app = null) {
   const saved = String(bodyHtml || "").trim();
   if (!saved) return nextBody;
 
-  return normalizeManualBillEditableMarkup(saved);
+  return normalizeManualBillEditableMarkup(saved, app);
 }
 
-function normalizeManualBillEditableMarkup(bodyHtml) {
-  return String(bodyHtml || "")
+function normalizeManualBillEditableMarkup(bodyHtml, app = null) {
+  return migrateManualBillBodyHtml(String(bodyHtml || ""), app)
     .replaceAll(
       "<span>Nama</span><span>:</span><strong>",
       '<span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">'
@@ -4812,6 +4830,29 @@ function normalizeManualBillEditableMarkup(bodyHtml) {
       /<footer>\s*<p>Notis ini adalah cetakan komputer\. Tiada tandatangan diperlukan\.<\/p>\s*<p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat\.<\/p>\s*<\/footer>/,
       buildManualBillPaymentNoticeHtml()
     );
+}
+
+function buildManualBillDepartmentRowHtml() {
+  return '<div class="bill-person-row"><span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">&nbsp;</strong></div>';
+}
+
+function migrateManualBillBodyHtml(bodyHtml, app = null) {
+  const details = app ? getManualBillDetails(app) : null;
+  let nextHtml = String(bodyHtml || "");
+
+  if (details?.adName) {
+    nextHtml = nextHtml.replace(
+      /<div class="bill-line-row bill-ad-name">\s*<span>Nama Iklan<\/span>\s*<span>:\s*<\/span>\s*<strong(?:\s[^>]*)?>[\s\S]*?<\/strong>\s*<\/div>/i,
+      `<div class="bill-line-row bill-ad-name">
+          <span>Nama Iklan</span><span>:</span><strong><em>${escapeHtml(details.adName)}</em></strong>
+        </div>`
+    );
+  }
+
+  return nextHtml.replace(
+    /<div class="bill-person-row">\s*<span(?:\s[^>]*)?>Bahagian<\/span>\s*<span(?:\s[^>]*)?>:\s*<\/span>\s*<strong(?:\s[^>]*)?>[\s\S]*?<\/strong>\s*<\/div>/gi,
+    buildManualBillDepartmentRowHtml()
+  );
 }
 
 function buildManualBillPaymentNoticeHtml() {
@@ -4863,7 +4904,7 @@ function buildManualBillTemplateBodyHtml(app = null) {
           <span>Tempoh Lesen</span><span>:</span><strong>${escapeHtml(details.licensePeriod)}</strong>
         </div>
         <div class="bill-line-row bill-ad-name">
-          <span>Nama Iklan</span><span>:</span><strong>${escapeHtml(details.adName)}</strong>
+          <span>Nama Iklan</span><span>:</span><strong><em>${escapeHtml(details.adName)}</em></strong>
         </div>
       </div>
 
@@ -4899,12 +4940,12 @@ function buildManualBillTemplateBodyHtml(app = null) {
         <div>
           <p><strong>Disediakan oleh :</strong></p>
           <div class="bill-person-row"><span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">${escapeHtml(details.preparedBy)}</strong></div>
-          <div class="bill-person-row"><span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
+          ${buildManualBillDepartmentRowHtml()}
         </div>
         <div>
           <p><strong>Diluluskan oleh :</strong></p>
           <div class="bill-person-row"><span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">${escapeHtml(details.approvedBy)}</strong></div>
-          <div class="bill-person-row"><span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">Unit Iklan, Bahagian Pelesenan<br />Dewan Bandaraya Kuching Utara</strong></div>
+          ${buildManualBillDepartmentRowHtml()}
         </div>
       </div>
 
@@ -5127,6 +5168,29 @@ function syncManualApprovalLetterAutoFields(bodyHtml, app = null) {
     .replace(/<p>Dewan Bandaraya Kuching Utara<\/p>/gi, "<p><strong>Dewan Bandaraya Kuching Utara</strong></p>");
 }
 
+function migrateManualApprovalLetterLabels(bodyHtml, app = null) {
+  const details = app ? getManualApprovalLetterAdvertisementDetails(app) : null;
+  const getValueHtml = (currentValueHtml, nextValue) => {
+    if (nextValue) return `<em>${escapeHtml(nextValue)}</em>`;
+    const unwrappedValue = String(currentValueHtml || "")
+      .trim()
+      .replace(/^<em>([\s\S]*)<\/em>$/i, "$1");
+    return unwrappedValue ? `<em>${unwrappedValue}</em>` : "";
+  };
+
+  return String(bodyHtml || "")
+    .replace(
+      /<tr>\s*<td>\s*(?:<em>)?\s*(?:Advertisement Type|Jenis Iklan)\s*(?:<\/em>)?\s*<\/td>\s*<td class="info-colon">\s*:\s*<\/td>\s*<td>([\s\S]*?)<\/td>\s*<\/tr>/gi,
+      (_match, currentValueHtml) =>
+        `<tr><td>Jenis Iklan</td><td class="info-colon">:</td><td>${getValueHtml(currentValueHtml, details?.adType)}</td></tr>`
+    )
+    .replace(
+      /<tr>\s*<td>\s*(?:<em>)?\s*(?:Advertisement Name|Nama Iklan)\s*(?:<\/em>)?\s*<\/td>\s*<td class="info-colon">\s*:\s*<\/td>\s*<td>([\s\S]*?)<\/td>\s*<\/tr>/gi,
+      (_match, currentValueHtml) =>
+        `<tr><td>Nama Iklan</td><td class="info-colon">:</td><td>${getValueHtml(currentValueHtml, details?.adName)}</td></tr>`
+    );
+}
+
 function buildManualApprovalLetterAddressHtml(app = null) {
   return getManualApprovalLetterAddressLines(app).map(escapeHtml).join("<br />");
 }
@@ -5226,8 +5290,8 @@ function buildManualApprovalLetterAdvertisementDetailsHtml(app = null) {
           </tr>
         </thead>
         <tbody>
-          <tr><td>Jenis Iklan</td><td class="info-colon">:</td><td>${escapeHtml(details.adType)}</td></tr>
-          <tr><td>Nama Iklan</td><td class="info-colon">:</td><td>${escapeHtml(details.adName)}</td></tr>
+          <tr><td>Jenis Iklan</td><td class="info-colon">:</td><td><em>${escapeHtml(details.adType)}</em></td></tr>
+          <tr><td>Nama Iklan</td><td class="info-colon">:</td><td><em>${escapeHtml(details.adName)}</em></td></tr>
           <tr><td>Lokasi Iklan</td><td class="info-colon">:</td><td>${escapeHtml(details.adLocation)}</td></tr>
         </tbody>
       </table>`;
@@ -5238,14 +5302,14 @@ function getManualApprovalLetterAdvertisementDetails(app = null) {
   const submittingPerson = app?.form_data?.step_3 || {};
   const rows = getManualApprovalLetterAdvertisementRows(app);
   const generatedAdName = rows
-    .map((row) => buildTechnicalProjectNameLine("ms", row))
+    .map((row) => buildTechnicalProjectNameLine("en", row))
     .filter(Boolean)
     .join(", ");
 
   return {
     adType: rows.length > 0
-      ? rows.map(formatManualApprovalLetterAdvertisementType).filter(Boolean).join(", ")
-      : titleCaseAddressLine(getApplicationType(app, "ms")),
+      ? rows.map((row) => formatManualApprovalLetterAdvertisementType(row, "en")).filter(Boolean).join(", ")
+      : titleCaseAddressLine(getApplicationType(app, "en")),
     adName: generatedAdName
       ? titleCaseAddressLine(generatedAdName)
       : titleCaseAddressLine(
@@ -5299,15 +5363,15 @@ function getManualApprovalLetterAdvertisementRows(app = null) {
   return getTechnicalAdvertisementRowsFromStep1(step1, primaryType, fallbackSubtype);
 }
 
-function formatManualApprovalLetterAdvertisementType(row = {}) {
+function formatManualApprovalLetterAdvertisementType(row = {}, language = "en") {
   const rowType =
     normalizeApplicationTypeOptions(row.applicationType || row.application_type)[0] ||
     "";
   const subtype = normalizeApplicationSubtype(row.subtype, rowType);
   const customLabel = String(row.customLabel || row.custom_label || "").trim();
   const advertisementLabel =
-    getTechnicalAdvertisementOptionLabel(customLabel, "ms") ||
-    getApplicationSubtypeLabel(rowType, subtype, "ms") ||
+    getTechnicalAdvertisementOptionLabel(customLabel, language) ||
+    getApplicationSubtypeLabel(rowType, subtype, language) ||
     customLabel;
 
   return advertisementLabel;
@@ -19776,21 +19840,25 @@ function hasManualBill(app) {
 
 export function getManualApprovalLetterDocumentHtml(app) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
-  return (
-    manualLetter.document_html ||
-    buildManualApprovalLetterDocumentHtml(
-      manualLetter.editable_body_html || buildManualApprovalLetterTemplateBodyHtml(app)
-    )
+  if (manualLetter.document_html) {
+    return migrateManualApprovalLetterLabels(manualLetter.document_html, app);
+  }
+
+  return buildManualApprovalLetterDocumentHtml(
+    manualLetter.editable_body_html || buildManualApprovalLetterTemplateBodyHtml(app),
+    app
   );
 }
 
 export function getManualBillDocumentHtml(app) {
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
-  return (
-    manualBill.document_html ||
-    buildManualBillDocumentHtml(
-      manualBill.editable_body_html || buildManualBillTemplateBodyHtml(app)
-    )
+  if (manualBill.document_html) {
+    return migrateManualBillBodyHtml(manualBill.document_html, app);
+  }
+
+  return buildManualBillDocumentHtml(
+    manualBill.editable_body_html || buildManualBillTemplateBodyHtml(app),
+    app
   );
 }
 

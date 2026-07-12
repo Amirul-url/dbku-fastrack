@@ -952,12 +952,9 @@ function isAdminOverviewUnderReview(app) {
 function isAdminOverviewSubmitted(app) {
   const status = normalizeStatus(app?.status);
   if (!status || status === "draft") return false;
+  if (isAdminOverviewSurrenderRevoke(app)) return false;
 
-  return (
-    status === "submitted" ||
-    hasApplicationActivity(app, ["application submitted", "application resubmitted"]) ||
-    Boolean(app?.submitted_at || app?.form_data?.submitted_at)
-  );
+  return true;
 }
 
 function isAdminOverviewApproved(app) {
@@ -2600,17 +2597,6 @@ function getApplicationActivityLog(application) {
     : [];
 
   return activityLog;
-}
-
-function hasApplicationActivity(application, titles = []) {
-  const normalizedTitles = new Set(
-    titles.map((title) => String(title || "").trim().toLowerCase()).filter(Boolean)
-  );
-  if (normalizedTitles.size === 0) return false;
-
-  return getApplicationActivityLog(application).some((activity) =>
-    normalizedTitles.has(String(activity?.title || "").trim().toLowerCase())
-  );
 }
 
 function buildInternalResubmissionInsights(applications, t, language = "en", filters = {}) {
