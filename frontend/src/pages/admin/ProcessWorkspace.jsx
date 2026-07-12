@@ -19522,7 +19522,10 @@ async function printBlankAdvertisementLicenseDocument(app, t) {
 export function getGeneratedAdvertisementLicenseDocumentHtml(app, t) {
   const manualLicense = app?.form_data?.license?.manual_license || {};
   return normalizeAdvertisementLicenseDocumentSpacing(
-    manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t)
+    migrateAdvertisementLicenseDocumentHtml(
+      manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t),
+      app
+    )
   );
 }
 
@@ -19532,6 +19535,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
   const manualLicense = license.manual_license || {};
   const logoUrl = getPublicAssetUrl("/logo-dbku.png");
   const terms = getAdvertisementLicenseAttachmentTerms(manualLicense.terms);
+  const details = getAdvertisementLicenseAutofillDetails(app);
 
   return `<!doctype html>
 <html>
@@ -19564,7 +19568,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
     .form-lines { display: grid; grid-template-columns: 22mm 5mm 1fr; column-gap: 3mm; row-gap: 1.5mm; align-items: end; margin-top: 2mm; font-size: 11pt; }
     .label { white-space: pre-line; }
     .colon { text-align: center; }
-    .dot-line { min-height: 5mm; border-bottom: 1.4px dotted #111; line-height: 4.8mm; padding: 0 2mm; font-weight: 400; }
+    .dot-line { min-height: 5mm; border-bottom: 1.4px dotted #111; line-height: 4.8mm; padding: 0 2mm; font-weight: 400; white-space: normal; overflow-wrap: anywhere; }
     [contenteditable="true"] { outline: none; box-shadow: none; }
     .grant { margin: 7mm 0 6mm; font-size: 11pt; line-height: 1.38; text-align: justify; }
     .grant strong { font-weight: 700; }
@@ -19605,12 +19609,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
       <span>Rujukan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
     </div>
 
-    <div class="form-lines">
-      <span>Nama</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span>Alamat</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span></span><span></span><span class="dot-line">&nbsp;</span>
-      <span></span><span></span><span class="dot-line">&nbsp;</span>
-    </div>
+    ${buildAdvertisementLicenseApplicantLines(details)}
 
     <p class="grant">
       Adalah dengan ini diberi lesen oleh <strong>Pengarah, Dewan Bandaraya Kuching Utara</strong>
@@ -19618,17 +19617,9 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
       untuk mempamer iklan seperti berikut:
     </p>
 
-    <div class="license-details">
-      <span>Nama Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span>Jenis Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span>Lokasi Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span></span><span></span><span class="dot-line">&nbsp;</span>
-    </div>
+    ${buildAdvertisementLicenseDetailsLines(details)}
 
-    <div class="period-line">
-      <span>Tempoh Lesen Iklan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span>hingga</span><span class="dot-line">&nbsp;</span>
-    </div>
+    ${buildAdvertisementLicensePeriodLine(details)}
 
     <p class="attachment-line">Tertakluk kepada syarat-syarat dalam Lampiran A.</p>
 
@@ -19657,6 +19648,208 @@ function normalizeAdvertisementLicenseDocumentSpacing(html) {
       /\.grant\s*\{[^}]*\}/,
       ".grant { margin: 7mm 0 6mm; font-size: 11pt; line-height: 1.38; text-align: justify; }"
     );
+}
+
+function migrateAdvertisementLicenseDocumentHtml(html, app = null) {
+  const details = getAdvertisementLicenseAutofillDetails(app);
+
+  return String(html || "")
+    .replace(
+      /<div class="form-lines">[\s\S]*?<\/div>/i,
+      (block) => buildAdvertisementLicenseApplicantLines(details, getAdvertisementLicenseDotValues(block))
+    )
+    .replace(
+      /<div class="license-details">[\s\S]*?<\/div>/i,
+      (block) => buildAdvertisementLicenseDetailsLines(details, getAdvertisementLicenseDotValues(block))
+    )
+    .replace(
+      /<div class="period-line">[\s\S]*?<\/div>/i,
+      (block) => buildAdvertisementLicensePeriodLine(details, getAdvertisementLicenseDotValues(block))
+    );
+}
+
+function getAdvertisementLicenseAutofillDetails(app = null) {
+  const advertisement = getManualApprovalLetterAdvertisementDetails(app);
+  const period = getManualApprovalLetterLicensePeriod(app);
+  const [periodStart, periodEnd] = String(period || "").split(/\s+hingga\s+/i);
+  const applicantName = titleCaseAddressLine(
+    getRegisteredApplicantName(app) ||
+      getApplicantName(app) ||
+      app?.form_data?.step_3?.org_name ||
+      app?.form_data?.step_3?.name ||
+      ""
+  );
+  const addressLines = getRegisteredApplicantAddressLines(app);
+  const locationLines = getAdvertisementLicenseLocationLines(app, advertisement.adLocation);
+
+  return {
+    applicantName,
+    addressLines,
+    adName: advertisement.adName || getProjectName(app) || "",
+    adType: advertisement.adType || "",
+    locationLines,
+    periodStart: periodStart || "",
+    periodEnd: periodEnd || "",
+  };
+}
+
+function buildAdvertisementLicenseApplicantLines(details, existingValues = []) {
+  const defaultAddressLines = splitAdvertisementLicenseAddressLines(details.addressLines);
+  const existingAddressLines = existingValues.slice(1).filter(Boolean);
+  const existingAddress = existingAddressLines.join(", ");
+  const defaultAddress = defaultAddressLines.join(", ");
+  const addressLines =
+    !existingAddress || defaultAddress.startsWith(existingAddress)
+      ? defaultAddressLines
+      : splitAdvertisementLicenseAddressLines(existingAddressLines);
+  const values = [
+    getAdvertisementLicenseFilledValue(existingValues[0], details.applicantName),
+    getAdvertisementLicenseFilledValue("", addressLines[0]),
+    getAdvertisementLicenseFilledValue("", addressLines[1]),
+    getAdvertisementLicenseFilledValue("", addressLines[2]),
+  ];
+
+  return `
+    <div class="form-lines">
+      <span>Nama</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(values[0])}
+      <span>Alamat</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(values[1])}
+      <span></span><span></span>${buildAdvertisementLicenseEditableLine(values[2])}
+      <span></span><span></span>${buildAdvertisementLicenseEditableLine(values[3])}
+    </div>`;
+}
+
+function splitAdvertisementLicenseAddressLines(addressParts = []) {
+  const parts = Array.isArray(addressParts)
+    ? addressParts.map((part) => String(part || "").trim()).filter(Boolean)
+    : splitAdvertisementLicenseLines(addressParts);
+  if (parts.length <= 3) return [...parts, "", ""].slice(0, 3);
+
+  return [
+    parts[0],
+    parts[1],
+    parts.slice(2).join(", "),
+  ];
+}
+
+function getRegisteredApplicantAddressLines(app = null) {
+  const profile =
+    app?.applicant_registered_address_profile ||
+    app?.form_data?.applicant_registered_address_profile ||
+    app?.applicant_profile ||
+    app?.form_data?.applicant_profile ||
+    {};
+  const line1 = String(profile.address_line1 || "").trim();
+  const line2 = String(profile.address_line2 || "").trim();
+  const postcodeCityState = [
+    [
+      [profile.postcode, profile.city].filter(Boolean).join(" "),
+      profile.state,
+    ].filter(Boolean).join(", ")
+  ].join("").trim();
+  const structuredLines = [line1, line2, postcodeCityState].filter(Boolean);
+  if (structuredLines.length > 0) return structuredLines;
+
+  const profileAddress = String(profile.address || "").trim();
+  if (profileAddress) return splitAdvertisementLicenseAddressLines(profileAddress);
+
+  return getManualApprovalLetterAddressLines(app);
+}
+
+function getAdvertisementLicenseLocationLines(app = null, fallbackLocation = "") {
+  const step1 = app?.form_data?.step_1 || {};
+  const location = titleCaseAdvertisementLicenseLocation(
+    step1.locality_address ||
+      step1.map_address ||
+      step1.site_address ||
+      step1.address ||
+      step1.selected_address ||
+      step1.location ||
+      fallbackLocation ||
+      ""
+  ).trim();
+
+  return splitAdvertisementLicenseLocationLines(location);
+}
+
+function splitAdvertisementLicenseLocationLines(location = "") {
+  const parts = splitAdvertisementLicenseLines(location);
+  if (parts.length <= 1) return [parts[0] || "", ""];
+  if (parts.length === 2) return [parts[0], parts[1]];
+
+  return [
+    parts.slice(0, 2).join(", "),
+    parts.slice(2).join(", "),
+  ];
+}
+
+function titleCaseAdvertisementLicenseLocation(value) {
+  return String(value || "")
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      if (/\d/.test(word)) return word;
+      return word.toLowerCase().replace(/\b([a-z])/g, (match) => match.toUpperCase());
+    })
+    .join(" ");
+}
+
+function buildAdvertisementLicenseDetailsLines(details, existingValues = []) {
+  const defaultLocationLines = Array.isArray(details.locationLines)
+    ? details.locationLines
+    : splitAdvertisementLicenseLines(details.locationLines);
+  const existingLocationLines = existingValues.slice(2).filter(Boolean);
+  const existingLocation = existingLocationLines.join(", ");
+  const defaultLocation = defaultLocationLines.filter(Boolean).join(", ");
+  const useDefaultLocation =
+    !existingLocation ||
+    (defaultLocation &&
+      defaultLocation.toLowerCase().startsWith(existingLocation.toLowerCase()));
+  const locationLines = useDefaultLocation
+    ? defaultLocationLines
+    : splitAdvertisementLicenseLines(existingLocation);
+  const values = [
+    getAdvertisementLicenseFilledValue(existingValues[0], details.adName),
+    getAdvertisementLicenseFilledValue(existingValues[1], details.adType),
+    getAdvertisementLicenseFilledValue("", locationLines[0]),
+    getAdvertisementLicenseFilledValue("", locationLines[1]),
+  ];
+
+  return `
+    <div class="license-details">
+      <span>Nama Iklan</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(values[0], { italic: true })}
+      <span>Jenis Iklan</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(values[1], { italic: true })}
+      <span>Lokasi Iklan</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(values[2])}
+      <span></span><span></span>${buildAdvertisementLicenseEditableLine(values[3])}
+    </div>`;
+}
+
+function buildAdvertisementLicensePeriodLine(details, existingValues = []) {
+  const start = getAdvertisementLicenseFilledValue(existingValues[0], details.periodStart);
+  const end = getAdvertisementLicenseFilledValue(existingValues[1], details.periodEnd);
+
+  return `
+    <div class="period-line">
+      <span>Tempoh Lesen Iklan</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(start)}
+      <span>hingga</span>${buildAdvertisementLicenseEditableLine(end)}
+    </div>`;
+}
+
+function buildAdvertisementLicenseEditableLine(value, { italic = false } = {}) {
+  const displayValue = String(value || "").trim();
+  const escapedValue = displayValue ? escapeHtml(displayValue) : "&nbsp;";
+  const content = italic && displayValue ? `<em>${escapedValue}</em>` : escapedValue;
+  return `<span class="dot-line" contenteditable="true">${content}</span>`;
+}
+
+function getAdvertisementLicenseDotValues(html) {
+  return [...String(html || "").matchAll(/<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)]
+    .map((match) => getHtmlPlainText(match[1]).trim());
+}
+
+function getAdvertisementLicenseFilledValue(currentValue, defaultValue) {
+  const current = String(currentValue || "").trim();
+  if (current && current !== "-") return current;
+  return String(defaultValue || "").trim();
 }
 
 function getAdvertisementLicenseAttachmentTerms(savedTerms) {

@@ -79,6 +79,31 @@ def join_user_address(user):
     return address or str(getattr(user, "address", "") or "").strip().upper()
 
 
+def get_application_registered_applicant_address_profile(application):
+    user = getattr(application, "applicant", None)
+    if not user:
+        return {}
+
+    return {
+        "address": ", ".join(
+            str(part or "").strip()
+            for part in [
+                getattr(user, "address_line1", ""),
+                getattr(user, "address_line2", ""),
+                getattr(user, "postcode", ""),
+                getattr(user, "city", ""),
+                getattr(user, "state", ""),
+            ]
+            if str(part or "").strip()
+        ) or str(getattr(user, "address", "") or "").strip(),
+        "address_line1": str(getattr(user, "address_line1", "") or "").strip(),
+        "address_line2": str(getattr(user, "address_line2", "") or "").strip(),
+        "postcode": str(getattr(user, "postcode", "") or "").strip(),
+        "city": str(getattr(user, "city", "") or "").strip(),
+        "state": str(getattr(user, "state", "") or "").strip(),
+    }
+
+
 def get_application_applicant_profile(application):
     user = getattr(application, "applicant", None)
     if not user:

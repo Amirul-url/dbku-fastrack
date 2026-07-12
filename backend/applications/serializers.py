@@ -9,6 +9,7 @@ from .services.summary import (
     get_application_applicant_profile,
     get_application_display_remark,
     get_public_application_display_remark,
+    get_application_registered_applicant_address_profile,
     get_application_registered_applicant_mobile_number,
     get_application_registered_applicant_name,
     sync_application_summary,
@@ -125,6 +126,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     applicant_full_name = serializers.SerializerMethodField()
     applicant_registered_name = serializers.SerializerMethodField()
     applicant_registered_mobile_number = serializers.SerializerMethodField()
+    applicant_registered_address_profile = serializers.SerializerMethodField()
     application_type_label = serializers.SerializerMethodField()
     auto_screening = serializers.SerializerMethodField()
     technical_review = serializers.SerializerMethodField()
@@ -154,6 +156,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "applicant_full_name",
             "applicant_registered_name",
             "applicant_registered_mobile_number",
+            "applicant_registered_address_profile",
             "application_type",
             "application_type_label",
             "project_location",
@@ -188,6 +191,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "applicant_full_name",
             "applicant_registered_name",
             "applicant_registered_mobile_number",
+            "applicant_registered_address_profile",
             "created_at",
             "updated_at",
         ]
@@ -200,6 +204,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_applicant_registered_mobile_number(self, obj):
         return get_application_registered_applicant_mobile_number(obj)
+
+    def get_applicant_registered_address_profile(self, obj):
+        return get_application_registered_applicant_address_profile(obj)
 
     def get_application_type_label(self, obj):
         step1 = (obj.form_data or {}).get("step_1") or {}
@@ -313,6 +320,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     applicant_full_name = serializers.SerializerMethodField()
     applicant_registered_name = serializers.SerializerMethodField()
     applicant_registered_mobile_number = serializers.SerializerMethodField()
+    applicant_registered_address_profile = serializers.SerializerMethodField()
     applicant_profile = serializers.SerializerMethodField()
 
     supporting_documents = SupportingDocumentSerializer(
@@ -330,6 +338,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant_full_name",
             "applicant_registered_name",
             "applicant_registered_mobile_number",
+            "applicant_registered_address_profile",
             "applicant_profile",
             "application_type",
             "project_location",
@@ -350,6 +359,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "applicant_full_name",
             "applicant_registered_name",
             "applicant_registered_mobile_number",
+            "applicant_registered_address_profile",
             "applicant_profile",
             "project_location",
             "supporting_documents",
@@ -365,6 +375,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 
     def get_applicant_registered_mobile_number(self, obj):
         return get_application_registered_applicant_mobile_number(obj)
+
+    def get_applicant_registered_address_profile(self, obj):
+        return get_application_registered_applicant_address_profile(obj)
 
     def get_applicant_profile(self, obj):
         return get_application_applicant_profile(obj)
