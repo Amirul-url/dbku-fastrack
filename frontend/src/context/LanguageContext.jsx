@@ -1240,7 +1240,7 @@ const dictionaries = {
     "common.month": "Bulan",
     "common.year": "Tahun",
     "common.all": "Semua",
-    "common.selectPlaceholder": "--Select--",
+    "common.selectPlaceholder": "--Pilih--",
     "common.allMonths": "Semua",
     "common.allYears": "Semua",
     "common.clearFilters": "Kosongkan Penapis",
