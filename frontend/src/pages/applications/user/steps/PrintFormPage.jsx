@@ -535,6 +535,7 @@ function PrintFormPage({
                       language={language}
                       noAttachmentText={tx("noAttachment")}
                       applicationId={applicationId}
+                      hideDescription
                     />
                   </PrintSection>
                 </PrintPage>
@@ -828,6 +829,7 @@ function drawPdfPageOne(pdf, {
     language,
     noAttachmentText,
     other: false,
+    hideDescription: true,
     y: y + 4,
   });
 
@@ -1098,6 +1100,7 @@ function drawPdfDocumentSummary(pdf, {
   language,
   noAttachmentText,
   other = false,
+  hideDescription = false,
   y,
 }) {
   resetPdfTextStyle(pdf);
@@ -1119,6 +1122,13 @@ function drawPdfDocumentSummary(pdf, {
         { key: "format", title: stepText(language, "format"), width: 30 },
         { key: "attachment", title: stepText(language, "attachment"), width: 42 },
       ]
+    : hideDescription
+      ? [
+          { key: "index", title: "No.", width: 10, align: "center" },
+          { key: "title", title: stepText(language, "title"), width: 86 },
+          { key: "format", title: stepText(language, "format"), width: 32 },
+          { key: "attachment", title: stepText(language, "attachment"), width: 54 },
+        ]
     : [
         { key: "index", title: "No.", width: 10, align: "center" },
         { key: "title", title: stepText(language, "title"), width: 35 },
@@ -1161,6 +1171,9 @@ function drawPdfDocumentSummary(pdf, {
         noAttachmentText
       ),
     };
+    if (hideDescription) {
+      delete values.description;
+    }
     y = drawPdfTableRow(pdf, columns, values, y);
   });
 
@@ -1814,6 +1827,7 @@ function DocumentSummary({
   noAttachmentText = "No attachment",
   applicationId = "",
   other = false,
+  hideDescription = false,
 }) {
   return (
     <div
@@ -1834,10 +1848,12 @@ function DocumentSummary({
           <thead>
             <tr>
               <PrintTableHead style={{ width: "9mm" }}>No.</PrintTableHead>
-              <PrintTableHead style={{ width: other ? "82mm" : "42mm" }}>
+              <PrintTableHead
+                style={{ width: other ? "82mm" : hideDescription ? "96mm" : "42mm" }}
+              >
                 {other ? stepText(language, "description") : stepText(language, "title")}
               </PrintTableHead>
-              {!other && (
+              {!other && !hideDescription && (
                 <PrintTableHead>{stepText(language, "description")}</PrintTableHead>
               )}
               <PrintTableHead style={{ width: "27mm" }}>
@@ -1855,7 +1871,7 @@ function DocumentSummary({
                 return (
                   <tr key={`${title}-${index}`} className="print-avoid-break">
                     <PrintTableCell center>{index + 1}</PrintTableCell>
-                    <PrintTableCell colSpan={4}>
+                    <PrintTableCell colSpan={hideDescription ? 3 : 4}>
                       <strong>{documentTitle(language, row.title)}</strong>
                     </PrintTableCell>
                   </tr>
@@ -1892,7 +1908,9 @@ function DocumentSummary({
                       documentTitle(language, row.title)
                     )}
                   </PrintTableCell>
-                  {!other && <PrintTableCell>{description || "-"}</PrintTableCell>}
+                  {!other && !hideDescription && (
+                    <PrintTableCell>{description || "-"}</PrintTableCell>
+                  )}
                   <PrintTableCell>{row.format || "-"}</PrintTableCell>
                   <PrintTableCell>
                     <AttachmentLinkList
