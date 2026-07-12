@@ -898,6 +898,10 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
     return `/dashboard/admin?view=approval&id=${applicationId}&from=completed-approvals&returnTo=${returnTo}`;
   }
 
+  if (stat === "rejected") {
+    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&showDecisionLog=1&returnTo=${returnTo}`;
+  }
+
   const from = "action-panel";
 
   return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=${from}&returnTo=${returnTo}`;
