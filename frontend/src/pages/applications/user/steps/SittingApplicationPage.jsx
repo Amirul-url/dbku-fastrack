@@ -2523,6 +2523,16 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
   const breakdown = calculateIklFeeBreakdown(areaSqm, subtype);
 
   return (
+    <FeeCalculationPanel
+      tx={tx}
+      width={width}
+      height={height}
+      areaSqft={areaSqft}
+      breakdown={breakdown}
+    />
+  );
+
+  return (
     <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
       <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
         {tx("calculationBreakdown")}
@@ -2591,6 +2601,184 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
         )}
       </div>
     </details>
+  );
+}
+
+function FeeCalculationPanel({ tx, width, height, areaSqft, breakdown }) {
+  const areaUnit = "m2";
+
+  return (
+    <details className="self-start overflow-hidden rounded-sm border border-slate-200 bg-white" open>
+      <summary className="cursor-pointer select-none bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50">
+        {tx("calculationPanelTitle")}
+      </summary>
+
+      <div className="overflow-x-auto border-t border-slate-200">
+        {breakdown ? (
+          <div className="min-w-[720px] divide-y divide-slate-100 text-xs text-slate-800">
+            <CalculationGridRow>
+              <span className="font-semibold">{tx("calculationSchedule")}</span>
+              <span className="col-span-7 text-slate-700">
+                {tx(`calculationSchedule${breakdown.scheduleNumber}`)}
+              </span>
+            </CalculationGridRow>
+
+            <CalculationGridRow>
+              <span className="font-semibold">{tx("calculationSize")}</span>
+              <CalculationValueBox value={formatCalculationNumber(width)} />
+              <span>ft</span>
+              <span className="text-center font-semibold">x</span>
+              <CalculationValueBox value={formatCalculationNumber(height)} />
+              <span>ft</span>
+            </CalculationGridRow>
+
+            <CalculationGridRow>
+              <span className="font-semibold">{tx("calculationAreaFt")} (ft)</span>
+              <CalculationValueBox
+                value={areaSqft ? formatFlexibleDecimal(areaSqft, 10) : "-"}
+              />
+              <span>ft</span>
+            </CalculationGridRow>
+
+            <CalculationGridRow>
+              <span className="font-semibold">{tx("calculationAreaFt")} (m2)</span>
+              <CalculationValueBox value={formatWholeNumber(breakdown.areaSqm)} />
+              <span>{areaUnit}</span>
+              <span className="col-span-5 text-slate-500">
+                {formatFlexibleDecimal(areaSqft || 0, 10)} x {SQFT_TO_SQM} ={" "}
+                {formatCalculatedArea(breakdown.areaSqm)} {areaUnit}
+              </span>
+            </CalculationGridRow>
+
+            <div className="bg-slate-50 px-3 py-2 font-bold">
+              {tx("calculationFees")}
+            </div>
+
+            <FeeFormulaRow
+              label={tx(`calculationFirstArea${breakdown.scheduleNumber}`)}
+              quantity={formatWholeNumber(breakdown.firstAreaSqm)}
+              unit={areaUnit}
+              rate={
+                breakdown.usesFixedFirstAreaFee
+                  ? ""
+                  : formatCalculatedCurrency(breakdown.firstAreaRate)
+              }
+              amount={
+                breakdown.usesFixedFirstAreaFee
+                  ? formatCalculatedCurrency(breakdown.firstAreaFixedFee)
+                  : formatCalculatedCurrency(breakdown.firstAreaFee)
+              }
+              fixedFee={breakdown.usesFixedFirstAreaFee}
+            />
+
+            <FeeFormulaRow
+              label={tx("calculationAdditionalArea")}
+              quantity={formatWholeNumber(breakdown.additionalAreaSqm)}
+              unit={areaUnit}
+              rate={formatCalculatedCurrency(breakdown.additionalAreaRate)}
+              amount={formatCalculatedCurrency(breakdown.additionalAreaFee)}
+            />
+
+            <FeeSingleValueRow
+              label={tx("calculationFeeTotal")}
+              value={formatCalculatedCurrency(breakdown.feeTotal)}
+              shaded
+              strong
+            />
+            <FeeSingleValueRow
+              label={tx("calculationDeposit")}
+              value={formatCalculatedCurrency(breakdown.deposit)}
+            />
+            <FeeSingleValueRow
+              label={tx("calculationProcessingFee")}
+              value={formatCalculatedCurrency(breakdown.processingFee)}
+            />
+            <FeeSingleValueRow
+              label={tx("calculationRoundingAdjustment")}
+              value={formatCalculatedCurrency(breakdown.roundingAdjustment)}
+              guideline={tx("calculationRoundingAdjustmentHelp")}
+            />
+            <FeeSingleValueRow
+              label={tx("calculationTotal")}
+              value={formatCalculatedCurrency(breakdown.totalPayable)}
+              shaded="green"
+              strong
+            />
+          </div>
+        ) : (
+          <p className="px-3 py-2 text-xs text-slate-500">
+            {tx("calculationEmpty")}
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function CalculationGridRow({ children }) {
+  return (
+    <div className="grid grid-cols-[220px_150px_45px_34px_150px_45px_34px_175px] items-center gap-2 px-3 py-2">
+      {children}
+    </div>
+  );
+}
+
+function CalculationValueBox({ value, strong = false }) {
+  return (
+    <span
+      className={`inline-flex min-h-8 items-center justify-end rounded border border-slate-300 bg-white px-3 text-right tabular-nums ${
+        strong ? "font-bold text-slate-950" : "text-slate-800"
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+function FeeFormulaRow({ label, quantity, unit, rate, amount, fixedFee = false }) {
+  return (
+    <CalculationGridRow>
+      <span className="font-semibold">{label}</span>
+      <CalculationValueBox value={quantity} />
+      <span>{unit}</span>
+      <span className="text-center font-semibold">{fixedFee ? "=" : "x"}</span>
+      {fixedFee ? (
+        <CalculationValueBox value={amount} strong />
+      ) : (
+        <>
+          <CalculationValueBox value={rate} />
+          <span className="text-center font-semibold">=</span>
+          <CalculationValueBox value={amount} strong />
+        </>
+      )}
+    </CalculationGridRow>
+  );
+}
+
+function FeeSingleValueRow({
+  label,
+  value,
+  guideline = "",
+  shaded = false,
+  strong = false,
+}) {
+  const shadedClass =
+    shaded === "green" ? "bg-emerald-50" : shaded ? "bg-slate-50" : "bg-white";
+
+  return (
+    <div
+      className={`grid grid-cols-[220px_150px_45px_34px_150px_45px_34px_175px] items-center gap-2 px-3 py-2 ${shadedClass}`}
+    >
+      <span
+        className={`relative inline-flex items-center gap-1.5 ${
+          strong ? "font-bold" : "font-semibold"
+        }`}
+      >
+        {label}
+        {guideline && <GuidelineHint text={guideline} />}
+      </span>
+      <CalculationValueBox value={value} strong={strong} />
+    </div>
   );
 }
 
