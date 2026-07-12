@@ -21,7 +21,6 @@ import {
   applicationTypeLabel,
   documentDescription,
   documentTitle,
-  organisationTypeLabel,
   stepText,
 } from "./ApplicationStepText";
 import AdminViewStepControls from "./AdminViewStepControls";
@@ -499,7 +498,6 @@ function PrintFormPage({
                 >
                   <PrintSection title={tx("step1Print")}>
                     <PrintSubheading>{tx("organisation")}</PrintSubheading>
-                    <PrintLine label={tx("organisationType")} value={formatPrintUpper(organisationTypeLabel(language, step3.org_type))} />
                     <PrintLine label={tx("registrationNumber")} value={formatPrintUpper(step3.registration_no)} />
                     <PrintLine label={tx("organisationName")} value={formatPrintUpper(step3.org_name)} />
                     <PrintLine label={tx("postalAddress")} value={formatPrintUpper(step3.postal_address)} />
@@ -725,7 +723,7 @@ function buildPrintFormPdf({
   });
 
   pdf.setProperties({ title });
-  drawPdfPageOne(pdf, { title, step3, tx, language });
+  drawPdfPageOne(pdf, { title, step3, tx });
   pdf.addPage("a4", "portrait");
   drawPdfPageTwo(pdf, { title, step1, tx, language });
   pdf.addPage("a4", "portrait");
@@ -741,7 +739,7 @@ function buildPrintFormPdf({
   return pdf;
 }
 
-function drawPdfPageOne(pdf, { title, step3, tx, language }) {
+function drawPdfPageOne(pdf, { title, step3, tx }) {
   let y = drawPdfHeader(pdf, title);
 
   y = drawPdfSectionTitle(pdf, tx("step1Print"), y);
@@ -749,10 +747,6 @@ function drawPdfPageOne(pdf, { title, step3, tx, language }) {
   y = drawPdfFieldRows(
     pdf,
     [
-      {
-        label: tx("organisationType"),
-        value: formatPrintUpper(organisationTypeLabel(language, step3.org_type)),
-      },
       { label: tx("registrationNumber"), value: formatPrintUpper(step3.registration_no) },
       { label: tx("organisationName"), value: formatPrintUpper(step3.org_name) },
       { label: tx("postalAddress"), value: formatPrintUpper(step3.postal_address) },

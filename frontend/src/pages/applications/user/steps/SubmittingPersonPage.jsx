@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
-import { apiRequest } from "../../../../services/api";
+import { apiRequest, uploadApplicationDocument } from "../../../../services/api";
 import {
   canEditApplicationForm,
   getApplicantSaveDraftReturnLabelKey,
@@ -141,6 +141,24 @@ const stateOptions = Object.keys(stateCityOptions);
 const allCityOptions = Array.from(
   new Set(Object.values(stateCityOptions).flat())
 ).sort((a, b) => a.localeCompare(b));
+const STEP_3_DOCUMENT_MAX_FILE_SIZE = 15 * 1024 * 1024;
+
+function isValidStep3DocumentFile(file, tx) {
+  const isPdf =
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+  if (!isPdf) {
+    alert(tx("pdfOnlyAlert"));
+    return false;
+  }
+
+  if (file.size > STEP_3_DOCUMENT_MAX_FILE_SIZE) {
+    alert(tx("fileSize5MbAlert"));
+    return false;
+  }
+
+  return true;
+}
 
 function toUpperText(value) {
   return String(value || "").toLocaleUpperCase("en-MY");
@@ -194,7 +212,7 @@ function SubmittingPersonPage({
   const isAdminView = mode === "admin-view";
   const isAdminReview = mode === "admin" || isAdminView;
 
-  const [orgType, setOrgType] = useState("");
+  const [orgType, setOrgType] = useState("Company");
   const [registrationNo, setRegistrationNo] = useState("");
   const [orgName, setOrgName] = useState("");
   const [postalAddress, setPostalAddress] = useState("");
@@ -237,6 +255,10 @@ function SubmittingPersonPage({
   const [faxCountryCode, setFaxCountryCode] = useState("");
   const [faxNo, setFaxNo] = useState("");
   const [applicationRecord, setApplicationRecord] = useState(null);
+  const [workingApplicationId, setWorkingApplicationId] = useState(null);
+  const [letterAppointmentDocument, setLetterAppointmentDocument] = useState(null);
+  const [lhdnDocument, setLhdnDocument] = useState(null);
+  const [uploadingDocumentKey, setUploadingDocumentKey] = useState("");
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
   const citySearchTerm = city.trim().toLowerCase();
   const citySuggestions =
@@ -245,21 +267,23 @@ function SubmittingPersonPage({
           .filter((cityOption) => cityOption.toLowerCase().includes(citySearchTerm))
           .slice(0, 8)
       : [];
+  const currentApplicationId = applicationId || workingApplicationId;
 
   useEffect(() => {
-    if (applicationId) {
+    if (currentApplicationId) {
       // eslint-disable-next-line react-hooks/immutability
       loadStep3();
     }
-  }, [applicationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentApplicationId]);
 
   async function loadStep3() {
     try {
-      const data = await apiRequest(`/applications/${applicationId}/`);
+      const data = await apiRequest(`/applications/${currentApplicationId}/`);
       const step3 = data.form_data?.step_3 || {};
 
       setApplicationRecord(data);
-      setOrgType(step3.org_type || "");
+      setOrgType(step3.org_type || "Company");
       setRegistrationNo(toUpperText(step3.registration_no));
       setOrgName(toUpperText(step3.org_name));
       setPostalAddress(toUpperText(step3.postal_address));
@@ -282,6 +306,8 @@ function SubmittingPersonPage({
       setEmail(step3.email || "");
       setFaxCountryCode(step3.fax_country_code || "");
       setFaxNo(toUpperText(step3.fax_no));
+      setLetterAppointmentDocument(step3.letter_appointment_document || null);
+      setLhdnDocument(step3.lhdn_document || null);
     } catch (err) {
       console.error("Load Step 3 failed:", err);
     }
@@ -318,7 +344,7 @@ function SubmittingPersonPage({
 
   function buildStep3Payload() {
     return {
-      org_type: orgType,
+      org_type: orgType || "Company",
       registration_no: registrationNo,
       org_name: orgName,
       branch_name: "",
@@ -343,6 +369,8 @@ function SubmittingPersonPage({
       email,
       fax_country_code: faxCountryCode,
       fax_no: faxNo,
+      letter_appointment_document: letterAppointmentDocument,
+      lhdn_document: lhdnDocument,
     };
   }
 
@@ -364,7 +392,7 @@ function SubmittingPersonPage({
     if (isReadOnly) return;
 
     if (goNext && (
-      !orgType.trim() ||
+      !registrationNo.trim() ||
       !orgName.trim() ||
       !postalAddress.trim() ||
       !address2.trim() ||
@@ -373,6 +401,7 @@ function SubmittingPersonPage({
       !city.trim() ||
       !orgCountryCode.trim() ||
       !telephoneNo.trim() ||
+      !honoraryTitle.trim() ||
       !designation.trim() ||
       !fullName.trim() ||
       !mobileCountryCode.trim() ||
@@ -380,18 +409,22 @@ function SubmittingPersonPage({
       !identityCardNo.trim() ||
       !officeCountryCode.trim() ||
       !officeNo.trim() ||
-      !email.trim()
+      !email.trim() ||
+      !faxCountryCode.trim() ||
+      !faxNo.trim() ||
+      !letterAppointmentDocument?.document_id ||
+      !lhdnDocument?.document_id
     )) {
       alert(tx("requiredAlert"));
       return false;
     }
 
     try {
-      const newApplicationDefaults = !applicationId ? buildNewApplicationDefaults() : {};
+      const newApplicationDefaults = !currentApplicationId ? buildNewApplicationDefaults() : {};
       const savedApplication = await apiRequest(
-        applicationId ? `/applications/${applicationId}/` : "/applications/",
+        currentApplicationId ? `/applications/${currentApplicationId}/` : "/applications/",
         {
-          method: applicationId ? "PATCH" : "POST",
+          method: currentApplicationId ? "PATCH" : "POST",
           body: JSON.stringify({
             ...newApplicationDefaults,
             current_step: goNext ? 2 : 1,
@@ -402,12 +435,14 @@ function SubmittingPersonPage({
           }),
         }
       );
+      setApplicationRecord(savedApplication);
+      setWorkingApplicationId(savedApplication?.id || currentApplicationId);
       if (!isAdminReview) {
         markApplicantRecordSeen("status", savedApplication);
       }
 
       if (goNext) {
-        const savedApplicationId = savedApplication?.id || applicationId;
+        const savedApplicationId = savedApplication?.id || currentApplicationId;
         navigate(
           isAdminReview
             ? `/admin/applications/${savedApplicationId}/step-2?id=${savedApplicationId}`
@@ -438,10 +473,72 @@ function SubmittingPersonPage({
     }
   }
 
+  async function ensureApplicationForUpload() {
+    if (currentApplicationId) return currentApplicationId;
+
+    const savedApplication = await apiRequest("/applications/", {
+      method: "POST",
+      body: JSON.stringify({
+        ...buildNewApplicationDefaults(),
+        current_step: 1,
+        form_data: {
+          ...buildNewApplicationDefaults().form_data,
+          step_3: buildStep3Payload(),
+        },
+      }),
+    });
+    const savedApplicationId = savedApplication?.id;
+
+    if (!savedApplicationId) {
+      throw new Error(tx("missingApplication"));
+    }
+
+    setApplicationRecord(savedApplication);
+    setWorkingApplicationId(savedApplicationId);
+    navigate(`/applications/${savedApplicationId}/submitting-person?id=${savedApplicationId}`, { replace: true });
+
+    return savedApplicationId;
+  }
+
+  async function handleStep3DocumentChange(key, file) {
+    if (isReadOnly || !file) return;
+    if (!isValidStep3DocumentFile(file, tx)) return;
+
+    try {
+      setUploadingDocumentKey(key);
+      const uploadApplicationId = await ensureApplicationForUpload();
+      const title = key === "letter"
+        ? tx("letterAppointmentDocument")
+        : tx("lhdnDocument");
+      const attachment = await uploadApplicationDocument(uploadApplicationId, title, file);
+
+      if (key === "letter") {
+        setLetterAppointmentDocument(attachment);
+      } else {
+        setLhdnDocument(attachment);
+      }
+    } catch (err) {
+      console.error("Step 3 document upload failed:", err);
+      alert(err.message || tx("failedUpload"));
+    } finally {
+      setUploadingDocumentKey("");
+    }
+  }
+
+  function removeStep3Document(key) {
+    if (isReadOnly) return;
+
+    if (key === "letter") {
+      setLetterAppointmentDocument(null);
+    } else {
+      setLhdnDocument(null);
+    }
+  }
+
   const isReadOnly =
     isAdminView ||
     (!isAdminReview &&
-      Boolean(applicationId) &&
+      Boolean(currentApplicationId) &&
       (!applicationRecord || !canEditApplicationForm(applicationRecord)));
 
   return (
@@ -503,33 +600,21 @@ function SubmittingPersonPage({
             />
 
             <fieldset disabled={isReadOnly} className="p-5 space-y-4">
-              <FormSection title={tx("organisation")} allowOverflow>
+              <FormSection title={tx("detailsOfCompany")} allowOverflow>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label={tx("organisationType")} required>
-                    <select
-                      className="spa-input uppercase"
-                      value={orgType}
-                      onChange={(e) => setOrgType(e.target.value)}
-                    >
-                      <option value="">{toUpperText(tx("pleaseSelect"))}</option>
-                      <option value="Company">{toUpperText(tx("company"))}</option>
-                      <option value="Individual">{toUpperText(tx("individual"))}</option>
-                    </select>
-                  </Field>
-
-                  <Field label={tx("registrationNumber")}>
-                    <input
-                      className="spa-input uppercase"
-                      value={registrationNo}
-                      onChange={(e) => setRegistrationNo(toUpperText(e.target.value))}
-                    />
-                  </Field>
-
-                  <Field label={tx("name")} required className="md:col-span-2">
+                  <Field label={tx("nameOfCompany")} required>
                     <input
                       className="spa-input uppercase"
                       value={orgName}
                       onChange={(e) => setOrgName(toUpperText(e.target.value))}
+                    />
+                  </Field>
+
+                  <Field label={tx("registrationNumber")} required>
+                    <input
+                      className="spa-input uppercase"
+                      value={registrationNo}
+                      onChange={(e) => setRegistrationNo(toUpperText(e.target.value))}
                     />
                   </Field>
 
@@ -627,7 +712,7 @@ function SubmittingPersonPage({
 
               <FormSection title={tx("submittingPerson")}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label={tx("honoraryTitle")}>
+                  <Field label={tx("honoraryTitle")} required>
                     <select
                       className="spa-input uppercase"
                       value={honoraryTitle}
@@ -718,7 +803,7 @@ function SubmittingPersonPage({
                   </Field>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label={tx("countryCode")}>
+                    <Field label={tx("countryCode")} required>
                       <select
                         className="spa-input uppercase"
                         value={faxCountryCode}
@@ -729,7 +814,7 @@ function SubmittingPersonPage({
                       </select>
                     </Field>
 
-                    <Field label={tx("faxNo")}>
+                    <Field label={tx("faxNo")} required>
                       <input
                         className="spa-input uppercase"
                         placeholder={tx("faxPlaceholder")}
@@ -738,6 +823,34 @@ function SubmittingPersonPage({
                       />
                     </Field>
                   </div>
+                </div>
+              </FormSection>
+
+              <FormSection title={tx("applicantRequiredDocuments")}>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <DocumentUploadField
+                    label={tx("letterAppointmentDocument")}
+                    helpText={tx("letterAppointmentHelp")}
+                    attachment={letterAppointmentDocument}
+                    required
+                    readOnly={isReadOnly}
+                    uploading={uploadingDocumentKey === "letter"}
+                    tx={tx}
+                    onFileChange={(file) => handleStep3DocumentChange("letter", file)}
+                    onRemove={() => removeStep3Document("letter")}
+                  />
+
+                  <DocumentUploadField
+                    label={tx("lhdnDocument")}
+                    helpText={tx("lhdnDocumentHelp")}
+                    attachment={lhdnDocument}
+                    required
+                    readOnly={isReadOnly}
+                    uploading={uploadingDocumentKey === "lhdn"}
+                    tx={tx}
+                    onFileChange={(file) => handleStep3DocumentChange("lhdn", file)}
+                    onRemove={() => removeStep3Document("lhdn")}
+                  />
                 </div>
               </FormSection>
 
@@ -797,6 +910,74 @@ function FormSection({ title, children, allowOverflow = false }) {
 
       <div className="p-4">{children}</div>
     </section>
+  );
+}
+
+function DocumentUploadField({
+  label,
+  helpText,
+  attachment,
+  required = false,
+  readOnly = false,
+  uploading = false,
+  tx,
+  onFileChange,
+  onRemove,
+}) {
+  return (
+    <Field label={label} required={required}>
+      <div className="rounded border border-slate-200 bg-slate-50 p-3">
+        {helpText && (
+          <p className="mb-2 text-[11px] leading-5 text-slate-600">{helpText}</p>
+        )}
+
+        {attachment ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-emerald-700">
+                {attachment.name || attachment.title || tx("attachment")}
+              </p>
+              {attachment.size && (
+                <p className="text-[11px] text-slate-500">
+                  {(Number(attachment.size || 0) / 1024).toFixed(1)} KB
+                </p>
+              )}
+            </div>
+
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                {tx("removeFile")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <p className="mb-2 text-[11px] text-slate-500">{tx("noAttachment")}</p>
+        )}
+
+        {!readOnly && (
+          <label className="mt-2 inline-flex min-h-9 cursor-pointer items-center justify-center rounded bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224]">
+            {uploading ? tx("uploading") : tx("upload")}
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="sr-only"
+              disabled={uploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                onFileChange?.(file);
+              }}
+            />
+          </label>
+        )}
+
+        <p className="mt-2 text-[11px] text-slate-500">{tx("attachmentMaxSize")}</p>
+      </div>
+    </Field>
   );
 }
 
