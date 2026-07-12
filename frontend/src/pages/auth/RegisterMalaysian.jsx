@@ -327,17 +327,36 @@ function loadRecaptchaScript() {
     const existingScript = document.querySelector("script[data-recaptcha-script]");
 
     if (existingScript) {
-      existingScript.addEventListener("load", resolve, { once: true });
+      if (window.grecaptcha?.render) {
+        resolve();
+        return;
+      }
+      const existingOnload = existingScript.getAttribute("data-onload-callback");
+      if (existingOnload) {
+        const previousCallback = window[existingOnload];
+        window[existingOnload] = () => {
+          if (typeof previousCallback === "function") previousCallback();
+          resolve();
+        };
+      } else {
+        existingScript.addEventListener("load", resolve, { once: true });
+      }
       existingScript.addEventListener("error", reject, { once: true });
       return;
     }
 
+    const callbackName = `__alisRecaptchaLoaded_${Date.now()}`;
+    window[callbackName] = () => {
+      delete window[callbackName];
+      resolve();
+    };
+
     const script = document.createElement("script");
-    script.src = "https://www.google.com/recaptcha/api.js?render=explicit";
+    script.src = `https://www.google.com/recaptcha/api.js?onload=${callbackName}&render=explicit`;
     script.async = true;
     script.defer = true;
     script.dataset.recaptchaScript = "true";
-    script.onload = resolve;
+    script.dataset.onloadCallback = callbackName;
     script.onerror = reject;
     document.head.appendChild(script);
   });
@@ -349,6 +368,7 @@ function RecaptchaCheckbox({ siteKey, resetKey, onVerify, onExpire, t }) {
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
   const [loadError, setLoadError] = useState("");
+  const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -363,15 +383,29 @@ function RecaptchaCheckbox({ siteKey, resetKey, onVerify, onExpire, t }) {
         if (!isMounted || !container || !window.grecaptcha?.render) return;
 
         container.innerHTML = "";
-        widgetIdRef.current = window.grecaptcha.render(container, {
-          sitekey: siteKey,
-          callback: onVerify,
-          "expired-callback": onExpire,
-          "error-callback": onExpire,
-        });
+        try {
+          widgetIdRef.current = window.grecaptcha.render(container, {
+            sitekey: siteKey,
+            callback: onVerify,
+            "expired-callback": onExpire,
+            "error-callback": onExpire,
+          });
+          if (isMounted) {
+            setLoadError("");
+            setIsRendered(true);
+          }
+        } catch {
+          if (isMounted) {
+            setIsRendered(false);
+            setLoadError(t("auth.recaptchaLoadFailed"));
+          }
+        }
       })
       .catch(() => {
-        if (isMounted) setLoadError(t("auth.recaptchaLoadFailed"));
+        if (isMounted) {
+          setIsRendered(false);
+          setLoadError(t("auth.recaptchaLoadFailed"));
+        }
       });
 
     return () => {
@@ -391,6 +425,11 @@ function RecaptchaCheckbox({ siteKey, resetKey, onVerify, onExpire, t }) {
   return (
     <div>
       <div ref={containerRef} className="min-h-[78px]" />
+      {siteKey && !isRendered && !loadError && (
+        <p className="mt-1.5 text-xs font-semibold text-slate-500">
+          {t("auth.recaptchaLoading")}
+        </p>
+      )}
       {(!siteKey || loadError) && (
         <p className="mt-1.5 text-xs font-semibold text-red-600">
           {!siteKey ? t("auth.recaptchaConfigMissing") : loadError}
