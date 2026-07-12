@@ -977,7 +977,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     actionConfig.key === "payment" &&
     userDepartment === "PT(IKL)" &&
     workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
-  const showPaymentTypedDecision = showPaymentReceiptDecision || showPaymentDocumentDecision;
+  const showPaymentTypedDecision = showPaymentReceiptDecision;
   const showIssueLicenseDecision = isPtIssueLicenseWorkspace;
   const issueLicenseDecisionOptions = showIssueLicenseDecision
     ? [
@@ -2154,12 +2154,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function submitWorkspaceAction(action) {
     if (showPaymentDocumentDecision) {
-      if (!decision) {
-        setDecisionError(getWorkspaceDecisionInputPrompt(paymentDocumentDecisionOptions, t));
-        decisionInputRef.current?.focus();
-        return;
-      }
-
       if (!cleanRemark(comment)) {
         setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
         commentRef.current?.focus();
@@ -4832,10 +4826,6 @@ function normalizeManualBillEditableMarkup(bodyHtml, app = null) {
     );
 }
 
-function buildManualBillDepartmentRowHtml() {
-  return '<div class="bill-person-row"><span contenteditable="false">Bahagian</span><span contenteditable="false">:</span><strong contenteditable="true">&nbsp;</strong></div>';
-}
-
 function migrateManualBillBodyHtml(bodyHtml, app = null) {
   const details = app ? getManualBillDetails(app) : null;
   let nextHtml = String(bodyHtml || "");
@@ -4849,10 +4839,7 @@ function migrateManualBillBodyHtml(bodyHtml, app = null) {
     );
   }
 
-  return nextHtml.replace(
-    /<div class="bill-person-row">\s*<span(?:\s[^>]*)?>Bahagian<\/span>\s*<span(?:\s[^>]*)?>:\s*<\/span>\s*<strong(?:\s[^>]*)?>[\s\S]*?<\/strong>\s*<\/div>/gi,
-    buildManualBillDepartmentRowHtml()
-  );
+  return nextHtml.replace(/\s*<div class="bill-signature-grid">[\s\S]*?(?=\s*<footer>)/gi, "");
 }
 
 function buildManualBillPaymentNoticeHtml() {
@@ -4935,19 +4922,6 @@ function buildManualBillTemplateBodyHtml(app = null) {
           </tr>
         </tfoot>
       </table>
-
-      <div class="bill-signature-grid">
-        <div>
-          <p><strong>Disediakan oleh :</strong></p>
-          <div class="bill-person-row"><span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">${escapeHtml(details.preparedBy)}</strong></div>
-          ${buildManualBillDepartmentRowHtml()}
-        </div>
-        <div>
-          <p><strong>Diluluskan oleh :</strong></p>
-          <div class="bill-person-row"><span contenteditable="false">Nama</span><span contenteditable="false">:</span><strong contenteditable="true">${escapeHtml(details.approvedBy)}</strong></div>
-          ${buildManualBillDepartmentRowHtml()}
-        </div>
-      </div>
 
       ${buildManualBillPaymentNoticeHtml()}
     </section>
@@ -5926,30 +5900,6 @@ function getManualBillCss({ editor = false } = {}) {
     }
     .bill-rate-table tfoot td:last-child {
       background: #c9c9c9;
-    }
-    .bill-signature-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 22mm;
-      margin-top: 4mm;
-    }
-    .bill-signature-grid p {
-      margin: 0 0 4mm;
-    }
-    .bill-person-row {
-      display: grid;
-      grid-template-columns: 27mm 5mm minmax(0, 1fr);
-      align-items: start;
-      min-height: 4.8mm;
-    }
-    .bill-person-row strong {
-      display: block;
-      min-width: 34mm;
-      min-height: 4.2mm;
-      font-weight: 400;
-      line-height: 1.18;
-      white-space: normal;
-      overflow-wrap: normal;
     }
     .manual-bill-page footer {
       margin-top: 4mm;
