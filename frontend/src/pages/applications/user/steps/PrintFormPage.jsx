@@ -1182,11 +1182,9 @@ function drawPdfDocumentSummary(pdf, {
         ? row.description || stepText(language, "noLandInfo")
         : documentDescription(language, row.title, row.description);
     const values = {
-      index: !other && letteredTitle.letter
-        ? letteredTitle.letter
-        : row.no || String(index + 1),
+      index: !other && letteredTitle.letter ? "" : row.no || String(index + 1),
       title: !other && letteredTitle.letter
-        ? letteredTitle.title
+        ? `${letteredTitle.letter}. ${letteredTitle.title}`
         : documentTitle(language, row.title),
       description: description || "-",
       format: row.format || "-",
@@ -1939,15 +1937,22 @@ function DocumentSummary({
               return (
                 <tr key={`${title}-${index}`} className="print-avoid-break">
                   <PrintTableCell center>
-                    {!other && letteredTitle.letter
-                      ? letteredTitle.letter
-                      : row.no || index + 1}
+                    {!other && letteredTitle.letter ? "" : row.no || index + 1}
                   </PrintTableCell>
                   <PrintTableCell>
                     {other ? (
                       description || "-"
                     ) : letteredTitle.letter ? (
-                      letteredTitle.title
+                      <span
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "6mm minmax(0, 1fr)",
+                          columnGap: "1.5mm",
+                        }}
+                      >
+                        <span>{letteredTitle.letter}.</span>
+                        <span>{letteredTitle.title}</span>
+                      </span>
                     ) : (
                       documentTitle(language, row.title)
                     )}

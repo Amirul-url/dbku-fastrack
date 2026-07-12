@@ -624,14 +624,15 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                 >
                   <TableCell center>
                     <span className="text-base font-bold text-[#18b36b]">
-                      {letteredTitle.letter || row.no || index + 1}
+                      {letteredTitle.letter ? "" : row.no || index + 1}
                     </span>
                   </TableCell>
 
                   <TableCell>
                     {letteredTitle.letter ? (
-                      <span className="font-semibold text-slate-800">
-                        {letteredTitle.title}
+                      <span className="grid grid-cols-[16px_minmax(0,1fr)] gap-1 font-semibold text-slate-800">
+                        <span>{letteredTitle.letter}.</span>
+                        <span>{letteredTitle.title}</span>
                       </span>
                     ) : (
                       <span className="font-semibold text-slate-800">
