@@ -729,7 +729,9 @@ function calculateIklFeeBreakdown(areaRequired, subtype = "") {
   const firstAreaSqm = usesFixedFirstAreaFee
     ? schedule.firstAreaSqm
     : Math.min(areaSqm, schedule.firstAreaSqm);
-  const additionalAreaSqm = Math.max(areaSqm - schedule.firstAreaSqm, 0);
+  const additionalAreaSqm = usesFixedFirstAreaFee
+    ? Math.max(Math.round(areaSqm) - schedule.firstAreaSqm, 0)
+    : Math.max(areaSqm - schedule.firstAreaSqm, 0);
   const firstAreaFee = usesFixedFirstAreaFee
     ? schedule.firstAreaFixedFee
     : firstAreaSqm * schedule.firstAreaRate;
