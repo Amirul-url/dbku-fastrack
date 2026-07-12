@@ -52,8 +52,9 @@ const APPLICANT_STATUS_FILTER_OPTIONS = [
   "draft",
   "submitted",
   "under_review",
-  "rejected",
   "approved",
+  "rejected",
+  "surrender_revoke",
 ];
 const EMPTY_PAYMENT_REFERENCE_DETAILS = {
   reference_id: "",
@@ -881,7 +882,7 @@ function OverviewSection({ applications, loading, t, onStatusCardClick }) {
 
 function OverviewStatusCards({ items, loading, onItemClick }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {items.map((item) => (
         <OverviewStatusCard
           key={item.key}
@@ -2576,6 +2577,10 @@ function getApplicantFilterStatus(app) {
     return "draft";
   }
 
+  if (isSurrenderRevokeApplication(app)) {
+    return "surrender_revoke";
+  }
+
   if (isPaymentReceiptRejected(getApplicationPayment(app))) {
     return "rejected";
   }
@@ -2615,8 +2620,9 @@ function getStatusFilterOptions(applications, t) {
 function buildOverviewStatusSummary(applications, t) {
   const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
   const pending = applications.filter((app) => isPendingApplication(app)).length;
-  const rejected = applications.filter((app) => isRejectedApplication(app)).length;
   const approved = applications.filter((app) => isApprovedApplication(app)).length;
+  const rejected = applications.filter((app) => isRejectedApplication(app)).length;
+  const surrenderRevoke = applications.filter((app) => isSurrenderRevokeApplication(app)).length;
 
   return [
     {
@@ -2634,6 +2640,13 @@ function buildOverviewStatusSummary(applications, t) {
       tone: "amber",
     },
     {
+      key: "approved",
+      label: t("status.approved"),
+      value: approved,
+      icon: "check_circle",
+      tone: "emerald",
+    },
+    {
       key: "rejected",
       label: t("status.rejected"),
       value: rejected,
@@ -2641,11 +2654,12 @@ function buildOverviewStatusSummary(applications, t) {
       tone: "red",
     },
     {
-      key: "approved",
-      label: t("status.approved"),
-      value: approved,
-      icon: "check_circle",
-      tone: "emerald",
+      key: "surrender_revoke",
+      label: t("applicant.statusSurrenderRevoke", "Surrender/Revoke"),
+      value: surrenderRevoke,
+      icon: "block",
+      tone: "slate",
+      compact: true,
     },
   ];
 }
@@ -2866,10 +2880,18 @@ function isSaveActivity(activity) {
 function isPendingApplication(app) {
   const status = normalizeStatus(app.status);
 
-  return Boolean(status) && status !== "draft" && !isApprovedApplication(app) && !isRejectedApplication(app);
+  return Boolean(status) &&
+    status !== "draft" &&
+    !isApprovedApplication(app) &&
+    !isRejectedApplication(app) &&
+    !isSurrenderRevokeApplication(app);
 }
 
 function isApprovedApplication(app) {
+  if (isSurrenderRevokeApplication(app)) {
+    return false;
+  }
+
   if (isPaymentReceiptRejected(getApplicationPayment(app))) {
     return false;
   }
@@ -3986,6 +4008,10 @@ function isRejectedApplication(app) {
     ["incomplete", "rejected"].includes(normalizeStatus(app.status)) ||
     isPaymentReceiptRejected(getApplicationPayment(app))
   );
+}
+
+function isSurrenderRevokeApplication(app) {
+  return normalizeStatus(app?.status) === "license_revoked" || hasPendingLicenseRevocationRequest(app);
 }
 
 function hasPendingLicenseRevocationRequest(app) {

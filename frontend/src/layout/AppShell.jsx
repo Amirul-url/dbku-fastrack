@@ -470,12 +470,25 @@ function AppShell({ children, role = "admin" }) {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-16 items-center gap-2.5 border-b border-slate-200 px-4">
-          <img src={logo} alt="ALiS Logo" className="h-8 w-auto object-contain" />
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-slate-950">ALiS</p>
-            <p className="whitespace-nowrap text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
+        <div className="flex h-16 items-center justify-between gap-2.5 border-b border-slate-200 px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <img src={logo} alt="ALiS Logo" className="h-8 w-auto object-contain" />
+            <div className="min-w-0">
+              <p className="text-base font-semibold text-slate-950">ALiS</p>
+              <p className="whitespace-nowrap text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
+            </div>
           </div>
+          {role === "applicant" && (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((current) => !current)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              aria-label={t("common.toggleSidebar", "Toggle sidebar")}
+              title={t("common.toggleSidebar", "Toggle sidebar")}
+            >
+              <Icon name="menu" className="text-[21px]" />
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3.5 py-4">
@@ -722,18 +735,33 @@ function AppShell({ children, role = "admin" }) {
       </aside>
 
       <div className={`transition-[padding] duration-200 ${sidebarOpen ? "pl-72" : "pl-0"}`}>
+        {role === "applicant" && !sidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="fixed left-4 top-3 z-50 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+            aria-label={t("common.toggleSidebar", "Toggle sidebar")}
+            title={t("common.toggleSidebar", "Toggle sidebar")}
+          >
+            <Icon name="menu" className="text-[22px]" />
+          </button>
+        )}
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="flex h-16 items-center justify-between gap-4 px-7">
+          <div className={`flex h-16 items-center justify-between gap-4 px-7 ${
+            role === "applicant" && !sidebarOpen ? "pl-20" : ""
+          }`}>
             <div className="flex min-w-0 items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setSidebarOpen((current) => !current)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                aria-label={t("common.toggleSidebar", "Toggle sidebar")}
-                title={t("common.toggleSidebar", "Toggle sidebar")}
-              >
-                <Icon name="menu" className="text-[22px]" />
-              </button>
+              {role !== "applicant" && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen((current) => !current)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  aria-label={t("common.toggleSidebar", "Toggle sidebar")}
+                  title={t("common.toggleSidebar", "Toggle sidebar")}
+                >
+                  <Icon name="menu" className="text-[22px]" />
+                </button>
+              )}
               <p className="truncate text-sm font-semibold text-slate-950">
                 {t("profile.welcome")}, {userDisplayName}
               </p>
