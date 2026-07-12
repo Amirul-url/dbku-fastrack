@@ -1792,14 +1792,14 @@ function getApplicantRequiredDocuments(step3 = {}, tx) {
   return [
     {
       title: tx("letterAppointmentDocument"),
-      description: tx("letterAppointmentHelp"),
+      description: "-",
       format: "PDF",
       required: true,
       attachment: step3.letter_appointment_document || null,
     },
     {
       title: tx("lhdnDocument"),
-      description: tx("lhdnDocumentHelp"),
+      description: "-",
       format: "PDF",
       required: true,
       attachment: step3.lhdn_document || null,
