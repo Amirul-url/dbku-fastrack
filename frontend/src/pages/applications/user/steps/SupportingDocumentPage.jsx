@@ -52,9 +52,17 @@ const requiredDocumentTemplates = [
     attachment: null,
   },
   {
-    no: "5",
+    no: "4",
     title: "Cadastral Plan",
     aliases: ["Site Plan"],
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    no: "5",
+    title: "Public Liability Insurance (RM1,000,000.00)",
     description: "-",
     format: "PDF",
     required: true,
@@ -88,14 +96,6 @@ const requiredDocumentTemplates = [
   },
   {
     title: "d. Illustration / Perspective view.",
-    description: "-",
-    format: "PDF",
-    required: true,
-    attachment: null,
-  },
-  {
-    no: "7",
-    title: "Public Liability Insurance (RM1,000,000.00)",
     description: "-",
     format: "PDF",
     required: true,
@@ -624,15 +624,14 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                 >
                   <TableCell center>
                     <span className="text-base font-bold text-[#18b36b]">
-                      {letteredTitle.letter ? "" : row.no || index + 1}
+                      {letteredTitle.letter || row.no || index + 1}
                     </span>
                   </TableCell>
 
                   <TableCell>
                     {letteredTitle.letter ? (
-                      <span className="grid grid-cols-[16px_minmax(0,1fr)] gap-1 font-semibold text-slate-800">
-                        <span>{letteredTitle.letter}.</span>
-                        <span>{letteredTitle.title}</span>
+                      <span className="font-semibold text-slate-800">
+                        {letteredTitle.title}
                       </span>
                     ) : (
                       <span className="font-semibold text-slate-800">

@@ -29,6 +29,26 @@ import ApplicationSummary from "./ApplicationSummary";
 
 const TITLE_DOCUMENT_NAME = "Extract of Document of Titles of the Land";
 const PRINT_FORM_TOTAL_PAGES = 3;
+const REQUIRED_DOCUMENT_PRINT_ORDER = [
+  {
+    no: "1",
+    title: "Sales and Purchase Agreement/Tenancy Agreement",
+    aliases: ["Sales and Purchase Agreement", "Tenancy Agreement"],
+  },
+  { no: "2", title: "Extract of Title" },
+  { no: "3", title: "Trade Licence (LHDN/SSM)" },
+  { no: "4", title: "Cadastral Plan", aliases: ["Site Plan"] },
+  { no: "5", title: "Public Liability Insurance (RM1,000,000.00)" },
+  { no: "6", title: "Technical Drawing / Document:", section: true },
+  { title: "a. Layout Plan with dimension." },
+  {
+    title: "b. Front and side elevation drawing with dimension and specification.",
+  },
+  {
+    title: "c. Structural Design and Calculation certificated by PE/QP.",
+  },
+  { title: "d. Illustration / Perspective view." },
+];
 
 function PrintFormPage({
   LayoutComponent = UserDashboardLayout,
@@ -235,6 +255,8 @@ function PrintFormPage({
     savedRequiredDocuments,
     legacyTitleDocuments
   );
+  const normalizedRequiredDocuments =
+    normalizePrintRequiredDocuments(requiredDocuments);
   const applicantRequiredDocuments = getApplicantRequiredDocuments(step3, tx);
   const otherDocuments = Array.isArray(step10.other_documents)
     ? step10.other_documents
@@ -599,7 +621,7 @@ function PrintFormPage({
                   <PrintSection title={tx("step3Print")}>
                     <DocumentSummary
                       title={tx("requiredSupportingDocuments")}
-                      rows={requiredDocuments}
+                      rows={normalizedRequiredDocuments}
                       language={language}
                       noAttachmentText={tx("noAttachment")}
                       applicationId={applicationId}
@@ -756,7 +778,7 @@ function buildPrintFormPdf({
     title,
     language,
     noAttachmentText,
-    requiredDocuments,
+    requiredDocuments: normalizePrintRequiredDocuments(requiredDocuments),
     otherDocuments,
     tx,
   });
@@ -1145,7 +1167,7 @@ function drawPdfDocumentSummary(pdf, {
         pdf,
         columns,
         {
-          index: String(index + 1),
+          index: row.no || String(index + 1),
           title: documentTitle(language, row.title),
         },
         y
@@ -1160,9 +1182,11 @@ function drawPdfDocumentSummary(pdf, {
         ? row.description || stepText(language, "noLandInfo")
         : documentDescription(language, row.title, row.description);
     const values = {
-      index: !other && letteredTitle.letter ? "" : String(index + 1),
+      index: !other && letteredTitle.letter
+        ? letteredTitle.letter
+        : row.no || String(index + 1),
       title: !other && letteredTitle.letter
-        ? `${letteredTitle.letter}. ${letteredTitle.title}`
+        ? letteredTitle.title
         : documentTitle(language, row.title),
       description: description || "-",
       format: row.format || "-",
@@ -1801,6 +1825,33 @@ function mergeRequiredDocuments(requiredDocuments, legacyTitleDocuments) {
   ];
 }
 
+function normalizePrintRequiredDocuments(requiredDocuments) {
+  const documents = Array.isArray(requiredDocuments) ? requiredDocuments : [];
+  const remainingDocuments = [...documents];
+
+  return REQUIRED_DOCUMENT_PRINT_ORDER.map((template) => {
+    if (template.section) {
+      return { ...template };
+    }
+
+    const matchTitles = [template.title, ...(template.aliases || [])];
+    const savedIndex = remainingDocuments.findIndex((row) =>
+      matchTitles.includes(row?.title)
+    );
+    const savedDocument =
+      savedIndex >= 0 ? remainingDocuments.splice(savedIndex, 1)[0] : {};
+
+    return {
+      ...savedDocument,
+      ...template,
+      description: savedDocument.description || "-",
+      format: savedDocument.format || "PDF",
+      required: savedDocument.required ?? true,
+      attachment: savedDocument.attachment || null,
+    };
+  });
+}
+
 function getApplicantRequiredDocuments(step3 = {}, tx) {
   return [
     {
@@ -1870,7 +1921,7 @@ function DocumentSummary({
               if (!other && row?.section) {
                 return (
                   <tr key={`${title}-${index}`} className="print-avoid-break">
-                    <PrintTableCell center>{index + 1}</PrintTableCell>
+                    <PrintTableCell center>{row.no || index + 1}</PrintTableCell>
                     <PrintTableCell colSpan={hideDescription ? 3 : 4}>
                       <strong>{documentTitle(language, row.title)}</strong>
                     </PrintTableCell>
@@ -1888,22 +1939,15 @@ function DocumentSummary({
               return (
                 <tr key={`${title}-${index}`} className="print-avoid-break">
                   <PrintTableCell center>
-                    {!other && letteredTitle.letter ? "" : index + 1}
+                    {!other && letteredTitle.letter
+                      ? letteredTitle.letter
+                      : row.no || index + 1}
                   </PrintTableCell>
                   <PrintTableCell>
                     {other ? (
                       description || "-"
                     ) : letteredTitle.letter ? (
-                      <span
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "6mm minmax(0, 1fr)",
-                          columnGap: "1.5mm",
-                        }}
-                      >
-                        <span>{letteredTitle.letter}.</span>
-                        <span>{letteredTitle.title}</span>
-                      </span>
+                      letteredTitle.title
                     ) : (
                       documentTitle(language, row.title)
                     )}
