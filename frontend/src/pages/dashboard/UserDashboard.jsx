@@ -891,7 +891,6 @@ function OverviewStatusCards({ items, loading, onItemClick }) {
           value={loading ? "..." : item.value}
           icon={item.icon}
           tone={item.tone}
-          compact={item.compact}
           disabled={loading}
           onClick={onItemClick}
         />
@@ -906,7 +905,6 @@ function OverviewStatusCard({
   value,
   icon,
   tone,
-  compact = false,
   disabled = false,
   onClick,
 }) {
@@ -929,11 +927,7 @@ function OverviewStatusCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-500">{label}</p>
-          <p
-            className={`mt-2 font-semibold text-slate-950 ${
-              compact ? "break-words text-base leading-5" : "text-2xl"
-            }`}
-          >
+          <p className="mt-2 text-2xl font-semibold text-slate-950">
             {value}
           </p>
         </div>
@@ -2664,7 +2658,6 @@ function buildOverviewStatusSummary(applications, t) {
       value: surrenderRevoke,
       icon: "block",
       tone: "slate",
-      compact: true,
     },
   ];
 }

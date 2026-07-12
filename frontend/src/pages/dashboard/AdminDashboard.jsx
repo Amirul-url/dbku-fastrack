@@ -469,14 +469,13 @@ function AdminOverviewStatusCards({ items, loading }) {
           value={loading ? "..." : item.value}
           icon={item.icon}
           tone={item.tone}
-          compact={item.compact}
         />
       ))}
     </div>
   );
 }
 
-function AdminOverviewStatusCard({ label, value, icon, tone, compact = false }) {
+function AdminOverviewStatusCard({ label, value, icon, tone }) {
   const tones = {
     emerald: "bg-emerald-50 text-emerald-700",
     blue: "bg-blue-50 text-blue-700",
@@ -493,11 +492,7 @@ function AdminOverviewStatusCard({ label, value, icon, tone, compact = false }) 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-500">{label}</p>
-          <p
-            className={`mt-2 font-semibold text-slate-950 ${
-              compact ? "break-words text-base leading-5" : "text-2xl"
-            }`}
-          >
+          <p className="mt-2 text-2xl font-semibold text-slate-950">
             {value}
           </p>
         </div>
@@ -555,7 +550,6 @@ function buildAdminOverviewStatusSummary(applications, t) {
       value: surrenderRevoke,
       icon: "block",
       tone: "slate",
-      compact: true,
     },
   ];
 }
