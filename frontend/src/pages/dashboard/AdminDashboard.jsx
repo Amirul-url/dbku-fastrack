@@ -658,9 +658,6 @@ function AdminOverviewStatTable({ activeKey, loading, rows, title, t, onClose })
       <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {t("admin.dashboard.statTableDesc", "Applications under this dashboard status.")}
-          </p>
         </div>
         <Button type="button" variant="secondary" onClick={onClose}>
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -748,7 +745,7 @@ function getAdminOverviewStatTitle(key, t) {
   const titleMap = {
     submitted: t("common.submitted", "Submitted"),
     under_review: t("dashboard.underReview", "Under Review"),
-    approved: t("common.complete", "Complete"),
+    approved: t("status.approved", "Approved"),
     rejected: t("status.rejected", "Rejected"),
     surrender_revoke: t("applicant.statusSurrenderRevoke", "Surrender/Revoke"),
   };
