@@ -459,7 +459,8 @@ function AdminHomeDashboard({ user }) {
 }
 
 function AdminOverviewStatPage({ statKey, user }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const location = useLocation();
   const navigate = useNavigate();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
@@ -519,6 +520,14 @@ function AdminOverviewStatPage({ statKey, user }) {
   );
   const showPagination = filteredRows.length > 0;
   const title = getAdminOverviewStatTitle(statKey, t);
+  const selectedRejectedRowId =
+    statKey === "rejected"
+      ? new URLSearchParams(location.search).get("rejectedId") || ""
+      : "";
+  const selectedRejectedRow =
+    selectedRejectedRowId && statKey === "rejected"
+      ? rows.find((row) => row.id === selectedRejectedRowId) || null
+      : null;
 
   useEffect(() => {
     setPage(0);
@@ -528,31 +537,60 @@ function AdminOverviewStatPage({ statKey, user }) {
     <AdminDashboardLayout>
       <Alert message={error} />
 
-      <div className="mb-3 flex justify-end">
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-9 min-h-9 px-3"
-          onClick={() => navigate("/dashboard/admin?view=dashboard")}
-        >
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          {t("common.back", "Back")}
-        </Button>
-      </div>
+      {!selectedRejectedRow && (
+        <div className="mb-3 flex justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 px-3"
+            onClick={() => navigate("/dashboard/admin?view=dashboard")}
+          >
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            {t("common.back", "Back")}
+          </Button>
+        </div>
+      )}
 
-      <AdminOverviewStatTable
-        activeKey={statKey}
-        currentPage={currentPage}
-        dateFilter={dateFilter}
-        loading={loading}
-        onDateFilterChange={setDateFilter}
-        onPageChange={setPage}
-        rows={visibleRows}
-        showPagination={showPagination}
-        title={title}
-        t={t}
-        totalPages={totalPages}
-      />
+      {selectedRejectedRow ? (
+        <section className="mb-4 rounded-md border border-slate-200 bg-white">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-sm font-semibold text-slate-950">
+              {t("workspace.actionPanel", "Action Panel")}
+            </h2>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-9 min-h-9 px-3"
+              onClick={() => navigate("/dashboard/admin?view=stat&stat=rejected")}
+            >
+              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+              {t("common.back", "Back")}
+            </Button>
+          </div>
+          <div className="p-4">
+            <RejectedApplicationCard
+              row={selectedRejectedRow}
+              t={t}
+              language={language}
+              showFormAction={false}
+            />
+          </div>
+        </section>
+      ) : (
+        <AdminOverviewStatTable
+          activeKey={statKey}
+          currentPage={currentPage}
+          dateFilter={dateFilter}
+          loading={loading}
+          onDateFilterChange={setDateFilter}
+          onPageChange={setPage}
+          rows={visibleRows}
+          showPagination={showPagination}
+          title={title}
+          t={t}
+          totalPages={totalPages}
+        />
+      )}
     </AdminDashboardLayout>
   );
 }
@@ -691,7 +729,7 @@ function AdminOverviewStatTable({
       render: (row) => (
         <Link
           className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
-          to={getAdminOverviewApplicationViewPath(row.applicationId, activeKey)}
+          to={getAdminOverviewApplicationViewPath(row.applicationId, activeKey, row.id)}
         >
           {t("common.view", "View")}
         </Link>
@@ -872,9 +910,12 @@ function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
     .map((app) => ({
       id: `${validKey}-${app.id}`,
       applicationId: app.id,
+      application: app,
+      date: app.updated_at || app.created_at,
       reference: getApplicationReference(app),
       applicantName: getRegisteredApplicantName(app) || "-",
       project: getProjectName(app) || "-",
+      remark: getApplicationRemark(app),
       statusLabel: formatWorkflowStatus(app.status),
       updatedAt: app.updated_at || app.created_at,
     }));
@@ -886,7 +927,7 @@ function filterAdminOverviewStatRowsByDate(rows, dateFilter) {
   return rows.filter((row) => getActivityDateKey(row.updatedAt) === dateFilter);
 }
 
-function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
+function getAdminOverviewApplicationViewPath(applicationId, activeKey = "", selectedRowId = "") {
   const stat = getValidAdminOverviewStatKey(activeKey);
   const returnParams = new URLSearchParams({ view: "stat" });
   if (stat) {
@@ -899,7 +940,8 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
   }
 
   if (stat === "rejected") {
-    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&returnTo=${returnTo}`;
+    const selectedId = selectedRowId ? `&rejectedId=${encodeURIComponent(selectedRowId)}` : "";
+    return `/dashboard/admin?view=stat&stat=rejected${selectedId}`;
   }
 
   const from = "action-panel";
@@ -1762,7 +1804,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
   );
 }
 
-function RejectedApplicationCard({ row, t, language = "en" }) {
+function RejectedApplicationCard({ row, t, language = "en", showFormAction = true }) {
   const app = row.application || {};
   const [showReport, setShowReport] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
@@ -1789,7 +1831,7 @@ function RejectedApplicationCard({ row, t, language = "en" }) {
           updated: t("common.updated", "Updated"),
         }}
         statusLabel={row.statusLabel || t("status.rejected", "Rejected")}
-        actions={
+        actions={showFormAction ? (
           <Link
             to={viewPath}
             className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold leading-5 text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
@@ -1797,7 +1839,7 @@ function RejectedApplicationCard({ row, t, language = "en" }) {
             <span className="material-symbols-outlined text-[18px]">visibility</span>
             {t("workspace.openForm", "View Form")}
           </Link>
-        }
+        ) : null}
       />
 
       <div className="mt-5 flex flex-wrap justify-end gap-2">
