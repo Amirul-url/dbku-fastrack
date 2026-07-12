@@ -944,6 +944,10 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "", sele
     return `/dashboard/admin?view=stat&stat=rejected${selectedId}`;
   }
 
+  if (stat === "surrender_revoke") {
+    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&returnTo=${returnTo}`;
+  }
+
   const from = "action-panel";
 
   return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=${from}&returnTo=${returnTo}`;
