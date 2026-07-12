@@ -1039,11 +1039,12 @@ function ApplicationsSection({
               {t("common.month")}
             </span>
             <select
-              value={month}
-              onChange={(event) => onMonthChange(event.target.value)}
+              value={month === "all" ? "" : month}
+              onChange={(event) => onMonthChange(event.target.value || "all")}
               className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             >
-              <option value="all">{t("common.allMonths")}</option>
+              <option value="" disabled hidden>{t("common.selectPlaceholder", "--Select--")}</option>
+              <option value="all">{t("common.all")}</option>
               {getMonthOptions(language).map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
@@ -1057,11 +1058,12 @@ function ApplicationsSection({
               {t("common.year")}
             </span>
             <select
-              value={year}
-              onChange={(event) => onYearChange(event.target.value)}
+              value={year === "all" ? "" : year}
+              onChange={(event) => onYearChange(event.target.value || "all")}
               className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             >
-              <option value="all">{t("common.allYears")}</option>
+              <option value="" disabled hidden>{t("common.selectPlaceholder", "--Select--")}</option>
+              <option value="all">{t("common.all")}</option>
               {years.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -2045,11 +2047,12 @@ function DashboardTableFilters({
             {t("common.month")}
           </span>
           <select
-            value={month}
-            onChange={(event) => onMonthChange(event.target.value)}
+            value={month === "all" ? "" : month}
+            onChange={(event) => onMonthChange(event.target.value || "all")}
             className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
           >
-            <option value="all">{t("common.allMonths")}</option>
+            <option value="" disabled hidden>{t("common.selectPlaceholder", "--Select--")}</option>
+            <option value="all">{t("common.all")}</option>
             {getMonthOptions(language).map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -2063,11 +2066,12 @@ function DashboardTableFilters({
             {t("common.year")}
           </span>
           <select
-            value={year}
-            onChange={(event) => onYearChange(event.target.value)}
+            value={year === "all" ? "" : year}
+            onChange={(event) => onYearChange(event.target.value || "all")}
             className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
           >
-            <option value="all">{t("common.allYears")}</option>
+            <option value="" disabled hidden>{t("common.selectPlaceholder", "--Select--")}</option>
+            <option value="all">{t("common.all")}</option>
             {years.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -2087,11 +2091,12 @@ function StatusFilterSelect({ value, options, t, onChange }) {
         {t("common.status")}
       </span>
       <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={value === "all" ? "" : value}
+        onChange={(event) => onChange(event.target.value || "all")}
         className="h-11 w-full rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
       >
-        <option value="all">{t("common.allStatuses", "All")}</option>
+        <option value="" disabled hidden>{t("common.selectPlaceholder", "--Select--")}</option>
+        <option value="all">{t("common.all", "All")}</option>
         {options.map((item) => (
           <option key={item.value} value={item.value}>
             {item.label}
