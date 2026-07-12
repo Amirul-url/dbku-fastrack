@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import UserDashboardLayout from "../../../../layout/UserDashboardLayout";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useLanguage } from "../../../../context/LanguageContext";
-import { apiRequest, uploadApplicationDocument } from "../../../../services/api";
+import {
+  apiRequest,
+  fetchAuthenticatedBlob,
+  uploadApplicationDocument,
+} from "../../../../services/api";
 import {
   canEditApplicationForm,
   getApplicantSaveDraftReturnLabelKey,
@@ -201,6 +205,7 @@ function SubmittingPersonPage({
   const tx = (key) => stepText(language, key);
   const { applicationId: routeApplicationId } = useParams();
   const queryParams = new URLSearchParams(location.search);
+  const uploadApplicationPromiseRef = useRef(null);
 
   const applicationIdRaw =
     routeApplicationId || location.state?.applicationId || queryParams.get("id");
@@ -475,29 +480,39 @@ function SubmittingPersonPage({
 
   async function ensureApplicationForUpload() {
     if (currentApplicationId) return currentApplicationId;
+    if (uploadApplicationPromiseRef.current) return uploadApplicationPromiseRef.current;
 
-    const savedApplication = await apiRequest("/applications/", {
+    const defaults = buildNewApplicationDefaults();
+
+    uploadApplicationPromiseRef.current = apiRequest("/applications/", {
       method: "POST",
       body: JSON.stringify({
-        ...buildNewApplicationDefaults(),
+        ...defaults,
         current_step: 1,
         form_data: {
-          ...buildNewApplicationDefaults().form_data,
+          ...defaults.form_data,
           step_3: buildStep3Payload(),
         },
       }),
-    });
-    const savedApplicationId = savedApplication?.id;
+    })
+      .then((savedApplication) => {
+        const savedApplicationId = savedApplication?.id;
 
-    if (!savedApplicationId) {
-      throw new Error(tx("missingApplication"));
-    }
+        if (!savedApplicationId) {
+          throw new Error(tx("missingApplication"));
+        }
 
-    setApplicationRecord(savedApplication);
-    setWorkingApplicationId(savedApplicationId);
-    navigate(`/applications/${savedApplicationId}/submitting-person?id=${savedApplicationId}`, { replace: true });
+        setApplicationRecord(savedApplication);
+        setWorkingApplicationId(savedApplicationId);
+        navigate(`/applications/${savedApplicationId}/submitting-person?id=${savedApplicationId}`, { replace: true });
 
-    return savedApplicationId;
+        return savedApplicationId;
+      })
+      .finally(() => {
+        uploadApplicationPromiseRef.current = null;
+      });
+
+    return uploadApplicationPromiseRef.current;
   }
 
   async function handleStep3DocumentChange(key, file) {
@@ -913,6 +928,45 @@ function FormSection({ title, children, allowOverflow = false }) {
   );
 }
 
+async function printAttachmentUrlDocument(url, title) {
+  const originalTitle = document.title;
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+
+  document.body.appendChild(iframe);
+  document.title = title;
+
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+  frameWindow.focus();
+  frameWindow.print();
+}
+
 function DocumentUploadField({
   label,
   helpText,
@@ -924,6 +978,30 @@ function DocumentUploadField({
   onFileChange,
   onRemove,
 }) {
+  const [downloading, setDownloading] = useState(false);
+  const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
+
+  async function handleDownload() {
+    if (!attachmentUrl || downloading) return;
+
+    try {
+      setDownloading(true);
+
+      const blob =
+        attachmentUrl.startsWith("blob:") || attachmentUrl.startsWith("data:")
+          ? await fetch(attachmentUrl).then((response) => response.blob())
+          : await fetchAuthenticatedBlob(attachmentUrl);
+      const objectUrl = URL.createObjectURL(blob);
+      await printAttachmentUrlDocument(objectUrl, attachment?.name || label || "attachment");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
+    } catch (error) {
+      console.error("Failed to download attachment:", error);
+      alert(tx("failedDownload"));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <Field label={label} required={required}>
       <div className="rounded border border-slate-200 bg-slate-50 p-3">
@@ -944,7 +1022,17 @@ function DocumentUploadField({
               )}
             </div>
 
-            {!readOnly && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!attachmentUrl || downloading}
+                className="rounded border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloading ? tx("downloading") : tx("download")}
+              </button>
+
+              {!readOnly && (
               <button
                 type="button"
                 onClick={onRemove}
@@ -952,14 +1040,21 @@ function DocumentUploadField({
               >
                 {tx("removeFile")}
               </button>
-            )}
+              )}
+            </div>
           </div>
         ) : (
           <p className="mb-2 text-[11px] text-slate-500">{tx("noAttachment")}</p>
         )}
 
         {!readOnly && (
-          <label className="mt-2 inline-flex min-h-9 cursor-pointer items-center justify-center rounded bg-[#006d32] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#005224]">
+          <label
+            className={`mt-2 inline-flex min-h-9 items-center justify-center rounded px-3 py-1.5 text-xs font-semibold text-white ${
+              uploading
+                ? "cursor-not-allowed bg-slate-400"
+                : "cursor-pointer bg-[#006d32] hover:bg-[#005224]"
+            }`}
+          >
             {uploading ? tx("uploading") : tx("upload")}
             <input
               type="file"
