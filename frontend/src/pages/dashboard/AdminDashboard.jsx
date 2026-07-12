@@ -528,6 +528,18 @@ function AdminOverviewStatPage({ statKey, user }) {
     <AdminDashboardLayout>
       <Alert message={error} />
 
+      <div className="mb-3 flex justify-end">
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-9 min-h-9 px-3"
+          onClick={() => navigate("/dashboard/admin?view=dashboard")}
+        >
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          {t("common.back", "Back")}
+        </Button>
+      </div>
+
       <AdminOverviewStatTable
         activeKey={statKey}
         currentPage={currentPage}
@@ -540,7 +552,6 @@ function AdminOverviewStatPage({ statKey, user }) {
         title={title}
         t={t}
         totalPages={totalPages}
-        onClose={() => navigate("/dashboard/admin?view=dashboard")}
       />
     </AdminDashboardLayout>
   );
@@ -635,7 +646,6 @@ function AdminOverviewStatTable({
   currentPage = 0,
   dateFilter = "",
   loading,
-  onClose,
   onDateFilterChange,
   onPageChange,
   rows,
@@ -695,50 +705,46 @@ function AdminOverviewStatTable({
         <div>
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
         </div>
-        <Button type="button" variant="secondary" className="h-9 min-h-9 px-3" onClick={onClose}>
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          {t("common.back", "Back")}
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-200 px-4 py-3">
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-9 min-h-9 w-9 p-0"
-          onClick={() => onPageChange?.(Math.max(currentPage - 1, 0))}
-          disabled={loading || !showPagination || currentPage === 0}
-          aria-label={t("common.previous", "Previous")}
-          title={t("common.previous", "Previous")}
-        >
-          <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-9 min-h-9 w-9 p-0"
-          onClick={() => onPageChange?.(Math.min(currentPage + 1, totalPages - 1))}
-          disabled={loading || !showPagination || currentPage >= totalPages - 1}
-          aria-label={t("common.next", "Next")}
-          title={t("common.next", "Next")}
-        >
-          <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-        </Button>
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(event) => onDateFilterChange?.(event.target.value)}
-          aria-label={t("common.date", "Date")}
-          className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-        />
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-9 min-h-9 px-3"
-          onClick={() => onDateFilterChange?.("")}
-          disabled={!dateFilter}
-        >
-          {t("common.reset", "Reset")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 w-9 p-0"
+            onClick={() => onPageChange?.(Math.max(currentPage - 1, 0))}
+            disabled={loading || !showPagination || currentPage === 0}
+            aria-label={t("common.previous", "Previous")}
+            title={t("common.previous", "Previous")}
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 w-9 p-0"
+            onClick={() => onPageChange?.(Math.min(currentPage + 1, totalPages - 1))}
+            disabled={loading || !showPagination || currentPage >= totalPages - 1}
+            aria-label={t("common.next", "Next")}
+            title={t("common.next", "Next")}
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+          </Button>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(event) => onDateFilterChange?.(event.target.value)}
+            aria-label={t("common.date", "Date")}
+            className="h-9 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 min-h-9 px-3"
+            onClick={() => onDateFilterChange?.("")}
+            disabled={!dateFilter}
+          >
+            {t("common.reset", "Reset")}
+          </Button>
+        </div>
       </div>
       <div className="p-4">
         <DataTable
