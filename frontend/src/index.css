@@ -224,3 +224,15 @@ video {
   max-width: 100%;
 }
 
+/* Center the Google reCAPTCHA image challenge instead of letting it attach near the checkbox. */
+iframe[src*="google.com/recaptcha/api2/bframe"],
+iframe[src*="recaptcha.net/recaptcha/api2/bframe"] {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 2147483647 !important;
+}
+
