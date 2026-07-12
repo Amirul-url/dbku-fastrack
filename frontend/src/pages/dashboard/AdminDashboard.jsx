@@ -796,10 +796,7 @@ function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
       reference: getApplicationReference(app),
       applicantName: getRegisteredApplicantName(app) || "-",
       project: getProjectName(app) || "-",
-      statusLabel:
-        validKey === "approved"
-          ? t("common.complete", "Complete")
-          : formatWorkflowStatus(app.status),
+      statusLabel: formatWorkflowStatus(app.status),
       updatedAt: app.updated_at || app.created_at,
     }));
 }
