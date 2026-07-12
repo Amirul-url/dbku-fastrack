@@ -979,15 +979,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
   const showPaymentTypedDecision = showPaymentReceiptDecision;
   const showIssueLicenseDecision = isPtIssueLicenseWorkspace;
-  const issueLicenseDecisionOptions = showIssueLicenseDecision
-    ? [
-        {
-          value: "Issue License",
-          label: "Issue License",
-          labelKey: "workspace.action.issueLicense",
-        },
-      ]
-    : [];
   const useTypedApprovalDecision =
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
@@ -1023,7 +1014,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     : null;
   const requiresIssueLicenseSignature =
     showIssueLicenseDecision &&
-    decision === "Issue License";
+    Boolean(selectedIssueLicenseAction);
   const paymentReceiptDecisionOptions = showPaymentReceiptDecision
     ? workspaceActions.filter((action) => action.requiresSubmittedReceipt)
     : [];
@@ -1155,7 +1146,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
 
     if (showIssueLicenseDecision) {
-      setDecision("");
+      setDecision("Issue License");
       setDecisionInput("");
       setDecisionError("");
       setCommentError("");
@@ -3319,49 +3310,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     </Field>
                   )}
 
-                  {showIssueLicenseDecision && (
-                    <div className="max-w-[56rem]">
-                      <span className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900">
-                        {t("common.decision", "Your Recommendation")}
-                      </span>
-                      <input
-                        ref={decisionInputRef}
-                        type="text"
-                        value={decisionInput}
-                        onChange={(event) => {
-                          const nextValue = event.target.value;
-                          const nextDecision = getWorkspaceDecisionFromInput(
-                            nextValue,
-                            issueLicenseDecisionOptions,
-                            t
-                          );
-                          setDecisionInput(nextValue);
-                          setDecision(nextDecision);
-                          if (decisionError) setDecisionError("");
-                          if (commentError) setCommentError("");
-                          if (nextDecision !== "Issue License") {
-                            setApprovalSupportSignature(null);
-                            setApprovalSupportSignatureError("");
-                          }
-                        }}
-                        onBlur={() => {
-                          if (decision) {
-                            setDecisionInput(getWorkspaceDecisionInput(decision, issueLicenseDecisionOptions, t));
-                          }
-                        }}
-                        className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
-                        placeholder={getWorkspaceDecisionInputPrompt(issueLicenseDecisionOptions, t)}
-                        inputMode="text"
-                        aria-invalid={Boolean(decisionError)}
-                      />
-                      {decisionError && (
-                        <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
-                          {decisionError}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
                   {showDetailsBeforeComment && (
                     detailLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
@@ -3883,12 +3831,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               return;
                             }
 
-                            if (decision !== "Issue License") {
-                              setDecisionError(getWorkspaceDecisionInputPrompt(issueLicenseDecisionOptions, t));
-                              decisionInputRef.current?.focus();
-                              return;
-                            }
-
                             if (!cleanRemark(comment)) {
                               setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
                               commentRef.current?.focus();
@@ -3903,7 +3845,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             }
 
                             submitAction(selectedIssueLicenseAction, {
-                              decision,
+                              decision: "Issue License",
                               comment: cleanRemark(comment),
                               checkDecisionRemark: false,
                               approvalSupportSignature,
