@@ -4830,6 +4830,20 @@ function migrateManualBillBodyHtml(bodyHtml, app = null) {
   const details = app ? getManualBillDetails(app) : null;
   let nextHtml = String(bodyHtml || "");
 
+  if (details?.phone) {
+    nextHtml = nextHtml.replace(
+      /<div class="bill-line-row">\s*<span>No\. Tel<\/span>\s*<span>:\s*<\/span>\s*<strong(?:\s[^>]*)?>([\s\S]*?)<\/strong>\s*<\/div>/i,
+      (_match, currentValueHtml) => {
+        const currentValue = getHtmlPlainText(currentValueHtml).trim();
+        const nextPhone = !currentValue || currentValue === "-" ? details.phone : currentValue;
+
+        return `<div class="bill-line-row">
+          <span>No. Tel</span><span>:</span><strong contenteditable="true">${escapeHtml(nextPhone)}</strong>
+        </div>`;
+      }
+    );
+  }
+
   if (details?.adName) {
     nextHtml = nextHtml.replace(
       /<div class="bill-line-row bill-ad-name">\s*<span>Nama Iklan<\/span>\s*<span>:\s*<\/span>\s*<strong(?:\s[^>]*)?>[\s\S]*?<\/strong>\s*<\/div>/i,
@@ -4882,7 +4896,7 @@ function buildManualBillTemplateBodyHtml(app = null) {
           <span></span><span></span><strong></strong>
         </div>
         <div class="bill-line-row">
-          <span>No. Tel</span><span>:</span><strong>${escapeHtml(details.phone)}</strong>
+          <span>No. Tel</span><span>:</span><strong contenteditable="true">${escapeHtml(details.phone)}</strong>
         </div>
         <div class="bill-line-row">
           <span>Tarikh</span><span>:</span><strong>${escapeHtml(details.date)}</strong>
@@ -5423,13 +5437,7 @@ function getManualBillDetails(app = null) {
   );
   const addressLines = getManualApprovalLetterAddressLines(app);
   const advertisementDetails = getManualApprovalLetterAdvertisementDetails(app);
-  const phone =
-    submittingPerson.mobile_no ||
-    submittingPerson.mobile ||
-    submittingPerson.telephone_no ||
-    submittingPerson.office_no ||
-    submittingPerson.tel_no ||
-    "";
+  const phone = getManualBillPhoneNumber(app, submittingPerson);
   const licenseFee = parseCurrencyAmount(payment.licenseFee);
   const deposit = parseCurrencyAmount(payment.deposit);
   const processingFee = parseCurrencyAmount(payment.processingFee);
@@ -5449,6 +5457,31 @@ function getManualBillDetails(app = null) {
     total,
     displayTotal: formatManualApprovalLetterAmount(total),
   };
+}
+
+function getManualBillPhoneNumber(app = null, submittingPerson = {}) {
+  return formatMalaysiaBillPhoneNumber(
+    app?.applicant_registered_mobile_number ||
+      app?.applicant_profile?.mobile_number ||
+      app?.form_data?.applicant_profile?.mobile_number ||
+      submittingPerson.mobile_no ||
+      submittingPerson.mobile ||
+      submittingPerson.telephone_no ||
+      submittingPerson.office_no ||
+      submittingPerson.tel_no ||
+      ""
+  );
+}
+
+function formatMalaysiaBillPhoneNumber(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue || rawValue === "-") return "";
+
+  const digits = rawValue.replace(/\D/g, "");
+  if (!digits) return rawValue;
+  if (digits.startsWith("60")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+60${digits.slice(1)}`;
+  return `+60${digits}`;
 }
 
 function getManualBillRateRows({ licenseFee = 0, deposit = 0, processingFee = 0 } = {}) {

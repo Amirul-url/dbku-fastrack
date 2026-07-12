@@ -54,6 +54,14 @@ def get_application_registered_applicant_name(application):
     return name or ""
 
 
+def get_application_registered_applicant_mobile_number(application):
+    user = getattr(application, "applicant", None)
+    if not user:
+        return ""
+
+    return str(getattr(user, "mobile_number", "") or "").strip()
+
+
 def join_user_address(user):
     if not user:
         return ""
@@ -87,6 +95,7 @@ def get_application_applicant_profile(application):
         "username": getattr(user, "username", ""),
         "full_name": full_name,
         "mykad_number": getattr(user, "mykad_number", "") or getattr(user, "username", ""),
+        "mobile_number": str(getattr(user, "mobile_number", "") or "").strip(),
         "address": join_user_address(user),
         "address_line1": str(getattr(user, "address_line1", "") or "").strip().upper(),
         "address_line2": str(getattr(user, "address_line2", "") or "").strip().upper(),
