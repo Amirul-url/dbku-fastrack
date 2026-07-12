@@ -5,6 +5,8 @@ import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
   fetchAuthenticatedBlob,
+  getApplicationDocumentUrl,
+  normalizeFileUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
 import {
@@ -194,6 +196,100 @@ function normalizeStateCity(state, city) {
   return { state: "", city: "" };
 }
 
+function getFilenameFromPath(value = "") {
+  const rawValue = String(value || "");
+  if (!rawValue) return "";
+
+  try {
+    const parsed = new URL(rawValue, window.location.origin);
+    return decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || "");
+  } catch {
+    return decodeURIComponent(rawValue.split(/[\\/]/).filter(Boolean).pop() || "");
+  }
+}
+
+function normalizeApplicationDocument(applicationId, document = {}) {
+  const documentId = document.document_id || document.id;
+  const fallbackUrl = normalizeFileUrl(
+    document.preview ||
+      document.dataUrl ||
+      document.url ||
+      document.file_url ||
+      document.file ||
+      ""
+  );
+  const filename =
+    document.name ||
+    getFilenameFromPath(document.file_url || document.file || document.url || fallbackUrl) ||
+    document.title ||
+    "attachment";
+  const downloadUrl =
+    applicationId && documentId
+      ? getApplicationDocumentUrl(applicationId, documentId)
+      : fallbackUrl;
+
+  return {
+    ...document,
+    document_id: documentId,
+    id: document.id || documentId,
+    name: filename,
+    size: document.size || 0,
+    type: document.type || (filename.toLowerCase().endsWith(".pdf") ? "application/pdf" : ""),
+    preview: downloadUrl,
+    url: downloadUrl,
+    file_url: normalizeFileUrl(document.file_url || document.file || ""),
+  };
+}
+
+function getLatestApplicationDocument(application, titleOptions = []) {
+  const titles = new Set(
+    titleOptions
+      .map((title) => String(title || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const documents = Array.isArray(application?.supporting_documents)
+    ? application.supporting_documents
+    : [];
+
+  return documents
+    .filter((document) => titles.has(String(document?.title || "").trim().toLowerCase()))
+    .sort((left, right) => {
+      const leftTime = Date.parse(left?.uploaded_at || "") || 0;
+      const rightTime = Date.parse(right?.uploaded_at || "") || 0;
+      if (rightTime !== leftTime) return rightTime - leftTime;
+      return Number(right?.id || 0) - Number(left?.id || 0);
+    })[0];
+}
+
+function resolveStepDocument(application, savedDocument, titleOptions = []) {
+  const latestDocument = getLatestApplicationDocument(application, titleOptions);
+
+  if (latestDocument) {
+    return normalizeApplicationDocument(application?.id, latestDocument);
+  }
+
+  return savedDocument
+    ? normalizeApplicationDocument(application?.id, savedDocument)
+    : null;
+}
+
+function getAttachmentDownloadUrl(applicationId, attachment, documentId) {
+  const fallbackUrl = normalizeFileUrl(
+    attachment?.preview ||
+      attachment?.dataUrl ||
+      attachment?.url ||
+      attachment?.file_url ||
+      attachment?.file ||
+      ""
+  );
+
+  if (applicationId && documentId) {
+    return getApplicationDocumentUrl(applicationId, documentId);
+  }
+
+  return fallbackUrl;
+}
+
 function SubmittingPersonPage({
   LayoutComponent = UserDashboardLayout,
   StepNavComponent = null,
@@ -312,8 +408,18 @@ function SubmittingPersonPage({
       setEmail(step3.email || "");
       setFaxCountryCode(step3.fax_country_code || "");
       setFaxNo(toUpperText(step3.fax_no));
-      setLetterAppointmentDocument(step3.letter_appointment_document || null);
-      setLhdnDocument(step3.lhdn_document || null);
+      setLetterAppointmentDocument(
+        resolveStepDocument(data, step3.letter_appointment_document, [
+          "Letter of Appointment",
+          tx("letterAppointmentDocument"),
+        ])
+      );
+      setLhdnDocument(
+        resolveStepDocument(data, step3.lhdn_document, [
+          "LHDN Document",
+          tx("lhdnDocument"),
+        ])
+      );
     } catch (err) {
       console.error("Load Step 3 failed:", err);
     }
@@ -623,8 +729,9 @@ function SubmittingPersonPage({
               language={language}
             />
 
-            <fieldset disabled={isReadOnly} className="p-5 space-y-4">
-              <FormSection title={tx("detailsOfCompany")} allowOverflow>
+            <div className="p-5 space-y-4">
+              <fieldset disabled={isReadOnly} className="space-y-4">
+                <FormSection title={tx("detailsOfCompany")} allowOverflow>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label={tx("nameOfCompany")} required>
                     <input
@@ -732,9 +839,9 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
                 </div>
-              </FormSection>
+                </FormSection>
 
-              <FormSection title={tx("submittingPerson")}>
+                <FormSection title={tx("submittingPerson")}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field label={tx("honoraryTitle")} required>
                     <select
@@ -848,7 +955,8 @@ function SubmittingPersonPage({
                     </Field>
                   </div>
                 </div>
-              </FormSection>
+                </FormSection>
+              </fieldset>
 
               <FormSection title={tx("applicantRequiredDocuments")}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -856,6 +964,7 @@ function SubmittingPersonPage({
                     label={tx("letterAppointmentDocument")}
                     helpText={tx("letterAppointmentHelp")}
                     attachment={letterAppointmentDocument}
+                    applicationId={currentApplicationId}
                     required
                     readOnly={isReadOnly}
                     uploading={uploadingDocumentKey === "letter"}
@@ -868,6 +977,7 @@ function SubmittingPersonPage({
                     label={tx("lhdnDocument")}
                     helpText={tx("lhdnDocumentHelp")}
                     attachment={lhdnDocument}
+                    applicationId={currentApplicationId}
                     required
                     readOnly={isReadOnly}
                     uploading={uploadingDocumentKey === "lhdn"}
@@ -917,7 +1027,7 @@ function SubmittingPersonPage({
                   )}
                 </div>
               )}
-            </fieldset>
+            </div>
           </section>
         </main>
       </div>
@@ -942,7 +1052,17 @@ function FormSection({ title, children, allowOverflow = false }) {
 }
 
 async function printAttachmentUrlDocument(url, title) {
-  const originalTitle = document.title;
+  const iframe = prepareAttachmentPrintFrame(title);
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  triggerAttachmentPrintFrame(iframe, title);
+}
+
+function prepareAttachmentPrintFrame(title) {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -952,28 +1072,25 @@ async function printAttachmentUrlDocument(url, title) {
   iframe.style.border = "0";
   iframe.style.opacity = "0";
   iframe.setAttribute("aria-hidden", "true");
+  iframe.dataset.printTitle = title;
+  document.body.appendChild(iframe);
+  return iframe;
+}
 
+function triggerAttachmentPrintFrame(iframe, title) {
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    iframe.remove();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  const originalTitle = document.title;
   const cleanup = () => {
     document.title = originalTitle;
     setTimeout(() => iframe.remove(), 500);
   };
 
-  document.body.appendChild(iframe);
   document.title = title;
-
-  await new Promise((resolve, reject) => {
-    iframe.onload = resolve;
-    iframe.onerror = reject;
-    iframe.src = url;
-  });
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const frameWindow = iframe.contentWindow;
-  if (!frameWindow) {
-    cleanup();
-    throw new Error("Unable to prepare print document.");
-  }
-
   frameWindow.addEventListener("afterprint", cleanup, { once: true });
   setTimeout(cleanup, 120000);
   frameWindow.focus();
@@ -984,6 +1101,7 @@ function DocumentUploadField({
   label,
   helpText,
   attachment,
+  applicationId,
   required = false,
   readOnly = false,
   uploading = false,
@@ -992,10 +1110,40 @@ function DocumentUploadField({
   onRemove,
 }) {
   const [downloading, setDownloading] = useState(false);
-  const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
+  const documentId = attachment?.document_id || attachment?.id;
+  const attachmentUrl = getAttachmentDownloadUrl(
+    applicationId,
+    attachment,
+    documentId
+  );
+  const fileName = attachment?.name || attachment?.title || tx("attachment");
+  const fileSize = attachment?.size
+    ? `${(Number(attachment.size || 0) / 1024).toFixed(1)} KB`
+    : "";
+  const fileType = String(attachment?.type || fileName || "")
+    .toLowerCase()
+    .endsWith(".pdf")
+    ? "PDF"
+    : String(attachment?.type || "PDF")
+        .split("/")
+        .pop()
+        .toUpperCase();
+  const sizeAndFormatText = tx("pdfAttachmentHelp");
 
   async function handleDownload() {
-    if (!attachmentUrl || downloading) return;
+    if (downloading) return;
+
+    if (!attachmentUrl) {
+      console.error("Missing attachment download URL:", {
+        applicationId,
+        attachment,
+        documentId,
+      });
+      alert(tx("failedDownload"));
+      return;
+    }
+
+    const filename = attachment?.name || label || "attachment";
 
     try {
       setDownloading(true);
@@ -1005,7 +1153,7 @@ function DocumentUploadField({
           ? await fetch(attachmentUrl).then((response) => response.blob())
           : await fetchAuthenticatedBlob(attachmentUrl);
       const objectUrl = URL.createObjectURL(blob);
-      await printAttachmentUrlDocument(objectUrl, attachment?.name || label || "attachment");
+      await printAttachmentUrlDocument(objectUrl, filename);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
     } catch (error) {
       console.error("Failed to download attachment:", error);
@@ -1017,62 +1165,23 @@ function DocumentUploadField({
 
   return (
     <Field label={label} required={required}>
-      <div className="rounded border border-slate-200 bg-slate-50 p-3">
-        {helpText && (
-          <p className="mb-2 text-[11px] leading-5 text-slate-600">{helpText}</p>
-        )}
-
-        {attachment ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-emerald-700">
-                {attachment.name || attachment.title || tx("attachment")}
-              </p>
-              {attachment.size && (
-                <p className="text-[11px] text-slate-500">
-                  {(Number(attachment.size || 0) / 1024).toFixed(1)} KB
-                </p>
-              )}
-            </div>
-
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={!attachmentUrl || downloading}
-                className="rounded border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {downloading ? tx("downloading") : tx("download")}
-              </button>
-
-              {!readOnly && (
-              <button
-                type="button"
-                onClick={onRemove}
-                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                {tx("removeFile")}
-              </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <p className="mb-2 text-[11px] text-slate-500">{tx("noAttachment")}</p>
-        )}
-
+      <div className="space-y-3">
         {!readOnly && (
           <label
-            className={`mt-2 inline-flex min-h-9 items-center justify-center rounded px-3 py-1.5 text-xs font-semibold text-white ${
+            className={`inline-flex min-h-9 items-center justify-center rounded-md border border-emerald-700 px-3 py-1.5 text-sm font-semibold leading-5 text-white ${
               uploading
-                ? "cursor-not-allowed bg-slate-400"
-                : "cursor-pointer bg-[#006d32] hover:bg-[#005224]"
+                ? "cursor-not-allowed bg-slate-400 border-slate-400"
+                : "cursor-pointer bg-emerald-700 hover:bg-emerald-800"
             }`}
           >
+            <span className="material-symbols-outlined mr-1 text-base">
+              upload_file
+            </span>
             {uploading ? tx("uploading") : tx("upload")}
             <input
               type="file"
               accept="application/pdf,.pdf"
-              className="sr-only"
+              className="hidden"
               disabled={uploading}
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -1083,7 +1192,62 @@ function DocumentUploadField({
           </label>
         )}
 
-        <p className="mt-2 text-[11px] text-slate-500">{tx("attachmentMaxSize")}</p>
+        {!readOnly && (
+          <p className="text-xs font-medium text-slate-500">{sizeAndFormatText}</p>
+        )}
+
+        {attachment ? (
+          <div className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="material-symbols-outlined text-xl text-slate-500">
+                description
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-700">
+                  {fileName}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {[fileType, fileSize].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900 disabled:cursor-wait disabled:opacity-60"
+                title={downloading ? tx("downloading") : tx("download")}
+                aria-label={downloading ? tx("downloading") : tx("download")}
+              >
+                <span className="material-symbols-outlined text-xl">download</span>
+              </button>
+
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-white hover:text-red-700"
+                  title={tx("removeFile")}
+                  aria-label={tx("removeFile")}
+                >
+                  <span className="material-symbols-outlined text-xl">delete</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-14 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
+            <p className="text-xs font-semibold text-slate-500">
+              {tx("noAttachment")}
+            </p>
+          </div>
+        )}
+
+        {helpText && (
+          <p className="text-[11px] leading-5 text-slate-500">{helpText}</p>
+        )}
       </div>
     </Field>
   );

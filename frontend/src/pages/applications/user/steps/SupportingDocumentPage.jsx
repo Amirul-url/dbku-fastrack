@@ -5,6 +5,7 @@ import { useLanguage } from "../../../../context/LanguageContext";
 import {
   apiRequest,
   fetchAuthenticatedBlob,
+  getApplicationDocumentUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
 import {
@@ -494,6 +495,7 @@ function SupportingDocumentPage({
             <div className="space-y-7 p-4 lg:p-5">
               <SupportingTable
                 rows={documents}
+                applicationId={applicationId}
                 readOnly={isReadOnly}
                 language={language}
                 onFileChange={handleDocumentFileChange}
@@ -502,6 +504,7 @@ function SupportingDocumentPage({
 
               <OtherSupportingTable
                 rows={otherDocuments}
+                applicationId={applicationId}
                 readOnly={isReadOnly}
                 language={language}
                 onAdd={addOtherDocument}
@@ -569,7 +572,14 @@ function SupportingDocumentPage({
   );
 }
 
-function SupportingTable({ rows, readOnly = false, language = "en", onFileChange, onRemoveFile }) {
+function SupportingTable({
+  rows,
+  applicationId,
+  readOnly = false,
+  language = "en",
+  onFileChange,
+  onRemoveFile,
+}) {
   const tx = (key) => stepText(language, key);
 
   return (
@@ -661,6 +671,7 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                     <FileAction
                       index={index}
                       attachment={row.attachment}
+                      applicationId={applicationId}
                       required={row.required}
                       readOnly={readOnly}
                       language={language}
@@ -680,6 +691,7 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
 
 function OtherSupportingTable({
   rows,
+  applicationId,
   readOnly = false,
   language = "en",
   onAdd,
@@ -763,6 +775,7 @@ function OtherSupportingTable({
                       <FileAction
                         index={index}
                         attachment={row.attachment}
+                        applicationId={applicationId}
                         required={false}
                         readOnly={readOnly}
                         language={language}
@@ -820,7 +833,17 @@ function AttachmentView({ attachment, language = "en" }) {
 }
 
 async function printAttachmentUrlDocument(url, title) {
-  const originalTitle = document.title;
+  const iframe = prepareAttachmentPrintFrame(title);
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  triggerAttachmentPrintFrame(iframe, title);
+}
+
+function prepareAttachmentPrintFrame(title) {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -830,28 +853,25 @@ async function printAttachmentUrlDocument(url, title) {
   iframe.style.border = "0";
   iframe.style.opacity = "0";
   iframe.setAttribute("aria-hidden", "true");
+  iframe.dataset.printTitle = title;
+  document.body.appendChild(iframe);
+  return iframe;
+}
 
+function triggerAttachmentPrintFrame(iframe, title) {
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    iframe.remove();
+    throw new Error("Unable to prepare print document.");
+  }
+
+  const originalTitle = document.title;
   const cleanup = () => {
     document.title = originalTitle;
     setTimeout(() => iframe.remove(), 500);
   };
 
-  document.body.appendChild(iframe);
   document.title = title;
-
-  await new Promise((resolve, reject) => {
-    iframe.onload = resolve;
-    iframe.onerror = reject;
-    iframe.src = url;
-  });
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const frameWindow = iframe.contentWindow;
-  if (!frameWindow) {
-    cleanup();
-    throw new Error("Unable to prepare print document.");
-  }
-
   frameWindow.addEventListener("afterprint", cleanup, { once: true });
   setTimeout(cleanup, 120000);
   frameWindow.focus();
@@ -861,18 +881,30 @@ async function printAttachmentUrlDocument(url, title) {
 function FileAction({
   index,
   attachment,
+  applicationId,
   required,
   readOnly = false,
   language = "en",
   onFileChange,
   onRemoveFile,
 }) {
-  const attachmentUrl = attachment?.url || attachment?.file_url || attachment?.dataUrl;
+  const documentId = attachment?.document_id || attachment?.id;
+  const documentUrl =
+    applicationId && documentId
+      ? getApplicationDocumentUrl(applicationId, documentId)
+      : "";
+  const attachmentUrl =
+    documentUrl ||
+    attachment?.dataUrl ||
+    attachment?.url ||
+    attachment?.file_url;
   const tx = (key) => stepText(language, key);
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
     if (!attachmentUrl || downloading) return;
+
+    const filename = attachment?.name || "attachment";
 
     try {
       setDownloading(true);
@@ -882,7 +914,7 @@ function FileAction({
           ? await fetch(attachmentUrl).then((response) => response.blob())
           : await fetchAuthenticatedBlob(attachmentUrl);
       const objectUrl = URL.createObjectURL(blob);
-      await printAttachmentUrlDocument(objectUrl, attachment?.name || "attachment");
+      await printAttachmentUrlDocument(objectUrl, filename);
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000);
     } catch (error) {
       console.error("Failed to download attachment:", error);

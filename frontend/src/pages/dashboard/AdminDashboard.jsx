@@ -599,14 +599,8 @@ function AdminDashboardHeader({ t }) {
   return (
     <div className="mb-5">
       <h1 className="text-2xl font-semibold text-slate-950">
-        {t("nav.dashboard", "Dashboard")}
+        {t("admin.dashboard.statisticsTitle", "Advertisements Applications Statistics")}
       </h1>
-      <p className="mt-2 text-sm text-slate-600">
-        {t(
-          "admin.dashboard.cardSummaryDesc",
-          "Review application totals, monitor progress, and follow recent updates for your unit."
-        )}
-      </p>
       <div className="mt-5 border-t border-slate-200" />
     </div>
   );
@@ -5134,7 +5128,7 @@ function sortApplicationsByUpdatedDate(a, b) {
 }
 
 function getProcessIconTitle(unit) {
-  return IKL_DEPARTMENTS.has(unit?.department) ? "LES" : unit?.title || "";
+  return IKL_DEPARTMENTS.has(unit?.department) ? "IKL" : unit?.title || "";
 }
 
 function getAdminTaskWorkspacePath(application, unit) {

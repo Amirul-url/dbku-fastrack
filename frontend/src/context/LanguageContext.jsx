@@ -5,6 +5,7 @@ const STORAGE_KEY = "fastrack_language";
 
 const adminWorkflowMs = {
   "admin.dashboard.eyebrow": "Papan Pemuka Pentadbir",
+  "admin.dashboard.statisticsTitle": "Statistik Permohonan Iklan",
   "admin.dashboard.title": "Senarai Tugasan",
   "admin.dashboard.description": "Tugasan baharu akan muncul kepada KU(IKL) selepas pemohon menghantar permohonan. PT(IKL) mengendalikan permohonan yang dikembalikan, surat kelulusan, bil, bayaran dan e-lesen, manakala unit teknikal, KB(LES), TP/PGH dan MPHLG meneruskan aliran kerja seterusnya.",
   "admin.dashboard.submittedForms": "Borang Dihantar",
@@ -593,6 +594,7 @@ const adminWorkflowMs = {
 
 const adminWorkflowEn = {
   "admin.dashboard.eyebrow": "Admin Dashboard",
+  "admin.dashboard.statisticsTitle": "Advertisements Applications Statistics",
   "admin.dashboard.title": "List of Tasks",
   "admin.dashboard.description": "New tasks appear for KU(IKL) after an applicant submits an application. PT(IKL) handles returned applications, approval letters, billing, payments, and e-licenses, while technical units, KB(LES), TP/PGH, and MPHLG continue the later workflow.",
   "admin.dashboard.submittedForms": "Submitted Forms",
