@@ -371,6 +371,56 @@ function RecaptchaCheckbox({ siteKey, resetKey, onVerify, onExpire, t }) {
   const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
+    const centerChallenge = () => {
+      const challengeFrames = document.querySelectorAll(
+        [
+          'iframe[src*="google.com/recaptcha/api2/bframe"]',
+          'iframe[src*="recaptcha.net/recaptcha/api2/bframe"]',
+          'iframe[src*="google.com/recaptcha/enterprise/bframe"]',
+          'iframe[src*="recaptcha.net/recaptcha/enterprise/bframe"]',
+        ].join(",")
+      );
+
+      challengeFrames.forEach((frame) => {
+        let container = frame;
+
+        while (container.parentElement && container.parentElement !== document.body) {
+          container = container.parentElement;
+        }
+
+        if (!container || container.parentElement !== document.body || container.id === "root") {
+          return;
+        }
+
+        container.style.position = "fixed";
+        container.style.top = "50%";
+        container.style.left = "50%";
+        container.style.right = "auto";
+        container.style.bottom = "auto";
+        container.style.transform = "translate(-50%, -50%)";
+        container.style.zIndex = "2147483647";
+      });
+    };
+
+    centerChallenge();
+
+    const observer = new MutationObserver(centerChallenge);
+    observer.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+      attributeFilter: ["src", "style"],
+    });
+
+    const intervalId = window.setInterval(centerChallenge, 250);
+
+    return () => {
+      observer.disconnect();
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
     const container = containerRef.current;
 

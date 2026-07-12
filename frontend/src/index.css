@@ -224,9 +224,11 @@ video {
   max-width: 100%;
 }
 
-/* Center the Google reCAPTCHA image challenge container instead of the inner iframe. */
-body > div:has(> iframe[src*="google.com/recaptcha/api2/bframe"]),
-body > div:has(> iframe[src*="recaptcha.net/recaptcha/api2/bframe"]) {
+/* Center the Google reCAPTCHA image challenge container instead of letting it attach near the checkbox. */
+body > div:not(#root):has(iframe[src*="google.com/recaptcha/api2/bframe"]),
+body > div:not(#root):has(iframe[src*="recaptcha.net/recaptcha/api2/bframe"]),
+body > div:not(#root):has(iframe[src*="google.com/recaptcha/enterprise/bframe"]),
+body > div:not(#root):has(iframe[src*="recaptcha.net/recaptcha/enterprise/bframe"]) {
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
@@ -236,8 +238,10 @@ body > div:has(> iframe[src*="recaptcha.net/recaptcha/api2/bframe"]) {
   z-index: 2147483647 !important;
 }
 
-body > div:has(> iframe[src*="google.com/recaptcha/api2/bframe"]) > iframe,
-body > div:has(> iframe[src*="recaptcha.net/recaptcha/api2/bframe"]) > iframe {
+body > div:not(#root):has(iframe[src*="google.com/recaptcha/api2/bframe"]) iframe[src*="google.com/recaptcha/api2/bframe"],
+body > div:not(#root):has(iframe[src*="recaptcha.net/recaptcha/api2/bframe"]) iframe[src*="recaptcha.net/recaptcha/api2/bframe"],
+body > div:not(#root):has(iframe[src*="google.com/recaptcha/enterprise/bframe"]) iframe[src*="google.com/recaptcha/enterprise/bframe"],
+body > div:not(#root):has(iframe[src*="recaptcha.net/recaptcha/enterprise/bframe"]) iframe[src*="recaptcha.net/recaptcha/enterprise/bframe"] {
   position: static !important;
   top: auto !important;
   left: auto !important;
