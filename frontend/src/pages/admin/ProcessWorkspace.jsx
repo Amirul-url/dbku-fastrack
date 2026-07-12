@@ -236,7 +236,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const fromCompletedApprovals = searchParams.get("from") === "completed-approvals";
   const forceReadOnlyActionPanel = searchParams.get("readonly") === "1";
   const shouldOpenVerificationReport = searchParams.get("showReport") === "1";
-  const shouldOpenDecisionLog = searchParams.get("showDecisionLog") === "1";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
@@ -304,7 +303,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     getAdminApprovalRecordSeen(getStoredUser())
   );
   const [showVerificationReport, setShowVerificationReport] = useState(shouldOpenVerificationReport);
-  const [showDecisionLog, setShowDecisionLog] = useState(shouldOpenDecisionLog);
+  const [showDecisionLog, setShowDecisionLog] = useState(false);
   const [showMphlgChecklist, setShowMphlgChecklist] = useState(false);
   const [showManualApprovalLetterEditor, setShowManualApprovalLetterEditor] = useState(false);
   const [showManualBillEditor, setShowManualBillEditor] = useState(false);
@@ -1108,9 +1107,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [selectedRecord?.id, shouldOpenVerificationReport]);
 
   useEffect(() => {
-    setShowDecisionLog(shouldOpenDecisionLog);
+    setShowDecisionLog(false);
     setShowMphlgChecklist(false);
-  }, [selectedRecord?.id, shouldOpenDecisionLog]);
+  }, [selectedRecord?.id]);
 
   useEffect(() => {
     setApprovalSupportSignature(null);

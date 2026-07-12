@@ -899,7 +899,7 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
   }
 
   if (stat === "rejected") {
-    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&showDecisionLog=1&returnTo=${returnTo}`;
+    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&returnTo=${returnTo}`;
   }
 
   const from = "action-panel";
