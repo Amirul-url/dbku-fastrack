@@ -463,21 +463,17 @@ function AppShell({ children, role = "admin" }) {
     }
   }
 
-  const applicantSidebarCollapsed = role === "applicant" && !sidebarOpen;
-  const sidebarWidthClass = role === "applicant"
-    ? (sidebarOpen ? "w-80" : "w-16")
-    : "w-72";
-  const sidebarPositionClass = role === "applicant" || sidebarOpen ? "translate-x-0" : "-translate-x-full";
-  const contentPaddingClass = role === "applicant"
-    ? (sidebarOpen ? "pl-80" : "pl-16")
-    : (sidebarOpen ? "pl-72" : "pl-0");
+  const sidebarCollapsed = !sidebarOpen;
+  const sidebarWidthClass = sidebarOpen ? "w-80" : "w-16";
+  const sidebarPositionClass = "translate-x-0";
+  const contentPaddingClass = sidebarOpen ? "pl-80" : "pl-16";
 
   return (
     <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex ${sidebarWidthClass} flex-col border-r border-slate-200 bg-white transition-[transform,width] duration-200 ${sidebarPositionClass}`}
       >
-        {applicantSidebarCollapsed ? (
+        {sidebarCollapsed ? (
           <div className="flex h-16 items-center justify-center border-b border-slate-200">
             <button
               type="button"
@@ -498,21 +494,19 @@ function AppShell({ children, role = "admin" }) {
                 <p className="truncate text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
               </div>
             </div>
-            {role === "applicant" && (
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                aria-label={t("common.toggleSidebar", "Toggle sidebar")}
-                title={t("common.toggleSidebar", "Toggle sidebar")}
-              >
-                <Icon name="menu" className="text-[21px]" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              aria-label={t("common.toggleSidebar", "Toggle sidebar")}
+              title={t("common.toggleSidebar", "Toggle sidebar")}
+            >
+              <Icon name="menu" className="text-[21px]" />
+            </button>
           </div>
         )}
 
-        {applicantSidebarCollapsed ? (
+        {sidebarCollapsed ? (
           <nav className="flex flex-1 flex-col items-center gap-3 py-4">
             {nav
               .filter((item) => item.type !== "section")
@@ -783,17 +777,6 @@ function AppShell({ children, role = "admin" }) {
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between gap-4 px-7">
             <div className="flex min-w-0 items-center gap-3">
-              {role !== "applicant" && (
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen((current) => !current)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  aria-label={t("common.toggleSidebar", "Toggle sidebar")}
-                  title={t("common.toggleSidebar", "Toggle sidebar")}
-                >
-                  <Icon name="menu" className="text-[22px]" />
-                </button>
-              )}
               <p className="truncate text-sm font-semibold text-slate-950">
                 {t("profile.welcome")}, {userDisplayName}
               </p>

@@ -342,17 +342,11 @@ function AdminDashboard() {
 }
 
 function AdminHomeDashboard({ user }) {
-  const { language, t } = useLanguage();
-  const location = useLocation();
+  const { t } = useLanguage();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
   const [activityDateFilter, setActivityDateFilter] = useState("");
-  const [resubmissionDrilldown, setResubmissionDrilldown] = useState(null);
-  const [resubmissionFilters, setResubmissionFilters] = useState(() => ({
-    month: RESUBMISSION_MONTH_ALL,
-    year: String(new Date().getFullYear()),
-  }));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -375,14 +369,6 @@ function AdminHomeDashboard({ user }) {
   useEffect(() => {
     fetchApplications();
   }, [fetchApplications]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const resubmissionView = params.get("resubmission");
-    if (Object.values(RESUBMISSION_DRILLDOWN_TYPES).includes(resubmissionView)) {
-      setResubmissionDrilldown(resubmissionView);
-    }
-  }, [location.search]);
 
   useEffect(() => {
     window.addEventListener("fastrack:applications-changed", fetchApplications);
@@ -411,19 +397,10 @@ function AdminHomeDashboard({ user }) {
     () => filterActivitiesByDate(activities, activityDateFilter),
     [activities, activityDateFilter]
   );
-  const resubmissionInsights = useMemo(() => {
-    return buildInternalResubmissionInsights(applications, t, language, resubmissionFilters);
-  }, [applications, language, resubmissionFilters, t]);
-  const resubmissionYearOptions = useMemo(() => {
-    return buildResubmissionYearOptions(resubmissionInsights.entries, resubmissionFilters.year);
-  }, [resubmissionFilters.year, resubmissionInsights.entries]);
-  const resubmissionDrilldownRows = useMemo(() => {
-    return buildResubmissionDrilldownRows(
-      resubmissionDrilldown,
-      resubmissionInsights,
-      t
-    );
-  }, [resubmissionDrilldown, resubmissionInsights, t]);
+  const statusSummary = useMemo(
+    () => buildAdminOverviewStatusSummary(applications, t),
+    [applications, t]
+  );
   const totalActivityPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
   const visibleActivities = filteredActivities.slice(
@@ -436,37 +413,18 @@ function AdminHomeDashboard({ user }) {
     setActivityPage(0);
   }, [activityDateFilter]);
 
-  if (resubmissionDrilldown) {
-    return (
-      <AdminDashboardLayout>
-        <Alert message={error} />
-        <ResubmissionDrilldownPanel
-          language={language}
-          loading={loading}
-          onClose={() => setResubmissionDrilldown(null)}
-          rows={resubmissionDrilldownRows}
-          type={resubmissionDrilldown}
-          t={t}
-        />
-      </AdminDashboardLayout>
-    );
-  }
-
   return (
     <AdminDashboardLayout>
       <Alert message={error} />
 
-      <InternalResubmissionGraph
-        filters={resubmissionFilters}
-        insights={resubmissionInsights}
-        language={language}
-        loading={loading}
-        onDrilldownSelect={setResubmissionDrilldown}
-        onFilterChange={setResubmissionFilters}
-        selectedDrilldown={resubmissionDrilldown}
-        t={t}
-        yearOptions={resubmissionYearOptions}
-      />
+      <AdminDashboardHeader t={t} />
+
+      <div className="mb-4 rounded-md border border-emerald-200 bg-white p-5">
+        <AdminOverviewStatusCards
+          items={statusSummary}
+          loading={loading}
+        />
+      </div>
 
       <RecentActivitiesPanel
         activities={filteredActivities}
@@ -482,6 +440,203 @@ function AdminHomeDashboard({ user }) {
       />
     </AdminDashboardLayout>
   );
+}
+
+function AdminDashboardHeader({ t }) {
+  return (
+    <div className="mb-5">
+      <h1 className="text-2xl font-semibold text-slate-950">
+        {t("nav.dashboard", "Dashboard")}
+      </h1>
+      <p className="mt-2 text-sm text-slate-600">
+        {t(
+          "admin.dashboard.cardSummaryDesc",
+          "Review application totals, monitor progress, and follow recent updates for your unit."
+        )}
+      </p>
+      <div className="mt-5 border-t border-slate-200" />
+    </div>
+  );
+}
+
+function AdminOverviewStatusCards({ items, loading }) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {items.map((item) => (
+        <AdminOverviewStatusCard
+          key={item.key}
+          label={item.label}
+          value={loading ? "..." : item.value}
+          icon={item.icon}
+          tone={item.tone}
+          compact={item.compact}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AdminOverviewStatusCard({ label, value, icon, tone, compact = false }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-700",
+    blue: "bg-blue-50 text-blue-700",
+    amber: "bg-amber-50 text-amber-700",
+    red: "bg-red-50 text-red-700",
+    slate: "bg-slate-100 text-slate-700",
+  };
+
+  return (
+    <div
+      className="min-h-[104px] rounded-md border border-slate-200 bg-slate-50 p-3 text-left"
+      aria-label={`${label}: ${value}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-500">{label}</p>
+          <p
+            className={`mt-2 font-semibold text-slate-950 ${
+              compact ? "break-words text-base leading-5" : "text-2xl"
+            }`}
+          >
+            {value}
+          </p>
+        </div>
+        <span
+          className={`material-symbols-outlined shrink-0 rounded-md p-2 text-[20px] ${
+            tones[tone] || tones.slate
+          }`}
+        >
+          {icon}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function buildAdminOverviewStatusSummary(applications, t) {
+  const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
+  const underReview = applications.filter((app) => isAdminOverviewUnderReview(app)).length;
+  const approved = applications.filter((app) => isAdminOverviewApproved(app)).length;
+  const rejected = applications.filter((app) => isAdminOverviewRejected(app)).length;
+  const surrenderRevoke = applications.filter((app) => isAdminOverviewSurrenderRevoke(app)).length;
+
+  return [
+    {
+      key: "submitted",
+      label: t("common.submitted", "Submitted"),
+      value: submitted,
+      icon: "send",
+      tone: "blue",
+    },
+    {
+      key: "under_review",
+      label: t("dashboard.underReview", "Under Review"),
+      value: underReview,
+      icon: "pending_actions",
+      tone: "amber",
+    },
+    {
+      key: "approved",
+      label: t("status.approved", "Approved"),
+      value: approved,
+      icon: "check_circle",
+      tone: "emerald",
+    },
+    {
+      key: "rejected",
+      label: t("status.rejected", "Rejected"),
+      value: rejected,
+      icon: "cancel",
+      tone: "red",
+    },
+    {
+      key: "surrender_revoke",
+      label: t("applicant.statusSurrenderRevoke", "Surrender/Revoke"),
+      value: surrenderRevoke,
+      icon: "block",
+      tone: "slate",
+      compact: true,
+    },
+  ];
+}
+
+function isAdminOverviewUnderReview(app) {
+  const status = normalizeStatus(app?.status);
+
+  return Boolean(status) &&
+    status !== "draft" &&
+    !isAdminOverviewApproved(app) &&
+    !isAdminOverviewRejected(app) &&
+    !isAdminOverviewSurrenderRevoke(app);
+}
+
+function isAdminOverviewApproved(app) {
+  if (isAdminOverviewSurrenderRevoke(app)) {
+    return false;
+  }
+
+  if (isAdminPaymentReceiptRejected(getAdminApplicationPayment(app))) {
+    return false;
+  }
+
+  return [
+    "approved",
+    "approved_with_conditions",
+    "invoice_generated",
+    "payment_submitted",
+    "payment_verified",
+    "license_issued",
+  ].includes(normalizeStatus(app?.status));
+}
+
+function isAdminOverviewRejected(app) {
+  return (
+    ["incomplete", "rejected"].includes(normalizeStatus(app?.status)) ||
+    isAdminPaymentReceiptRejected(getAdminApplicationPayment(app))
+  );
+}
+
+function isAdminOverviewSurrenderRevoke(app) {
+  return normalizeStatus(app?.status) === "license_revoked" ||
+    hasPendingAdminLicenseRevocationRequest(app);
+}
+
+function hasPendingAdminLicenseRevocationRequest(app) {
+  const request = app?.license_revocation_request || app?.form_data?.license_revocation_request || {};
+  return normalizeStatus(request.status) === "pending";
+}
+
+function getAdminApplicationPayment(app) {
+  return app?.form_data?.payment || app?.payment || {};
+}
+
+function isAdminPaymentReceiptRejected(payment = {}) {
+  const status = normalizePaymentValue(payment.status);
+  const verificationResult = normalizePaymentValue(payment.verification_result);
+  const receiptDecision = normalizePaymentValue(payment.receipt_decision);
+  const recommendation = normalizePaymentValue(payment.recommendation);
+
+  if (status === "payment_submitted" || isAdminReceiptSubmissionNewerThanRejection(payment)) {
+    return false;
+  }
+
+  return (
+    status === "receipt_rejected" ||
+    ["invalid", "invalid_fake"].includes(verificationResult) ||
+    receiptDecision === "reject_receipt" ||
+    recommendation === "reject_receipt"
+  );
+}
+
+function normalizePaymentValue(value) {
+  return normalizeStatus(value).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function isAdminReceiptSubmissionNewerThanRejection(payment = {}) {
+  const submittedAt = Date.parse(payment.submitted_at || "");
+  const rejectedAt = Date.parse(payment.rejected_at || "");
+
+  return Number.isFinite(submittedAt) && Number.isFinite(rejectedAt) && submittedAt > rejectedAt;
 }
 
 function RecentActivitiesPanel({
