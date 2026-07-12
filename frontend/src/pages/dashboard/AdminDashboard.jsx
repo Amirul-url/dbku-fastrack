@@ -343,10 +343,14 @@ function AdminDashboard() {
 
 function AdminHomeDashboard({ user }) {
   const { t } = useLanguage();
+  const location = useLocation();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
   const [activityDateFilter, setActivityDateFilter] = useState("");
+  const [activeStatKey, setActiveStatKey] = useState(() =>
+    getValidAdminOverviewStatKey(new URLSearchParams(location.search).get("stat"))
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -401,6 +405,11 @@ function AdminHomeDashboard({ user }) {
     () => buildAdminOverviewStatusSummary(applications, t, userDepartment),
     [applications, t, userDepartment]
   );
+  const activeStatRows = useMemo(
+    () => buildAdminOverviewStatRows(applications, activeStatKey, userDepartment, t),
+    [activeStatKey, applications, t, userDepartment]
+  );
+  const activeStatTitle = getAdminOverviewStatTitle(activeStatKey, t);
   const totalActivityPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
   const visibleActivities = filteredActivities.slice(
@@ -413,6 +422,12 @@ function AdminHomeDashboard({ user }) {
     setActivityPage(0);
   }, [activityDateFilter]);
 
+  useEffect(() => {
+    setActiveStatKey(
+      getValidAdminOverviewStatKey(new URLSearchParams(location.search).get("stat"))
+    );
+  }, [location.search]);
+
   return (
     <AdminDashboardLayout>
       <Alert message={error} />
@@ -423,8 +438,21 @@ function AdminHomeDashboard({ user }) {
         <AdminOverviewStatusCards
           items={statusSummary}
           loading={loading}
+          activeKey={activeStatKey}
+          onItemClick={setActiveStatKey}
         />
       </div>
+
+      {activeStatKey && (
+        <AdminOverviewStatTable
+          activeKey={activeStatKey}
+          loading={loading}
+          rows={activeStatRows}
+          title={activeStatTitle}
+          t={t}
+          onClose={() => setActiveStatKey("")}
+        />
+      )}
 
       <RecentActivitiesPanel
         activities={filteredActivities}
@@ -459,23 +487,36 @@ function AdminDashboardHeader({ t }) {
   );
 }
 
-function AdminOverviewStatusCards({ items, loading }) {
+function AdminOverviewStatusCards({ activeKey = "", items, loading, onItemClick }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       {items.map((item) => (
         <AdminOverviewStatusCard
           key={item.key}
+          itemKey={item.key}
           label={item.label}
           value={loading ? "..." : item.value}
           icon={item.icon}
           tone={item.tone}
+          active={activeKey === item.key}
+          disabled={loading}
+          onClick={onItemClick}
         />
       ))}
     </div>
   );
 }
 
-function AdminOverviewStatusCard({ label, value, icon, tone }) {
+function AdminOverviewStatusCard({
+  active = false,
+  disabled = false,
+  icon,
+  itemKey,
+  label,
+  onClick,
+  tone,
+  value,
+}) {
   const tones = {
     emerald: "bg-emerald-50 text-emerald-700",
     blue: "bg-blue-50 text-blue-700",
@@ -485,8 +526,13 @@ function AdminOverviewStatusCard({ label, value, icon, tone }) {
   };
 
   return (
-    <div
-      className="min-h-[104px] rounded-md border border-slate-200 bg-slate-50 p-3 text-left"
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onClick?.(active ? "" : itemKey)}
+      className={`min-h-[104px] rounded-md border bg-slate-50 p-3 text-left transition hover:border-emerald-300 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-wait disabled:hover:bg-slate-50 disabled:hover:shadow-none ${
+        active ? "border-emerald-400 bg-white shadow-sm" : "border-slate-200"
+      }`}
       aria-label={`${label}: ${value}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -504,7 +550,80 @@ function AdminOverviewStatusCard({ label, value, icon, tone }) {
           {icon}
         </span>
       </div>
-    </div>
+    </button>
+  );
+}
+
+function AdminOverviewStatTable({ activeKey, loading, rows, title, t, onClose }) {
+  const columns = [
+    {
+      key: "reference",
+      label: t("common.reference", "Reference"),
+      className: "w-[160px]",
+      render: (row) => <span className="font-semibold text-slate-900">{row.reference}</span>,
+    },
+    {
+      key: "applicantName",
+      label: t("workspace.license.applicantName", "Applicant Name"),
+      className: "w-[220px]",
+      render: (row) => <span className="font-medium text-slate-900">{row.applicantName}</span>,
+    },
+    {
+      key: "project",
+      label: t("common.project", "Project"),
+      render: (row) => <span className="whitespace-pre-line">{row.project}</span>,
+    },
+    {
+      key: "status",
+      label: t("common.status", "Status"),
+      className: "w-[160px]",
+      render: (row) => <StatusPill value={row.statusLabel} />,
+    },
+    {
+      key: "updated",
+      label: t("common.updated", "Updated"),
+      className: "w-[170px]",
+      render: (row) => formatCompactDateTime(row.updatedAt),
+    },
+    {
+      key: "action",
+      label: t("common.action", "Action"),
+      className: "w-[100px]",
+      render: (row) => (
+        <Link
+          className="inline-flex min-h-8 items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold leading-5 text-slate-700 hover:bg-slate-50"
+          to={getAdminOverviewApplicationViewPath(row.applicationId, activeKey)}
+        >
+          {t("common.view", "View")}
+        </Link>
+      ),
+    },
+  ];
+
+  return (
+    <section className="mb-4 rounded-md border border-slate-200 bg-white">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {t("admin.dashboard.statTableDesc", "Applications under this dashboard status.")}
+          </p>
+        </div>
+        <Button type="button" variant="secondary" onClick={onClose}>
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          {t("common.back", "Back")}
+        </Button>
+      </div>
+      <div className="p-4">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          loadingText={t("common.loading", "Loading...")}
+          emptyText={t("common.noRecords", "No records found.")}
+        />
+      </div>
+    </section>
   );
 }
 
@@ -557,6 +676,91 @@ function buildAdminOverviewStatusSummary(applications, t, userDepartment = "") {
       tone: "slate",
     },
   ];
+}
+
+function getValidAdminOverviewStatKey(value) {
+  const key = String(value || "").trim();
+  return [
+    "submitted",
+    "under_review",
+    "approved",
+    "rejected",
+    "surrender_revoke",
+  ].includes(key)
+    ? key
+    : "";
+}
+
+function getAdminOverviewStatTitle(key, t) {
+  const titleMap = {
+    submitted: t("common.submitted", "Submitted"),
+    under_review: t("dashboard.underReview", "Under Review"),
+    approved: t("common.complete", "Complete"),
+    rejected: t("status.rejected", "Rejected"),
+    surrender_revoke: t("applicant.statusSurrenderRevoke", "Surrender/Revoke"),
+  };
+
+  return titleMap[key] || t("nav.dashboard", "Dashboard");
+}
+
+function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
+  const validKey = getValidAdminOverviewStatKey(key);
+  if (!validKey) return [];
+
+  const assignedUnit = getAssignedUnit(userDepartment);
+  const filteredApplications = applications.filter((app) => {
+    if (validKey === "submitted") {
+      return normalizeStatus(app.status) === "submitted";
+    }
+
+    if (validKey === "under_review") {
+      return assignedUnit
+        ? isUnitActionableApplication(app, assignedUnit, assignedUnit.department)
+        : isAdminOverviewUnderReview(app);
+    }
+
+    if (validKey === "approved") {
+      return isAdminOverviewApproved(app);
+    }
+
+    if (validKey === "rejected") {
+      return isAdminOverviewRejected(app);
+    }
+
+    if (validKey === "surrender_revoke") {
+      return isAdminOverviewSurrenderRevoke(app);
+    }
+
+    return false;
+  });
+
+  return filteredApplications
+    .slice()
+    .sort(sortApplicationsByUpdatedDate)
+    .map((app) => ({
+      id: `${validKey}-${app.id}`,
+      applicationId: app.id,
+      reference: getApplicationReference(app),
+      applicantName: getRegisteredApplicantName(app) || "-",
+      project: getProjectName(app) || "-",
+      statusLabel:
+        validKey === "approved"
+          ? t("common.complete", "Complete")
+          : formatWorkflowStatus(app.status),
+      updatedAt: app.updated_at || app.created_at,
+    }));
+}
+
+function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
+  const stat = getValidAdminOverviewStatKey(activeKey);
+  const returnParams = new URLSearchParams({ view: "dashboard" });
+  if (stat) {
+    returnParams.set("stat", stat);
+  }
+  const returnTo = encodeURIComponent(`/dashboard/admin?${returnParams.toString()}`);
+  const from = stat === "approved" ? "completed-approvals" : "action-panel";
+
+  return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=${from}&returnTo=${returnTo}`;
 }
 
 function isAdminOverviewUnderReview(app) {
