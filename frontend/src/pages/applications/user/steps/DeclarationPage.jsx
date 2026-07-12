@@ -83,6 +83,7 @@ function DeclarationPage({
 
   async function saveDeclaration({ goNext = false } = {}) {
     if (isReadOnly) return;
+    if (saving) return false;
 
     if (!applicationId) {
       alert(tx("missingApplication"));

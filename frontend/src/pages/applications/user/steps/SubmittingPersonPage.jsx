@@ -263,6 +263,7 @@ function SubmittingPersonPage({
   const [workingApplicationId, setWorkingApplicationId] = useState(null);
   const [letterAppointmentDocument, setLetterAppointmentDocument] = useState(null);
   const [lhdnDocument, setLhdnDocument] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [uploadingDocumentKey, setUploadingDocumentKey] = useState("");
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
   const citySearchTerm = city.trim().toLowerCase();
@@ -395,6 +396,7 @@ function SubmittingPersonPage({
 
   async function saveStep3({ goNext = false } = {}) {
     if (isReadOnly) return;
+    if (saving) return false;
 
     if (goNext && (
       !registrationNo.trim() ||
@@ -425,6 +427,7 @@ function SubmittingPersonPage({
     }
 
     try {
+      setSaving(true);
       const newApplicationDefaults = !currentApplicationId ? buildNewApplicationDefaults() : {};
       const savedApplication = await apiRequest(
         currentApplicationId ? `/applications/${currentApplicationId}/` : "/applications/",
@@ -460,6 +463,8 @@ function SubmittingPersonPage({
       console.error("Step 3 save failed:", err);
       alert(err.message || tx("failedSaveStep1"));
       return false;
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -589,18 +594,22 @@ function SubmittingPersonPage({
                 <button
                   type="button"
                   onClick={handleSaveDraftAndBack}
-                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                  disabled={saving}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord || { status: "draft" }))}
+                  {saving
+                    ? tx("saving")
+                    : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord || { status: "draft" }))}
                 </button>
 
                 {!isReadOnly && (
                   <button
                     type="button"
                     onClick={handleSaveStep3}
-                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                    disabled={saving}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                   >
-                    {tx("saveNext")}
+                    {saving ? tx("saving") : tx("saveNext")}
                   </button>
                 )}
               </div>
@@ -888,18 +897,22 @@ function SubmittingPersonPage({
                   <button
                     type="button"
                     onClick={handleSaveDraftAndBack}
-                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                    disabled={saving}
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                   >
-                    {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord || { status: "draft" }))}
+                    {saving
+                      ? tx("saving")
+                      : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord || { status: "draft" }))}
                   </button>
 
                   {!isReadOnly && (
                     <button
                       type="button"
                       onClick={handleSaveStep3}
-                      className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                      disabled={saving}
+                      className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                     >
-                      {tx("saveNext")}
+                      {saving ? tx("saving") : tx("saveNext")}
                     </button>
                   )}
                 </div>

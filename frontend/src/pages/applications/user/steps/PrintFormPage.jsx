@@ -104,6 +104,7 @@ function PrintFormPage({
 
   async function saveStep9({ printed = false, submit = false } = {}) {
     if (isReadOnly && submit) return false;
+    if (saving) return false;
 
     if (!applicationId) {
       alert(tx("missingApplication"));
@@ -160,6 +161,8 @@ function PrintFormPage({
   }
 
   async function handlePrint() {
+    if (saving) return;
+
     if (!isReadOnly) {
       const saved = await saveStep9({ printed: true });
       if (!saved) return;
@@ -169,6 +172,8 @@ function PrintFormPage({
   }
 
   async function generatePdf() {
+    if (saving) return;
+
     try {
       setSaving(true);
 
@@ -194,6 +199,7 @@ function PrintFormPage({
 
   async function handleSubmitApplication() {
     if (isReadOnly) return;
+    if (saving) return;
 
     const saved = await saveStep9({ submit: true });
     if (saved) {
@@ -208,6 +214,7 @@ function PrintFormPage({
 
   async function handleSaveDraftAndBack() {
     if (isReadOnly) return;
+    if (saving) return;
 
     const saved = await saveStep9();
     if (saved) {

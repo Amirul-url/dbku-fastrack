@@ -801,6 +801,7 @@ function SittingApplicationPage({
     value: "",
   });
   const [applicationRecord, setApplicationRecord] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const [siteImages, setSiteImages] = useState([]);
 
@@ -1213,6 +1214,7 @@ function SittingApplicationPage({
 
   async function handleSave() {
     if (isReadOnly) return;
+    if (saving) return;
 
     const selectedTypes = getAdvertisementRowsApplicationTypes(
       advertisementRows,
@@ -1260,6 +1262,7 @@ function SittingApplicationPage({
     }
 
     try {
+      setSaving(true);
       const payload = await buildStepOnePayload(projectName, 3);
       const data = await saveApplication(payload);
       const savedData = await uploadPendingSiteImages(data, payload);
@@ -1275,10 +1278,14 @@ function SittingApplicationPage({
     } catch (err) {
       console.error("Save failed:", err);
       alert(tx("failedSaveStep2"));
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleSaveDraftAndBack() {
+    if (saving) return;
+
     if (isReadOnly) {
       navigate(
         isAdminReview
@@ -1289,6 +1296,7 @@ function SittingApplicationPage({
     }
 
     try {
+      setSaving(true);
       const payload = await buildStepOnePayload(
         projectName || tx("draftSittingApplication"),
         2
@@ -1310,6 +1318,8 @@ function SittingApplicationPage({
     } catch (err) {
       console.error("Draft save failed:", err);
       alert(err.message || tx("failedSaveDraft"));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1360,9 +1370,12 @@ function SittingApplicationPage({
                 <button
                   type="button"
                   onClick={handleSaveDraftAndBack}
-                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                  disabled={saving}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
+                  {saving
+                    ? tx("saving")
+                    : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                 </button>
 
                 <Link
@@ -1380,9 +1393,10 @@ function SittingApplicationPage({
                   <button
                     type="button"
                     onClick={handleSave}
-                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                    disabled={saving}
+                    className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                   >
-                    {tx("saveNext")}
+                    {saving ? tx("saving") : tx("saveNext")}
                   </button>
                 )}
               </div>
@@ -1564,9 +1578,12 @@ function SittingApplicationPage({
                   <button
                     type="button"
                     onClick={handleSaveDraftAndBack}
-                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50"
+                    disabled={saving}
+                    className="px-3 py-1.5 border border-slate-300 rounded text-xs font-semibold hover:bg-slate-50 disabled:opacity-60"
                   >
-                    {tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
+                    {saving
+                      ? tx("saving")
+                      : tx(getApplicantSaveDraftReturnLabelKey(applicationRecord))}
                   </button>
 
                   <Link
@@ -1584,9 +1601,10 @@ function SittingApplicationPage({
                     <button
                       type="button"
                       onClick={handleSave}
-                      className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224]"
+                      disabled={saving}
+                      className="px-3 py-1.5 bg-[#006d32] text-white rounded text-xs font-semibold hover:bg-[#005224] disabled:opacity-60"
                     >
-                      {tx("saveNext")}
+                      {saving ? tx("saving") : tx("saveNext")}
                     </button>
                   )}
                 </div>

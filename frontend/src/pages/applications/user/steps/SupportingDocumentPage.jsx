@@ -208,6 +208,7 @@ function SupportingDocumentPage({
 
   async function saveStep10({ goNext = false } = {}) {
     if (isReadOnly) return false;
+    if (saving) return false;
 
     if (!applicationId) {
       alert(tx("missingApplication"));
