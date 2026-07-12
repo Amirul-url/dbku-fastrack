@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import AdminDashboardLayout from "../../layout/AdminDashboardLayout";
 import ApprovalPage from "../admin/approval/ApprovalPage";
 import {
@@ -338,19 +338,24 @@ function AdminDashboard() {
     return <AdminHomeDashboard user={currentUser} />;
   }
 
+  if (view === "stat") {
+    const statKey = getValidAdminOverviewStatKey(new URLSearchParams(location.search).get("stat"));
+    if (statKey) {
+      return <AdminOverviewStatPage user={currentUser} statKey={statKey} />;
+    }
+    return <AdminHomeDashboard user={currentUser} />;
+  }
+
   return <PersonalTaskDashboard />;
 }
 
 function AdminHomeDashboard({ user }) {
   const { t } = useLanguage();
-  const location = useLocation();
+  const navigate = useNavigate();
   const userDepartment = normalizeDepartmentCode(user?.department);
   const [applications, setApplications] = useState([]);
   const [activityPage, setActivityPage] = useState(0);
   const [activityDateFilter, setActivityDateFilter] = useState("");
-  const [activeStatKey, setActiveStatKey] = useState(() =>
-    getValidAdminOverviewStatKey(new URLSearchParams(location.search).get("stat"))
-  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -405,11 +410,6 @@ function AdminHomeDashboard({ user }) {
     () => buildAdminOverviewStatusSummary(applications, t, userDepartment),
     [applications, t, userDepartment]
   );
-  const activeStatRows = useMemo(
-    () => buildAdminOverviewStatRows(applications, activeStatKey, userDepartment, t),
-    [activeStatKey, applications, t, userDepartment]
-  );
-  const activeStatTitle = getAdminOverviewStatTitle(activeStatKey, t);
   const totalActivityPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
   const visibleActivities = filteredActivities.slice(
@@ -422,12 +422,6 @@ function AdminHomeDashboard({ user }) {
     setActivityPage(0);
   }, [activityDateFilter]);
 
-  useEffect(() => {
-    setActiveStatKey(
-      getValidAdminOverviewStatKey(new URLSearchParams(location.search).get("stat"))
-    );
-  }, [location.search]);
-
   return (
     <AdminDashboardLayout>
       <Alert message={error} />
@@ -438,21 +432,9 @@ function AdminHomeDashboard({ user }) {
         <AdminOverviewStatusCards
           items={statusSummary}
           loading={loading}
-          activeKey={activeStatKey}
-          onItemClick={setActiveStatKey}
+          onItemClick={(key) => navigate(`/dashboard/admin?view=stat&stat=${key}`)}
         />
       </div>
-
-      {activeStatKey && (
-        <AdminOverviewStatTable
-          activeKey={activeStatKey}
-          loading={loading}
-          rows={activeStatRows}
-          title={activeStatTitle}
-          t={t}
-          onClose={() => setActiveStatKey("")}
-        />
-      )}
 
       <RecentActivitiesPanel
         activities={filteredActivities}
@@ -465,6 +447,71 @@ function AdminHomeDashboard({ user }) {
         t={t}
         totalPages={totalActivityPages}
         visibleActivities={visibleActivities}
+      />
+    </AdminDashboardLayout>
+  );
+}
+
+function AdminOverviewStatPage({ statKey, user }) {
+  const { t } = useLanguage();
+  const navigate = useNavigate();
+  const userDepartment = normalizeDepartmentCode(user?.department);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchApplications = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      setError("");
+      const list = await fetchApplicationList();
+      const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
+        apiRequest(`/applications/${id}/`)
+      );
+      setApplications(enrichedList);
+    } catch (err) {
+      setError(err.message || "Failed to load applications.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
+  useEffect(() => {
+    window.addEventListener("fastrack:applications-changed", fetchApplications);
+    window.addEventListener("focus", fetchApplications);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchApplications({ silent: true });
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("fastrack:applications-changed", fetchApplications);
+      window.removeEventListener("focus", fetchApplications);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchApplications]);
+
+  const rows = useMemo(
+    () => buildAdminOverviewStatRows(applications, statKey, userDepartment, t),
+    [applications, statKey, t, userDepartment]
+  );
+  const title = getAdminOverviewStatTitle(statKey, t);
+
+  return (
+    <AdminDashboardLayout>
+      <Alert message={error} />
+
+      <AdminOverviewStatTable
+        activeKey={statKey}
+        loading={loading}
+        rows={rows}
+        title={title}
+        t={t}
+        onClose={() => navigate("/dashboard/admin?view=dashboard")}
       />
     </AdminDashboardLayout>
   );
@@ -753,7 +800,7 @@ function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
 
 function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
   const stat = getValidAdminOverviewStatKey(activeKey);
-  const returnParams = new URLSearchParams({ view: "dashboard" });
+  const returnParams = new URLSearchParams({ view: "stat" });
   if (stat) {
     returnParams.set("stat", stat);
   }
