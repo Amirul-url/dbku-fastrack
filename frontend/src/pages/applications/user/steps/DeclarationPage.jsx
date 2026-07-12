@@ -209,13 +209,15 @@ function DeclarationPage({
     step1.agency_name,
     savedDeclarationValues.companyName
   );
-  const applicantAddress = normalizeAddressState(getFirstValue(
-    currentUserAddress,
-    currentUserProfile.address,
-    applicantProfileAddress,
-    applicantProfile.address,
-    savedDeclarationValues.address
-  ));
+  const applicantAddress = normalizeAddressText(
+    getFirstValue(
+      currentUserAddress,
+      currentUserProfile.address,
+      applicantProfileAddress,
+      applicantProfile.address,
+      savedDeclarationValues.address
+    )
+  );
   const identityCardNo = getFirstValue(
     currentUserProfile.mykad_number,
     currentUserProfile.username,
@@ -468,6 +470,11 @@ function normalizeAddressState(value) {
   const parts = text.split(",").map((part) => part.trim());
   parts[parts.length - 1] = normalizeStateName(parts[parts.length - 1]);
   return parts.filter(Boolean).join(", ");
+}
+
+function normalizeAddressText(value) {
+  const text = normalizeAddressState(value);
+  return text === "-" ? "-" : text.toLocaleUpperCase("en-MY");
 }
 
 function joinAddress(parts, { uppercaseState = false } = {}) {
