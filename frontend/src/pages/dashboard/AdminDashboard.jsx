@@ -509,7 +509,7 @@ function AdminOverviewStatusCard({ label, value, icon, tone }) {
 }
 
 function buildAdminOverviewStatusSummary(applications, t) {
-  const submitted = applications.filter((app) => normalizeStatus(app.status) !== "draft").length;
+  const submitted = applications.filter((app) => normalizeStatus(app.status) === "submitted").length;
   const underReview = applications.filter((app) => isAdminOverviewUnderReview(app)).length;
   const approved = applications.filter((app) => isAdminOverviewApproved(app)).length;
   const rejected = applications.filter((app) => isAdminOverviewRejected(app)).length;
@@ -559,6 +559,7 @@ function isAdminOverviewUnderReview(app) {
 
   return Boolean(status) &&
     status !== "draft" &&
+    status !== "submitted" &&
     !isAdminOverviewApproved(app) &&
     !isAdminOverviewRejected(app) &&
     !isAdminOverviewSurrenderRevoke(app);
