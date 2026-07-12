@@ -12,7 +12,6 @@ import {
   getSiteImageUrl,
   uploadApplicationDocument,
 } from "../../../../services/api";
-import SimpleWysiwygEditor from "../../../../components/SimpleWysiwygEditor";
 import {
   canEditApplicationForm,
   getApplicantSaveDraftReturnLabelKey,
@@ -285,6 +284,20 @@ function formatProjectText(value) {
     .trim()
     .replace(/\s+/g, " ")
     .toLocaleUpperCase("en-MY");
+}
+
+function formatPlainText(value) {
+  return String(value || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function formatAddressText(value) {
@@ -868,8 +881,8 @@ function SittingApplicationPage({
 
     setApplicationRecord(data);
     setLocalityAddress(formatAddressText(step1.locality_address || step1.map_address || ""));
-    setProjectJustification(step1.project_justification || "");
-    setSiteSelectionReason(step1.site_selection_reason || "");
+    setProjectJustification(formatPlainText(step1.project_justification));
+    setSiteSelectionReason(formatPlainText(step1.site_selection_reason));
     setApplicationTypeOptions(nextApplicationTypes);
     setApplicationSubtype(primarySubtype);
     setAdvertisementRows(calculatedAdvertisementRows);
@@ -1494,26 +1507,28 @@ function SittingApplicationPage({
 
               </div>
 
-              <SimpleWysiwygEditor
-                key={`project-justification-${applicationId || "new"}`}
+              <PlainTextAreaField
                 label={tx("projectJustification")}
                 value={projectJustification}
                 onChange={setProjectJustification}
                 max={3000}
                 readOnly={isReadOnly}
+                required
+                characterLabel={tx("characters")}
               />
 
               <p className="-mt-2 text-[11px] italic text-slate-500">
                 {tx("projectBriefHelp")}
               </p>
 
-              <SimpleWysiwygEditor
-                key={`site-selection-reason-${applicationId || "new"}`}
+              <PlainTextAreaField
                 label={tx("siteSelectionReason")}
                 value={siteSelectionReason}
                 onChange={setSiteSelectionReason}
                 max={1500}
                 readOnly={isReadOnly}
+                required
+                characterLabel={tx("characters")}
               />
 
               <p className="-mt-2 text-[11px] italic text-slate-500">
@@ -2463,6 +2478,38 @@ function Field({ label, children, required = false, guideline = "" }) {
       </div>
 
       {children}
+    </div>
+  );
+}
+
+function PlainTextAreaField({
+  label,
+  value,
+  onChange,
+  max,
+  readOnly = false,
+  required = false,
+  characterLabel = "Characters",
+}) {
+  const textValue = value || "";
+
+  return (
+    <div>
+      <label className="mb-1 block text-[11px] font-bold text-slate-700">
+        {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
+      </label>
+      <textarea
+        className="spa-input min-h-[180px] resize-y leading-relaxed"
+        value={textValue}
+        maxLength={max}
+        onChange={(event) => onChange(event.target.value)}
+        readOnly={readOnly}
+        required={required}
+      />
+      <div className="mt-1 text-right text-[11px] text-slate-500">
+        {characterLabel}: {textValue.length}/{max}
+      </div>
     </div>
   );
 }
