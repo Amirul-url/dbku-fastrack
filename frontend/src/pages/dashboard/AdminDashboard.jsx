@@ -2785,8 +2785,18 @@ function buildResubmissionDrilldownRows(type, insights, t) {
 
 function buildRejectedDecisionReportRows(row, t) {
   const app = row?.application || {};
-  const decisionLogs = buildDecisionLogReportRows(app, t)
-    .filter(isRejectedDecisionReportLog)
+  const rejectedDecisionLogs = buildDecisionLogReportRows(app, t)
+    .filter(isRejectedDecisionReportLog);
+  const paymentReceiptLogs = rejectedDecisionLogs.filter((log) =>
+    log.id === "payment-receipt-verification" ||
+    normalizeDepartmentCode(log.department) === "FIN"
+  );
+  const decisionLogs = (
+    isAdminPaymentReceiptRejected(getAdminApplicationPayment(app)) &&
+    paymentReceiptLogs.length > 0
+      ? paymentReceiptLogs
+      : rejectedDecisionLogs
+  )
     .map((log) => ({
       id: `${row.id}-${log.id}`,
       department: log.department,
@@ -3092,12 +3102,12 @@ function buildDecisionLogReportRows(app, t) {
 
   addDecisionLogRow(rows, {
     id: "payment-receipt-verification",
-    department: "PT(IKL)",
+    department: "FIN",
     section: payment,
     decision: getPaymentReceiptDecisionLogValue(payment),
     remarks: payment.internal_verification_notes,
     date: getDecisionLogDate(payment, ["verified_at", "rejected_at"]),
-    officer: "PT(IKL)",
+    officer: "FIN",
     signature: getDecisionLogSignature(payment),
   }, t);
 
