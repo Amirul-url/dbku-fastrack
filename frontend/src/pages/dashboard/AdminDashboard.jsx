@@ -811,7 +811,12 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "") {
     returnParams.set("stat", stat);
   }
   const returnTo = encodeURIComponent(`/dashboard/admin?${returnParams.toString()}`);
-  const from = stat === "approved" ? "completed-approvals" : "action-panel";
+
+  if (stat === "approved") {
+    return `/dashboard/admin?view=approval&id=${applicationId}&from=completed-approvals&returnTo=${returnTo}`;
+  }
+
+  const from = "action-panel";
 
   return `/admin/applications/${applicationId}/view/step-1?id=${applicationId}&from=${from}&returnTo=${returnTo}`;
 }
