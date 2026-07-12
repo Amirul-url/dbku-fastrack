@@ -1233,18 +1233,24 @@ function SittingApplicationPage({
           row.displayType &&
           normalizeApplicationSubtype(row.subtype, rowType) &&
           (row.customLabel || getApplicationSubtypeLabel(language, rowType, row.subtype)) &&
-          String(row.widthFt || "").trim() &&
-          String(row.heightFt || "").trim() &&
-          String(row.areaRequired || "").trim() &&
-          String(row.amountFundApproved || "").trim()
+          parsePositiveNumber(row.widthFt) > 0 &&
+          parsePositiveNumber(row.heightFt) > 0 &&
+          parsePositiveNumber(row.areaRequired) > 0 &&
+          parsePositiveNumber(row.amountFundApproved) > 0
         );
       });
+    const mapDetailsComplete =
+      String(mapData.address || localityAddress).trim() &&
+      Number.isFinite(Number(mapData.latitude)) &&
+      Number.isFinite(Number(mapData.longitude));
+    const siteImagesComplete = siteImages.length > 0;
 
     if (
       !projectName.trim() ||
-      !String(mapData.address || localityAddress).trim() ||
+      !mapDetailsComplete ||
       !projectJustification.trim() ||
       !siteSelectionReason.trim() ||
+      !siteImagesComplete ||
       normalizeApplicationTypeOptions(selectedTypes).length === 0 ||
       !primaryAdvertisementRow ||
       !advertisementRowsComplete
@@ -1410,6 +1416,7 @@ function SittingApplicationPage({
                 onChange={handleMapDataChange}
                 readOnly={isReadOnly}
                 language={language}
+                required
               />
 
               </fieldset>
@@ -1420,6 +1427,7 @@ function SittingApplicationPage({
                 language={language}
                 onAdd={handleSiteImagesAdd}
                 onRemove={handleSiteImageRemove}
+                required
               />
 
               <fieldset disabled={isReadOnly} className="space-y-3">
@@ -1592,7 +1600,7 @@ function SittingApplicationPage({
   );
 }
 
-function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
+function LocationMap({ value, onChange, readOnly = false, language = "en", required = false }) {
   const tx = (key) => stepText(language, key);
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
@@ -1969,10 +1977,10 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
   }
 
   return (
-    <FormSection title={tx("locationMap")}>
+    <FormSection title={tx("locationMap")} required={required}>
       <div className="space-y-3">
         <div>
-          <Field label={tx("projectAddressSearch")}>
+          <Field label={tx("projectAddressSearch")} required={required}>
             <div className="relative">
               <input
                 className="spa-input"
@@ -2105,11 +2113,11 @@ function LocationMap({ value, onChange, readOnly = false, language = "en" }) {
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label={tx("latitude")}>
+          <Field label={tx("latitude")} required={required}>
             <input className="spa-input bg-slate-50" value={lat} readOnly />
           </Field>
 
-          <Field label={tx("longitude")}>
+          <Field label={tx("longitude")} required={required}>
             <input className="spa-input bg-slate-50" value={lng} readOnly />
           </Field>
         </div>
@@ -2134,7 +2142,7 @@ function setMapInteractivity(map, enabled) {
   map.touchZoomRotate[action]();
 }
 
-function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, language = "en" }) {
+function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, language = "en", required = false }) {
   const tx = (key) => stepText(language, key);
   const maxSiteImageBytes = 15 * 1024 * 1024;
   const acceptedSiteImageTypes = new Set([
@@ -2367,7 +2375,7 @@ function SiteImageUpload({ images = [], onAdd, onRemove, readOnly = false, langu
   }
 
   return (
-    <FormSection title={tx("siteImage")}>
+    <FormSection title={tx("siteImage")} required={required}>
       <div className="space-y-3">
         {!readOnly && (
           <label className="inline-flex min-h-9 cursor-pointer items-center justify-center rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-sm font-semibold leading-5 text-white hover:bg-emerald-800">
@@ -2523,146 +2531,54 @@ function FeeCalculationBreakdown({ tx, widthFt, heightFt, areaSqm, subtype = "" 
   const breakdown = calculateIklFeeBreakdown(areaSqm, subtype);
 
   return (
-    <FeeCalculationPanel
-      tx={tx}
-      width={width}
-      height={height}
-      areaSqft={areaSqft}
-      breakdown={breakdown}
-    />
-  );
-
-  return (
-    <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
-      <summary className="cursor-pointer select-none px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
+    <details className="self-start rounded-sm border border-slate-200 bg-white text-slate-900">
+      <summary className="cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 text-xs font-bold leading-4 text-slate-800 hover:bg-slate-100">
         {tx("calculationBreakdown")}
       </summary>
-
-      <div className="border-t border-slate-200 bg-white px-3 py-2">
+      <div className="border-t border-slate-200">
         {breakdown ? (
-          <div className="grid gap-1.5 text-xs text-slate-700">
-            <CalculationRow
+          <div className="divide-y divide-slate-100 text-xs leading-4 text-slate-800">
+            <CompactCalculationRow
               label={tx("calculationSchedule")}
-              value={tx(`calculationSchedule${breakdown.scheduleNumber}`)}
-            />
-            <CalculationRow
-              label={tx("calculationSize")}
-              value={
-                width && height
-                  ? `${formatCalculationNumber(width)} ft x ${formatCalculationNumber(height)} ft`
-                  : "-"
-              }
-            />
-            <CalculationRow
-              label={tx("calculationAreaFt")}
-              value={areaSqft ? `${formatFlexibleDecimal(areaSqft, 10)} ft²` : "-"}
-            />
-            <CalculationRow
-              label={tx("calculationAreaSqm")}
-              value={`${formatFlexibleDecimal(areaSqft || 0, 10)} x ${SQFT_TO_SQM} = ${formatCalculatedArea(breakdown.areaSqm)} Sq. m`}
-            />
-            <CalculationRow
-              label={tx(`calculationFirstArea${breakdown.scheduleNumber}`)}
-              value={
-                breakdown.usesFixedFirstAreaFee
-                  ? `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m = ${formatCalculatedCurrency(breakdown.firstAreaFixedFee)}`
-                  : `${formatCalculatedArea(breakdown.firstAreaSqm)} Sq. m x ${formatCalculatedCurrency(breakdown.firstAreaRate)} = ${formatCalculatedCurrency(breakdown.firstAreaFee)}`
-              }
-            />
-            <CalculationRow
-              label={tx("calculationAdditionalArea")}
-              value={`${formatWholeNumber(breakdown.additionalAreaSqm)} Sq. m x ${formatCalculatedCurrency(breakdown.additionalAreaRate)} = ${formatCalculatedCurrency(breakdown.additionalAreaFee)}`}
-            />
-            <CalculationRow
-              label={tx("calculationFeeTotal")}
-              value={formatCalculatedCurrency(breakdown.feeTotal)}
-            />
-            <CalculationRow
-              label={tx("calculationDeposit")}
-              value={formatCalculatedCurrency(breakdown.deposit)}
-            />
-            <CalculationRow
-              label={tx("calculationProcessingFee")}
-              value={formatCalculatedCurrency(breakdown.processingFee)}
-            />
-            <CalculationRow
-              label={tx("calculationRoundingAdjustment")}
-              guideline={tx("calculationRoundingAdjustmentHelp")}
-              value={formatCalculatedCurrency(breakdown.roundingAdjustment)}
-            />
-            <CalculationRow
-              label={tx("calculationTotalPayable")}
-              value={formatCalculatedCurrency(breakdown.totalPayable)}
-              strong
-            />
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500">{tx("calculationEmpty")}</p>
-        )}
-      </div>
-    </details>
-  );
-}
+            >
+              <span>{tx(`calculationSchedule${breakdown.scheduleNumber}`)}</span>
+            </CompactCalculationRow>
+            <CompactCalculationRow label={tx("calculationSize")}>
+              <div className="grid grid-cols-[minmax(4.5rem,9.5rem)_1.25rem_0.75rem_minmax(4.5rem,9.5rem)_1.25rem] items-center gap-2">
+                <CompactCalculationBox value={width && height ? formatCalculationNumber(width) : "-"} />
+                <span>ft</span>
+                <span className="text-center font-semibold">x</span>
+                <CompactCalculationBox value={width && height ? formatCalculationNumber(height) : "-"} />
+                <span>ft</span>
+              </div>
+            </CompactCalculationRow>
+            <CompactCalculationRow label={tx("calculationAreaFt")}>
+              <div className="grid grid-cols-[minmax(4.5rem,9.5rem)_1.5rem] items-center gap-2">
+                <CompactCalculationBox value={areaSqft ? formatFlexibleDecimal(areaSqft, 10) : "-"} />
+                <span>ft</span>
+              </div>
+            </CompactCalculationRow>
+            <CompactCalculationRow label={tx("calculationAreaSqm")}>
+              <div className="grid gap-2 sm:grid-cols-[minmax(4.5rem,9.5rem)_1.75rem_minmax(7rem,1fr)] sm:items-center">
+                <CompactCalculationBox value={formatWholeNumber(breakdown.areaSqm)} />
+                <span>m2</span>
+                <span className="break-words text-slate-500 sm:col-start-3">
+                  {areaSqft
+                    ? `${formatFlexibleDecimal(areaSqft, 10)} x ${SQFT_TO_SQM} = ${formatCalculatedArea(breakdown.areaSqm)} m2`
+                    : "-"}
+                </span>
+              </div>
+            </CompactCalculationRow>
 
-function FeeCalculationPanel({ tx, width, height, areaSqft, breakdown }) {
-  const areaUnit = "m2";
-
-  return (
-    <details className="self-start overflow-hidden rounded-sm border border-slate-200 bg-white" open>
-      <summary className="cursor-pointer select-none bg-white px-3 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50">
-        {tx("calculationPanelTitle")}
-      </summary>
-
-      <div className="overflow-x-auto border-t border-slate-200">
-        {breakdown ? (
-          <div className="min-w-[720px] divide-y divide-slate-100 text-xs text-slate-800">
-            <CalculationGridRow>
-              <span className="font-semibold">{tx("calculationSchedule")}</span>
-              <span className="col-span-7 text-slate-700">
-                {tx(`calculationSchedule${breakdown.scheduleNumber}`)}
-              </span>
-            </CalculationGridRow>
-
-            <CalculationGridRow>
-              <span className="font-semibold">{tx("calculationSize")}</span>
-              <CalculationValueBox value={formatCalculationNumber(width)} />
-              <span>ft</span>
-              <span className="text-center font-semibold">x</span>
-              <CalculationValueBox value={formatCalculationNumber(height)} />
-              <span>ft</span>
-            </CalculationGridRow>
-
-            <CalculationGridRow>
-              <span className="font-semibold">{tx("calculationAreaFt")} (ft)</span>
-              <CalculationValueBox
-                value={areaSqft ? formatFlexibleDecimal(areaSqft, 10) : "-"}
-              />
-              <span>ft</span>
-            </CalculationGridRow>
-
-            <CalculationGridRow>
-              <span className="font-semibold">{tx("calculationAreaFt")} (m2)</span>
-              <CalculationValueBox value={formatWholeNumber(breakdown.areaSqm)} />
-              <span>{areaUnit}</span>
-              <span className="col-span-5 text-slate-500">
-                {formatFlexibleDecimal(areaSqft || 0, 10)} x {SQFT_TO_SQM} ={" "}
-                {formatCalculatedArea(breakdown.areaSqm)} {areaUnit}
-              </span>
-            </CalculationGridRow>
-
-            <div className="bg-slate-50 px-3 py-2 font-bold">
+            <div className="bg-slate-50 px-2.5 py-1.5 text-xs font-bold leading-4 text-slate-900">
               {tx("calculationFees")}
             </div>
 
-            <FeeFormulaRow
-              label={tx(`calculationFirstArea${breakdown.scheduleNumber}`)}
+            <CompactFormulaRow
+              label={`(i) ${tx(`calculationFirstArea${breakdown.scheduleNumber}`)}`}
               quantity={formatWholeNumber(breakdown.firstAreaSqm)}
-              unit={areaUnit}
-              rate={
-                breakdown.usesFixedFirstAreaFee
-                  ? ""
-                  : formatCalculatedCurrency(breakdown.firstAreaRate)
-              }
+              unit="m2"
+              rate={formatCalculatedCurrency(breakdown.firstAreaRate)}
               amount={
                 breakdown.usesFixedFirstAreaFee
                   ? formatCalculatedCurrency(breakdown.firstAreaFixedFee)
@@ -2670,131 +2586,108 @@ function FeeCalculationPanel({ tx, width, height, areaSqft, breakdown }) {
               }
               fixedFee={breakdown.usesFixedFirstAreaFee}
             />
-
-            <FeeFormulaRow
-              label={tx("calculationAdditionalArea")}
+            <CompactFormulaRow
+              label={`(ii) ${tx("calculationAdditionalArea")}`}
               quantity={formatWholeNumber(breakdown.additionalAreaSqm)}
-              unit={areaUnit}
+              unit="m2"
               rate={formatCalculatedCurrency(breakdown.additionalAreaRate)}
               amount={formatCalculatedCurrency(breakdown.additionalAreaFee)}
             />
-
-            <FeeSingleValueRow
+            <CompactSingleValueRow
               label={tx("calculationFeeTotal")}
               value={formatCalculatedCurrency(breakdown.feeTotal)}
               shaded
               strong
             />
-            <FeeSingleValueRow
+            <CompactSingleValueRow
               label={tx("calculationDeposit")}
               value={formatCalculatedCurrency(breakdown.deposit)}
             />
-            <FeeSingleValueRow
+            <CompactSingleValueRow
               label={tx("calculationProcessingFee")}
               value={formatCalculatedCurrency(breakdown.processingFee)}
             />
-            <FeeSingleValueRow
+            <CompactSingleValueRow
               label={tx("calculationRoundingAdjustment")}
-              value={formatCalculatedCurrency(breakdown.roundingAdjustment)}
               guideline={tx("calculationRoundingAdjustmentHelp")}
+              guidelinePosition="above"
+              value={formatCalculatedCurrency(breakdown.roundingAdjustment)}
             />
-            <FeeSingleValueRow
-              label={tx("calculationTotal")}
+            <CompactSingleValueRow
+              label={tx("calculationTotalPayable")}
               value={formatCalculatedCurrency(breakdown.totalPayable)}
               shaded="green"
               strong
+              labelStrong
             />
           </div>
         ) : (
-          <p className="px-3 py-2 text-xs text-slate-500">
-            {tx("calculationEmpty")}
-          </p>
+          <p className="px-3 py-2 text-xs text-slate-500">{tx("calculationEmpty")}</p>
         )}
       </div>
     </details>
   );
 }
 
-function CalculationGridRow({ children }) {
-  return (
-    <div className="grid grid-cols-[220px_150px_45px_34px_150px_45px_34px_175px] items-center gap-2 px-3 py-2">
-      {children}
-    </div>
-  );
-}
-
-function CalculationValueBox({ value, strong = false }) {
-  return (
-    <span
-      className={`inline-flex min-h-8 items-center justify-end rounded border border-slate-300 bg-white px-3 text-right tabular-nums ${
-        strong ? "font-bold text-slate-950" : "text-slate-800"
-      }`}
-    >
-      {value}
-    </span>
-  );
-}
-
-function FeeFormulaRow({ label, quantity, unit, rate, amount, fixedFee = false }) {
-  return (
-    <CalculationGridRow>
-      <span className="font-semibold">{label}</span>
-      <CalculationValueBox value={quantity} />
-      <span>{unit}</span>
-      <span className="text-center font-semibold">{fixedFee ? "=" : "x"}</span>
-      {fixedFee ? (
-        <CalculationValueBox value={amount} strong />
-      ) : (
-        <>
-          <CalculationValueBox value={rate} />
-          <span className="text-center font-semibold">=</span>
-          <CalculationValueBox value={amount} strong />
-        </>
-      )}
-    </CalculationGridRow>
-  );
-}
-
-function FeeSingleValueRow({
-  label,
-  value,
-  guideline = "",
-  shaded = false,
-  strong = false,
-}) {
+function CompactCalculationRow({ label, children, shaded = false, strong = false, labelStrong = false, guideline = "", guidelinePosition = "below" }) {
   const shadedClass =
     shaded === "green" ? "bg-emerald-50" : shaded ? "bg-slate-50" : "bg-white";
 
   return (
     <div
-      className={`grid grid-cols-[220px_150px_45px_34px_150px_45px_34px_175px] items-center gap-2 px-3 py-2 ${shadedClass}`}
+      className={`grid gap-x-3 gap-y-1 px-2.5 py-1.5 sm:grid-cols-[minmax(140px,23%)_minmax(0,1fr)] ${shadedClass} ${
+        strong ? "text-slate-950" : ""
+      }`}
     >
-      <span
-        className={`relative inline-flex items-center gap-1.5 ${
-          strong ? "font-bold" : "font-semibold"
-        }`}
-      >
+      <span className={`relative inline-flex items-center gap-1.5 text-slate-900 ${labelStrong ? "font-bold" : "font-normal"}`}>
         {label}
-        {guideline && <GuidelineHint text={guideline} />}
+        {guideline && <GuidelineHint text={guideline} position={guidelinePosition} />}
       </span>
-      <CalculationValueBox value={value} strong={strong} />
+      <div className="min-w-0 tabular-nums text-slate-800">{children}</div>
     </div>
   );
 }
 
-function CalculationRow({ label, value, strong = false, guideline = "" }) {
+function CompactCalculationBox({ value, strong = false }) {
   return (
-    <div
-      className={`grid gap-2 sm:grid-cols-[220px_minmax(0,1fr)] ${
-        strong ? "border-t border-slate-200 pt-1 font-bold text-slate-900" : ""
+    <span
+      className={`inline-flex min-h-6 w-full min-w-0 items-center justify-end rounded border border-slate-300 bg-white px-2 text-right tabular-nums ${
+        strong ? "font-bold text-slate-950" : "font-normal text-slate-800"
       }`}
     >
-      <span className="relative inline-flex items-center gap-1.5">
-        {label}
-        {guideline && <GuidelineHint text={guideline} />}
-      </span>
-      <span className="tabular-nums text-slate-800">{value}</span>
-    </div>
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
+function CompactFormulaRow({ label, quantity, unit, rate, amount, fixedFee = false }) {
+  return (
+    <CompactCalculationRow label={label}>
+      <div className="grid grid-cols-[minmax(3.5rem,9.5rem)_1.4rem_0.75rem_minmax(4.25rem,9.5rem)_0.75rem_minmax(4.75rem,11rem)] items-center gap-2">
+        <CompactCalculationBox value={quantity} />
+        <span>{unit}</span>
+        <span className="text-center font-semibold">{fixedFee ? "=" : "x"}</span>
+        {fixedFee ? (
+          <CompactCalculationBox value={amount} strong />
+        ) : (
+          <>
+            <CompactCalculationBox value={rate} />
+            <span className="text-center font-semibold">=</span>
+            <CompactCalculationBox value={amount} strong />
+          </>
+        )}
+      </div>
+    </CompactCalculationRow>
+  );
+}
+
+function CompactSingleValueRow({ label, value, guideline = "", guidelinePosition = "below", shaded = false, strong = false, labelStrong = false }) {
+  return (
+    <CompactCalculationRow label={label} guideline={guideline} guidelinePosition={guidelinePosition} shaded={shaded} strong={strong} labelStrong={labelStrong}>
+      <div className="max-w-[9.5rem]">
+        <CompactCalculationBox value={value} strong={strong} />
+      </div>
+    </CompactCalculationRow>
   );
 }
 
@@ -2803,7 +2696,12 @@ function formatCalculationNumber(value) {
   return Number.isInteger(number) ? String(number) : String(number);
 }
 
-function GuidelineHint({ text }) {
+function GuidelineHint({ text, position = "below" }) {
+  const tooltipPositionClass =
+    position === "above"
+      ? "bottom-5 left-0 mb-1"
+      : "left-0 top-5";
+
   return (
     <span
       role="button"
@@ -2812,7 +2710,7 @@ function GuidelineHint({ text }) {
       className="group/icon inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-400 bg-white text-[10px] font-black leading-none text-slate-600 outline-none hover:border-[#006d32] hover:text-[#006d32] focus:border-[#006d32] focus:text-[#006d32]"
     >
       i
-      <span className="pointer-events-none absolute left-0 top-5 z-40 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block">
+      <span className={`pointer-events-none absolute z-50 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block ${tooltipPositionClass}`}>
         {text}
       </span>
     </span>

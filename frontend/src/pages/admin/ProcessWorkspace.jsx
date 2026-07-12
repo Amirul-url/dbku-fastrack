@@ -16974,69 +16974,93 @@ function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
   const areaSqm = hasCompleteSize ? fee.areaSqm : 0;
 
   return (
-    <details className="self-start rounded-sm border border-slate-200 bg-slate-50">
-      <summary className="cursor-pointer select-none px-2.5 py-1.5 text-sm font-bold leading-5 text-slate-700 hover:bg-slate-100">
+    <details className="self-start rounded-sm border border-slate-200 bg-white text-slate-900">
+      <summary className="cursor-pointer select-none bg-slate-50 px-2.5 py-1.5 text-xs font-bold leading-4 text-slate-800 hover:bg-slate-100">
         {stepText(language, "calculationBreakdown")}
       </summary>
-      <div className="border-t border-slate-200 bg-white px-2.5 py-1.5">
-        <div className="grid gap-1 text-sm leading-5 text-slate-700">
-          <TechnicalCalculationRow
+      <div className="border-t border-slate-200">
+        <div className="divide-y divide-slate-100 text-xs leading-4 text-slate-800">
+          <TechnicalCompactCalculationRow
             label={stepText(language, "calculationSchedule")}
-            value={stepText(language, `calculationSchedule${fee.scheduleNumber}`)}
-          />
-          <TechnicalCalculationRow
-            label={stepText(language, "calculationSize")}
-            value={
-              width > 0 && height > 0
-                ? `${formatTechnicalDecimal(width)} ft x ${formatTechnicalDecimal(height)} ft`
-                : "-"
-            }
-          />
-          <TechnicalCalculationRow
-            label={stepText(language, "calculationAreaFt")}
-            value={areaSqft ? `${formatTechnicalDecimal(areaSqft)} ft2` : "-"}
-          />
-          <TechnicalCalculationRow
-            label={stepText(language, "calculationAreaSqm")}
-            value={
-              areaSqft
-                ? `${formatTechnicalDecimal(areaSqft)} x ${SQFT_TO_SQM} = ${formatTechnicalDecimal(areaSqm)} Sq. m`
-                : "-"
-            }
-          />
-          <TechnicalCalculationRow
-            label={stepText(language, `calculationFirstArea${fee.scheduleNumber}`)}
-            value={
+          >
+            <span>{stepText(language, `calculationSchedule${fee.scheduleNumber}`)}</span>
+          </TechnicalCompactCalculationRow>
+          <TechnicalCompactCalculationRow label={stepText(language, "calculationSize")}>
+            <div className="grid grid-cols-[minmax(4.5rem,9.5rem)_1.25rem_0.75rem_minmax(4.5rem,9.5rem)_1.25rem] items-center gap-2">
+              <TechnicalCompactCalculationBox value={hasCompleteSize ? formatTechnicalDecimal(width) : "-"} />
+              <span>ft</span>
+              <span className="text-center font-semibold">x</span>
+              <TechnicalCompactCalculationBox value={hasCompleteSize ? formatTechnicalDecimal(height) : "-"} />
+              <span>ft</span>
+            </div>
+          </TechnicalCompactCalculationRow>
+          <TechnicalCompactCalculationRow label={stepText(language, "calculationAreaFt")}>
+            <div className="grid grid-cols-[minmax(4.5rem,9.5rem)_1.5rem] items-center gap-2">
+              <TechnicalCompactCalculationBox value={areaSqft ? formatTechnicalDecimal(areaSqft) : "-"} />
+              <span>ft</span>
+            </div>
+          </TechnicalCompactCalculationRow>
+          <TechnicalCompactCalculationRow label={stepText(language, "calculationAreaSqm")}>
+            <div className="grid gap-2 sm:grid-cols-[minmax(4.5rem,9.5rem)_1.75rem_minmax(7rem,1fr)] sm:items-center">
+              <TechnicalCompactCalculationBox value={areaSqm ? formatTechnicalDecimal(areaSqm) : "-"} />
+              <span>m2</span>
+              <span className="break-words text-slate-500 sm:col-start-3">
+                {areaSqft
+                  ? `${formatTechnicalDecimal(areaSqft)} x ${SQFT_TO_SQM} = ${formatTechnicalDecimal(areaSqm)} m2`
+                  : "-"}
+              </span>
+            </div>
+          </TechnicalCompactCalculationRow>
+
+          <div className="bg-slate-50 px-2.5 py-1.5 text-xs font-bold leading-4 text-slate-900">
+            {stepText(language, "calculationFees")}
+          </div>
+
+          <TechnicalCompactFormulaRow
+            label={`(i) ${stepText(language, `calculationFirstArea${fee.scheduleNumber}`)}`}
+            quantity={formatTechnicalDecimal(fee.firstAreaSqm)}
+            unit="m2"
+            rate={formatTechnicalCurrency(fee.firstAreaRate)}
+            amount={
               fee.usesFixedFirstAreaFee
-                ? `${formatTechnicalDecimal(fee.firstAreaSqm)} Sq. m = ${formatTechnicalCurrency(fee.firstAreaFixedFee)}`
-                : `${formatTechnicalDecimal(fee.firstAreaSqm)} Sq. m x ${formatTechnicalCurrency(fee.firstAreaRate)} = ${formatTechnicalCurrency(fee.firstAreaFee)}`
+                ? formatTechnicalCurrency(fee.firstAreaFixedFee)
+                : formatTechnicalCurrency(fee.firstAreaFee)
             }
+            fixedFee={fee.usesFixedFirstAreaFee}
           />
-          <TechnicalCalculationRow
-            label={stepText(language, "calculationAdditionalArea")}
-            value={`${formatTechnicalDecimal(fee.additionalAreaSqm || 0)} Sq. m x ${formatTechnicalCurrency(fee.additionalAreaRate)} = ${formatTechnicalCurrency(fee.additionalAreaFee)}`}
+          <TechnicalCompactFormulaRow
+            label={`(ii) ${stepText(language, "calculationAdditionalArea")}`}
+            quantity={formatTechnicalDecimal(fee.additionalAreaSqm || 0) || "0"}
+            unit="m2"
+            rate={formatTechnicalCurrency(fee.additionalAreaRate)}
+            amount={formatTechnicalCurrency(fee.additionalAreaFee)}
           />
-          <TechnicalCalculationRow
+          <TechnicalCompactSingleValueRow
             label={stepText(language, "calculationFeeTotal")}
             value={formatTechnicalCurrency(fee.feeTotal)}
+            shaded
+            strong
           />
-          <TechnicalCalculationRow
+          <TechnicalCompactSingleValueRow
             label={stepText(language, "calculationDeposit")}
             value={formatTechnicalCurrency(fee.deposit)}
           />
-          <TechnicalCalculationRow
+          <TechnicalCompactSingleValueRow
             label={stepText(language, "calculationProcessingFee")}
             value={formatTechnicalCurrency(fee.processingFee)}
           />
-          <TechnicalCalculationRow
+          <TechnicalCompactSingleValueRow
             label={stepText(language, "calculationRoundingAdjustment")}
             guideline={stepText(language, "calculationRoundingAdjustmentHelp")}
+            guidelinePosition="above"
             value={formatTechnicalCurrency(fee.roundingAdjustment)}
           />
-          <TechnicalCalculationRow
+          <TechnicalCompactSingleValueRow
             label={stepText(language, "calculationTotalPayable")}
             value={formatTechnicalCurrency(fee.totalPayable)}
+            shaded="green"
             strong
+            labelStrong
           />
         </div>
       </div>
@@ -17044,19 +17068,65 @@ function TechnicalCalculationBreakdown({ row, fee, language = "en" }) {
   );
 }
 
-function TechnicalCalculationRow({ label, value, strong = false, guideline = "" }) {
+function TechnicalCompactCalculationRow({ label, children, shaded = false, strong = false, labelStrong = false, guideline = "", guidelinePosition = "below" }) {
+  const shadedClass =
+    shaded === "green" ? "bg-emerald-50" : shaded ? "bg-slate-50" : "bg-white";
+
   return (
     <div
-      className={`grid gap-2 sm:grid-cols-[210px_minmax(0,1fr)] ${
-        strong ? "border-t border-slate-200 pt-1 font-bold text-slate-900" : ""
+      className={`grid gap-x-3 gap-y-1 px-2.5 py-1.5 sm:grid-cols-[minmax(140px,23%)_minmax(0,1fr)] ${shadedClass} ${
+        strong ? "text-slate-950" : ""
       }`}
     >
-      <span className="relative inline-flex items-center gap-1.5">
+      <span className={`relative inline-flex items-center gap-1.5 text-slate-900 ${labelStrong ? "font-bold" : "font-normal"}`}>
         {label}
-        {guideline && <TechnicalCalculationGuidelineHint text={guideline} />}
+        {guideline && <TechnicalCalculationGuidelineHint text={guideline} position={guidelinePosition} />}
       </span>
-      <span className="tabular-nums text-slate-800">{value}</span>
+      <div className="min-w-0 tabular-nums text-slate-800">{children}</div>
     </div>
+  );
+}
+
+function TechnicalCompactCalculationBox({ value, strong = false }) {
+  return (
+    <span
+      className={`inline-flex min-h-6 w-full min-w-0 items-center justify-end rounded border border-slate-300 bg-white px-2 text-right tabular-nums ${
+        strong ? "font-bold text-slate-950" : "font-normal text-slate-800"
+      }`}
+    >
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
+function TechnicalCompactFormulaRow({ label, quantity, unit, rate, amount, fixedFee = false }) {
+  return (
+    <TechnicalCompactCalculationRow label={label}>
+      <div className="grid grid-cols-[minmax(3.5rem,9.5rem)_1.4rem_0.75rem_minmax(4.25rem,9.5rem)_0.75rem_minmax(4.75rem,11rem)] items-center gap-2">
+        <TechnicalCompactCalculationBox value={quantity} />
+        <span>{unit}</span>
+        <span className="text-center font-semibold">{fixedFee ? "=" : "x"}</span>
+        {fixedFee ? (
+          <TechnicalCompactCalculationBox value={amount} strong />
+        ) : (
+          <>
+            <TechnicalCompactCalculationBox value={rate} />
+            <span className="text-center font-semibold">=</span>
+            <TechnicalCompactCalculationBox value={amount} strong />
+          </>
+        )}
+      </div>
+    </TechnicalCompactCalculationRow>
+  );
+}
+
+function TechnicalCompactSingleValueRow({ label, value, guideline = "", guidelinePosition = "below", shaded = false, strong = false, labelStrong = false }) {
+  return (
+    <TechnicalCompactCalculationRow label={label} guideline={guideline} guidelinePosition={guidelinePosition} shaded={shaded} strong={strong} labelStrong={labelStrong}>
+      <div className="max-w-[9.5rem]">
+        <TechnicalCompactCalculationBox value={value} strong={strong} />
+      </div>
+    </TechnicalCompactCalculationRow>
   );
 }
 
@@ -17064,6 +17134,8 @@ function TechnicalCalculationGuidelineHint({ text, position = "below" }) {
   const tooltipPositionClass =
     position === "right"
       ? "left-full top-1/2 ml-2 -translate-y-1/2"
+      : position === "above"
+        ? "bottom-5 left-0 mb-1"
       : "left-0 top-5";
 
   return (
@@ -17074,7 +17146,7 @@ function TechnicalCalculationGuidelineHint({ text, position = "below" }) {
       className="group/icon inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-slate-400 bg-white text-[10px] font-black leading-none text-slate-600 outline-none hover:border-[#006d32] hover:text-[#006d32] focus:border-[#006d32] focus:text-[#006d32]"
     >
       i
-      <span className={`pointer-events-none absolute z-40 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block ${tooltipPositionClass}`}>
+      <span className={`pointer-events-none absolute z-50 hidden w-[min(18rem,calc(100vw-2rem))] rounded border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-medium leading-4 text-slate-700 shadow-lg group-hover/icon:block group-focus/icon:block ${tooltipPositionClass}`}>
         {text}
       </span>
     </span>
