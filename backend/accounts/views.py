@@ -63,6 +63,7 @@ from .services.sessions import (
 )
 
 User = get_user_model()
+DEFAULT_PUBLIC_REGISTRATION_NATIONALITY = "Malaysia"
 
 
 class IsSuperAdmin(BasePermission):
@@ -173,7 +174,7 @@ def register_view(request):
     user.state = str(data.get("state", "")).strip()
     user.address = build_address_from_parts(data) or str(data.get("address", "")).strip()
     user.gender = str(data.get("gender", "")).strip()
-    user.nationality = str(data.get("nationality", "")).strip()
+    user.nationality = DEFAULT_PUBLIC_REGISTRATION_NATIONALITY
 
     date_of_birth = str(data.get("date_of_birth", "")).strip()
     if date_of_birth:

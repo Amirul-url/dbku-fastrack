@@ -301,6 +301,26 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("email address is already registered", response.data["error"])
 
+    def test_registration_forces_malaysia_nationality(self):
+        response = APIClient().post(
+            "/api/auth/register/",
+            {
+                "username": "020215130141",
+                "mykad_number": "020215130141",
+                "email": "malaysia-default@example.com",
+                "mobile_number": "0175556666",
+                "nationality": "Singapore",
+                "password": "Password123",
+                "password2": "Password123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(username="020215130141")
+        self.assertEqual(user.nationality, "Malaysia")
+        self.assertEqual(response.data["user"]["nationality"], "Malaysia")
+
     def test_login_rejects_unregistered_mykad_before_password_check(self):
         response = APIClient().post(
             "/api/auth/login/",

@@ -4,11 +4,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest } from "../../services/api";
 
+const DEFAULT_NATIONALITY = "Malaysia";
+
 const initialForm = {
   fullName: "",
   gender: "",
   dateOfBirth: "",
-  nationality: "Malaysian",
+  nationality: DEFAULT_NATIONALITY,
   mykadNumber: "",
   mobileNumber: "",
   email: "",
@@ -560,7 +562,7 @@ function RegisterMalaysian() {
           ].filter(Boolean).join(", "),
           gender: form.gender,
           date_of_birth: form.dateOfBirth,
-          nationality: form.nationality.trim(),
+          nationality: DEFAULT_NATIONALITY,
           password: form.password,
           password2: form.confirmPassword,
       };
@@ -701,11 +703,12 @@ function RegisterMalaysian() {
                   <input
                     type="text"
                     required
+                    readOnly
+                    aria-readonly="true"
                     aria-invalid={Boolean(fieldErrors.nationality)}
                     aria-describedby={fieldErrors.nationality ? "nationality-error" : undefined}
                     value={form.nationality}
-                    onChange={(e) => updateField("nationality", e.target.value)}
-                    className={getInputClass("nationality", "w-full")}
+                    className={`${getInputClass("nationality", "w-full")} cursor-not-allowed text-slate-700`}
                   />
                   <FieldError id="nationality-error" message={fieldErrors.nationality} />
                 </div>
