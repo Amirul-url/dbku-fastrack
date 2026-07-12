@@ -465,11 +465,11 @@ function AppShell({ children, role = "admin" }) {
 
   const applicantSidebarCollapsed = role === "applicant" && !sidebarOpen;
   const sidebarWidthClass = role === "applicant"
-    ? (sidebarOpen ? "w-72" : "w-16")
+    ? (sidebarOpen ? "w-80" : "w-16")
     : "w-72";
   const sidebarPositionClass = role === "applicant" || sidebarOpen ? "translate-x-0" : "-translate-x-full";
   const contentPaddingClass = role === "applicant"
-    ? (sidebarOpen ? "pl-72" : "pl-16")
+    ? (sidebarOpen ? "pl-80" : "pl-16")
     : (sidebarOpen ? "pl-72" : "pl-0");
 
   return (
