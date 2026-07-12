@@ -525,10 +525,7 @@ const DOCUMENT_TEXT = {
   },
   "Cadastral Plan": {
     title: { en: "Cadastral Plan", ms: "Pelan Kadaster" },
-    description: {
-      en: "Cadastral plan (preferred scale 1:1000) showing the subject land and the surrounding land.\nDigital copy is available from eLASIS website.",
-      ms: "Pelan kadaster (skala pilihan 1:1000) yang menunjukkan tanah berkaitan dan tanah sekeliling.\nSalinan digital boleh didapati daripada laman web eLASIS.",
-    },
+    description: { en: "-", ms: "-" },
   },
   "Public Liability Insurance (RM1,000,000.00)": {
     title: {
