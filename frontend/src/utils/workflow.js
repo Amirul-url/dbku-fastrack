@@ -164,11 +164,7 @@ export function canIssueLicense(app) {
 }
 
 export function canViewLicense(app) {
-  const status = normalizeStatus(app?.status);
-  return (
-    status === WORKFLOW_STATUS.LICENSE_ISSUED ||
-    status === WORKFLOW_STATUS.LICENSE_REVOKED
-  );
+  return normalizeStatus(app?.status) === WORKFLOW_STATUS.LICENSE_ISSUED;
 }
 
 export function canEditApplicationForm(app) {

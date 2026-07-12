@@ -21,6 +21,14 @@ def normalize_license_id(value):
     return str(value or "").strip().upper()
 
 
+def is_public_license_active(application, license_data):
+    if application.status != "license_issued":
+        return False
+
+    license_status = str(license_data.get("status") or "").strip().lower()
+    return license_status in {"", "active"}
+
+
 def get_public_license_document(license_id):
     normalized_id = normalize_license_id(license_id)
 
@@ -33,6 +41,9 @@ def get_public_license_document(license_id):
         stored_license_id = normalize_license_id(license_data.get("license_id"))
         if stored_license_id != normalized_id:
             continue
+
+        if not is_public_license_active(application, license_data):
+            raise Http404("Advertisement license is not active.")
 
         license_file = license_data.get("license_file") or {}
         if not isinstance(license_file, dict):

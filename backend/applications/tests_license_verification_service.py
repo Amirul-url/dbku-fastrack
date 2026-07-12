@@ -98,6 +98,21 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
         with self.assertRaisesMessage(Http404, "Advertisement license not found."):
             get_public_license_document("UNKNOWN")
 
+    def test_raises_404_when_application_license_is_revoked(self):
+        self.application.status = "license_revoked"
+        self.application.form_data["license"]["status"] = "Revoked"
+        self.application.save(update_fields=["status", "form_data"])
+
+        with self.assertRaisesMessage(Http404, "Advertisement license is not active."):
+            get_public_license_document("ALIS202600001")
+
+    def test_raises_404_when_license_data_is_revoked(self):
+        self.application.form_data["license"]["status"] = "Revoked"
+        self.application.save(update_fields=["form_data"])
+
+        with self.assertRaisesMessage(Http404, "Advertisement license is not active."):
+            get_public_license_document("ALIS202600001")
+
     def test_raises_404_when_matching_license_has_no_document(self):
         self.application.form_data = {
             "license": {
