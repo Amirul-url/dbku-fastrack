@@ -164,6 +164,18 @@ const INTERNAL_WORK_TRACKING_DEPARTMENTS = new Set([
   ...APPROVAL_SUPPORT_DEPARTMENTS,
   ...MPHLG_REVIEW_DEPARTMENTS,
 ]);
+const INTERNAL_PENDING_STATUS_FILTER = "internal_pending";
+const INTERNAL_PENDING_WORKFLOW_STATUSES = new Set([
+  "submitted",
+  "ku_ikl_review",
+  "technical_review",
+  "technical_site_visit",
+  "technical_amendment",
+  "technical_review_completed",
+  "management_review",
+  "mphlg_processing",
+  "mphlg_decision_received",
+]);
 const LICENSE_EXPIRY_YEAR_OPTIONS = [1, 2, 3, 4, 5];
 const PUBLIC_FRONTEND_URL = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
 const TECHNICAL_FEE_OPTIONS = [
@@ -236,12 +248,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const fromCompletedApprovals = searchParams.get("from") === "completed-approvals";
   const forceReadOnlyActionPanel = searchParams.get("readonly") === "1";
   const shouldOpenVerificationReport = searchParams.get("showReport") === "1";
+  const queryStatusFilter = searchParams.get("status") || "";
   const [applications, setApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(queryStatusFilter);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState(null);
@@ -13415,6 +13428,13 @@ function getWorkspaceStatusScope(config, department) {
 
 function getWorkspaceStatusFilterOptions(applications, config, department, t) {
   const optionsByLabel = new Map();
+  if (config?.key === "approval" && INTERNAL_WORK_TRACKING_DEPARTMENTS.has(department)) {
+    optionsByLabel.set(INTERNAL_PENDING_STATUS_FILTER, {
+      value: INTERNAL_PENDING_STATUS_FILTER,
+      label: t("dashboard.underReview", "Under Review"),
+    });
+  }
+
   const filterApplications = [
     ...getWorkspaceStatusFilterFallbackApplications(config, department),
     ...(applications || []),
@@ -13487,12 +13507,39 @@ function getWorkspaceStatusFilterFallbackStatuses(config, department) {
 function matchesWorkspaceStatusFilter(app, value, config, t, department) {
   if (!value) return true;
 
+  if (value === INTERNAL_PENDING_STATUS_FILTER) {
+    return isInternalPendingWorkflowApplication(app, config, department);
+  }
+
   if (String(value).startsWith("display:")) {
     const expectedLabel = decodeURIComponent(String(value).replace(/^display:/, ""));
     return getWorkspaceStatusLabel(app, config, t, department) === expectedLabel;
   }
 
   return getStatusFilterValues(value).includes(normalizeStatus(app.status));
+}
+
+function isInternalPendingWorkflowApplication(app, config, department) {
+  if (config?.key !== "approval" || !INTERNAL_WORK_TRACKING_DEPARTMENTS.has(department)) {
+    return false;
+  }
+
+  const status = normalizeStatus(app?.status);
+  if (!INTERNAL_PENDING_WORKFLOW_STATUSES.has(status)) return false;
+  if (status === "management_review" && hasCompletedMphlgGateway(app)) return false;
+
+  return true;
+}
+
+function hasCompletedMphlgGateway(app) {
+  const gateway = app?.form_data?.mphlg_gateway || app?.mphlg_gateway || {};
+  const status = String(gateway.status || gateway.decision || "").trim().toLowerCase();
+  return Boolean(
+    gateway.decided_at ||
+      gateway.reviewed_at ||
+      gateway.approved_at ||
+      ["approved", "rejected", "returned to applicant", "completed"].includes(status)
+  );
 }
 
 function getStatusFilterValues(value) {

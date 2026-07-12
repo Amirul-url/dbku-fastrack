@@ -208,6 +208,11 @@ function getFilenameFromPath(value = "") {
   }
 }
 
+function cleanStoredFilename(filename = "") {
+  const rawFilename = String(filename || "");
+  return rawFilename.replace(/_([A-Za-z0-9]{7})(\.[^.]+)$/u, "$2");
+}
+
 function normalizeApplicationDocument(applicationId, document = {}) {
   const documentId = document.document_id || document.id;
   const fallbackUrl = normalizeFileUrl(
@@ -220,7 +225,9 @@ function normalizeApplicationDocument(applicationId, document = {}) {
   );
   const filename =
     document.name ||
-    getFilenameFromPath(document.file_url || document.file || document.url || fallbackUrl) ||
+    cleanStoredFilename(
+      getFilenameFromPath(document.file_url || document.file || document.url || fallbackUrl)
+    ) ||
     document.title ||
     "attachment";
   const downloadUrl =
@@ -265,7 +272,22 @@ function resolveStepDocument(application, savedDocument, titleOptions = []) {
   const latestDocument = getLatestApplicationDocument(application, titleOptions);
 
   if (latestDocument) {
-    return normalizeApplicationDocument(application?.id, latestDocument);
+    const normalizedDocument = normalizeApplicationDocument(application?.id, latestDocument);
+    const savedDocumentId = savedDocument?.document_id || savedDocument?.id;
+    const latestDocumentId = normalizedDocument.document_id || normalizedDocument.id;
+
+    if (
+      savedDocument?.name &&
+      (!savedDocumentId || String(savedDocumentId) === String(latestDocumentId))
+    ) {
+      return {
+        ...normalizedDocument,
+        name: savedDocument.name,
+        type: savedDocument.type || normalizedDocument.type,
+      };
+    }
+
+    return normalizedDocument;
   }
 
   return savedDocument

@@ -435,7 +435,7 @@ function AdminHomeDashboard({ user }) {
           onItemClick={(key) =>
             navigate(
               key === "under_review"
-                ? "/dashboard/admin?view=personal"
+                ? "/dashboard/admin?view=approval&status=internal_pending"
                 : `/dashboard/admin?view=stat&stat=${key}`
             )
           }
@@ -792,13 +792,8 @@ function AdminOverviewStatTable({
 }
 
 function buildAdminOverviewStatusSummary(applications, t, userDepartment = "") {
-  const assignedUnit = getAssignedUnit(userDepartment);
-  const submitted = applications.filter((app) => normalizeStatus(app.status) === "submitted").length;
-  const underReview = assignedUnit
-    ? applications.filter((app) =>
-        isUnitActionableApplication(app, assignedUnit, assignedUnit.department)
-      ).length
-    : applications.filter((app) => isAdminOverviewUnderReview(app)).length;
+  const submitted = applications.filter((app) => isAdminOverviewSubmitted(app)).length;
+  const underReview = applications.filter((app) => isAdminOverviewUnderReview(app)).length;
   const approved = applications.filter((app) => isAdminOverviewApproved(app)).length;
   const rejected = applications.filter((app) => isAdminOverviewRejected(app)).length;
   const surrenderRevoke = applications.filter((app) => isAdminOverviewSurrenderRevoke(app)).length;
@@ -871,16 +866,13 @@ function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
   const validKey = getValidAdminOverviewStatKey(key);
   if (!validKey) return [];
 
-  const assignedUnit = getAssignedUnit(userDepartment);
   const filteredApplications = applications.filter((app) => {
     if (validKey === "submitted") {
-      return normalizeStatus(app.status) === "submitted";
+      return isAdminOverviewSubmitted(app);
     }
 
     if (validKey === "under_review") {
-      return assignedUnit
-        ? isUnitActionableApplication(app, assignedUnit, assignedUnit.department)
-        : isAdminOverviewUnderReview(app);
+      return isAdminOverviewUnderReview(app);
     }
 
     if (validKey === "approved") {
@@ -952,10 +944,20 @@ function isAdminOverviewUnderReview(app) {
 
   return Boolean(status) &&
     status !== "draft" &&
-    status !== "submitted" &&
     !isAdminOverviewApproved(app) &&
     !isAdminOverviewRejected(app) &&
     !isAdminOverviewSurrenderRevoke(app);
+}
+
+function isAdminOverviewSubmitted(app) {
+  const status = normalizeStatus(app?.status);
+  if (!status || status === "draft") return false;
+
+  return (
+    status === "submitted" ||
+    hasApplicationActivity(app, ["application submitted", "application resubmitted"]) ||
+    Boolean(app?.submitted_at || app?.form_data?.submitted_at)
+  );
 }
 
 function isAdminOverviewApproved(app) {
@@ -2598,6 +2600,17 @@ function getApplicationActivityLog(application) {
     : [];
 
   return activityLog;
+}
+
+function hasApplicationActivity(application, titles = []) {
+  const normalizedTitles = new Set(
+    titles.map((title) => String(title || "").trim().toLowerCase()).filter(Boolean)
+  );
+  if (normalizedTitles.size === 0) return false;
+
+  return getApplicationActivityLog(application).some((activity) =>
+    normalizedTitles.has(String(activity?.title || "").trim().toLowerCase())
+  );
 }
 
 function buildInternalResubmissionInsights(applications, t, language = "en", filters = {}) {
