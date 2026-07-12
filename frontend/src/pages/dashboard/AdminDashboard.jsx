@@ -432,7 +432,13 @@ function AdminHomeDashboard({ user }) {
         <AdminOverviewStatusCards
           items={statusSummary}
           loading={loading}
-          onItemClick={(key) => navigate(`/dashboard/admin?view=stat&stat=${key}`)}
+          onItemClick={(key) =>
+            navigate(
+              key === "under_review"
+                ? "/dashboard/admin?view=personal"
+                : `/dashboard/admin?view=stat&stat=${key}`
+            )
+          }
         />
       </div>
 
