@@ -398,8 +398,8 @@ function AdminHomeDashboard({ user }) {
     [activities, activityDateFilter]
   );
   const statusSummary = useMemo(
-    () => buildAdminOverviewStatusSummary(applications, t),
-    [applications, t]
+    () => buildAdminOverviewStatusSummary(applications, t, userDepartment),
+    [applications, t, userDepartment]
   );
   const totalActivityPages = Math.max(1, Math.ceil(filteredActivities.length / RECENT_ACTIVITY_PAGE_SIZE));
   const currentActivityPage = Math.min(activityPage, totalActivityPages - 1);
@@ -508,9 +508,14 @@ function AdminOverviewStatusCard({ label, value, icon, tone }) {
   );
 }
 
-function buildAdminOverviewStatusSummary(applications, t) {
+function buildAdminOverviewStatusSummary(applications, t, userDepartment = "") {
+  const assignedUnit = getAssignedUnit(userDepartment);
   const submitted = applications.filter((app) => normalizeStatus(app.status) === "submitted").length;
-  const underReview = applications.filter((app) => isAdminOverviewUnderReview(app)).length;
+  const underReview = assignedUnit
+    ? applications.filter((app) =>
+        isUnitActionableApplication(app, assignedUnit, assignedUnit.department)
+      ).length
+    : applications.filter((app) => isAdminOverviewUnderReview(app)).length;
   const approved = applications.filter((app) => isAdminOverviewApproved(app)).length;
   const rejected = applications.filter((app) => isAdminOverviewRejected(app)).length;
   const surrenderRevoke = applications.filter((app) => isAdminOverviewSurrenderRevoke(app)).length;
