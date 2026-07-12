@@ -27,6 +27,16 @@ const SUPPORTING_DOCUMENT_MAX_FILE_SIZE = 15 * 1024 * 1024;
 
 const requiredDocumentTemplates = [
   {
+    no: "1",
+    title: "Sales and Purchase Agreement/Tenancy Agreement",
+    aliases: ["Sales and Purchase Agreement", "Tenancy Agreement"],
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    no: "2",
     title: "Extract of Title",
     description: "-",
     format: "PDF",
@@ -34,13 +44,24 @@ const requiredDocumentTemplates = [
     attachment: null,
   },
   {
-    title: "Locality Plan",
+    no: "3",
+    title: "Trade Licence (LHDN/SSM)",
     description: "-",
     format: "PDF",
     required: true,
     attachment: null,
   },
   {
+    no: "5",
+    title: "Cadastral Plan",
+    aliases: ["Site Plan"],
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
+  {
+    no: "6",
     title: "Technical Drawing / Document:",
     section: true,
   },
@@ -72,10 +93,18 @@ const requiredDocumentTemplates = [
     required: true,
     attachment: null,
   },
+  {
+    no: "7",
+    title: "Public Liability Insurance (RM1,000,000.00)",
+    description: "-",
+    format: "PDF",
+    required: true,
+    attachment: null,
+  },
 ];
 
 function getDefaultDocuments() {
-  return requiredDocumentTemplates;
+  return requiredDocumentTemplates.map((document) => ({ ...document }));
 }
 
 function normalizeDocuments(savedDocuments, defaults) {
@@ -88,14 +117,14 @@ function normalizeDocuments(savedDocuments, defaults) {
       return defaultItem;
     }
 
-    const savedByTitle = savedDocuments.find(
-      (item) => item?.title === defaultItem.title
+    const matchTitles = [defaultItem.title, ...(defaultItem.aliases || [])];
+    const savedByTitle = savedDocuments.find((item) =>
+      matchTitles.includes(item?.title)
     );
-    const savedItem = savedByTitle || savedDocuments[index] || {};
 
     return {
       ...defaultItem,
-      attachment: savedItem.attachment || defaultItem.attachment || null,
+      attachment: savedByTitle?.attachment || defaultItem.attachment || null,
     };
   });
 }
@@ -574,7 +603,7 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                   >
                     <TableCell center>
                       <span className="text-base font-bold text-[#18b36b]">
-                        {index + 1}
+                        {row.no || index + 1}
                       </span>
                     </TableCell>
                     <TableCell colSpan={5}>
@@ -595,7 +624,7 @@ function SupportingTable({ rows, readOnly = false, language = "en", onFileChange
                 >
                   <TableCell center>
                     <span className="text-base font-bold text-[#18b36b]">
-                      {letteredTitle.letter ? "" : index + 1}
+                      {letteredTitle.letter ? "" : row.no || index + 1}
                     </span>
                   </TableCell>
 

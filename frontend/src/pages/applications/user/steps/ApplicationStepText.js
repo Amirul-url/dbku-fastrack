@@ -456,10 +456,24 @@ const TEXT = {
 };
 
 const DOCUMENT_TEXT = {
+  "Sales and Purchase Agreement/Tenancy Agreement": {
+    title: {
+      en: "Sales and Purchase Agreement/Tenancy Agreement",
+      ms: "Perjanjian Jual Beli / Perjanjian Sewaan",
+    },
+    description: { en: "-", ms: "-" },
+  },
   "Extract of Title": {
     title: {
       en: "Extract of Title",
       ms: "Salinan dokumen status hak milik tanah",
+    },
+    description: { en: "-", ms: "-" },
+  },
+  "Trade Licence (LHDN/SSM)": {
+    title: {
+      en: "Trade Licence (LHDN/SSM)",
+      ms: "Lesen Perdagangan (LHDN/SSM)",
     },
     description: { en: "-", ms: "-" },
   },
@@ -515,6 +529,13 @@ const DOCUMENT_TEXT = {
       en: "Cadastral plan (preferred scale 1:1000) showing the subject land and the surrounding land.\nDigital copy is available from eLASIS website.",
       ms: "Pelan kadaster (skala pilihan 1:1000) yang menunjukkan tanah berkaitan dan tanah sekeliling.\nSalinan digital boleh didapati daripada laman web eLASIS.",
     },
+  },
+  "Public Liability Insurance (RM1,000,000.00)": {
+    title: {
+      en: "Public Liability Insurance (RM1,000,000.00)",
+      ms: "Insurans Liabiliti Awam (RM1,000,000.00)",
+    },
+    description: { en: "-", ms: "-" },
   },
   "Site Photographs": {
     title: { en: "Site Photographs", ms: "Gambar Tapak" },
