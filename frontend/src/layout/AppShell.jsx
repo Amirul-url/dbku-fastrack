@@ -463,34 +463,78 @@ function AppShell({ children, role = "admin" }) {
     }
   }
 
+  const applicantSidebarCollapsed = role === "applicant" && !sidebarOpen;
+  const sidebarWidthClass = role === "applicant"
+    ? (sidebarOpen ? "w-72" : "w-16")
+    : "w-72";
+  const sidebarPositionClass = role === "applicant" || sidebarOpen ? "translate-x-0" : "-translate-x-full";
+  const contentPaddingClass = role === "applicant"
+    ? (sidebarOpen ? "pl-72" : "pl-16")
+    : (sidebarOpen ? "pl-72" : "pl-0");
+
   return (
     <div className="min-h-screen min-w-[1280px] bg-slate-50 text-slate-950">
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-200 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex ${sidebarWidthClass} flex-col border-r border-slate-200 bg-white transition-[transform,width] duration-200 ${sidebarPositionClass}`}
       >
-        <div className="flex h-16 items-center justify-between gap-2.5 border-b border-slate-200 px-4">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <img src={logo} alt="ALiS Logo" className="h-8 w-auto object-contain" />
-            <div className="min-w-0">
-              <p className="text-base font-semibold text-slate-950">ALiS</p>
-              <p className="whitespace-nowrap text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
-            </div>
-          </div>
-          {role === "applicant" && (
+        {applicantSidebarCollapsed ? (
+          <div className="flex h-16 items-center justify-center border-b border-slate-200">
             <button
               type="button"
-              onClick={() => setSidebarOpen((current) => !current)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              onClick={() => setSidebarOpen(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
               aria-label={t("common.toggleSidebar", "Toggle sidebar")}
               title={t("common.toggleSidebar", "Toggle sidebar")}
             >
-              <Icon name="menu" className="text-[21px]" />
+              <Icon name="menu" className="text-[22px]" />
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="grid h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5 border-b border-slate-200 px-4">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <img src={logo} alt="ALiS Logo" className="h-8 w-auto shrink-0 object-contain" />
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-slate-950">ALiS</p>
+                <p className="truncate text-xs text-slate-500">{t("app.advertisementLicenseApplication")}</p>
+              </div>
+            </div>
+            {role === "applicant" && (
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                aria-label={t("common.toggleSidebar", "Toggle sidebar")}
+                title={t("common.toggleSidebar", "Toggle sidebar")}
+              >
+                <Icon name="menu" className="text-[21px]" />
+              </button>
+            )}
+          </div>
+        )}
 
+        {applicantSidebarCollapsed ? (
+          <nav className="flex flex-1 flex-col items-center gap-3 py-4">
+            {nav
+              .filter((item) => item.type !== "section")
+              .map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(true)}
+                  className={`relative flex h-10 w-10 items-center justify-center rounded-md ${
+                    location.pathname === getPathname(item.path) || location.pathname.startsWith("/applications")
+                      ? "bg-emerald-50 text-emerald-800"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                  }`}
+                  aria-label={t(item.labelKey, item.fallback)}
+                  title={t(item.labelKey, item.fallback)}
+                >
+                  <Icon name={item.icon} className="text-[23px]" />
+                  <span className="sr-only">{t(item.labelKey, item.fallback)}</span>
+                </Link>
+              ))}
+          </nav>
+        ) : (
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3.5 py-4">
           {nav.map((item) => {
             if (item.type === "section") {
@@ -732,24 +776,12 @@ function AppShell({ children, role = "admin" }) {
             );
           })}
         </nav>
+        )}
       </aside>
 
-      <div className={`transition-[padding] duration-200 ${sidebarOpen ? "pl-72" : "pl-0"}`}>
-        {role === "applicant" && !sidebarOpen && (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="fixed left-4 top-3 z-50 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-            aria-label={t("common.toggleSidebar", "Toggle sidebar")}
-            title={t("common.toggleSidebar", "Toggle sidebar")}
-          >
-            <Icon name="menu" className="text-[22px]" />
-          </button>
-        )}
+      <div className={`transition-[padding] duration-200 ${contentPaddingClass}`}>
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className={`flex h-16 items-center justify-between gap-4 px-7 ${
-            role === "applicant" && !sidebarOpen ? "pl-20" : ""
-          }`}>
+          <div className="flex h-16 items-center justify-between gap-4 px-7">
             <div className="flex min-w-0 items-center gap-3">
               {role !== "applicant" && (
                 <button
