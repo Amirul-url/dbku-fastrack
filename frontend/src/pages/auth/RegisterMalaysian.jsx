@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "../../layout/TopBar";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
 import { apiRequest } from "../../services/api";
 
 const DEFAULT_NATIONALITY = "Malaysia";
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "";
+let recaptchaScriptPromise = null;
 
 const initialForm = {
   fullName: "",
@@ -21,7 +23,6 @@ const initialForm = {
   state: "",
   password: "",
   confirmPassword: "",
-  captchaAnswer: "",
 };
 
 const SHOW_REGISTER_PASSWORD_STRENGTH = false;
@@ -201,7 +202,7 @@ const REGISTER_FIELD_ERROR_ORDER = [
   "state",
   "password",
   "confirmPassword",
-  "captchaAnswer",
+  "recaptcha",
 ];
 
 function RequiredLabel({ children }) {
@@ -311,6 +312,94 @@ function PasswordStrengthMeter({ password, t }) {
   );
 }
 
+function loadRecaptchaScript() {
+  if (typeof window === "undefined") return Promise.resolve();
+
+  if (window.grecaptcha?.render) {
+    return Promise.resolve();
+  }
+
+  if (recaptchaScriptPromise) {
+    return recaptchaScriptPromise;
+  }
+
+  recaptchaScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector("script[data-recaptcha-script]");
+
+    if (existingScript) {
+      existingScript.addEventListener("load", resolve, { once: true });
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://www.google.com/recaptcha/api.js?render=explicit";
+    script.async = true;
+    script.defer = true;
+    script.dataset.recaptchaScript = "true";
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+
+  return recaptchaScriptPromise;
+}
+
+function RecaptchaCheckbox({ siteKey, resetKey, onVerify, onExpire, t }) {
+  const containerRef = useRef(null);
+  const widgetIdRef = useRef(null);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+    const container = containerRef.current;
+
+    if (!siteKey) {
+      return undefined;
+    }
+
+    loadRecaptchaScript()
+      .then(() => {
+        if (!isMounted || !container || !window.grecaptcha?.render) return;
+
+        container.innerHTML = "";
+        widgetIdRef.current = window.grecaptcha.render(container, {
+          sitekey: siteKey,
+          callback: onVerify,
+          "expired-callback": onExpire,
+          "error-callback": onExpire,
+        });
+      })
+      .catch(() => {
+        if (isMounted) setLoadError(t("auth.recaptchaLoadFailed"));
+      });
+
+    return () => {
+      isMounted = false;
+      if (container) {
+        container.innerHTML = "";
+      }
+      widgetIdRef.current = null;
+    };
+  }, [onExpire, onVerify, siteKey, t]);
+
+  useEffect(() => {
+    if (widgetIdRef.current === null || !window.grecaptcha?.reset) return;
+    window.grecaptcha.reset(widgetIdRef.current);
+  }, [resetKey]);
+
+  return (
+    <div>
+      <div ref={containerRef} className="min-h-[78px]" />
+      {(!siteKey || loadError) && (
+        <p className="mt-1.5 text-xs font-semibold text-red-600">
+          {!siteKey ? t("auth.recaptchaConfigMissing") : loadError}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function RegisterMalaysian() {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -319,8 +408,8 @@ function RegisterMalaysian() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
-  const [captcha, setCaptcha] = useState({ question: "", token: "" });
+  const [recaptchaToken, setRecaptchaToken] = useState("");
+  const [recaptchaResetKey, setRecaptchaResetKey] = useState(0);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
@@ -383,7 +472,7 @@ function RegisterMalaysian() {
     } else if (form.password !== form.confirmPassword) {
       errors.confirmPassword = t("auth.validation.passwordMismatch");
     }
-    if (!form.captchaAnswer.trim()) errors.captchaAnswer = t("auth.validation.captcha");
+    if (!recaptchaToken) errors.recaptcha = t("auth.validation.recaptcha");
     return errors;
   };
 
@@ -521,10 +610,10 @@ function RegisterMalaysian() {
       };
     }
 
-    if (normalized.includes("security check") || normalized.includes("captcha")) {
+    if (normalized.includes("recaptcha") || normalized.includes("captcha")) {
       return {
         message: t("auth.validation.summary"),
-        fieldErrors: { captchaAnswer: t("auth.validation.captchaIncorrect") },
+        fieldErrors: { recaptcha: t("auth.validation.recaptchaIncorrect") },
       };
     }
 
@@ -534,40 +623,20 @@ function RegisterMalaysian() {
     };
   };
 
-  const loadCaptcha = useCallback(async ({ clearFieldError = true } = {}) => {
-    setCaptchaLoading(true);
-    try {
-      const data = await apiRequest("/auth/register/captcha/");
-      setCaptcha({
-        question: data.question || "",
-        token: data.token || "",
-      });
-      setForm((prev) => ({
-        ...prev,
-        captchaAnswer: "",
-      }));
-      if (clearFieldError) {
-        setFieldErrors((prev) => {
-          if (!prev.captchaAnswer) return prev;
-          const next = { ...prev };
-          delete next.captchaAnswer;
-          return next;
-        });
-      }
-    } catch (err) {
-      setError(err.message || t("auth.captchaLoadFailed"));
-    } finally {
-      setCaptchaLoading(false);
-    }
-  }, [t]);
+  const handleRecaptchaVerify = useCallback((token) => {
+    setRecaptchaToken(token || "");
+    setFieldErrors((prev) => {
+      if (!prev.recaptcha) return prev;
+      const next = { ...prev };
+      delete next.recaptcha;
+      return next;
+    });
+  }, []);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      loadCaptcha();
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [loadCaptcha]);
+  const resetRecaptcha = useCallback(() => {
+    setRecaptchaToken("");
+    setRecaptchaResetKey((prev) => prev + 1);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -612,8 +681,7 @@ function RegisterMalaysian() {
           nationality: DEFAULT_NATIONALITY,
           password: form.password,
           password2: form.confirmPassword,
-          captcha_token: captcha.token,
-          captcha_answer: form.captchaAnswer.trim(),
+          recaptcha_response: recaptchaToken,
       };
 
       await apiRequest("/auth/register/", {
@@ -629,8 +697,8 @@ function RegisterMalaysian() {
       const serverError = getRegistrationServerError(err.message);
       setError(serverError.message);
       setFieldErrors(serverError.fieldErrors);
-      if (serverError.fieldErrors.captchaAnswer) {
-        loadCaptcha({ clearFieldError: false });
+      if (serverError.fieldErrors.recaptcha) {
+        resetRecaptcha();
       }
       scrollToFirstError(serverError.fieldErrors);
     } finally {
@@ -1037,46 +1105,18 @@ function RegisterMalaysian() {
                   </div>
                 )}
 
-                <div className="col-span-4 border-t border-slate-100 pt-4" data-register-field="captchaAnswer">
+                <div className="col-span-4 border-t border-slate-100 pt-4" data-register-field="recaptcha">
                   <RequiredLabel>
                     {t("auth.captcha")}
                   </RequiredLabel>
-                  <div className="grid grid-cols-4 gap-4">
-                    <div className="col-span-2">
-                      <div className="flex min-h-[46px] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                        <span className="text-sm font-semibold text-slate-600">
-                          {captchaLoading ? t("auth.captchaLoading") : t("auth.captchaQuestion")}
-                        </span>
-                        <span className="text-lg font-bold text-slate-900">
-                          {captcha.question || "-"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="col-span-2 flex gap-3">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        required
-                        aria-invalid={Boolean(fieldErrors.captchaAnswer)}
-                        aria-describedby={fieldErrors.captchaAnswer ? "captchaAnswer-error" : undefined}
-                        placeholder={t("auth.captchaPlaceholder")}
-                        value={form.captchaAnswer}
-                        onChange={(e) => updateField("captchaAnswer", e.target.value)}
-                        className={getInputClass("captchaAnswer", "min-w-0 flex-1")}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => loadCaptcha()}
-                        disabled={captchaLoading}
-                        className="material-symbols-outlined inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-[#006d32] hover:text-[#006d32] disabled:opacity-60"
-                        aria-label={t("auth.refreshCaptcha")}
-                        title={t("auth.refreshCaptcha")}
-                      >
-                        refresh
-                      </button>
-                    </div>
-                  </div>
-                  <FieldError id="captchaAnswer-error" message={fieldErrors.captchaAnswer} />
+                  <RecaptchaCheckbox
+                    siteKey={RECAPTCHA_SITE_KEY}
+                    resetKey={recaptchaResetKey}
+                    onVerify={handleRecaptchaVerify}
+                    onExpire={resetRecaptcha}
+                    t={t}
+                  />
+                  <FieldError id="recaptcha-error" message={fieldErrors.recaptcha} />
                 </div>
               </div>
             </div>

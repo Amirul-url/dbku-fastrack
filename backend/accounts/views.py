@@ -1,7 +1,9 @@
-import random
+import json
 import re
-import secrets
+import urllib.parse
+import urllib.request
 
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 
 from django.core.cache import cache
@@ -66,83 +68,46 @@ from .services.sessions import (
 
 User = get_user_model()
 DEFAULT_PUBLIC_REGISTRATION_NATIONALITY = "Malaysia"
-REGISTRATION_CAPTCHA_PURPOSE = "registration_captcha"
-REGISTRATION_CAPTCHA_TTL_SECONDS = 300
-REGISTRATION_CAPTCHA_MAX_ATTEMPTS = 5
+RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 
 
-def registration_captcha_cache_key(nonce):
-    return f"{REGISTRATION_CAPTCHA_PURPOSE}:{nonce}"
+def verify_recaptcha_response(response_token, remote_ip=""):
+    if not getattr(settings, "RECAPTCHA_REQUIRED", True):
+        return ""
 
+    response_token = str(response_token or "").strip()
+    if not response_token:
+        return "Please complete the reCAPTCHA check."
 
-def build_registration_captcha():
-    rng = random.SystemRandom()
-    left = rng.randint(2, 9)
-    right = rng.randint(1, 9)
-    answer = left + right
-    nonce = secrets.token_urlsafe(18)
-    token = signing.dumps(
-        {
-            "nonce": nonce,
-            "purpose": REGISTRATION_CAPTCHA_PURPOSE,
-        },
-        salt=REGISTRATION_CAPTCHA_PURPOSE,
-    )
-    cache.set(
-        registration_captcha_cache_key(nonce),
-        {
-            "answer": str(answer),
-            "attempts": 0,
-        },
-        REGISTRATION_CAPTCHA_TTL_SECONDS,
-    )
+    secret_key = getattr(settings, "RECAPTCHA_SECRET_KEY", "")
+    if not secret_key:
+        return "reCAPTCHA is not configured. Please contact support."
 
-    return {
-        "question": f"{left} + {right}",
-        "token": token,
-        "expires_in": REGISTRATION_CAPTCHA_TTL_SECONDS,
+    payload = {
+        "secret": secret_key,
+        "response": response_token,
     }
+    if remote_ip:
+        payload["remoteip"] = remote_ip
 
-
-def validate_registration_captcha(token, answer):
-    token = str(token or "").strip()
-    answer = str(answer or "").strip()
-
-    if not token or not answer:
-        return "Please complete the security check."
+    request = urllib.request.Request(
+        RECAPTCHA_VERIFY_URL,
+        data=urllib.parse.urlencode(payload).encode("utf-8"),
+        method="POST",
+    )
 
     try:
-        payload = signing.loads(
-            token,
-            salt=REGISTRATION_CAPTCHA_PURPOSE,
-            max_age=REGISTRATION_CAPTCHA_TTL_SECONDS,
-        )
-    except signing.SignatureExpired:
-        return "The security check has expired. Please refresh it and try again."
-    except signing.BadSignature:
-        return "The security check is invalid. Please refresh it and try again."
+        with urllib.request.urlopen(
+            request,
+            timeout=getattr(settings, "RECAPTCHA_VERIFY_TIMEOUT_SECONDS", 5),
+        ) as response:
+            result = json.loads(response.read().decode("utf-8") or "{}")
+    except Exception:
+        return "We could not verify the reCAPTCHA check. Please try again."
 
-    if payload.get("purpose") != REGISTRATION_CAPTCHA_PURPOSE:
-        return "The security check is invalid. Please refresh it and try again."
+    if not result.get("success"):
+        return "The reCAPTCHA check failed. Please try again."
 
-    nonce = str(payload.get("nonce", "")).strip()
-    cache_key = registration_captcha_cache_key(nonce)
-    captcha = cache.get(cache_key)
-
-    if not captcha:
-        return "The security check has expired. Please refresh it and try again."
-
-    attempts = int(captcha.get("attempts", 0))
-    if attempts >= REGISTRATION_CAPTCHA_MAX_ATTEMPTS:
-        cache.delete(cache_key)
-        return "Too many incorrect security check attempts. Please refresh it and try again."
-
-    if answer != str(captcha.get("answer", "")):
-        captcha["attempts"] = attempts + 1
-        cache.set(cache_key, captcha, REGISTRATION_CAPTCHA_TTL_SECONDS)
-        return "The security check answer is incorrect."
-
-    cache.delete(cache_key)
     return ""
 
 
@@ -220,6 +185,16 @@ def register_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    recaptcha_error = verify_recaptcha_response(
+        data.get("recaptcha_response", ""),
+        request.META.get("REMOTE_ADDR", ""),
+    )
+    if recaptcha_error:
+        return Response(
+            {"error": recaptcha_error, "field": "recaptcha"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     if find_user_by_mykad_identifier(mykad_number or username):
         return Response(
             {"error": "This MyKad Number is already registered. Please login or use another MyKad Number."},
@@ -235,16 +210,6 @@ def register_view(request):
     if find_user_by_normalized_email(email):
         return Response(
             {"error": "This email address is already registered. Please login or use another email address."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    captcha_error = validate_registration_captcha(
-        data.get("captcha_token", ""),
-        data.get("captcha_answer", ""),
-    )
-    if captcha_error:
-        return Response(
-            {"error": captcha_error, "field": "captchaAnswer"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -278,14 +243,6 @@ def register_view(request):
     notify_applicant_registration_success(user)
 
     return Response(build_auth_response(user), status=status.HTTP_201_CREATED)
-
-
-@api_view(["GET"])
-@authentication_classes([])
-@permission_classes([AllowAny])
-@throttle_classes([RegistrationRateThrottle])
-def register_captcha_view(request):
-    return Response(build_registration_captcha(), status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

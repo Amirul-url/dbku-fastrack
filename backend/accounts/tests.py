@@ -10,11 +10,6 @@ from .models import LoginSession, User
 from .views import apply_managed_account_data, build_user_payload, get_password_reset_user
 
 
-def solve_captcha_question(question):
-    left, right = str(question).split("+", 1)
-    return str(int(left.strip()) + int(right.strip()))
-
-
 class PasswordHashingTests(TestCase):
     def test_new_passwords_are_stored_as_bcrypt_hashes(self):
         user = User.objects.create_user(username="bcryptuser", password="Password123")
@@ -235,7 +230,8 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(stale_session.logout_at, stale_login_at + timedelta(hours=1))
         self.assertEqual(stale_session.duration_seconds, 3600)
 
-    def test_registration_rejects_existing_mykad_number(self):
+    @patch("accounts.views.verify_recaptcha_response", return_value="")
+    def test_registration_rejects_existing_mykad_number(self, _verify_recaptcha):
         User.objects.create_user(
             username="020215-13-0135",
             password="Password123",
@@ -251,6 +247,7 @@ class ManagedAccountImportTests(TestCase):
                 "mobile_number": "0171112222",
                 "password": "Password123",
                 "password2": "Password123",
+                "recaptcha_response": "valid-token",
             },
             format="json",
         )
@@ -258,7 +255,8 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("MyKad Number is already registered", response.data["error"])
 
-    def test_registration_rejects_existing_mobile_number(self):
+    @patch("accounts.views.verify_recaptcha_response", return_value="")
+    def test_registration_rejects_existing_mobile_number(self, _verify_recaptcha):
         User.objects.create_user(
             username="020215130136",
             password="Password123",
@@ -275,6 +273,7 @@ class ManagedAccountImportTests(TestCase):
                 "mobile_number": "0175151829",
                 "password": "Password123",
                 "password2": "Password123",
+                "recaptcha_response": "valid-token",
             },
             format="json",
         )
@@ -282,7 +281,8 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("mobile number is already registered", response.data["error"])
 
-    def test_registration_rejects_existing_email_case_insensitive(self):
+    @patch("accounts.views.verify_recaptcha_response", return_value="")
+    def test_registration_rejects_existing_email_case_insensitive(self, _verify_recaptcha):
         User.objects.create_user(
             username="020215130138",
             password="Password123",
@@ -299,6 +299,7 @@ class ManagedAccountImportTests(TestCase):
                 "mobile_number": "0173334444",
                 "password": "Password123",
                 "password2": "Password123",
+                "recaptcha_response": "valid-token",
             },
             format="json",
         )
@@ -306,15 +307,7 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("email address is already registered", response.data["error"])
 
-    def test_registration_captcha_endpoint_returns_challenge(self):
-        response = APIClient().get("/api/auth/register/captcha/")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertRegex(response.data["question"], r"^\d+ \+ \d+$")
-        self.assertTrue(response.data["token"])
-        self.assertEqual(response.data["expires_in"], 300)
-
-    def test_registration_rejects_missing_captcha(self):
+    def test_registration_rejects_missing_recaptcha(self):
         response = APIClient().post(
             "/api/auth/register/",
             {
@@ -329,12 +322,11 @@ class ManagedAccountImportTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["field"], "captchaAnswer")
-        self.assertIn("security check", response.data["error"])
+        self.assertEqual(response.data["field"], "recaptcha")
+        self.assertIn("reCAPTCHA", response.data["error"])
 
-    def test_registration_forces_malaysia_nationality(self):
-        client = APIClient()
-        captcha_response = client.get("/api/auth/register/captcha/")
+    @patch("accounts.views.verify_recaptcha_response", return_value="")
+    def test_registration_forces_malaysia_nationality(self, _verify_recaptcha):
 
         response = APIClient().post(
             "/api/auth/register/",
@@ -346,8 +338,7 @@ class ManagedAccountImportTests(TestCase):
                 "nationality": "Singapore",
                 "password": "Password123",
                 "password2": "Password123",
-                "captcha_token": captcha_response.data["token"],
-                "captcha_answer": solve_captcha_question(captcha_response.data["question"]),
+                "recaptcha_response": "valid-token",
             },
             format="json",
         )

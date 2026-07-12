@@ -222,6 +222,10 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")
 
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@dbku.gov.my")
 
+RECAPTCHA_SECRET_KEY = os.getenv("RECAPTCHA_SECRET_KEY", "").strip()
+RECAPTCHA_REQUIRED = env_bool("RECAPTCHA_REQUIRED", "True")
+RECAPTCHA_VERIFY_TIMEOUT_SECONDS = int(os.getenv("RECAPTCHA_VERIFY_TIMEOUT_SECONDS", "5"))
+
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "58.26.203.101")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "25"))
