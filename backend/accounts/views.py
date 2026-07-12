@@ -1,4 +1,6 @@
+import random
 import re
+import secrets
 
 from django.contrib.auth import authenticate, get_user_model
 
@@ -64,6 +66,84 @@ from .services.sessions import (
 
 User = get_user_model()
 DEFAULT_PUBLIC_REGISTRATION_NATIONALITY = "Malaysia"
+REGISTRATION_CAPTCHA_PURPOSE = "registration_captcha"
+REGISTRATION_CAPTCHA_TTL_SECONDS = 300
+REGISTRATION_CAPTCHA_MAX_ATTEMPTS = 5
+
+
+def registration_captcha_cache_key(nonce):
+    return f"{REGISTRATION_CAPTCHA_PURPOSE}:{nonce}"
+
+
+def build_registration_captcha():
+    rng = random.SystemRandom()
+    left = rng.randint(2, 9)
+    right = rng.randint(1, 9)
+    answer = left + right
+    nonce = secrets.token_urlsafe(18)
+    token = signing.dumps(
+        {
+            "nonce": nonce,
+            "purpose": REGISTRATION_CAPTCHA_PURPOSE,
+        },
+        salt=REGISTRATION_CAPTCHA_PURPOSE,
+    )
+    cache.set(
+        registration_captcha_cache_key(nonce),
+        {
+            "answer": str(answer),
+            "attempts": 0,
+        },
+        REGISTRATION_CAPTCHA_TTL_SECONDS,
+    )
+
+    return {
+        "question": f"{left} + {right}",
+        "token": token,
+        "expires_in": REGISTRATION_CAPTCHA_TTL_SECONDS,
+    }
+
+
+def validate_registration_captcha(token, answer):
+    token = str(token or "").strip()
+    answer = str(answer or "").strip()
+
+    if not token or not answer:
+        return "Please complete the security check."
+
+    try:
+        payload = signing.loads(
+            token,
+            salt=REGISTRATION_CAPTCHA_PURPOSE,
+            max_age=REGISTRATION_CAPTCHA_TTL_SECONDS,
+        )
+    except signing.SignatureExpired:
+        return "The security check has expired. Please refresh it and try again."
+    except signing.BadSignature:
+        return "The security check is invalid. Please refresh it and try again."
+
+    if payload.get("purpose") != REGISTRATION_CAPTCHA_PURPOSE:
+        return "The security check is invalid. Please refresh it and try again."
+
+    nonce = str(payload.get("nonce", "")).strip()
+    cache_key = registration_captcha_cache_key(nonce)
+    captcha = cache.get(cache_key)
+
+    if not captcha:
+        return "The security check has expired. Please refresh it and try again."
+
+    attempts = int(captcha.get("attempts", 0))
+    if attempts >= REGISTRATION_CAPTCHA_MAX_ATTEMPTS:
+        cache.delete(cache_key)
+        return "Too many incorrect security check attempts. Please refresh it and try again."
+
+    if answer != str(captcha.get("answer", "")):
+        captcha["attempts"] = attempts + 1
+        cache.set(cache_key, captcha, REGISTRATION_CAPTCHA_TTL_SECONDS)
+        return "The security check answer is incorrect."
+
+    cache.delete(cache_key)
+    return ""
 
 
 class IsSuperAdmin(BasePermission):
@@ -158,6 +238,16 @@ def register_view(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    captcha_error = validate_registration_captcha(
+        data.get("captcha_token", ""),
+        data.get("captcha_answer", ""),
+    )
+    if captcha_error:
+        return Response(
+            {"error": captcha_error, "field": "captchaAnswer"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     user = User.objects.create_user(
         username=username,
         email=email,
@@ -188,6 +278,14 @@ def register_view(request):
     notify_applicant_registration_success(user)
 
     return Response(build_auth_response(user), status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([RegistrationRateThrottle])
+def register_captcha_view(request):
+    return Response(build_registration_captcha(), status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

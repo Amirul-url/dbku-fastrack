@@ -10,6 +10,11 @@ from .models import LoginSession, User
 from .views import apply_managed_account_data, build_user_payload, get_password_reset_user
 
 
+def solve_captcha_question(question):
+    left, right = str(question).split("+", 1)
+    return str(int(left.strip()) + int(right.strip()))
+
+
 class PasswordHashingTests(TestCase):
     def test_new_passwords_are_stored_as_bcrypt_hashes(self):
         user = User.objects.create_user(username="bcryptuser", password="Password123")
@@ -301,7 +306,36 @@ class ManagedAccountImportTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("email address is already registered", response.data["error"])
 
+    def test_registration_captcha_endpoint_returns_challenge(self):
+        response = APIClient().get("/api/auth/register/captcha/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRegex(response.data["question"], r"^\d+ \+ \d+$")
+        self.assertTrue(response.data["token"])
+        self.assertEqual(response.data["expires_in"], 300)
+
+    def test_registration_rejects_missing_captcha(self):
+        response = APIClient().post(
+            "/api/auth/register/",
+            {
+                "username": "020215130142",
+                "mykad_number": "020215130142",
+                "email": "missing-captcha@example.com",
+                "mobile_number": "0175557777",
+                "password": "Password123",
+                "password2": "Password123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["field"], "captchaAnswer")
+        self.assertIn("security check", response.data["error"])
+
     def test_registration_forces_malaysia_nationality(self):
+        client = APIClient()
+        captcha_response = client.get("/api/auth/register/captcha/")
+
         response = APIClient().post(
             "/api/auth/register/",
             {
@@ -312,6 +346,8 @@ class ManagedAccountImportTests(TestCase):
                 "nationality": "Singapore",
                 "password": "Password123",
                 "password2": "Password123",
+                "captcha_token": captcha_response.data["token"],
+                "captcha_answer": solve_captcha_question(captcha_response.data["question"]),
             },
             format="json",
         )

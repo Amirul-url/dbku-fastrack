@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import TopBar from "../../layout/TopBar";
 import { Link, useNavigate } from "react-router-dom";
 import { useLanguage } from "../../context/LanguageContext";
@@ -21,6 +21,7 @@ const initialForm = {
   state: "",
   password: "",
   confirmPassword: "",
+  captchaAnswer: "",
 };
 
 const SHOW_REGISTER_PASSWORD_STRENGTH = false;
@@ -200,6 +201,7 @@ const REGISTER_FIELD_ERROR_ORDER = [
   "state",
   "password",
   "confirmPassword",
+  "captchaAnswer",
 ];
 
 function RequiredLabel({ children }) {
@@ -317,6 +319,8 @@ function RegisterMalaysian() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const [captcha, setCaptcha] = useState({ question: "", token: "" });
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
@@ -379,6 +383,7 @@ function RegisterMalaysian() {
     } else if (form.password !== form.confirmPassword) {
       errors.confirmPassword = t("auth.validation.passwordMismatch");
     }
+    if (!form.captchaAnswer.trim()) errors.captchaAnswer = t("auth.validation.captcha");
     return errors;
   };
 
@@ -516,11 +521,53 @@ function RegisterMalaysian() {
       };
     }
 
+    if (normalized.includes("security check") || normalized.includes("captcha")) {
+      return {
+        message: t("auth.validation.summary"),
+        fieldErrors: { captchaAnswer: t("auth.validation.captchaIncorrect") },
+      };
+    }
+
     return {
       message: message || t("auth.registerFailed"),
       fieldErrors: {},
     };
   };
+
+  const loadCaptcha = useCallback(async ({ clearFieldError = true } = {}) => {
+    setCaptchaLoading(true);
+    try {
+      const data = await apiRequest("/auth/register/captcha/");
+      setCaptcha({
+        question: data.question || "",
+        token: data.token || "",
+      });
+      setForm((prev) => ({
+        ...prev,
+        captchaAnswer: "",
+      }));
+      if (clearFieldError) {
+        setFieldErrors((prev) => {
+          if (!prev.captchaAnswer) return prev;
+          const next = { ...prev };
+          delete next.captchaAnswer;
+          return next;
+        });
+      }
+    } catch (err) {
+      setError(err.message || t("auth.captchaLoadFailed"));
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      loadCaptcha();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loadCaptcha]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -565,6 +612,8 @@ function RegisterMalaysian() {
           nationality: DEFAULT_NATIONALITY,
           password: form.password,
           password2: form.confirmPassword,
+          captcha_token: captcha.token,
+          captcha_answer: form.captchaAnswer.trim(),
       };
 
       await apiRequest("/auth/register/", {
@@ -580,6 +629,9 @@ function RegisterMalaysian() {
       const serverError = getRegistrationServerError(err.message);
       setError(serverError.message);
       setFieldErrors(serverError.fieldErrors);
+      if (serverError.fieldErrors.captchaAnswer) {
+        loadCaptcha({ clearFieldError: false });
+      }
       scrollToFirstError(serverError.fieldErrors);
     } finally {
       setLoading(false);
@@ -985,6 +1037,47 @@ function RegisterMalaysian() {
                   </div>
                 )}
 
+                <div className="col-span-4 border-t border-slate-100 pt-4" data-register-field="captchaAnswer">
+                  <RequiredLabel>
+                    {t("auth.captcha")}
+                  </RequiredLabel>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-2">
+                      <div className="flex min-h-[46px] items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                        <span className="text-sm font-semibold text-slate-600">
+                          {captchaLoading ? t("auth.captchaLoading") : t("auth.captchaQuestion")}
+                        </span>
+                        <span className="text-lg font-bold text-slate-900">
+                          {captcha.question || "-"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 flex gap-3">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        required
+                        aria-invalid={Boolean(fieldErrors.captchaAnswer)}
+                        aria-describedby={fieldErrors.captchaAnswer ? "captchaAnswer-error" : undefined}
+                        placeholder={t("auth.captchaPlaceholder")}
+                        value={form.captchaAnswer}
+                        onChange={(e) => updateField("captchaAnswer", e.target.value)}
+                        className={getInputClass("captchaAnswer", "min-w-0 flex-1")}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => loadCaptcha()}
+                        disabled={captchaLoading}
+                        className="material-symbols-outlined inline-flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-[#006d32] hover:text-[#006d32] disabled:opacity-60"
+                        aria-label={t("auth.refreshCaptcha")}
+                        title={t("auth.refreshCaptcha")}
+                      >
+                        refresh
+                      </button>
+                    </div>
+                  </div>
+                  <FieldError id="captchaAnswer-error" message={fieldErrors.captchaAnswer} />
+                </div>
               </div>
             </div>
           </section>
