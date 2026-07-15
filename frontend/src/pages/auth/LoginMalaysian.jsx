@@ -289,9 +289,10 @@ function LoginMalaysian() {
               {t("common.registerNow")}
             </Link>
           </p>
-          <p className="mt-2 text-xs text-slate-500">
-            {t("auth.developedBy")}
-          </p>
+          <div className="mt-14 text-xs leading-5 text-slate-500">
+            <p>{t("auth.developedByLabel")}</p>
+            <p>{t("auth.developedByName")}</p>
+          </div>
         </div>
       </div>
     </AuthLayout>
