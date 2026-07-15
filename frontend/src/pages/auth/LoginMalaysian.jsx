@@ -278,16 +278,21 @@ function LoginMalaysian() {
           </button>
         </form>
 
-        <p className="mt-7 text-center text-sm text-slate-500">
-          {t("auth.noAccount")}{" "}
-          <Link
-            to="/register/malaysian"
-            className="font-semibold text-[#006d32] hover:text-[#004f24]"
-            style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}
-          >
-            {t("common.registerNow")}
-          </Link>
-        </p>
+        <div className="mt-7 text-center text-sm text-slate-500">
+          <p>
+            {t("auth.noAccount")}{" "}
+            <Link
+              to="/register/malaysian"
+              className="font-semibold text-[#006d32] hover:text-[#004f24]"
+              style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}
+            >
+              {t("common.registerNow")}
+            </Link>
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            {t("auth.developedBy")}
+          </p>
+        </div>
       </div>
     </AuthLayout>
   );
