@@ -204,6 +204,12 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+# Localization
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "Asia/Kuala_Lumpur"
+USE_I18N = True
+USE_TZ = True
+
 # CORS
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS",
