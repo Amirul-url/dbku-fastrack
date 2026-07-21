@@ -4340,6 +4340,18 @@ function getPaymentStatusText(app, t) {
   const status = normalizeStatus(app?.status);
   const payment = getApplicationPayment(app);
 
+  if (hasReleasedRenewalReminder(app, 3)) {
+    return getRenewalEarlyPaymentReceipts(app).length > 0
+      ? t(
+          "applicant.renewalReceiptUploadedStatus",
+          "Renewal receipt uploaded"
+        )
+      : t(
+          "applicant.renewalPaymentRequiredStatus",
+          "Renewal payment required"
+        );
+  }
+
   if (isPaymentReceiptRejected(payment)) {
     return t("applicant.paymentStatusReceiptRejected");
   }
