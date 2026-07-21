@@ -48,13 +48,18 @@ def get_password_reset_user(channel, identifier):
     return None
 
 
-def build_password_reset_message(user, otp):
+def build_password_reset_message(user, otp, channel="email"):
     name = normalize_full_name(f"{user.first_name} {user.last_name}") or normalize_full_name(user.username)
-    return notify_messages.PASSWORD_RESET_BODY_TEMPLATE.format(name=name, otp=otp)
+    template = (
+        notify_messages.PASSWORD_RESET_WHATSAPP_BODY_TEMPLATE
+        if channel == "whatsapp"
+        else notify_messages.PASSWORD_RESET_EMAIL_BODY_TEMPLATE
+    )
+    return template.format(name=name, otp=otp)
 
 
 def deliver_password_reset_otp(user, channel, otp):
-    message = build_password_reset_message(user, otp)
+    message = build_password_reset_message(user, otp, channel)
 
     if channel == "email":
         if not user.email:

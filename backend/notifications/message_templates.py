@@ -7,37 +7,52 @@ APP_BRAND_NAME = "ALiS"
 
 # Account registration successful
 APPLICANT_REGISTRATION_SUCCESS_TITLE = "Account registration successful"
-APPLICANT_REGISTRATION_SUCCESS_BODY = (
+APPLICANT_REGISTRATION_SUCCESS_WEB_BODY = (
+    "Your ALiS account has been registered successfully. You can now log in and "
+    "submit advertisement license applications."
+)
+APPLICANT_REGISTRATION_SUCCESS_EMAIL_BODY = (
+    "Your ALiS account has been registered successfully. You can now log in and "
+    "submit advertisement license applications."
+)
+APPLICANT_REGISTRATION_SUCCESS_WHATSAPP_BODY = (
     "Your ALiS account has been registered successfully. You can now log in and "
     "submit advertisement license applications."
 )
 
 # Application submitted
-APPLICANT_APPLICATION_SUBMITTED_SUBJECT_TEMPLATE = (
+APPLICANT_APPLICATION_SUBMITTED_EMAIL_SUBJECT_TEMPLATE = (
     "{brand} - Application submitted ({reference})"
 )
-APPLICANT_APPLICATION_SUBMITTED_BODY_TEMPLATE = (
+APPLICANT_APPLICATION_SUBMITTED_WEB_BODY_TEMPLATE = (
     "Your application {reference} has been submitted successfully. ALiS will review "
     "your application and notify you when there is an update."
 )
-KU_IKL_SUBMITTED_STATUS = (
-    "Application {reference} requires KU(IKL) review",
-    "Your application {reference} has been submitted successfully.",
-    "Application {reference} has been submitted and is ready for KU(IKL) review.",
+APPLICANT_APPLICATION_SUBMITTED_EMAIL_BODY_TEMPLATE = (
+    "Your application {reference} has been submitted successfully. ALiS will review "
+    "your application and notify you when there is an update."
+)
+APPLICANT_APPLICATION_SUBMITTED_WHATSAPP_BODY_TEMPLATE = (
+    "Your application {reference} has been submitted successfully. ALiS will review "
+    "your application and notify you when there is an update."
 )
 
 # Application resubmitted
-APPLICANT_APPLICATION_RESUBMITTED_SUBJECT_TEMPLATE = (
+APPLICANT_APPLICATION_RESUBMITTED_EMAIL_SUBJECT_TEMPLATE = (
     "{brand} - Application resubmitted ({reference})"
 )
-APPLICANT_APPLICATION_RESUBMITTED_BODY_TEMPLATE = (
+APPLICANT_APPLICATION_RESUBMITTED_WEB_BODY_TEMPLATE = (
     "Your application {reference} has been resubmitted successfully. ALiS will "
     "review your updated application and notify you when there is an update."
 )
-KU_IKL_STAFF_RESUBMITTED_BODY_TEMPLATE = (
-    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
+APPLICANT_APPLICATION_RESUBMITTED_EMAIL_BODY_TEMPLATE = (
+    "Your application {reference} has been resubmitted successfully. ALiS will "
+    "review your updated application and notify you when there is an update."
 )
-APPLICATION_RESUBMITTED_TITLE_TEMPLATE = "Application {reference} resubmitted"
+APPLICANT_APPLICATION_RESUBMITTED_WHATSAPP_BODY_TEMPLATE = (
+    "Your application {reference} has been resubmitted successfully. ALiS will "
+    "review your updated application and notify you when there is an update."
+)
 
 # Application incomplete / rejected by ALiS
 INCOMPLETE_STATUS = (
@@ -45,12 +60,29 @@ INCOMPLETE_STATUS = (
     "Your application {reference} was rejected by ALiS. Please review the remark below and update your application.",
     "",
 )
+APPLICANT_INCOMPLETE_WEB_BODY_TEMPLATE = (
+    "Your application {reference} was rejected by ALiS. Please review the remark below and update your application."
+)
+APPLICANT_INCOMPLETE_EMAIL_BODY_TEMPLATE = (
+    "Your application {reference} was rejected by ALiS. Please review the remark below and update your application."
+)
+APPLICANT_INCOMPLETE_WHATSAPP_BODY_TEMPLATE = (
+    "Your application {reference} was rejected by ALiS. Please review the remark below and update your application."
+)
 
 # Application rejected
-APPLICANT_APPLICATION_REJECTED_SUBJECT_TEMPLATE = (
+APPLICANT_APPLICATION_REJECTED_EMAIL_SUBJECT_TEMPLATE = (
     "{brand} - Application rejected ({reference})"
 )
-APPLICANT_APPLICATION_REJECTED_BODY_TEMPLATE = (
+APPLICANT_APPLICATION_REJECTED_WEB_BODY_TEMPLATE = (
+    "Your application {reference} has been rejected. Please review the remark and "
+    "update your application."
+)
+APPLICANT_APPLICATION_REJECTED_EMAIL_BODY_TEMPLATE = (
+    "Your application {reference} has been rejected. Please review the remark and "
+    "update your application."
+)
+APPLICANT_APPLICATION_REJECTED_WHATSAPP_BODY_TEMPLATE = (
     "Your application {reference} has been rejected. Please review the remark and "
     "update your application."
 )
@@ -59,6 +91,15 @@ REJECTED_STATUS = (
     "Your application {reference} has been rejected. Please review the remark below.",
     "",
 )
+APPLICANT_REJECTED_WEB_BODY_TEMPLATE = (
+    "Your application {reference} has been rejected. Please review the remark below."
+)
+APPLICANT_REJECTED_EMAIL_BODY_TEMPLATE = (
+    "Your application {reference} has been rejected. Please review the remark below."
+)
+APPLICANT_REJECTED_WHATSAPP_BODY_TEMPLATE = (
+    "Your application {reference} has been rejected. Please review the remark below."
+)
 
 # Payment proof required
 INVOICE_GENERATED_STATUS = (
@@ -66,10 +107,27 @@ INVOICE_GENERATED_STATUS = (
     "Bill for application {reference} is ready. Please upload your proof of payment.",
     "",
 )
+APPLICANT_INVOICE_GENERATED_WEB_BODY_TEMPLATE = (
+    "Bill for application {reference} is ready. Please upload your proof of payment."
+)
+APPLICANT_INVOICE_GENERATED_EMAIL_BODY_TEMPLATE = (
+    "Bill for application {reference} is ready. Please upload your proof of payment."
+)
+APPLICANT_INVOICE_GENERATED_WHATSAPP_BODY_TEMPLATE = (
+    "Bill for application {reference} is ready. Please upload your proof of payment."
+)
 
 # Payment receipt rejected
 APPLICANT_PAYMENT_RECEIPT_REJECTED_TITLE = "Payment receipt rejected"
-APPLICANT_PAYMENT_RECEIPT_REJECTED_BODY_TEMPLATE = (
+APPLICANT_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE = (
+    "Your payment receipt for application {reference} was rejected. Please review "
+    "the remark and upload a new proof of payment."
+)
+APPLICANT_PAYMENT_RECEIPT_REJECTED_EMAIL_BODY_TEMPLATE = (
+    "Your payment receipt for application {reference} was rejected. Please review "
+    "the remark and upload a new proof of payment."
+)
+APPLICANT_PAYMENT_RECEIPT_REJECTED_WHATSAPP_BODY_TEMPLATE = (
     "Your payment receipt for application {reference} was rejected. Please review "
     "the remark and upload a new proof of payment."
 )
@@ -80,6 +138,15 @@ LICENSE_ISSUED_STATUS = (
     "Your QR e-license for application {reference} has been issued and is ready to download.",
     "",
 )
+APPLICANT_LICENSE_ISSUED_WEB_BODY_TEMPLATE = (
+    "Your QR e-license for application {reference} has been issued and is ready to download."
+)
+APPLICANT_LICENSE_ISSUED_EMAIL_BODY_TEMPLATE = (
+    "Your QR e-license for application {reference} has been issued and is ready to download."
+)
+APPLICANT_LICENSE_ISSUED_WHATSAPP_BODY_TEMPLATE = (
+    "Your QR e-license for application {reference} has been issued and is ready to download."
+)
 
 # Advertisement license revoked
 LICENSE_REVOKED_STATUS = (
@@ -87,12 +154,29 @@ LICENSE_REVOKED_STATUS = (
     "Your advertisement license for application {reference} has been revoked.",
     "",
 )
+APPLICANT_LICENSE_REVOKED_WEB_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} has been revoked."
+)
+APPLICANT_LICENSE_REVOKED_EMAIL_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} has been revoked."
+)
+APPLICANT_LICENSE_REVOKED_WHATSAPP_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} has been revoked."
+)
 
 # License renewal reminder released
 APPLICANT_RENEWAL_RELEASED_TITLE_TEMPLATE = (
     "{months}-month license renewal reminder released"
 )
-APPLICANT_RENEWAL_RELEASED_BODY_TEMPLATE = (
+APPLICANT_RENEWAL_RELEASED_WEB_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} is due to expire. "
+    "Please complete the renewal process before the expiry date."
+)
+APPLICANT_RENEWAL_RELEASED_EMAIL_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} is due to expire. "
+    "Please complete the renewal process before the expiry date."
+)
+APPLICANT_RENEWAL_RELEASED_WHATSAPP_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} is due to expire. "
     "Please complete the renewal process before the expiry date."
 )
@@ -101,14 +185,27 @@ APPLICANT_RENEWAL_RELEASED_BODY_TEMPLATE = (
 APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE = (
     "License cancellation notice released"
 )
-APPLICANT_LICENSE_CANCELLATION_RELEASED_BODY_TEMPLATE = (
+APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} has been cancelled and "
+    "enforcement action may proceed because renewal payment was not completed after expiry."
+)
+APPLICANT_LICENSE_CANCELLATION_RELEASED_EMAIL_BODY_TEMPLATE = (
+    "Your advertisement license for application {reference} has been cancelled and "
+    "enforcement action may proceed because renewal payment was not completed after expiry."
+)
+APPLICANT_LICENSE_CANCELLATION_RELEASED_WHATSAPP_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} has been cancelled and "
     "enforcement action may proceed because renewal payment was not completed after expiry."
 )
 
 # Password reset OTP
 PASSWORD_RESET_SUBJECT = "ALiS Password Reset OTP"
-PASSWORD_RESET_BODY_TEMPLATE = (
+PASSWORD_RESET_EMAIL_BODY_TEMPLATE = (
+    "Hello {name},\n\n"
+    "Your ALiS password reset OTP is {otp}.\n"
+    "This OTP will expire in 10 minutes. If you did not request this, please ignore this message."
+)
+PASSWORD_RESET_WHATSAPP_BODY_TEMPLATE = (
     "Hello {name},\n\n"
     "Your ALiS password reset OTP is {otp}.\n"
     "This OTP will expire in 10 minutes. If you did not request this, please ignore this message."
@@ -120,12 +217,58 @@ DEFAULT_STATUS_MESSAGE = (
     "Your application {reference} status is now {status_label}.",
     "Application {reference} status is now {status_label}.",
 )
+APPLICANT_DEFAULT_STATUS_WEB_BODY_TEMPLATE = (
+    "Your application {reference} status is now {status_label}."
+)
+APPLICANT_DEFAULT_STATUS_EMAIL_BODY_TEMPLATE = (
+    "Your application {reference} status is now {status_label}."
+)
+APPLICANT_DEFAULT_STATUS_WHATSAPP_BODY_TEMPLATE = (
+    "Your application {reference} status is now {status_label}."
+)
 
+APPLICANT_STATUS_CHANNEL_MESSAGES = {
+    "incomplete": {
+        "web": APPLICANT_INCOMPLETE_WEB_BODY_TEMPLATE,
+        "email": APPLICANT_INCOMPLETE_EMAIL_BODY_TEMPLATE,
+        "whatsapp": APPLICANT_INCOMPLETE_WHATSAPP_BODY_TEMPLATE,
+    },
+    "rejected": {
+        "web": APPLICANT_REJECTED_WEB_BODY_TEMPLATE,
+        "email": APPLICANT_REJECTED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": APPLICANT_REJECTED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "invoice_generated": {
+        "web": APPLICANT_INVOICE_GENERATED_WEB_BODY_TEMPLATE,
+        "email": APPLICANT_INVOICE_GENERATED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": APPLICANT_INVOICE_GENERATED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "license_issued": {
+        "web": APPLICANT_LICENSE_ISSUED_WEB_BODY_TEMPLATE,
+        "email": APPLICANT_LICENSE_ISSUED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": APPLICANT_LICENSE_ISSUED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "license_revoked": {
+        "web": APPLICANT_LICENSE_REVOKED_WEB_BODY_TEMPLATE,
+        "email": APPLICANT_LICENSE_REVOKED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": APPLICANT_LICENSE_REVOKED_WHATSAPP_BODY_TEMPLATE,
+    },
+}
+APPLICANT_DEFAULT_STATUS_CHANNEL_MESSAGES = {
+    "web": APPLICANT_DEFAULT_STATUS_WEB_BODY_TEMPLATE,
+    "email": APPLICANT_DEFAULT_STATUS_EMAIL_BODY_TEMPLATE,
+    "whatsapp": APPLICANT_DEFAULT_STATUS_WHATSAPP_BODY_TEMPLATE,
+}
 
 # =================
 # Notify message for KU(IKL)
 # =================
 
+KU_IKL_SUBMITTED_STATUS = (
+    "Application {reference} requires KU(IKL) review",
+    "Your application {reference} has been submitted successfully.",
+    "Application {reference} has been submitted and is ready for KU(IKL) review.",
+)
 KU_IKL_REVIEW_STATUS = (
     "KU(IKL) review required",
     "",
@@ -153,6 +296,9 @@ KU_IKL_MANAGEMENT_REVIEW_STATUS = (
     "Application {reference} requires KB(LES) verification",
     "",
     "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
+)
+KU_IKL_STAFF_RESUBMITTED_BODY_TEMPLATE = (
+    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
 )
 
 
@@ -299,6 +445,7 @@ SUPERADMIN_ACCOUNT_CREATED_BY_SENTENCE_TEMPLATE = "Created by {creator_name}."
 # Shared notify message
 # =================
 
+APPLICATION_RESUBMITTED_TITLE_TEMPLATE = "Application {reference} resubmitted"
 SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE = (
     "{months}-month renewal letter awaiting supervisor confirmation"
 )

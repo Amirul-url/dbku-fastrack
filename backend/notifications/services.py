@@ -223,7 +223,7 @@ def notify_applicant_registration_success(account):
     if role != "applicant":
         return
 
-    subject, message, metadata = build_applicant_registration_success_message(account)
+    subject, messages, metadata = build_applicant_registration_success_message(account)
     event_key = f"account:{account.pk}:registration_success"
 
     create_and_send_delivery(
@@ -234,7 +234,7 @@ def notify_applicant_registration_success(account):
         channel="web",
         recipient=get_web_recipient(account),
         subject=subject,
-        message=message,
+        message=get_channel_message(messages, "web"),
         metadata=metadata,
         force=True,
     )
@@ -249,7 +249,7 @@ def notify_applicant_registration_success(account):
             channel="email",
             recipient=email,
             subject=subject,
-            message=message,
+            message=get_channel_message(messages, "email"),
             metadata=metadata,
             force=True,
         )
@@ -264,7 +264,7 @@ def notify_applicant_registration_success(account):
             channel="whatsapp",
             recipient=phone,
             subject=subject,
-            message=message,
+            message=get_channel_message(messages, "whatsapp"),
             metadata=metadata,
             force=True,
         )
@@ -323,7 +323,7 @@ def send_forced_applicant_application_notification(application, event_key, subje
         channel="web",
         recipient=get_web_recipient(application.applicant),
         subject=subject,
-        message=message,
+        message=get_channel_message(message, "web"),
         metadata=metadata,
         force=True,
     )
@@ -337,7 +337,7 @@ def send_forced_applicant_application_notification(application, event_key, subje
             channel="email",
             recipient=email,
             subject=subject,
-            message=message,
+            message=get_channel_message(message, "email"),
             metadata=metadata,
             force=True,
         )
@@ -351,7 +351,7 @@ def send_forced_applicant_application_notification(application, event_key, subje
             channel="whatsapp",
             recipient=phone,
             subject=subject,
-            message=message,
+            message=get_channel_message(message, "whatsapp"),
             metadata=metadata,
             force=True,
         )
@@ -664,19 +664,28 @@ def build_applicant_registration_success_message(account):
     account_name = normalize_account_name(account)
     username = str(getattr(account, "username", "") or "").strip()
     title = notify_messages.APPLICANT_REGISTRATION_SUCCESS_TITLE
-    body = notify_messages.APPLICANT_REGISTRATION_SUCCESS_BODY
+    body = notify_messages.APPLICANT_REGISTRATION_SUCCESS_WEB_BODY
     subject = f"{APP_BRAND_NAME} - {title}"
-    lines = [
-        APP_BRAND_NAME,
-        "",
-        title,
-        notify_messages.ACCOUNT_NAME_LINE_TEMPLATE.format(account_name=account_name),
-    ]
-
-    if username:
-        lines.append(notify_messages.ACCOUNT_LOGIN_ID_LINE_TEMPLATE.format(username=username))
-
-    lines.extend(["", body])
+    messages = {
+        "web": format_applicant_registration_message(
+            title,
+            account_name,
+            username,
+            notify_messages.APPLICANT_REGISTRATION_SUCCESS_WEB_BODY,
+        ),
+        "email": format_applicant_registration_message(
+            title,
+            account_name,
+            username,
+            notify_messages.APPLICANT_REGISTRATION_SUCCESS_EMAIL_BODY,
+        ),
+        "whatsapp": format_applicant_registration_message(
+            title,
+            account_name,
+            username,
+            notify_messages.APPLICANT_REGISTRATION_SUCCESS_WHATSAPP_BODY,
+        ),
+    }
 
     metadata = {
         "category": "account",
@@ -694,24 +703,30 @@ def build_applicant_registration_success_message(account):
         "action_url": "/login",
     }
 
-    return subject, "\n".join(lines), metadata
+    return subject, messages, metadata
 
 
 def build_applicant_application_submitted_message(application):
     reference = getattr(application, "reference_no", "") or "-"
     title = str(getattr(application, "title", "") or "").strip() or "Application"
-    subject = notify_messages.APPLICANT_APPLICATION_SUBMITTED_SUBJECT_TEMPLATE.format(
+    subject = notify_messages.APPLICANT_APPLICATION_SUBMITTED_EMAIL_SUBJECT_TEMPLATE.format(
         brand=APP_BRAND_NAME,
         reference=reference,
     )
-    body = notify_messages.APPLICANT_APPLICATION_SUBMITTED_BODY_TEMPLATE.format(
+    body = notify_messages.APPLICANT_APPLICATION_SUBMITTED_WEB_BODY_TEMPLATE.format(
         reference=reference
     )
-    lines = [
-        APP_BRAND_NAME,
-        "",
-        body,
-    ]
+    messages = format_applicant_channel_messages({
+        "web": notify_messages.APPLICANT_APPLICATION_SUBMITTED_WEB_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "email": notify_messages.APPLICANT_APPLICATION_SUBMITTED_EMAIL_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "whatsapp": notify_messages.APPLICANT_APPLICATION_SUBMITTED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+    })
     metadata = {
         "category": "submission",
         "type": "success",
@@ -727,24 +742,30 @@ def build_applicant_application_submitted_message(application):
         "action_url": f"/applications/{application.pk}",
     }
 
-    return subject, "\n".join(lines), metadata
+    return subject, messages, metadata
 
 
 def build_applicant_application_resubmitted_message(application):
     reference = getattr(application, "reference_no", "") or "-"
     title = str(getattr(application, "title", "") or "").strip() or "Application"
-    subject = notify_messages.APPLICANT_APPLICATION_RESUBMITTED_SUBJECT_TEMPLATE.format(
+    subject = notify_messages.APPLICANT_APPLICATION_RESUBMITTED_EMAIL_SUBJECT_TEMPLATE.format(
         brand=APP_BRAND_NAME,
         reference=reference,
     )
-    body = notify_messages.APPLICANT_APPLICATION_RESUBMITTED_BODY_TEMPLATE.format(
+    body = notify_messages.APPLICANT_APPLICATION_RESUBMITTED_WEB_BODY_TEMPLATE.format(
         reference=reference
     )
-    lines = [
-        APP_BRAND_NAME,
-        "",
-        body,
-    ]
+    messages = format_applicant_channel_messages({
+        "web": notify_messages.APPLICANT_APPLICATION_RESUBMITTED_WEB_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "email": notify_messages.APPLICANT_APPLICATION_RESUBMITTED_EMAIL_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "whatsapp": notify_messages.APPLICANT_APPLICATION_RESUBMITTED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+    })
     metadata = {
         "category": "submission",
         "type": "success",
@@ -760,7 +781,7 @@ def build_applicant_application_resubmitted_message(application):
         "action_url": f"/applications/{application.pk}",
     }
 
-    return subject, "\n".join(lines), metadata
+    return subject, messages, metadata
 
 
 def build_staff_application_resubmitted_message(application):
@@ -805,21 +826,28 @@ def build_staff_application_resubmitted_message(application):
 def build_applicant_application_rejected_message(application):
     reference = getattr(application, "reference_no", "") or "-"
     title = str(getattr(application, "title", "") or "").strip() or "Application"
-    subject = notify_messages.APPLICANT_APPLICATION_REJECTED_SUBJECT_TEMPLATE.format(
+    subject = notify_messages.APPLICANT_APPLICATION_REJECTED_EMAIL_SUBJECT_TEMPLATE.format(
         brand=APP_BRAND_NAME,
         reference=reference,
     )
-    body = notify_messages.APPLICANT_APPLICATION_REJECTED_BODY_TEMPLATE.format(
-        reference=reference
-    )
+    body = notify_messages.APPLICANT_APPLICATION_REJECTED_WEB_BODY_TEMPLATE.format(reference=reference)
+    channel_bodies = {
+        "web": body,
+        "email": notify_messages.APPLICANT_APPLICATION_REJECTED_EMAIL_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "whatsapp": notify_messages.APPLICANT_APPLICATION_REJECTED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+    }
     remark = get_latest_remark(application)
     if remark:
-        body = append_remark_block(body, remark)
-    lines = [
-        APP_BRAND_NAME,
-        "",
-        body,
-    ]
+        channel_bodies = {
+            channel: append_remark_block(channel_body, remark)
+            for channel, channel_body in channel_bodies.items()
+        }
+        body = channel_bodies["web"]
+    messages = format_applicant_channel_messages(channel_bodies)
     metadata = {
         "category": "decision",
         "type": "error",
@@ -835,7 +863,7 @@ def build_applicant_application_rejected_message(application):
         "action_url": f"/applications/{application.pk}",
     }
 
-    return subject, "\n".join(lines), metadata
+    return subject, messages, metadata
 
 
 def build_renewal_reminder_record(months, expiry, current_time):
@@ -888,9 +916,17 @@ def notify_license_renewal_supervisor_task(application, months):
 
 def notify_license_renewal_released(application, months):
     title = notify_messages.APPLICANT_RENEWAL_RELEASED_TITLE_TEMPLATE.format(months=months)
-    body = notify_messages.APPLICANT_RENEWAL_RELEASED_BODY_TEMPLATE.format(
-        reference=application.reference_no
-    )
+    body = {
+        "web": notify_messages.APPLICANT_RENEWAL_RELEASED_WEB_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "email": notify_messages.APPLICANT_RENEWAL_RELEASED_EMAIL_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "whatsapp": notify_messages.APPLICANT_RENEWAL_RELEASED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+    }
     send_license_workflow_notification(
         application=application,
         event_status="license_renewal_released",
@@ -945,9 +981,17 @@ def notify_license_cancellation_task(application, event_status):
 
 def notify_license_cancellation_released(application):
     title = notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE
-    body = notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_BODY_TEMPLATE.format(
-        reference=application.reference_no
-    )
+    body = {
+        "web": notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "email": notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_EMAIL_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "whatsapp": notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+    }
     send_license_workflow_notification(
         application=application,
         event_status="license_cancellation_released",
@@ -1017,14 +1061,15 @@ def send_license_workflow_notification(
     force_web=False,
 ):
     subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
-    message = format_license_workflow_message(title, body, application, recipient_role)
+    web_body = get_channel_message(body, "web")
+    message = format_license_workflow_message(title, web_body, application, recipient_role)
     metadata = {
         "category": "license",
         "type": "warning" if "cancellation" not in event_status else "error",
         "title": title,
         "title_en": title,
-        "message": body,
-        "message_en": body,
+        "message": web_body,
+        "message_en": web_body,
         "recipient_role": recipient_role,
         "event_status": event_status,
         "action_url": action_url,
@@ -1054,6 +1099,12 @@ def send_license_workflow_notification(
 
     if include_external and recipient_role == "applicant":
         for email in get_applicant_emails(application):
+            email_message = format_license_workflow_message(
+                title,
+                get_channel_message(body, "email"),
+                application,
+                recipient_role,
+            )
             create_and_send_delivery(
                 application=application,
                 event_key=event_key,
@@ -1062,10 +1113,16 @@ def send_license_workflow_notification(
                 channel="email",
                 recipient=email,
                 subject=subject,
-                message=message,
+                message=email_message,
                 metadata=metadata,
             )
         for phone in get_applicant_whatsapp_numbers(application):
+            whatsapp_message = format_license_workflow_message(
+                title,
+                get_channel_message(body, "whatsapp"),
+                application,
+                recipient_role,
+            )
             create_and_send_delivery(
                 application=application,
                 event_key=event_key,
@@ -1074,7 +1131,7 @@ def send_license_workflow_notification(
                 channel="whatsapp",
                 recipient=phone,
                 subject=subject,
-                message=message,
+                message=whatsapp_message,
                 metadata=metadata,
             )
         return
@@ -1125,6 +1182,35 @@ def format_license_workflow_message(title, body, application, recipient_role="ad
         "",
         body,
     ])
+
+
+def format_applicant_registration_message(title, account_name, username, body):
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        title,
+        notify_messages.ACCOUNT_NAME_LINE_TEMPLATE.format(account_name=account_name),
+    ]
+
+    if username:
+        lines.append(notify_messages.ACCOUNT_LOGIN_ID_LINE_TEMPLATE.format(username=username))
+
+    lines.extend(["", body])
+    return "\n".join(lines)
+
+
+def format_applicant_channel_messages(channel_bodies):
+    return {
+        channel: "\n".join([APP_BRAND_NAME, "", str(body or "").strip()])
+        for channel, body in channel_bodies.items()
+    }
+
+
+def get_channel_message(message, channel):
+    if isinstance(message, dict):
+        return message.get(channel) or message.get("web") or next(iter(message.values()), "")
+
+    return message
 
 
 def append_remark_block(message, remark):
@@ -1210,6 +1296,10 @@ def build_status_messages(application):
     title = subject_template.format(**context)
     subject = build_notification_subject(title, application.reference_no)
     applicant_body = applicant_template.format(**context)
+    applicant_channel_bodies = format_applicant_status_channel_bodies(
+        status_key,
+        context,
+    )
     admin_body = admin_template.format(**context)
 
     if status_key == "management_review":
@@ -1259,9 +1349,18 @@ def build_status_messages(application):
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "invoice_generated" and is_payment_receipt_rejected(application):
         title = notify_messages.APPLICANT_PAYMENT_RECEIPT_REJECTED_TITLE
-        applicant_body = notify_messages.APPLICANT_PAYMENT_RECEIPT_REJECTED_BODY_TEMPLATE.format(
-            reference=application.reference_no
-        )
+        applicant_channel_bodies = {
+            "web": notify_messages.APPLICANT_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "email": notify_messages.APPLICANT_PAYMENT_RECEIPT_REJECTED_EMAIL_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "whatsapp": notify_messages.APPLICANT_PAYMENT_RECEIPT_REJECTED_WHATSAPP_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+        }
+        applicant_body = applicant_channel_bodies["web"]
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "invoice_generated":
         applicant_include_remark = False
@@ -1286,6 +1385,16 @@ def build_status_messages(application):
         recipient_role="applicant",
         include_remark=applicant_include_remark,
     )
+    applicant_channel_messages = {
+        channel: format_notification_message(
+            title=title,
+            body=body,
+            application=application,
+            recipient_role="applicant",
+            include_remark=applicant_include_remark,
+        )
+        for channel, body in applicant_channel_bodies.items()
+    }
     admin_message = format_notification_message(
         title=title,
         body=admin_body,
@@ -1296,6 +1405,7 @@ def build_status_messages(application):
     return {
         "subject": subject,
         "applicant_message": applicant_message,
+        "applicant_messages": applicant_channel_messages,
         "admin_message": admin_message,
         "applicant_metadata": applicant_metadata,
         "admin_metadata": admin_metadata,
@@ -1309,6 +1419,17 @@ def build_notification_subject(title, reference):
         clean_title = f"{clean_title} ({clean_reference})"
 
     return f"{APP_BRAND_NAME} - {clean_title}"
+
+
+def format_applicant_status_channel_bodies(status_key, context):
+    templates = notify_messages.APPLICANT_STATUS_CHANNEL_MESSAGES.get(
+        status_key,
+        notify_messages.APPLICANT_DEFAULT_STATUS_CHANNEL_MESSAGES,
+    )
+    return {
+        channel: template.format(**context)
+        for channel, template in templates.items()
+    }
 
 
 def build_web_metadata(application, title, body, recipient_role, include_remark=True):
@@ -1798,6 +1919,7 @@ def build_recipients(application, messages):
     status_key = str(application.status or "").strip().lower()
     subject = messages["subject"]
     applicant_message = messages["applicant_message"]
+    applicant_messages = messages.get("applicant_messages") or {}
     admin_message = messages["admin_message"]
     applicant_metadata = messages["applicant_metadata"]
     admin_metadata = messages["admin_metadata"]
@@ -1813,7 +1935,7 @@ def build_recipients(application, messages):
             "channel": "web",
             "recipient": get_web_recipient(application.applicant),
             "subject": subject,
-            "message": applicant_message,
+            "message": get_channel_message(applicant_messages or applicant_message, "web"),
             "metadata": applicant_metadata,
         })
 
@@ -1824,7 +1946,7 @@ def build_recipients(application, messages):
                 "channel": "email",
                 "recipient": email,
                 "subject": subject,
-                "message": applicant_message,
+                "message": get_channel_message(applicant_messages or applicant_message, "email"),
                 "metadata": applicant_metadata,
             })
 
@@ -1835,7 +1957,7 @@ def build_recipients(application, messages):
                 "channel": "whatsapp",
                 "recipient": phone,
                 "subject": subject,
-                "message": applicant_message,
+                "message": get_channel_message(applicant_messages or applicant_message, "whatsapp"),
                 "metadata": applicant_metadata,
             })
 
