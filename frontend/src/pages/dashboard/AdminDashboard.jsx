@@ -5102,7 +5102,10 @@ function isApprovalPersonalTaskForDepartment(application, department) {
   const status = normalizeStatus(application?.status);
 
   if (department === "KB(LES)") {
-    return status === "management_review" && !isKbLesVerified(application);
+    return (
+      (status === "management_review" && !isKbLesVerified(application)) ||
+      Boolean(getPendingKbRenewalConfirmationMonth(application))
+    );
   }
 
   if (department === "FIN" && status === "payment_submitted") {
@@ -5175,6 +5178,17 @@ function getPendingPtRenewalReminderMonth(application) {
 
 function isPendingPtLicenseRenewalReminder(application) {
   return Boolean(getPendingPtRenewalReminderMonth(application));
+}
+
+function getPendingKbRenewalConfirmationMonth(application) {
+  if (normalizeStatus(application?.status) !== "license_issued") return 0;
+
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const reminders = renewal?.reminders || {};
+  return [3, 2, 1].find((months) => {
+    const status = String(reminders?.[String(months)]?.status || "").trim().toLowerCase();
+    return status === "pending_supervisor_confirmation";
+  }) || 0;
 }
 
 function getRenewalReminderTaskLabel(months) {
@@ -5262,6 +5276,11 @@ function getDashboardTaskStatusLabel(application, unit, t) {
   if (department === "PT(IKL)") {
     const renewalMonth = getPendingPtRenewalReminderMonth(application);
     if (renewalMonth) return getRenewalReminderTaskLabel(renewalMonth);
+  }
+
+  if (department === "KB(LES)") {
+    const renewalMonth = getPendingKbRenewalConfirmationMonth(application);
+    if (renewalMonth) return `${getRenewalReminderTaskLabel(renewalMonth)} Confirmation`;
   }
 
   if (department === "KU(IKL)" && status === "submitted") {

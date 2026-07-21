@@ -1010,6 +1010,17 @@ function isPendingPtLicenseRenewalReminder(application) {
   });
 }
 
+function isPendingKbRenewalConfirmation(application) {
+  if (normalizeWorkflowStatus(application?.status) !== "license_issued") return false;
+
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const reminders = renewal?.reminders || {};
+  return ["3", "2", "1"].some((months) => {
+    const status = String(reminders?.[months]?.status || "").trim().toLowerCase();
+    return status === "pending_supervisor_confirmation";
+  });
+}
+
 function isPersonalTaskForDepartment(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
@@ -1034,7 +1045,10 @@ function isPersonalTaskForDepartment(application, department) {
   }
 
   if (department === "KB(LES)") {
-    return status === "management_review" && !isKbLesVerified(application);
+    return (
+      (status === "management_review" && !isKbLesVerified(application)) ||
+      isPendingKbRenewalConfirmation(application)
+    );
   }
 
   if (department === "FIN" && status === "payment_submitted") {
