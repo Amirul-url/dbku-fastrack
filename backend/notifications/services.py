@@ -913,7 +913,7 @@ def notify_license_renewal_detected(application, months, expiry):
         event_status=event_status,
         title=title,
         body=body,
-        recipients=get_pt_ikl_and_supervisor_recipients(),
+        recipients=get_pt_ikl_and_kb_les_recipients(),
         recipient_role="admin",
         action_url=f"/admin/e-licenses/license?id={application.id}",
     )
@@ -2613,8 +2613,8 @@ def get_kb_les_recipients():
     return [user for user in User.objects.filter(role__in=["admin", "supervisor", "staff"], is_active=True) if is_kb_les_user(user)]
 
 
-def get_pt_ikl_and_supervisor_recipients():
-    return dedupe_users([*get_pt_ikl_recipients(), *get_supervisor_recipients()])
+def get_pt_ikl_and_kb_les_recipients():
+    return dedupe_users([*get_pt_ikl_recipients(), *get_kb_les_recipients()])
 
 
 def dedupe_users(users):

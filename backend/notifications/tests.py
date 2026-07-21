@@ -2192,6 +2192,14 @@ class LicenseRenewalWorkflowTests(TestCase):
             department="KB(LES)",
             is_active=True,
         )
+        self.tp_res_supervisor = User.objects.create_user(
+            username="tp-res-renewal",
+            email="tp-res@example.com",
+            password="Password123",
+            role="supervisor",
+            department="TP(RES)",
+            is_active=True,
+        )
         self.application = Application.objects.create(
             applicant=self.applicant,
             title="Renewal signage",
@@ -2225,6 +2233,13 @@ class LicenseRenewalWorkflowTests(TestCase):
             NotificationDelivery.objects.filter(
                 channel="web",
                 user=self.supervisor,
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.tp_res_supervisor,
                 metadata__event_status="license_renewal_3m",
             ).exists()
         )
