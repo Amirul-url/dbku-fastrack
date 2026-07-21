@@ -2249,12 +2249,21 @@ class LicenseRenewalWorkflowTests(TestCase):
 
         client = APIClient()
         client.force_authenticate(user=self.pt_ikl)
+        reviewed_letter_html = "<article>Reviewed first reminder letter</article>"
         response = client.post(
             f"/api/applications/{self.application.id}/license-renewal-action/",
-            {"action": "generate_reminder_letter", "months": 3},
+            {
+                "action": "generate_reminder_letter",
+                "months": 3,
+                "document_html": reviewed_letter_html,
+            },
             format="json",
         )
         self.assertEqual(response.status_code, 200)
+        self.application.refresh_from_db()
+        reminder = self.application.form_data["license_renewal"]["reminders"]["3"]
+        self.assertEqual(reminder["letter"]["document_html"], reviewed_letter_html)
+        self.assertIn("Reviewed first reminder letter", reminder["letter"]["content"])
 
         client.force_authenticate(user=self.supervisor)
         response = client.post(

@@ -465,7 +465,7 @@ def process_license_renewal_reminders(now=None):
     return processed
 
 
-def apply_license_renewal_action(application, action, user, months=None, note=""):
+def apply_license_renewal_action(application, action, user, months=None, note="", document_html=""):
     action = str(action or "").strip().lower()
     form_data = deepcopy(application.form_data or {})
     renewal = get_form_data_section(form_data, "license_renewal")
@@ -474,7 +474,15 @@ def apply_license_renewal_action(application, action, user, months=None, note=""
         if months not in {1, 2, 3}:
             raise ValueError("Reminder month must be 1, 2, or 3.")
 
-        result = apply_license_reminder_action(application, renewal, action, user, months, note)
+        result = apply_license_reminder_action(
+            application,
+            renewal,
+            action,
+            user,
+            months,
+            note,
+            document_html=document_html,
+        )
     elif action in {
         "generate_cancellation_notice",
         "confirm_cancellation_notice",
@@ -496,7 +504,7 @@ def apply_license_renewal_action(application, action, user, months=None, note=""
     return application
 
 
-def apply_license_reminder_action(application, renewal, action, user, months, note):
+def apply_license_reminder_action(application, renewal, action, user, months, note, document_html=""):
     reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
     key = str(months)
     reminder = reminders.get(key)
@@ -507,6 +515,7 @@ def apply_license_reminder_action(application, renewal, action, user, months, no
         if not is_pt_ikl_user(user):
             raise PermissionError("Only PT(IKL) can generate renewal reminder letters.")
 
+        letter_html = clean_document_html(document_html) or build_renewal_letter_document_html(application, months)
         reminder["status"] = "pending_supervisor_confirmation"
         reminder["letter"] = {
             "type": "renewal_reminder",
@@ -516,8 +525,8 @@ def apply_license_reminder_action(application, renewal, action, user, months, no
             "generated_at": timezone.now().isoformat(),
             "generated_by": get_web_recipient(user),
             "note": clean_remark(note),
-            "content": build_renewal_letter_text(application, months),
-            "document_html": build_renewal_letter_document_html(application, months),
+            "content": html_to_text(letter_html),
+            "document_html": letter_html,
         }
         reminders[key] = reminder
         renewal["reminders"] = reminders
@@ -2765,8 +2774,16 @@ def get_license_id(application):
 
 def build_renewal_letter_text(application, months):
     html = build_renewal_letter_document_html(application, months)
-    text = strip_tags(html)
+    return html_to_text(html)
+
+
+def html_to_text(html):
+    text = strip_tags(str(html or ""))
     return re.sub(r"\n\s*\n\s*\n+", "\n\n", text).strip()
+
+
+def clean_document_html(value):
+    return str(value or "").strip()
 
 
 def build_renewal_letter_document_html(application, months):

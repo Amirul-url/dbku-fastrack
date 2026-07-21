@@ -322,6 +322,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showManualBillEditor, setShowManualBillEditor] = useState(false);
   const [showManualReceiptEditor, setShowManualReceiptEditor] = useState(false);
   const [showManualAdvertisementLicenseEditor, setShowManualAdvertisementLicenseEditor] = useState(false);
+  const [renewalReminderDraftHtml, setRenewalReminderDraftHtml] = useState("");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -891,6 +892,19 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isIssuedLicenseRecord = ["license_issued", "license_revoked"].includes(
     normalizeStatus(selectedRecord?.status)
   );
+  const pendingPtRenewalReminderMonth = getPendingPtRenewalReminderMonth(selectedRecord);
+  const isPtRenewalReminderWorkspace =
+    actionConfig.key === "license" &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    Boolean(pendingPtRenewalReminderMonth);
+  const selectedRenewalReminderAction = isPtRenewalReminderWorkspace
+    ? workspaceActions.find((action) => action.reminderMonths === pendingPtRenewalReminderMonth)
+    : null;
+
+  useEffect(() => {
+    setRenewalReminderDraftHtml("");
+  }, [selectedRecord?.id, pendingPtRenewalReminderMonth]);
+
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
     isApprovalSupportWorkspace && hasSutApprovalResult(selectedRecord);
@@ -2359,6 +2373,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         screeningSignature: overrides.screeningSignature || null,
         kuSignature: overrides.kuSignature ?? null,
         kuChecks: overrides.kuChecks,
+        documentHtml: overrides.documentHtml || "",
         officialReceiptMode: "upload",
         t,
       });
@@ -3123,6 +3138,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </p>
               )}
 
+              {isPtRenewalReminderWorkspace && (
+                <FirstReminderTaskPanel
+                  app={selectedRecord}
+                  t={t}
+                  saving={saving}
+                  months={pendingPtRenewalReminderMonth}
+                  draftHtml={renewalReminderDraftHtml}
+                  onDraftHtmlChange={setRenewalReminderDraftHtml}
+                  onGenerate={(documentHtml) => {
+                    if (!selectedRenewalReminderAction) return;
+                    submitAction(selectedRenewalReminderAction, {
+                      documentHtml,
+                      checkDecisionRemark: false,
+                    });
+                  }}
+                />
+              )}
+
               {(showApprovalTechnicalReport || showELicenseVerificationReport) && showVerificationReport && (
                 <ApprovalTechnicalReviewSummary
                   t={t}
@@ -3314,7 +3347,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     detailLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     ) : (
-                      !showApprovalLicenseManagementDetails && config.details && (
+                      !isPtRenewalReminderWorkspace && !showApprovalLicenseManagementDetails && config.details && (
                         <config.details
                           app={selectedRecord}
                           t={t}
@@ -3924,7 +3957,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
                           </Button>
                         </>
-                      ) : canSubmitWorkspaceAction ? (
+                      ) : canSubmitWorkspaceAction && !isPtRenewalReminderWorkspace ? (
                         workspaceActions.map((action) => (
                           <Button
                             key={action.label}
@@ -10630,6 +10663,11 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
   }
 
   if (config?.key === "license" && userDepartment === "PT(IKL)") {
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment);
+    if (renewalTaskLabel) {
+      return `Review and generate the ${renewalTaskLabel.toLowerCase()} letter for supervisor confirmation.`;
+    }
+
     return t("workspace.license.ptAction", "Generate the advertisement license and QR code after payment is verified.");
   }
 
@@ -11179,6 +11217,204 @@ function getGeneratedRenewalLetters(app) {
       };
     })
     .filter(Boolean);
+}
+
+function getRenewalLetterForMonth(app, months) {
+  const reminder = getLicenseRenewalReminders(app)?.[String(months)] || {};
+  const letter = reminder.letter || {};
+  return letter && typeof letter === "object" ? letter : {};
+}
+
+function getRenewalReminderDocumentHtml(app, months, draftHtml = "") {
+  const savedHtml = getRenewalLetterForMonth(app, months).document_html || "";
+  return draftHtml || savedHtml || buildFirstReminderLetterDocumentHtml(app);
+}
+
+function buildFirstReminderLetterDocumentHtml(app) {
+  const context = getFirstReminderLetterContext(app);
+  const addressLines = context.addressLines
+    .map((line) => `<p data-renewal-editable="true">${escapeHtml(line)}</p>`)
+    .join("");
+  const amountCell = context.amount ? escapeHtml(context.amount) : "&nbsp;";
+
+  return `
+<article class="dbku-renewal-letter">
+  <style>
+    html, body { margin: 0; background: #f8fafc; }
+    .dbku-renewal-letter {
+      width: 210mm;
+      min-height: 297mm;
+      box-sizing: border-box;
+      margin: 0 auto;
+      padding: 34mm 26mm 24mm;
+      background: #fff;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12pt;
+      line-height: 1.28;
+    }
+    .dbku-renewal-letter p { margin: 0 0 9pt; }
+    .dbku-renewal-letter .topline { display: grid; grid-template-columns: 1fr 52mm; gap: 14mm; }
+    .dbku-renewal-letter .refline { display: grid; grid-template-columns: 18mm 1fr; gap: 4mm; }
+    .dbku-renewal-letter .recipient { margin: 18pt 0 26pt 18mm; }
+    .dbku-renewal-letter .subject { margin: 0 0 22pt 18mm; font-weight: 800; text-transform: uppercase; }
+    .dbku-renewal-letter .subject span { display: block; }
+    .dbku-renewal-letter .para { display: grid; grid-template-columns: 14mm 1fr; gap: 4mm; text-align: justify; }
+    .dbku-renewal-letter table { width: calc(100% - 18mm); margin: 18pt 0 22pt 18mm; border-collapse: collapse; }
+    .dbku-renewal-letter th, .dbku-renewal-letter td { border: 1px solid #111827; padding: 3pt 6pt; vertical-align: top; }
+    .dbku-renewal-letter th { text-align: center; font-weight: 800; }
+    .dbku-renewal-letter .center { text-align: center; }
+    .dbku-renewal-letter .right { text-align: right; font-weight: 800; }
+    .dbku-renewal-letter .motto { margin-top: 28pt; font-weight: 800; font-style: italic; }
+    .dbku-renewal-letter .director { font-weight: 800; }
+    .dbku-renewal-letter .note { margin-top: 36pt; text-align: center; font-size: 9pt; font-style: italic; }
+    [data-renewal-editable="true"]:focus { outline: 2px solid rgba(16, 185, 129, .35); outline-offset: 2px; }
+  </style>
+  <div class="topline">
+    <div>
+      <p>Tuan:</p>
+      <div class="refline"><strong>Kami:</strong><span data-renewal-editable="true">${escapeHtml(context.ourRef)}</span></div>
+    </div>
+    <p>Tarikh: <span data-renewal-editable="true">${escapeHtml(context.letterDate)}</span></p>
+  </div>
+
+  <div class="recipient">
+    <p data-renewal-editable="true">${escapeHtml(context.applicantName)}</p>
+    ${addressLines}
+  </div>
+
+  <p style="margin-left:18mm;">Tuan</p>
+
+  <div class="subject">
+    <span data-renewal-editable="true">${escapeHtml(context.subject)}</span>
+  </div>
+
+  <p style="margin-left:18mm;">Dengan segala hormatnya perkara di atas dirujuk.</p>
+
+  <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u data-renewal-editable="true">${escapeHtml(context.expiryDate)}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
+
+  <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u>EMPAT BELAS (14) HARI BEKERJA</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>BUTIRAN BAYARAN</th>
+        <th>TEMPOH LESEN BERKUATKUASA</th>
+        <th>JUMLAH<br>(RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Lesen Iklan</td>
+        <td class="center" data-renewal-editable="true">${escapeHtml(context.renewalPeriod)}</td>
+        <td class="center" data-renewal-editable="true">${amountCell}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;</td>
+        <td class="right">JUMLAH KESELURUHAN</td>
+        <td class="center" data-renewal-editable="true">${amountCell}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="para"><span>4.</span><span>Sekiranya pihak tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955.</span></p>
+
+  <div class="motto">
+    <p>"AN HONOUR TO SERVE"<br>"TOGETHER WE CARE"</p>
+  </div>
+
+  <p class="director">Pengarah DBKU</p>
+
+  <p class="note">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.<br>Sila abaikan surat ini sekiranya pembaharuan telah dibuat</p>
+</article>`.trim();
+}
+
+function getFirstReminderLetterContext(app) {
+  const license = app?.form_data?.license || {};
+  const expiryDate = parseDateOrFallback(license.expiry_date, null);
+  const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
+  const renewalEnd = expiryDate ? addCalendarYears(expiryDate, 1) : null;
+  const location = getApplicationLocation(app);
+  const projectName = String(getProjectName(app) || getLicenseId(app) || "NAMA IKLAN")
+    .replace(/\s+/g, " ")
+    .trim();
+  const payment = app?.form_data?.payment || app?.payment || {};
+  const amount = parseCurrencyAmount(payment.amount || payment.payable_total);
+
+  return {
+    ourRef: `DBKU/LES/IKL/${new Date().getFullYear().toString().slice(-2)}/1(b)/ (   )`,
+    letterDate: formatMalayLetterDate(new Date()),
+    applicantName: getApplicantName(app) || getRegisteredApplicantName(app) || "Nama Syarikat",
+    addressLines: getLetterAddressLines(app),
+    subject: `PERINGATAN PERTAMA - BAYARAN LESEN IKLAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
+    expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
+    renewalPeriod:
+      renewalStart && renewalEnd
+        ? `${formatDotDate(renewalStart)} hingga ${formatDotDate(renewalEnd)}`
+        : "-",
+    amount: Number.isFinite(amount) ? amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "",
+  };
+}
+
+function getLetterAddressLines(app) {
+  const location = getApplicationLocation(app);
+  const profile = app?.applicant_registered_address_profile || app?.applicant_profile || {};
+  const fallbackAddress = profile.address || "";
+  const source = location || fallbackAddress || "Alamat lokasi projek iklan";
+  return String(source)
+    .split(/[\r\n,]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function formatMalayLetterDate(value) {
+  const date = parseDateOrFallback(value, null);
+  if (!date) return "-";
+  const monthNames = [
+    "Januari",
+    "Februari",
+    "Mac",
+    "April",
+    "Mei",
+    "Jun",
+    "Julai",
+    "Ogos",
+    "September",
+    "Oktober",
+    "November",
+    "Disember",
+  ];
+  return `${date.getDate()} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function formatDotDate(value) {
+  const date = parseDateOrFallback(value, null);
+  if (!date) return "-";
+  return [
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    date.getFullYear(),
+  ].join(".");
+}
+
+function addDays(value, days) {
+  const date = parseDateOrFallback(value, null);
+  if (!date) return null;
+  const next = new Date(date);
+  next.setDate(next.getDate() + Number(days || 0));
+  return next;
+}
+
+function downloadHtmlDocument(html, filename) {
+  const blobUrl = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 }
 
 function getReminderStatus(app, months) {
@@ -14221,39 +14457,48 @@ const configs = {
         },
       },
       {
+        key: "generate_1st_reminder_letter",
         label: "Generate 1st Reminder Letter",
         icon: "description",
         endpoint: "license-renewal-action",
+        reminderMonths: 3,
         success: "1st reminder letter generated for supervisor confirmation.",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 3),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
           months: 3,
           note: data.comment,
+          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
         }),
       },
       {
+        key: "generate_2nd_reminder_letter",
         label: "Generate 2nd Reminder Letter",
         icon: "description",
         endpoint: "license-renewal-action",
+        reminderMonths: 2,
         success: "2nd reminder letter generated for supervisor confirmation.",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 2),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
           months: 2,
           note: data.comment,
+          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
         }),
       },
       {
+        key: "generate_final_reminder_letter",
         label: "Generate Final Reminder Letter",
         icon: "description",
         endpoint: "license-renewal-action",
+        reminderMonths: 1,
         success: "Final renewal reminder letter generated for supervisor confirmation.",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 1),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
           months: 1,
           note: data.comment,
+          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
         }),
       },
       {
@@ -18230,7 +18475,7 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose, onSave }) 
   const html = hidePrintActionsInReviewDocument(document?.html || "", documentZoom);
   const [iframeHeight, setIframeHeight] = useState(720);
   const [signatureTool, setSignatureTool] = useState("select");
-  const canUseSignatureTools = Boolean(document?.editable);
+  const canUseSignatureTools = Boolean(document?.editable && document?.signatureTools !== false);
   const basePreviewWidth = document?.allowHorizontalScroll ? 1050 : 928;
   const previewZoomRatio = defaultDocumentZoom > 0 ? documentZoom / defaultDocumentZoom : 1;
   const previewWidth = Math.round(basePreviewWidth * Math.max(0.75, previewZoomRatio));
@@ -18292,7 +18537,9 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose, onSave }) 
       const frameDocument = iframeRef.current?.contentDocument;
       if (frameDocument) {
         prepareEditableGeneratedDocument(frameDocument, document?.kind);
-        prepareGeneratedDocumentSignatureTarget(frameDocument, document?.kind);
+        if (canUseSignatureTools) {
+          prepareGeneratedDocumentSignatureTarget(frameDocument, document?.kind);
+        }
       }
     }
     resizeIframe();
@@ -18730,7 +18977,9 @@ function stripReviewDocumentCss(html) {
 function prepareEditableGeneratedDocument(frameDocument, kind = "") {
   frameDocument.designMode = "off";
   const editableSelector =
-    kind === "advertisement_license"
+    kind === "renewal_reminder"
+      ? '.dbku-renewal-letter [data-renewal-editable="true"]'
+      : kind === "advertisement_license"
       ? ".ad-license-page .dot-line"
       : [
           ".dots",
@@ -20091,6 +20340,118 @@ function getSentOfficialReceiptFile(app) {
   return null;
 }
 
+function FirstReminderTaskPanel({
+  app,
+  t,
+  saving,
+  months = 3,
+  draftHtml = "",
+  onDraftHtmlChange,
+  onGenerate,
+}) {
+  const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("bank");
+  const [reviewDocument, setReviewDocument] = useState(null);
+  const label = getRenewalReminderTaskLabel(months) || "1st Reminder";
+  const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
+  const documentTitle = `${label} Letter`;
+  const fileName = `${getApplicationReference(app)}-${label.toLowerCase().replace(/\s+/g, "-")}-letter.html`;
+
+  function openReview() {
+    setReviewDocument({
+      title: documentTitle,
+      reference: getApplicationReference(app),
+      html: documentHtml,
+      editable: true,
+      signatureTools: false,
+      kind: "renewal_reminder",
+      scale: 0.78,
+      allowHorizontalScroll: true,
+    });
+  }
+
+  return (
+    <>
+      <div className="grid gap-4 text-sm lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.85fr)]">
+        <PaymentApprovalDocumentTabs
+          app={app}
+          t={t}
+          activeTab={activePaymentDocumentTab}
+          onTabChange={setActivePaymentDocumentTab}
+        />
+
+        <div className="flex min-w-0 flex-col gap-4">
+          <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                {t("workspace.payment.documents", "List of Document")}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
+                  {label.toUpperCase()} LETTER <span className="text-red-600">*</span>
+                </p>
+                <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                  {t(
+                    "workspace.license.firstReminderReviewDesc",
+                    "Please review the auto-generated 1st reminder letter before sending it for supervisor confirmation."
+                  )}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="download"
+                  className="min-h-9 px-4 py-1.5"
+                  onClick={() => downloadHtmlDocument(documentHtml, fileName)}
+                >
+                  {t("common.download", "Download")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="edit"
+                  className="min-h-9 px-4 py-1.5"
+                  onClick={openReview}
+                >
+                  {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          <div className="mt-auto flex justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              icon="description"
+              className="min-w-56"
+              disabled={saving}
+              onClick={() => onGenerate?.(documentHtml)}
+            >
+              {saving ? t("workspace.saving", "Saving...") : `Generate ${label} Letter`}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {reviewDocument && (
+        <GeneratedDocumentReviewModal
+          document={reviewDocument}
+          t={t}
+          saving={saving}
+          onClose={() => setReviewDocument(null)}
+          onSave={(nextHtml) => {
+            onDraftHtmlChange?.(nextHtml);
+            setReviewDocument(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 function LicenseDetails({
   app,
   t,
@@ -20385,6 +20746,7 @@ function getLicenseExpiryPreviewDate(years) {
 function parseDateOrFallback(value, fallback) {
   const parsed = value ? new Date(value) : null;
   if (parsed && !Number.isNaN(parsed.getTime())) return parsed;
+  if (fallback === null || fallback === undefined || fallback === "") return null;
   return fallback instanceof Date ? fallback : new Date(fallback);
 }
 
