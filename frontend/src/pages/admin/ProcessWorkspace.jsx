@@ -908,17 +908,24 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     normalizeStatus(selectedRecord?.status)
   );
   const pendingPtRenewalReminderMonth = getPendingPtRenewalReminderMonth(selectedRecord);
+  const pendingKbRenewalConfirmationMonth = getPendingReminderConfirmationMonth(selectedRecord);
   const isPtRenewalReminderWorkspace =
     actionConfig.key === "license" &&
     normalizedUserDepartment === "PT(IKL)" &&
     Boolean(pendingPtRenewalReminderMonth);
-  const selectedRenewalReminderAction = isPtRenewalReminderWorkspace
-    ? workspaceActions.find((action) => action.reminderMonths === pendingPtRenewalReminderMonth)
+  const showRenewalReminderWorkflowPanel =
+    isPtRenewalReminderWorkspace || isKbRenewalConfirmationWorkspace;
+  const selectedRenewalReminderAction = showRenewalReminderWorkflowPanel
+    ? workspaceActions.find((action) =>
+        isKbRenewalConfirmationWorkspace
+          ? action.key === "confirm_reminder_letter"
+          : action.reminderMonths === pendingPtRenewalReminderMonth
+      )
     : null;
 
   useEffect(() => {
     setRenewalReminderDraftHtml("");
-  }, [selectedRecord?.id, pendingPtRenewalReminderMonth]);
+  }, [selectedRecord?.id, pendingPtRenewalReminderMonth, pendingKbRenewalConfirmationMonth]);
 
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
@@ -3153,13 +3160,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 </p>
               )}
 
-              {isPtRenewalReminderWorkspace && (
+              {showRenewalReminderWorkflowPanel && (
                 <FirstReminderTaskPanel
                   app={selectedRecord}
                   t={t}
                   saving={saving}
-                  months={pendingPtRenewalReminderMonth}
-                  draftHtml={renewalReminderDraftHtml}
+                  months={
+                    isKbRenewalConfirmationWorkspace
+                      ? pendingKbRenewalConfirmationMonth
+                      : pendingPtRenewalReminderMonth
+                  }
+                  confirmationMode={isKbRenewalConfirmationWorkspace}
+                  draftHtml={isKbRenewalConfirmationWorkspace ? "" : renewalReminderDraftHtml}
                   remarks={comment}
                   remarksError={commentError}
                   signature={approvalSupportSignature}
@@ -3991,7 +4003,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
                           </Button>
                         </>
-                      ) : canSubmitWorkspaceAction && !isPtRenewalReminderWorkspace ? (
+                      ) : canSubmitWorkspaceAction && !showRenewalReminderWorkflowPanel ? (
                         workspaceActions.map((action) => (
                           <Button
                             key={action.label}
@@ -11841,6 +11853,32 @@ function buildWorkspaceDecisionLogRows(app, t) {
       date,
       signature,
     }, t);
+
+    const confirmationRemarks = cleanRemark(
+      reminder.confirmation_remarks || reminder.confirmation_note
+    );
+    const confirmationSignature = getWorkspaceDecisionLogSignature({
+      digital_signature: reminder.confirmation_digital_signature,
+    });
+    const confirmationDate = reminder.confirmed_at || "";
+
+    if (confirmationRemarks || confirmationSignature || confirmationDate) {
+      addWorkspaceDecisionLogRow(rows, {
+        id: `renewal-reminder-confirmation-${months}`,
+        department: "KB(LES)",
+        section: {
+          status: "confirmed",
+          decision: `${getRenewalReminderTaskLabel(Number(months)) || `${months}-Month Reminder`} Confirmation`,
+          remarks: confirmationRemarks,
+          confirmed_at: confirmationDate,
+          digital_signature: confirmationSignature,
+        },
+        decision: `${getRenewalReminderTaskLabel(Number(months)) || `${months}-Month Reminder`} Confirmation`,
+        remarks: confirmationRemarks,
+        date: confirmationDate,
+        signature: confirmationSignature,
+      }, t);
+    }
   });
 
   return rows
@@ -14637,6 +14675,7 @@ const configs = {
         }),
       },
       {
+        key: "confirm_reminder_letter",
         label: "Confirm Reminder Letter",
         icon: "verified",
         endpoint: "license-renewal-action",
@@ -14646,6 +14685,7 @@ const configs = {
           action: "confirm_reminder_letter",
           months: getPendingReminderConfirmationMonth(app),
           note: data.comment,
+          digital_signature: data.approvalSupportSignature || null,
         }),
       },
       {
@@ -20530,6 +20570,7 @@ function FirstReminderTaskPanel({
   t,
   saving,
   months = 3,
+  confirmationMode = false,
   draftHtml = "",
   remarks = "",
   remarksError = "",
@@ -20547,6 +20588,27 @@ function FirstReminderTaskPanel({
   const label = getRenewalReminderTaskLabel(months) || "1st Reminder";
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
   const documentTitle = `${label} Letter`;
+  const documentDescription = confirmationMode
+    ? t(
+        "workspace.license.firstReminderConfirmDesc",
+        "Please check the generated 1st reminder letter before confirming it for applicant release."
+      )
+    : t(
+        "workspace.license.firstReminderReviewDesc",
+        "Please review the auto-generated 1st reminder letter before sending it for KB(LES) confirmation."
+      );
+  const remarksPlaceholder = confirmationMode
+    ? t(
+        "workspace.license.firstReminderKbRemarksPlaceholder",
+        "Enter KB(LES) remarks before confirming this reminder letter."
+      )
+    : t(
+        "workspace.license.firstReminderRemarksPlaceholder",
+        "Enter PT(IKL) remarks before sending this reminder letter to KB(LES)."
+      );
+  const submitLabel = confirmationMode
+    ? `Confirm ${label} Letter`
+    : `Generate ${label} Letter`;
 
   function submitReminderLetter() {
     const cleanedRemarks = cleanRemark(remarks);
@@ -20604,11 +20666,7 @@ function FirstReminderTaskPanel({
                     {label.toUpperCase()} LETTER <span className="text-red-600">*</span>
                   </p>
                   <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
-                    {t(
-                      "workspace.license.firstReminderReviewDesc",
-                      "Please review the auto-generated 1st reminder letter before sending it for KB(LES) confirmation."
-                    )
-                    }
+                    {documentDescription}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -20627,15 +20685,17 @@ function FirstReminderTaskPanel({
                   >
                     {t("common.download", "Download")}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon="edit"
-                    className="min-h-9 px-4 py-1.5"
-                    onClick={openReview}
-                  >
-                    {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                  </Button>
+                  {!confirmationMode && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon="edit"
+                      className="min-h-9 px-4 py-1.5"
+                      onClick={openReview}
+                    >
+                      {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                    </Button>
+                  )}
                 </div>
               </div>
             </section>
@@ -20667,10 +20727,7 @@ function FirstReminderTaskPanel({
                 aria-required="true"
                 aria-invalid={Boolean(remarksError)}
                 className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
-                placeholder={t(
-                  "workspace.license.firstReminderRemarksPlaceholder",
-                  "Enter PT(IKL) remarks before sending this reminder letter to KB(LES)."
-                )}
+                placeholder={remarksPlaceholder}
                 style={RULED_TEXTAREA_STYLE}
               />
             </div>
@@ -20700,7 +20757,7 @@ function FirstReminderTaskPanel({
             disabled={saving}
             onClick={submitReminderLetter}
           >
-            {saving ? t("workspace.saving", "Saving...") : `Generate ${label} Letter`}
+            {saving ? t("workspace.saving", "Saving...") : submitLabel}
           </Button>
         </div>
       </div>

@@ -567,10 +567,19 @@ def apply_license_reminder_action(
         if reminder.get("status") != "pending_supervisor_confirmation":
             raise ValueError("The reminder letter is not waiting for KB(LES) confirmation.")
 
+        clean_note = clean_remark(note)
+        if not clean_note:
+            raise ValueError("Remarks are required.")
+
+        if not has_digital_signature_content(digital_signature):
+            raise ValueError("Digital signature is required.")
+
         reminder["status"] = "released_to_applicant"
         reminder["confirmed_at"] = timezone.now().isoformat()
         reminder["confirmed_by"] = get_web_recipient(user)
-        reminder["confirmation_note"] = clean_remark(note)
+        reminder["confirmation_note"] = clean_note
+        reminder["confirmation_remarks"] = clean_note
+        reminder["confirmation_digital_signature"] = digital_signature
         reminders[key] = reminder
         renewal["reminders"] = reminders
         notify_license_renewal_released(application, months)

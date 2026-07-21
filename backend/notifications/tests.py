@@ -2295,7 +2295,12 @@ class LicenseRenewalWorkflowTests(TestCase):
         client.force_authenticate(user=self.supervisor)
         response = client.post(
             f"/api/applications/{self.application.id}/license-renewal-action/",
-            {"action": "confirm_reminder_letter", "months": 3},
+            {
+                "action": "confirm_reminder_letter",
+                "months": 3,
+                "note": "KB(LES) confirmed the first reminder letter.",
+                "digital_signature": {"mode": "upload", "file_url": "/media/signatures/kb-les.png"},
+            },
             format="json",
         )
         self.assertEqual(response.status_code, 200)
@@ -2303,6 +2308,11 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.application.refresh_from_db()
         reminder = self.application.form_data["license_renewal"]["reminders"]["3"]
         self.assertEqual(reminder["status"], "released_to_applicant")
+        self.assertEqual(reminder["confirmation_remarks"], "KB(LES) confirmed the first reminder letter.")
+        self.assertEqual(
+            reminder["confirmation_digital_signature"]["file_url"],
+            "/media/signatures/kb-les.png",
+        )
         self.assertTrue(
             NotificationDelivery.objects.filter(
                 channel="web",
