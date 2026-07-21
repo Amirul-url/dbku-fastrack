@@ -8,6 +8,7 @@ from accounts.services.lookup import (
     format_whatsapp_recipient,
     phone_number_variants,
 )
+from notifications import message_templates as notify_messages
 
 
 PASSWORD_RESET_TTL_SECONDS = 10 * 60
@@ -49,11 +50,7 @@ def get_password_reset_user(channel, identifier):
 
 def build_password_reset_message(user, otp):
     name = normalize_full_name(f"{user.first_name} {user.last_name}") or normalize_full_name(user.username)
-    return (
-        f"Hello {name},\n\n"
-        f"Your ALiS password reset OTP is {otp}.\n"
-        "This OTP will expire in 10 minutes. If you did not request this, please ignore this message."
-    )
+    return notify_messages.PASSWORD_RESET_BODY_TEMPLATE.format(name=name, otp=otp)
 
 
 def deliver_password_reset_otp(user, channel, otp):
@@ -70,7 +67,7 @@ def deliver_password_reset_otp(user, channel, otp):
                 return False, "Email OTP service is not configured right now. Please try WhatsApp or contact support."
 
             try:
-                send_email(user.email, "ALiS Password Reset OTP", message)
+                send_email(user.email, notify_messages.PASSWORD_RESET_SUBJECT, message)
             except Exception as exc:
                 return False, f"Email OTP could not be sent right now. Please try again. ({exc})"
             return True, "OTP sent to your registered email address."
