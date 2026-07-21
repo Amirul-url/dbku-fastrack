@@ -2255,6 +2255,8 @@ class LicenseRenewalWorkflowTests(TestCase):
             {
                 "action": "generate_reminder_letter",
                 "months": 3,
+                "note": "PT(IKL) reviewed and generated the first reminder letter.",
+                "digital_signature": {"mode": "upload", "file_url": "/media/signatures/pt-ikl.png"},
                 "document_html": reviewed_letter_html,
             },
             format="json",
@@ -2263,7 +2265,26 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.application.refresh_from_db()
         reminder = self.application.form_data["license_renewal"]["reminders"]["3"]
         self.assertEqual(reminder["letter"]["document_html"], reviewed_letter_html)
+        self.assertEqual(
+            reminder["letter"]["remarks"],
+            "PT(IKL) reviewed and generated the first reminder letter.",
+        )
+        self.assertEqual(reminder["letter"]["digital_signature"]["file_url"], "/media/signatures/pt-ikl.png")
         self.assertIn("Reviewed first reminder letter", reminder["letter"]["content"])
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.supervisor,
+                metadata__event_status="license_renewal_supervisor_confirmation",
+            ).exists()
+        )
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.tp_res_supervisor,
+                metadata__event_status="license_renewal_supervisor_confirmation",
+            ).exists()
+        )
 
         client.force_authenticate(user=self.supervisor)
         response = client.post(

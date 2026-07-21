@@ -465,7 +465,15 @@ def process_license_renewal_reminders(now=None):
     return processed
 
 
-def apply_license_renewal_action(application, action, user, months=None, note="", document_html=""):
+def apply_license_renewal_action(
+    application,
+    action,
+    user,
+    months=None,
+    note="",
+    document_html="",
+    digital_signature=None,
+):
     action = str(action or "").strip().lower()
     form_data = deepcopy(application.form_data or {})
     renewal = get_form_data_section(form_data, "license_renewal")
@@ -482,6 +490,7 @@ def apply_license_renewal_action(application, action, user, months=None, note=""
             months,
             note,
             document_html=document_html,
+            digital_signature=digital_signature,
         )
     elif action in {
         "generate_cancellation_notice",
@@ -504,7 +513,16 @@ def apply_license_renewal_action(application, action, user, months=None, note=""
     return application
 
 
-def apply_license_reminder_action(application, renewal, action, user, months, note, document_html=""):
+def apply_license_reminder_action(
+    application,
+    renewal,
+    action,
+    user,
+    months,
+    note,
+    document_html="",
+    digital_signature=None,
+):
     reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
     key = str(months)
     reminder = reminders.get(key)
@@ -515,6 +533,13 @@ def apply_license_reminder_action(application, renewal, action, user, months, no
         if not is_pt_ikl_user(user):
             raise PermissionError("Only PT(IKL) can generate renewal reminder letters.")
 
+        clean_note = clean_remark(note)
+        if not clean_note:
+            raise ValueError("Remarks are required.")
+
+        if not has_digital_signature_content(digital_signature):
+            raise ValueError("Digital signature is required.")
+
         letter_html = clean_document_html(document_html) or build_renewal_letter_document_html(application, months)
         reminder["status"] = "pending_supervisor_confirmation"
         reminder["letter"] = {
@@ -524,21 +549,23 @@ def apply_license_reminder_action(application, renewal, action, user, months, no
             "title": get_renewal_reminder_title(months),
             "generated_at": timezone.now().isoformat(),
             "generated_by": get_web_recipient(user),
-            "note": clean_remark(note),
+            "note": clean_note,
+            "remarks": clean_note,
+            "digital_signature": digital_signature,
             "content": html_to_text(letter_html),
             "document_html": letter_html,
         }
         reminders[key] = reminder
         renewal["reminders"] = reminders
-        notify_license_renewal_supervisor_task(application, months)
+        notify_license_renewal_kb_confirmation_task(application, months)
         return {}
 
     if action == "confirm_reminder_letter":
-        if not is_supervisor_user(user):
-            raise PermissionError("Only a supervisor can confirm renewal reminder letters.")
+        if not is_kb_les_user(user):
+            raise PermissionError("Only KB(LES) can confirm renewal reminder letters.")
 
         if reminder.get("status") != "pending_supervisor_confirmation":
-            raise ValueError("The reminder letter is not waiting for supervisor confirmation.")
+            raise ValueError("The reminder letter is not waiting for KB(LES) confirmation.")
 
         reminder["status"] = "released_to_applicant"
         reminder["confirmed_at"] = timezone.now().isoformat()
@@ -933,7 +960,7 @@ def notify_license_renewal_detected(application, months, expiry):
     )
 
 
-def notify_license_renewal_supervisor_task(application, months):
+def notify_license_renewal_kb_confirmation_task(application, months):
     title = notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE.format(
         months=months
     )
@@ -948,7 +975,7 @@ def notify_license_renewal_supervisor_task(application, months):
         event_status="license_renewal_supervisor_confirmation",
         title=title,
         body=body,
-        recipients=get_supervisor_recipients(),
+        recipients=get_kb_les_recipients(),
         recipient_role="supervisor",
         action_url=f"/admin/e-licenses/license?id={application.id}",
         extra_metadata={"months_before_expiry": months},
@@ -2097,6 +2124,36 @@ def clean_remark(value):
     return remark
 
 
+def has_digital_signature_content(signature):
+    if not signature:
+        return False
+
+    if isinstance(signature, str):
+        return bool(signature.strip())
+
+    if not isinstance(signature, dict):
+        return False
+
+    for key in (
+        "file_url",
+        "url",
+        "file",
+        "preview_url",
+        "source",
+        "dataUrl",
+        "drawDataUrl",
+        "data_url",
+    ):
+        if str(signature.get(key) or "").strip():
+            return True
+
+    items = signature.get("items")
+    if isinstance(items, list):
+        return any(has_digital_signature_content(item) for item in items)
+
+    return False
+
+
 def build_recipients(application, messages):
     recipients = []
     status_key = str(application.status or "").strip().lower()
@@ -2795,35 +2852,57 @@ def build_renewal_letter_document_html(application, months):
     return f"""
 <article class="dbku-renewal-letter">
   <style>
+    @page {{ size: A4; margin: 0; }}
     .dbku-renewal-letter {{
       width: 210mm;
-      min-height: 297mm;
+      height: 297mm;
       box-sizing: border-box;
       margin: 0 auto;
       padding: 34mm 26mm 24mm;
       background: #fff;
       color: #111827;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 12pt;
-      line-height: 1.28;
+      font-family: Calibri, Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.25;
+      overflow: hidden;
+      break-after: avoid;
+      page-break-after: avoid;
+    }}
+    .dbku-renewal-letter, .dbku-renewal-letter * {{
+      font-family: Calibri, Arial, Helvetica, sans-serif !important;
+      font-size: 11pt !important;
+      line-height: 1.25 !important;
+      letter-spacing: 0 !important;
     }}
     .dbku-renewal-letter p {{ margin: 0 0 9pt; }}
     .dbku-renewal-letter .topline {{ display: grid; grid-template-columns: 1fr auto; gap: 14mm; align-items: start; }}
     .dbku-renewal-letter .top-field {{ display: grid; grid-template-columns: 18mm minmax(42mm, 1fr); gap: 4mm; }}
-    .dbku-renewal-letter .date-line {{ justify-self: end; min-width: 52mm; text-align: left; }}
+    .dbku-renewal-letter .date-line {{ justify-self: end; min-width: 52mm; text-align: right; }}
     .dbku-renewal-letter .editable-blank {{ display: inline-block; min-width: 42mm; min-height: 1em; }}
-    .dbku-renewal-letter .recipient {{ margin: 18pt 0 26pt 18mm; }}
-    .dbku-renewal-letter .subject {{ margin: 0 0 22pt 18mm; font-weight: 800; text-transform: uppercase; }}
-    .dbku-renewal-letter .subject span {{ display: block; }}
-    .dbku-renewal-letter .para {{ display: grid; grid-template-columns: 14mm 1fr; gap: 4mm; text-align: justify; }}
-    .dbku-renewal-letter table {{ width: calc(100% - 18mm); margin: 18pt 0 22pt 18mm; border-collapse: collapse; }}
+    .dbku-renewal-letter .recipient {{ margin: 10pt 0 14pt 22mm; }}
+    .dbku-renewal-letter .recipient p {{ margin: 0; }}
+    .dbku-renewal-letter .subject {{ margin: 0 0 12pt 22mm; font-weight: 800; text-align: justify; text-transform: uppercase; }}
+    .dbku-renewal-letter .subject span {{ display: block; text-align: justify; text-align-last: left; }}
+    .dbku-renewal-letter .intro {{ margin: 0 0 10pt 22mm; }}
+    .dbku-renewal-letter .para {{ display: block; margin: 0 0 12pt 22mm; text-align: justify; text-align-last: left; }}
+    .dbku-renewal-letter .para > span:first-child {{ display: inline-block; width: 14mm; margin-right: 4mm; vertical-align: top; }}
+    .dbku-renewal-letter .para > span:last-child {{ display: inline; }}
+    .dbku-renewal-letter .date-nowrap {{ white-space: nowrap; }}
+    .dbku-renewal-letter table {{ width: calc(100% - 22mm); margin: 10pt 0 12pt 22mm; border-collapse: collapse; }}
     .dbku-renewal-letter th, .dbku-renewal-letter td {{ border: 1px solid #111827; padding: 3pt 6pt; vertical-align: top; }}
     .dbku-renewal-letter th {{ text-align: center; font-weight: 800; }}
     .dbku-renewal-letter .center {{ text-align: center; }}
+    .dbku-renewal-letter .amount-cell {{ text-align: right; }}
     .dbku-renewal-letter .right {{ text-align: right; font-weight: 800; }}
-    .dbku-renewal-letter .motto {{ margin-top: 28pt; font-weight: 800; font-style: italic; }}
-    .dbku-renewal-letter .director {{ font-weight: 800; }}
-    .dbku-renewal-letter .note {{ margin-top: 36pt; text-align: center; font-size: 9pt; font-style: italic; }}
+    .dbku-renewal-letter .closing {{ margin: 0 0 12pt 22mm; }}
+    .dbku-renewal-letter .motto {{ margin: 0 0 12pt 22mm; font-weight: 800; font-style: italic; }}
+    .dbku-renewal-letter .director {{ margin-left: 22mm; font-weight: 800; }}
+    .dbku-renewal-letter .note {{ margin-top: 28pt; text-align: center; font-size: 7pt !important; font-style: italic; }}
+    .dbku-renewal-letter .note * {{ font-size: 7pt !important; font-style: italic; }}
+    @media print {{
+      html, body {{ width: 210mm; height: 297mm; background: #fff; overflow: hidden; }}
+      .dbku-renewal-letter {{ margin: 0; box-shadow: none; }}
+    }}
   </style>
   <div class="topline">
     <div>
@@ -2838,15 +2917,15 @@ def build_renewal_letter_document_html(application, months):
     {address_lines}
   </div>
 
-  <p style="margin-left:18mm;">Tuan</p>
+  <p style="margin-left:22mm;">Tuan</p>
 
   <div class="subject">
     <span>{escape_html(data["subject"])}</span>
   </div>
 
-  <p style="margin-left:18mm;">Dengan segala hormatnya perkara di atas dirujuk.</p>
+  <p class="intro">Dengan segala hormatnya perkara di atas dirujuk.</p>
 
-  <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u>{escape_html(data["expiry_date"])}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
+  <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u class="date-nowrap">{escape_html(data["expiry_date"])}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
 
   <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u>EMPAT BELAS (14) HARI BEKERJA</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
 
@@ -2862,17 +2941,19 @@ def build_renewal_letter_document_html(application, months):
       <tr>
         <td>Lesen Iklan</td>
         <td class="center">{escape_html(data["renewal_period"])}</td>
-        <td class="center">{amount_cell}</td>
+        <td class="amount-cell">{amount_cell}</td>
       </tr>
       <tr>
         <td>&nbsp;</td>
         <td class="right">JUMLAH KESELURUHAN</td>
-        <td class="center">{amount_cell}</td>
+        <td class="amount-cell">{amount_cell}</td>
       </tr>
     </tbody>
   </table>
 
   <p class="para"><span>4.</span><span>Sekiranya pihak tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955.</span></p>
+
+  <p class="closing">Sekian. Terima kasih.</p>
 
   <div class="motto">
     <p>"AN HONOUR TO SERVE"<br>"TOGETHER WE CARE"</p>
@@ -2888,13 +2969,15 @@ def build_renewal_letter_document_html(application, months):
 def get_renewal_letter_context(application, months):
     form_data = getattr(application, "form_data", None) or {}
     license_data = get_form_section(application, "license")
-    payment = get_form_section(application, "payment")
     expiry = parse_license_datetime(license_data.get("expiry_date"))
     local_expiry = timezone.localtime(expiry) if expiry else None
+    expiry_date = local_expiry.date() if local_expiry else None
     today = timezone.localdate()
-    applicant_name = get_renewal_application_applicant_name(application) or "Nama Syarikat"
+    applicant_name = get_renewal_company_name(application) or "NAMA SYARIKAT"
     location = get_renewal_project_location(form_data) or str(getattr(application, "project_location", "") or "")
-    address_lines = split_letter_address(location)
+    address_lines = get_renewal_company_address_lines(application)
+    if not address_lines:
+        address_lines = split_letter_address(location)
     if not address_lines:
         address_profile = get_renewal_registered_applicant_address_profile(application)
         address_lines = split_letter_address(address_profile.get("address"))
@@ -2909,10 +2992,66 @@ def get_renewal_letter_context(application, months):
         "applicant_name": applicant_name,
         "address_lines": address_lines[:4],
         "subject": build_renewal_letter_subject(application, location),
-        "expiry_date": format_malay_date(local_expiry.date()) if local_expiry else "-",
-        "renewal_period": build_renewal_period(local_expiry.date() if local_expiry else None),
-        "amount": format_renewal_amount(payment.get("amount") or payment.get("payable_total")),
+        "expiry_date": format_malay_date(expiry_date) if expiry_date else "-",
+        "renewal_period": build_renewal_period(expiry_date),
+        "amount": "",
     }
+
+
+def clean_renewal_letter_value(value):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text or text == "-":
+        return ""
+    return text.upper()
+
+
+def get_renewal_company_name(application):
+    form_data = getattr(application, "form_data", None) or {}
+    step_1 = form_data.get("step_1") if isinstance(form_data.get("step_1"), dict) else {}
+    step_2 = form_data.get("step_2") if isinstance(form_data.get("step_2"), dict) else {}
+    step_3 = form_data.get("step_3") if isinstance(form_data.get("step_3"), dict) else {}
+    candidates = [
+        step_3.get("org_name"),
+        step_3.get("company_name"),
+        step_3.get("name_of_company"),
+        step_2.get("org_name"),
+        step_2.get("company_name"),
+        step_1.get("company_name"),
+        get_renewal_application_applicant_name(application),
+    ]
+    for value in candidates:
+        text = clean_renewal_letter_value(value)
+        if text:
+            return text
+    return ""
+
+
+def get_renewal_company_address_lines(application):
+    form_data = getattr(application, "form_data", None) or {}
+    step_1 = form_data.get("step_1") if isinstance(form_data.get("step_1"), dict) else {}
+    step_3 = form_data.get("step_3") if isinstance(form_data.get("step_3"), dict) else {}
+    postcode_city_state = " ".join(
+        part
+        for part in [
+            clean_renewal_letter_value(step_3.get("postcode")),
+            clean_renewal_letter_value(step_3.get("city")),
+            clean_renewal_letter_value(step_3.get("state")),
+        ]
+        if part
+    )
+    lines = [
+        step_3.get("postal_address")
+        or step_3.get("address_1")
+        or step_3.get("unit_floor_block")
+        or step_1.get("unit_floor_block"),
+        step_3.get("address_2")
+        or step_3.get("street_residential_area")
+        or step_1.get("street_residential_area"),
+        step_3.get("address_3"),
+        step_3.get("address_4"),
+        postcode_city_state,
+    ]
+    return [clean_renewal_letter_value(line) for line in lines if clean_renewal_letter_value(line)][:4]
 
 
 def get_renewal_reminder_title(months):

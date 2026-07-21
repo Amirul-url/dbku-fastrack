@@ -624,6 +624,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         note = request.data.get("note", "")
         months = request.data.get("months")
         document_html = request.data.get("document_html", "")
+        digital_signature = request.data.get("digital_signature")
 
         try:
             months = int(months) if months is not None else None
@@ -634,6 +635,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 months=months,
                 note=note,
                 document_html=document_html,
+                digital_signature=digital_signature,
             )
         except PermissionError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)

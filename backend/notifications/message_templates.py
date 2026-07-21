@@ -568,19 +568,19 @@ PT_IKL_PAYMENT_VERIFIED_WHATSAPP_BODY_TEMPLATE = (
 PT_IKL_RENEWAL_DETECTED_TITLE_TEMPLATE = "{months}-month license renewal reminder"
 PT_IKL_RENEWAL_DETECTED_BODY_TEMPLATE = (
     "License {license_id} for application {reference} will expire on {expiry}. "
-    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+    "PT(IKL) must generate the renewal reminder letter and KB(LES) must confirm it before release."
 )
 PT_IKL_RENEWAL_DETECTED_WEB_BODY_TEMPLATE = (
     "License {license_id} for application {reference} will expire on {expiry}. "
-    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+    "PT(IKL) must generate the renewal reminder letter and KB(LES) must confirm it before release."
 )
 PT_IKL_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE = (
     "License {license_id} for application {reference} will expire on {expiry}. "
-    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+    "PT(IKL) must generate the renewal reminder letter and KB(LES) must confirm it before release."
 )
 PT_IKL_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE = (
     "License {license_id} for application {reference} will expire on {expiry}. "
-    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+    "PT(IKL) must generate the renewal reminder letter and KB(LES) must confirm it before release."
 )
 PT_IKL_CANCELLATION_PENDING_TITLE = "Cancellation notice required"
 PT_IKL_CANCELLATION_PENDING_BODY_TEMPLATE = (
@@ -677,23 +677,23 @@ SUPERADMIN_ACCOUNT_CREATED_BY_SENTENCE_TEMPLATE = "Created by {creator_name}."
 
 APPLICATION_RESUBMITTED_TITLE_TEMPLATE = "Application {reference} resubmitted"
 SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE = (
-    "{months}-month renewal letter awaiting supervisor confirmation"
+    "{months}-month renewal letter awaiting KB(LES) confirmation"
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_BODY_TEMPLATE = (
     "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. Please verify and confirm the letter."
+    "{reference}. KB(LES) must verify and confirm the letter."
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_WEB_BODY_TEMPLATE = (
     "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. Please verify and confirm the letter."
+    "{reference}. KB(LES) must verify and confirm the letter."
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_EMAIL_BODY_TEMPLATE = (
     "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. Please verify and confirm the letter."
+    "{reference}. KB(LES) must verify and confirm the letter."
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_WHATSAPP_BODY_TEMPLATE = (
     "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. Please verify and confirm the letter."
+    "{reference}. KB(LES) must verify and confirm the letter."
 )
 SUPERVISOR_CANCELLATION_CONFIRMATION_TITLE = (
     "Cancellation notice awaiting supervisor confirmation"
