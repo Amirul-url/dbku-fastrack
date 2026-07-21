@@ -1,4 +1,7 @@
+import tempfile
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -276,6 +279,74 @@ class ApplicationReferenceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         application.refresh_from_db()
         self.assertEqual(application.status, "submitted")
+
+
+class LicenseRenewalEarlyPaymentReceiptUploadTests(TestCase):
+    def setUp(self):
+        self.media_root = tempfile.TemporaryDirectory()
+        self.override = override_settings(MEDIA_ROOT=self.media_root.name)
+        self.override.enable()
+        User = get_user_model()
+        self.applicant = User.objects.create_user(
+            username="renewal-receipt-applicant",
+            password="testpass123",
+            role="applicant",
+        )
+        self.application = Application.objects.create(
+            applicant=self.applicant,
+            title="Renewal receipt application",
+            status="license_issued",
+            form_data={
+                "payment": {
+                    "receipt_file": {
+                        "name": "OriginalReceipt.jpg",
+                        "document_id": 111,
+                    },
+                },
+                "license_renewal": {
+                    "reminders": {
+                        "3": {
+                            "status": "released_to_applicant",
+                            "letter": {
+                                "title": "1st Reminder",
+                                "document_html": "<html><body>Reminder</body></html>",
+                            },
+                        },
+                    },
+                },
+            },
+        )
+
+    def tearDown(self):
+        self.override.disable()
+        self.media_root.cleanup()
+
+    def test_applicant_upload_renewal_early_payment_receipt_appends_without_replacing_original(self):
+        client = APIClient()
+        client.force_authenticate(user=self.applicant)
+        upload = SimpleUploadedFile(
+            "RenewalReceipt.jpg",
+            b"receipt-content",
+            content_type="image/jpeg",
+        )
+
+        response = client.post(
+            f"/api/applications/{self.application.id}/license-renewal-early-payment/",
+            {"months": "3", "file": upload},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.application.refresh_from_db()
+        payment = self.application.form_data["payment"]
+        renewal = self.application.form_data["license_renewal"]
+        self.assertEqual(payment["receipt_file"]["name"], "OriginalReceipt.jpg")
+        self.assertEqual(len(renewal["early_payment_receipts"]), 1)
+        self.assertEqual(renewal["early_payment_receipts"][0]["name"], "RenewalReceipt.jpg")
+        self.assertEqual(
+            renewal["reminders"]["3"]["early_payment_receipts"][0]["document_id"],
+            renewal["early_payment_receipts"][0]["document_id"],
+        )
 
 
 class ApplicationActivityVisibilityTests(TestCase):

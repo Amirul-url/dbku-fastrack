@@ -675,3 +675,32 @@ export async function uploadApplicationDocument(applicationId, title, file) {
     uploaded_at: document.uploaded_at,
   };
 }
+
+export async function uploadLicenseRenewalEarlyPaymentReceipt(applicationId, months, file) {
+  const body = new FormData();
+  body.append("months", String(months || 3));
+  body.append("file", file);
+
+  const response = await apiRequest(
+    `/applications/${applicationId}/license-renewal-early-payment/`,
+    {
+      method: "POST",
+      body,
+    }
+  );
+
+  const receipt = response?.receipt || {};
+
+  return {
+    ...receipt,
+    name: receipt.name || file.name,
+    size: receipt.size || file.size || 0,
+    type: receipt.type || file.type,
+    lastModified: file.lastModified,
+    url:
+      receipt.url ||
+      getApplicationDocumentUrl(applicationId, receipt.document_id),
+    file_url: normalizeFileUrl(receipt.file_url),
+    application: response?.data || null,
+  };
+}

@@ -9,6 +9,7 @@ import {
   fetchAuthenticatedBlob,
   getStoredUser,
   uploadApplicationDocument,
+  uploadLicenseRenewalEarlyPaymentReceipt,
 } from "../../services/api";
 import {
   Alert,
@@ -91,6 +92,7 @@ function UserDashboard() {
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
   const [receiptUploading, setReceiptUploading] = useState(false);
+  const [renewalReceiptUploading, setRenewalReceiptUploading] = useState(false);
   const [paymentReferenceDetails, setPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
@@ -597,6 +599,65 @@ function UserDashboard() {
     }
   }
 
+  async function handleRenewalEarlyPaymentReceiptChange(file, months = 3) {
+    if (!file) return;
+
+    if (!isAcceptedPaymentReceiptFile(file) || file.size > MAX_PAYMENT_RECEIPT_BYTES) {
+      window.alert(
+        t(
+          "applicant.receiptInvalidFile",
+          "Please upload a PDF, JPG, or PNG file up to 15MB."
+        )
+      );
+      return;
+    }
+
+    if (!activeApplication?.id) {
+      setMessage({ type: "error", text: t("applicant.detailsLoadFailed") });
+      return;
+    }
+
+    try {
+      setRenewalReceiptUploading(true);
+      setMessage({ type: "", text: "" });
+
+      const result = await uploadLicenseRenewalEarlyPaymentReceipt(
+        activeApplication.id,
+        months,
+        file
+      );
+      const updatedApplication =
+        result.application ||
+        (await fetchApplicationDetails(activeApplication.id, { markSeen: true }));
+
+      markApplicationSeen("all", updatedApplication || activeApplication);
+      await fetchApplications({ silent: true });
+      setSelectedApplication(updatedApplication || activeApplication);
+      setSelectedId(String((updatedApplication || activeApplication).id));
+      setLicensePanelOpen(true);
+      setMessage({
+        type: "success",
+        text: t(
+          "applicant.renewalEarlyPaymentReceiptUploaded",
+          "Renewal early payment receipt uploaded."
+        ),
+      });
+    } catch (err) {
+      console.error("Renewal early payment receipt upload failed:", err);
+      setMessage({
+        type: "error",
+        text:
+          err.message ||
+          t(
+            "applicant.renewalEarlyPaymentReceiptUploadFailed",
+            "Unable to upload the renewal early payment receipt."
+          ),
+      });
+    } finally {
+      setRenewalReceiptUploading(false);
+    }
+  }
+
   function handlePaymentReceiptRemove() {
     receiptUploadRequestRef.current = 0;
     setReceiptUploading(false);
@@ -709,6 +770,7 @@ function UserDashboard() {
             payment={payment}
             paymentReceipt={paymentReceipt}
             receiptUploading={receiptUploading}
+            renewalReceiptUploading={renewalReceiptUploading}
             paymentReferenceDetails={paymentReferenceDetails}
             saving={saving}
             t={t}
@@ -716,6 +778,7 @@ function UserDashboard() {
             onReceiptChange={handlePaymentReceiptChange}
             onReceiptRemove={handlePaymentReceiptRemove}
             onReceiptDownload={downloadPaymentReceipt}
+            onRenewalEarlyPaymentReceiptChange={handleRenewalEarlyPaymentReceiptChange}
             onPaymentReferenceDetailsChange={handlePaymentReferenceDetailsChange}
             onSubmitPayment={submitPayment}
             onRequestRevocation={requestLicenseRevocation}
@@ -1085,6 +1148,7 @@ function LicenseSection({
   payment,
   paymentReceipt,
   receiptUploading = false,
+  renewalReceiptUploading = false,
   paymentReferenceDetails,
   saving,
   t,
@@ -1092,6 +1156,7 @@ function LicenseSection({
   onReceiptChange,
   onReceiptRemove,
   onReceiptDownload,
+  onRenewalEarlyPaymentReceiptChange,
   onPaymentReferenceDetailsChange,
   onSubmitPayment,
   onRequestRevocation,
@@ -1276,6 +1341,13 @@ function LicenseSection({
               )}
             </section>
 
+            <RenewalEarlyPaymentReceiptSection
+              app={app}
+              t={t}
+              uploading={renewalReceiptUploading}
+              onChange={onRenewalEarlyPaymentReceiptChange}
+            />
+
             <LicenseRevocationRequestPanel
               app={app}
               saving={saving}
@@ -1428,6 +1500,126 @@ function PaymentReceiptUpload({
         )}
       </div>
     </div>
+  );
+}
+
+function RenewalEarlyPaymentReceiptSection({
+  app,
+  t,
+  uploading = false,
+  onChange,
+}) {
+  const releasedLetters = getReleasedRenewalLetters(app);
+  const receipts = getRenewalEarlyPaymentReceipts(app);
+  const activeLetter = releasedLetters[0] || null;
+
+  if (!activeLetter) return null;
+
+  function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+
+    onChange?.(file, activeLetter.months || 3);
+  }
+
+  return (
+    <section className="rounded-md border border-slate-200 bg-slate-50">
+      <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h4 className="text-sm font-semibold text-slate-950">
+            {t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt")}
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+            {t(
+              "applicant.renewalEarlyPaymentReceiptDesc",
+              "Optional upload for early renewal payment. This will not replace the original payment receipt."
+            )}
+          </p>
+        </div>
+
+        <label className={`inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold leading-5 text-white sm:w-auto ${
+          uploading
+            ? "cursor-not-allowed border-slate-400 bg-slate-400"
+            : "cursor-pointer border-emerald-700 bg-emerald-700 hover:bg-emerald-800"
+        }`}>
+          <span className="material-symbols-outlined text-[16px] text-white">
+            upload_file
+          </span>
+          {uploading
+            ? t("applicant.receiptUploading", "Uploading...")
+            : receipts.length > 0
+              ? t("applicant.uploadAnotherReceipt", "Upload another receipt")
+              : t("common.uploadReceipt", "Upload Receipt")}
+          <input
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+            onChange={handleFileChange}
+            disabled={uploading}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      <div className="border-t border-slate-200 bg-white px-3 py-3">
+        {receipts.length > 0 ? (
+          <div className="space-y-2">
+            {receipts.map((receipt, index) => (
+              <div
+                key={receipt.document_id || `${receipt.name}-${receipt.uploaded_at}-${index}`}
+                className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                    {index + 1}
+                  </span>
+                  <span className="material-symbols-outlined text-xl text-slate-500">
+                    {isImageReceipt(receipt, getPaymentDocumentSource(receipt)) ? "image" : "description"}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-700">
+                      {receipt.name || t("applicant.paymentReceipt", "Payment Receipt")}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {[getPaymentReceiptMeta(receipt), formatCompactDateTime(receipt.uploaded_at)]
+                        .filter(Boolean)
+                        .join(" - ")}
+                    </p>
+                  </div>
+                </div>
+
+                {getPaymentDocumentSource(receipt) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadApplicantPaymentDocument(
+                        receipt,
+                        t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt"),
+                        t
+                      )
+                    }
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
+                    title={t("common.download", "Download")}
+                    aria-label={t("common.download", "Download")}
+                  >
+                    <span className="material-symbols-outlined text-xl">download</span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
+            <p className="text-xs font-semibold text-slate-500">
+              {t(
+                "applicant.noRenewalEarlyPaymentReceipt",
+                "No renewal early payment receipt uploaded."
+              )}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1626,6 +1818,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const manualReceipt = approvalLetter.manual_receipt || {};
   const manualLicense = license.manual_license || {};
   const officialReceiptFile = getSentOfficialReceiptFile(app);
+  const releasedRenewalLetters = getReleasedRenewalLetters(app);
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
     manualReceipt.document_html ||
@@ -1680,9 +1873,16 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           },
         ]
       : []),
+    ...releasedRenewalLetters.map((letter) => ({
+      label: `${letter.title} Letter`,
+      name: `${letter.title} Letter`,
+      available: true,
+      type: "renewal_reminder",
+      onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letter.title} Letter`),
+    })),
   ];
   const hasAnyDocument = documents.some((item) =>
-    item.available || getPaymentDocumentSource(item.file) || item.manual?.saved_at
+    item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at
   );
 
   if (!hasAnyDocument) return null;
@@ -1719,7 +1919,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                 </p>
               )}
             </div>
-            {(item.available || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
+            {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
               <div className="flex flex-wrap gap-2">
                 {item.type === "submitted_application" && (
                   <button
@@ -1736,15 +1936,20 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                 {item.type !== "submitted_application" && (
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      if (item.onDownload) {
+                        item.onDownload();
+                        return;
+                      }
+
                       item.type === "advertisement_license"
                         ? item.file
                           ? downloadApplicantPaymentDocument(item.file, item.label, t)
                           : downloadApplicantAdvertisementLicenseDocument(app, t)
                         : item.file
                         ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                        : downloadApplicantManualPaymentDocument(app, item.type, t)
-                    }
+                        : downloadApplicantManualPaymentDocument(app, item.type, t);
+                    }}
                     className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     <span className="material-symbols-outlined text-[16px]">
@@ -3177,6 +3382,90 @@ function getSentOfficialReceiptFile(app) {
   }
 
   return null;
+}
+
+function getLicenseRenewal(app) {
+  const renewal = app?.form_data?.license_renewal || app?.license_renewal || {};
+  return renewal && typeof renewal === "object" ? renewal : {};
+}
+
+function getLicenseRenewalReminders(app) {
+  const reminders = getLicenseRenewal(app).reminders || {};
+  return reminders && typeof reminders === "object" ? reminders : {};
+}
+
+function getRenewalReminderTaskLabel(months) {
+  if (Number(months) === 3) return "1st Reminder";
+  if (Number(months) === 2) return "2nd Reminder";
+  if (Number(months) === 1) return "Final Reminder";
+  return `${months}-Month Reminder`;
+}
+
+function getGeneratedRenewalLetters(app) {
+  const reminders = getLicenseRenewalReminders(app);
+  return [3, 2, 1]
+    .map((months) => {
+      const reminder = reminders[String(months)] || {};
+      const letter = reminder.letter || {};
+      if (!letter.document_html) return null;
+
+      return {
+        months,
+        status: reminder.status || "",
+        title: letter.title || getRenewalReminderTaskLabel(months),
+        html: letter.document_html,
+        generatedAt: letter.generated_at || "",
+        reference: getApplicationReference(app),
+      };
+    })
+    .filter(Boolean);
+}
+
+function getReleasedRenewalLetters(app) {
+  return getGeneratedRenewalLetters(app).filter(
+    (letter) => normalizeStatus(letter.status) === "released_to_applicant"
+  );
+}
+
+function normalizeRenewalEarlyPaymentReceipt(receipt) {
+  if (!receipt || typeof receipt !== "object") return null;
+
+  return {
+    ...receipt,
+    document_id: receipt.document_id || receipt.id || "",
+    name: receipt.name || receipt.file_name || receipt.filename || receipt.title || "",
+    size: receipt.size || 0,
+    type: receipt.type || receipt.mime_type || receipt.content_type || "",
+    url: receipt.url || "",
+    file_url: receipt.file_url || "",
+    file: receipt.file || "",
+    uploaded_at: receipt.uploaded_at || "",
+  };
+}
+
+function getRenewalEarlyPaymentReceipts(app) {
+  const renewal = getLicenseRenewal(app);
+  const receipts = Array.isArray(renewal.early_payment_receipts)
+    ? renewal.early_payment_receipts
+    : [];
+  const reminders = getLicenseRenewalReminders(app);
+  const reminderReceipts = Object.values(reminders)
+    .flatMap((reminder) =>
+      Array.isArray(reminder?.early_payment_receipts)
+        ? reminder.early_payment_receipts
+        : []
+    );
+  const seen = new Set();
+
+  return [...receipts, ...reminderReceipts]
+    .map(normalizeRenewalEarlyPaymentReceipt)
+    .filter(Boolean)
+    .filter((receipt) => {
+      const key = receipt.document_id || `${receipt.name}-${receipt.uploaded_at}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 }
 
 function getLicenseVerificationUrl(licenseId) {

@@ -286,7 +286,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def get_throttles(self):
         throttles = super().get_throttles()
-        if getattr(self, "action", None) == "upload_document":
+        if getattr(self, "action", None) in {
+            "upload_document",
+            "license_renewal_early_payment",
+        }:
             return [UploadRateThrottle(), *throttles]
 
         return throttles
@@ -500,6 +503,101 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         )
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="license-renewal-early-payment")
+    def license_renewal_early_payment(self, request, pk=None):
+        application = self.get_object()
+        uploaded_file = request.FILES.get("file")
+        months = request.data.get("months") or "3"
+
+        if getattr(request.user, "role", "") in STAFF_ROLES or application.applicant_id != request.user.id:
+            return Response(
+                {"error": "Only the applicant can upload renewal payment receipts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not uploaded_file:
+            return Response(
+                {"error": "No file uploaded."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            months = int(months)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Reminder month must be a number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        form_data = deepcopy(application.form_data or {})
+        renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+        reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+        reminder = reminders.get(str(months)) if isinstance(reminders.get(str(months)), dict) else {}
+
+        if str(reminder.get("status") or "").strip().lower() != "released_to_applicant":
+            return Response(
+                {"error": "Renewal reminder letter has not been released to the applicant."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        title = f"{months}-Month Renewal Early Payment Receipt"
+        document = create_application_document(application, title, uploaded_file)
+        serializer = SupportingDocumentSerializer(
+            document,
+            context={"request": request},
+        )
+        document_data = serializer.data
+        timestamp = timezone_now_iso()
+        document_url = request.build_absolute_uri(
+            f"/api/applications/{application.id}/documents/{document.id}/download/"
+        )
+        receipt = {
+            "document_id": document_data["id"],
+            "title": document_data["title"],
+            "name": uploaded_file.name,
+            "size": document_data.get("size") or getattr(uploaded_file, "size", 0),
+            "type": getattr(uploaded_file, "content_type", "") or "",
+            "url": document_url,
+            "file_url": document_data.get("file_url", ""),
+            "file": document_data.get("file", ""),
+            "uploaded_at": document_data.get("uploaded_at") or timestamp,
+            "months_before_expiry": months,
+        }
+
+        existing_receipts = renewal.get("early_payment_receipts")
+        if not isinstance(existing_receipts, list):
+            existing_receipts = []
+        renewal["early_payment_receipts"] = [*existing_receipts, receipt]
+
+        reminder_receipts = reminder.get("early_payment_receipts")
+        if not isinstance(reminder_receipts, list):
+            reminder_receipts = []
+        reminder["early_payment_receipts"] = [*reminder_receipts, receipt]
+        reminders[str(months)] = reminder
+        renewal["reminders"] = reminders
+        form_data["license_renewal"] = renewal
+        application.form_data = form_data
+        application.save(update_fields=["form_data", "updated_at"])
+
+        append_application_activity(
+            application,
+            request.user,
+            "Renewal early payment receipt uploaded",
+            f"{uploaded_file.name} uploaded for {months}-month renewal reminder.",
+        )
+
+        return Response(
+            {
+                "message": "Renewal early payment receipt uploaded.",
+                "receipt": receipt,
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(
         detail=True,
