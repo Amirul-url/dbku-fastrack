@@ -11855,6 +11855,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
       remarks,
       date,
       signature,
+      useStatusFallback: false,
     }, t);
 
     const confirmationRemarks = cleanRemark(
@@ -11879,6 +11880,7 @@ function buildWorkspaceDecisionLogRows(app, t) {
         remarks: confirmationRemarks,
         date: confirmationDate,
         signature: confirmationSignature,
+        useStatusFallback: false,
       }, t);
     }
   });
