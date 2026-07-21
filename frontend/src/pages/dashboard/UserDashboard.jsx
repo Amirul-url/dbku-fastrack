@@ -54,6 +54,7 @@ const APPLICANT_STATUS_FILTER_OPTIONS = [
   "submitted",
   "under_review",
   "approved",
+  "license_renewal_1st_reminder",
   "rejected",
   "surrender_revoke",
 ];
@@ -2466,6 +2467,10 @@ function translatedStatus(t, status) {
   const normalized = normalizeStatus(status);
   const applicantStatusLabels = {
     invoice_generated: t("applicant.statusReadyForPayment", "Ready for Payment"),
+    license_renewal_1st_reminder: t(
+      "applicant.statusFirstReminder",
+      "1st Reminder"
+    ),
   };
 
   if (applicantStatusLabels[normalized]) {
@@ -2787,6 +2792,10 @@ function getApplicantFilterStatus(app) {
 
   if (isPaymentReceiptRejected(getApplicationPayment(app))) {
     return "rejected";
+  }
+
+  if (hasReleasedRenewalReminder(app, 3)) {
+    return "license_renewal_1st_reminder";
   }
 
   if (isApprovedApplication(app)) {
@@ -3425,6 +3434,11 @@ function getReleasedRenewalLetters(app) {
   return getGeneratedRenewalLetters(app).filter(
     (letter) => normalizeStatus(letter.status) === "released_to_applicant"
   );
+}
+
+function hasReleasedRenewalReminder(app, months) {
+  const reminder = getLicenseRenewalReminders(app)[String(months)] || {};
+  return normalizeStatus(reminder.status) === "released_to_applicant";
 }
 
 function normalizeRenewalEarlyPaymentReceipt(receipt) {
