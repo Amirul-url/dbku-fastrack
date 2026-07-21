@@ -982,7 +982,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     isPostApprovalPaymentRecord(selectedRecord) &&
     !isPtIssueLicenseWorkspace &&
-    !isApprovalLicenseManagement;
+    !isApprovalLicenseManagement &&
+    !isKbRenewalConfirmationWorkspace;
   const showApprovalLicenseManagementDetails =
     isApprovalLicenseManagement ||
     isPtIssueLicenseWorkspace;
@@ -1018,6 +1019,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const useTypedApprovalDecision =
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
+    !showRenewalReminderWorkflowPanel &&
     !isApprovalLicenseManagement &&
     !showIssueLicenseDecision &&
     !useApprovalSignatureTemplate &&
@@ -1029,6 +1031,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showPaymentTypedDecision ||
     showIssueLicenseDecision;
   const showWorkspaceCommentField =
+    !showRenewalReminderWorkflowPanel &&
     !isApprovalLicenseManagement &&
     (actionConfig.showComment || showIssueLicenseDecision) &&
     canSubmitWorkspaceAction &&
@@ -3324,6 +3327,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
                   {config.showDecision &&
                     canSubmitWorkspaceAction &&
+                    !showRenewalReminderWorkflowPanel &&
                     !isApprovalLicenseManagement &&
                     !useApprovalSignatureTemplate &&
                     !showApprovalDecisionButtons &&
@@ -3390,7 +3394,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     detailLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     ) : (
-                      !isPtRenewalReminderWorkspace && !showApprovalLicenseManagementDetails && config.details && (
+                      !showRenewalReminderWorkflowPanel && !showApprovalLicenseManagementDetails && config.details && (
                         <config.details
                           app={selectedRecord}
                           t={t}
@@ -3847,7 +3851,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     )
                   ) : (
-                    !isPtRenewalReminderWorkspace &&
+                    !showRenewalReminderWorkflowPanel &&
                     !showDetailsBeforeComment &&
                     !showApprovalLicenseManagementDetails &&
                     config.details && (
