@@ -819,13 +819,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     (isApprovalWorkspace || ["payment", "license"].includes(config.key)) &&
     normalizedUserDepartment === "PT(IKL)" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified";
-  const actionConfig = isPtPaymentVerifiedPersonalTask ? configs.license : config;
+  const isKbRenewalConfirmationWorkspace =
+    isApprovalWorkspace &&
+    normalizedUserDepartment === "KB(LES)" &&
+    canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
+  const actionConfig =
+    isPtPaymentVerifiedPersonalTask || isKbRenewalConfirmationWorkspace
+      ? configs.license
+      : config;
   const workspaceActions =
-    forceReadOnlyApprovalPanel && !hasApprovalLicenseManagementRecord && !isPtPaymentVerifiedPersonalTask
+    forceReadOnlyApprovalPanel &&
+    !hasApprovalLicenseManagementRecord &&
+    !isPtPaymentVerifiedPersonalTask &&
+    !isKbRenewalConfirmationWorkspace
       ? []
       : getWorkspaceActions(actionConfig, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction =
-    (!forceReadOnlyApprovalPanel || hasApprovalLicenseManagementRecord || isPtPaymentVerifiedPersonalTask) &&
+    (
+      !forceReadOnlyApprovalPanel ||
+      hasApprovalLicenseManagementRecord ||
+      isPtPaymentVerifiedPersonalTask ||
+      isKbRenewalConfirmationWorkspace
+    ) &&
     (isIklWorkspace || workspaceActions.length > 0);
   const canViewSelectedWorkspace =
     tableFirstWorkspace &&
@@ -10583,6 +10598,11 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.approved", "Approved");
   }
 
+  if (isApprovalWorkspace) {
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment);
+    if (renewalTaskLabel) return renewalTaskLabel;
+  }
+
   if (config?.key === "payment" && status === "bill_pending_ku") {
     return t("status.bill_pending_ku", "Pending Bill Sending");
   }
@@ -10623,6 +10643,11 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
   }
 
   if (config?.key === "approval") {
+    if (userDepartment === "KB(LES)" && canConfirmRenewalReminder(selectedRecord, userDepartment)) {
+      const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment);
+      return `Review and confirm the ${renewalTaskLabel.toLowerCase()} letter before it is released to the applicant.`;
+    }
+
     if (
       userDepartment === "PT(IKL)" &&
       normalizeStatus(selectedRecord?.status) === "payment_verified"
@@ -10791,6 +10816,10 @@ function getWorkspaceActions(config, app, department) {
     return getWorkspaceActions(configs.payment, app, normalizedDepartment);
   }
 
+  if (canConfirmRenewalReminder(app, normalizedDepartment)) {
+    return getWorkspaceActions(configs.license, app, normalizedDepartment);
+  }
+
   const stage = getApprovalStageKey(app);
   if (!isApprovalActionableRecord(app)) {
     return [];
@@ -10843,6 +10872,7 @@ function isPaymentTaskForDepartment(app, department) {
 function isApprovalTaskForDepartment(app, department) {
   const stage = getApprovalStageKey(app);
 
+  if (department === "KB(LES)" && canConfirmRenewalReminder(app, department)) return true;
   if (!isApprovalWorkflowRecord(app)) return false;
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
@@ -14157,7 +14187,7 @@ const configs = {
     commentPlaceholder: "Add comments",
     commentPlaceholderKey: "workspace.comment.approvalPlaceholder",
     stats: (apps) => [
-      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
+      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb" || canConfirmRenewalReminder(app, "KB(LES)")), icon: "verified_user", tone: "amber" },
       { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "check_circle", tone: "blue" },
       { label: "MPHLG", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
     ],
