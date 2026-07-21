@@ -859,7 +859,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const canViewSelectedWorkspace =
     tableFirstWorkspace &&
     Boolean(selectedRecord) &&
-    !isKbRenewalConfirmationOutsidePersonalTask &&
     canViewWorkspaceRow(config, selectedRecord, userDepartment);
   const isReadOnlyActionPanel =
     tableFirstWorkspace &&
