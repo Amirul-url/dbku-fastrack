@@ -210,7 +210,7 @@ def notify_account_created(account, created_by=None):
             channel="web",
             recipient=get_web_recipient(user),
             subject=subject,
-            message=message,
+            message=get_channel_message(message, "web"),
             metadata=metadata,
         )
 
@@ -367,7 +367,7 @@ def send_forced_staff_application_notification(application, event_key, subject, 
             channel="web",
             recipient=get_web_recipient(user),
             subject=subject,
-            message=message,
+            message=get_channel_message(message, "web"),
             metadata=metadata,
             force=True,
         )
@@ -381,7 +381,7 @@ def send_forced_staff_application_notification(application, event_key, subject, 
             channel="email",
             recipient=email,
             subject=subject,
-            message=message,
+            message=get_channel_message(message, "email"),
             metadata=metadata,
             force=True,
         )
@@ -395,7 +395,7 @@ def send_forced_staff_application_notification(application, event_key, subject, 
             channel="whatsapp",
             recipient=phone,
             subject=subject,
-            message=message,
+            message=get_channel_message(message, "whatsapp"),
             metadata=metadata,
             force=True,
         )
@@ -609,37 +609,43 @@ def build_account_created_message(account, created_by=None):
     title = notify_messages.SUPERADMIN_ACCOUNT_CREATED_TITLE_TEMPLATE.format(
         role_label=role_label
     )
-    body = notify_messages.SUPERADMIN_ACCOUNT_CREATED_BODY_TEMPLATE.format(
-        role_label=role_label,
-        account_name=account_name,
-    )
+    channel_bodies = {
+        "web": notify_messages.SUPERADMIN_ACCOUNT_CREATED_WEB_BODY_TEMPLATE.format(
+            role_label=role_label,
+            account_name=account_name,
+        ),
+        "email": notify_messages.SUPERADMIN_ACCOUNT_CREATED_EMAIL_BODY_TEMPLATE.format(
+            role_label=role_label,
+            account_name=account_name,
+        ),
+        "whatsapp": notify_messages.SUPERADMIN_ACCOUNT_CREATED_WHATSAPP_BODY_TEMPLATE.format(
+            role_label=role_label,
+            account_name=account_name,
+        ),
+    }
 
     if creator_name:
         creator_sentence = notify_messages.SUPERADMIN_ACCOUNT_CREATED_BY_SENTENCE_TEMPLATE.format(
             creator_name=creator_name
         )
-        body = f"{body} {creator_sentence}"
+        channel_bodies = {
+            channel: f"{body} {creator_sentence}"
+            for channel, body in channel_bodies.items()
+        }
 
+    body = channel_bodies["web"]
     subject = f"{APP_BRAND_NAME} - {title}"
-    lines = [
-        APP_BRAND_NAME,
-        "",
-        title,
-        notify_messages.ACCOUNT_NAME_LINE_TEMPLATE.format(account_name=account_name),
-        notify_messages.ACCOUNT_ROLE_LINE_TEMPLATE.format(role_label=role_label),
-    ]
-
-    if username:
-        lines.append(notify_messages.ACCOUNT_LOGIN_ID_LINE_TEMPLATE.format(username=username))
-
-    if creator_name:
-        lines.append(
-            notify_messages.ACCOUNT_CREATED_BY_LINE_TEMPLATE.format(
-                creator_name=creator_name
-            )
+    messages = {
+        channel: format_account_created_message(
+            title,
+            account_name,
+            role_label,
+            username,
+            creator_name,
+            channel_body,
         )
-
-    lines.extend(["", body])
+        for channel, channel_body in channel_bodies.items()
+    }
 
     metadata = {
         "category": "account",
@@ -657,7 +663,7 @@ def build_account_created_message(account, created_by=None):
         "action_url": get_account_management_url(role),
     }
 
-    return subject, "\n".join(lines), metadata
+    return subject, messages, metadata
 
 
 def build_applicant_registration_success_message(account):
@@ -788,7 +794,7 @@ def build_staff_application_resubmitted_message(application):
     reference = getattr(application, "reference_no", "") or "-"
     review_target = "MPHLG" if str(getattr(application, "status", "") or "").strip().lower() == "mphlg_processing" else "KU(IKL)"
     title = notify_messages.APPLICATION_RESUBMITTED_TITLE_TEMPLATE.format(reference=reference)
-    body = notify_messages.KU_IKL_STAFF_RESUBMITTED_BODY_TEMPLATE.format(
+    body = notify_messages.KU_IKL_STAFF_RESUBMITTED_WEB_BODY_TEMPLATE.format(
         reference=reference,
         review_target=review_target,
     )
@@ -812,15 +818,29 @@ def build_staff_application_resubmitted_message(application):
     })
     for key in ["memo_html", "memo_template", "display_status"]:
         metadata.pop(key, None)
-    message = format_notification_message(
-        title=title,
-        body=body,
-        application=application,
-        recipient_role="admin",
-        include_remark=False,
-    )
+    channel_bodies = {
+        "web": body,
+        "email": notify_messages.KU_IKL_STAFF_RESUBMITTED_EMAIL_BODY_TEMPLATE.format(
+            reference=reference,
+            review_target=review_target,
+        ),
+        "whatsapp": notify_messages.KU_IKL_STAFF_RESUBMITTED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=reference,
+            review_target=review_target,
+        ),
+    }
+    messages = {
+        channel: format_notification_message(
+            title=title,
+            body=channel_body,
+            application=application,
+            recipient_role="admin",
+            include_remark=False,
+        )
+        for channel, channel_body in channel_bodies.items()
+    }
 
-    return subject, message, metadata
+    return subject, messages, metadata
 
 
 def build_applicant_application_rejected_message(application):
@@ -877,11 +897,16 @@ def build_renewal_reminder_record(months, expiry, current_time):
 
 def notify_license_renewal_detected(application, months, expiry):
     title = notify_messages.PT_IKL_RENEWAL_DETECTED_TITLE_TEMPLATE.format(months=months)
-    body = notify_messages.PT_IKL_RENEWAL_DETECTED_BODY_TEMPLATE.format(
-        license_id=get_license_id(application),
-        reference=application.reference_no,
-        expiry=format_notification_datetime(expiry),
-    )
+    context = {
+        "license_id": get_license_id(application),
+        "reference": application.reference_no,
+        "expiry": format_notification_datetime(expiry),
+    }
+    body = {
+        "web": notify_messages.PT_IKL_RENEWAL_DETECTED_WEB_BODY_TEMPLATE.format(**context),
+        "email": notify_messages.PT_IKL_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE.format(**context),
+        "whatsapp": notify_messages.PT_IKL_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE.format(**context),
+    }
     event_status = f"license_renewal_{months}m"
     send_license_workflow_notification(
         application=application,
@@ -898,10 +923,12 @@ def notify_license_renewal_supervisor_task(application, months):
     title = notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE.format(
         months=months
     )
-    body = notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_BODY_TEMPLATE.format(
-        months=months,
-        reference=application.reference_no,
-    )
+    context = {"months": months, "reference": application.reference_no}
+    body = {
+        "web": notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_WEB_BODY_TEMPLATE.format(**context),
+        "email": notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_EMAIL_BODY_TEMPLATE.format(**context),
+        "whatsapp": notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_WHATSAPP_BODY_TEMPLATE.format(**context),
+    }
     send_license_workflow_notification(
         application=application,
         event_status="license_renewal_supervisor_confirmation",
@@ -944,25 +971,49 @@ def notify_license_cancellation_task(application, event_status):
     copy = {
         "license_cancellation_pending": (
             notify_messages.PT_IKL_CANCELLATION_PENDING_TITLE,
-            notify_messages.PT_IKL_CANCELLATION_PENDING_BODY_TEMPLATE.format(
-                license_id=get_license_id(application)
-            ),
+            {
+                "web": notify_messages.PT_IKL_CANCELLATION_PENDING_WEB_BODY_TEMPLATE.format(
+                    license_id=get_license_id(application)
+                ),
+                "email": notify_messages.PT_IKL_CANCELLATION_PENDING_EMAIL_BODY_TEMPLATE.format(
+                    license_id=get_license_id(application)
+                ),
+                "whatsapp": notify_messages.PT_IKL_CANCELLATION_PENDING_WHATSAPP_BODY_TEMPLATE.format(
+                    license_id=get_license_id(application)
+                ),
+            },
             get_pt_ikl_recipients(),
             "admin",
         ),
         "license_cancellation_supervisor_confirmation": (
             notify_messages.SUPERVISOR_CANCELLATION_CONFIRMATION_TITLE,
-            notify_messages.SUPERVISOR_CANCELLATION_CONFIRMATION_BODY_TEMPLATE.format(
-                reference=application.reference_no
-            ),
+            {
+                "web": notify_messages.SUPERVISOR_CANCELLATION_CONFIRMATION_WEB_BODY_TEMPLATE.format(
+                    reference=application.reference_no
+                ),
+                "email": notify_messages.SUPERVISOR_CANCELLATION_CONFIRMATION_EMAIL_BODY_TEMPLATE.format(
+                    reference=application.reference_no
+                ),
+                "whatsapp": notify_messages.SUPERVISOR_CANCELLATION_CONFIRMATION_WHATSAPP_BODY_TEMPLATE.format(
+                    reference=application.reference_no
+                ),
+            },
             get_supervisor_recipients(),
             "supervisor",
         ),
         "license_cancellation_kb_support": (
             notify_messages.KB_LES_CANCELLATION_SUPPORT_TITLE,
-            notify_messages.KB_LES_CANCELLATION_SUPPORT_BODY_TEMPLATE.format(
-                reference=application.reference_no
-            ),
+            {
+                "web": notify_messages.KB_LES_CANCELLATION_SUPPORT_WEB_BODY_TEMPLATE.format(
+                    reference=application.reference_no
+                ),
+                "email": notify_messages.KB_LES_CANCELLATION_SUPPORT_EMAIL_BODY_TEMPLATE.format(
+                    reference=application.reference_no
+                ),
+                "whatsapp": notify_messages.KB_LES_CANCELLATION_SUPPORT_WHATSAPP_BODY_TEMPLATE.format(
+                    reference=application.reference_no
+                ),
+            },
             get_kb_les_recipients(),
             "supervisor",
         ),
@@ -1019,15 +1070,30 @@ def notify_license_revocation_request(application, request_status="pending"):
         if normalized_status == "withdrawn"
         else notify_messages.PT_IKL_LICENSE_REVOCATION_REQUESTED_TITLE
     )
-    body = (
-        notify_messages.PT_IKL_LICENSE_REVOCATION_WITHDRAWN_BODY_TEMPLATE.format(
-            reference=application.reference_no
-        )
-        if normalized_status == "withdrawn"
-        else notify_messages.PT_IKL_LICENSE_REVOCATION_REQUESTED_BODY_TEMPLATE.format(
-            reference=application.reference_no
-        )
-    )
+    if normalized_status == "withdrawn":
+        body = {
+            "web": notify_messages.PT_IKL_LICENSE_REVOCATION_WITHDRAWN_WEB_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "email": notify_messages.PT_IKL_LICENSE_REVOCATION_WITHDRAWN_EMAIL_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "whatsapp": notify_messages.PT_IKL_LICENSE_REVOCATION_WITHDRAWN_WHATSAPP_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+        }
+    else:
+        body = {
+            "web": notify_messages.PT_IKL_LICENSE_REVOCATION_REQUESTED_WEB_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "email": notify_messages.PT_IKL_LICENSE_REVOCATION_REQUESTED_EMAIL_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "whatsapp": notify_messages.PT_IKL_LICENSE_REVOCATION_REQUESTED_WHATSAPP_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+        }
 
     send_license_workflow_notification(
         application=application,
@@ -1139,6 +1205,12 @@ def send_license_workflow_notification(
     for user in recipients:
         email = normalize_email(getattr(user, "email", ""))
         if email and user_allows_notification_channel(user, "email"):
+            email_message = format_license_workflow_message(
+                title,
+                get_channel_message(body, "email"),
+                application,
+                recipient_role,
+            )
             create_and_send_delivery(
                 application=application,
                 event_key=event_key,
@@ -1147,11 +1219,17 @@ def send_license_workflow_notification(
                 channel="email",
                 recipient=email,
                 subject=subject,
-                message=message,
+                message=email_message,
                 metadata=metadata,
             )
         phone = normalize_phone(getattr(user, "mobile_number", ""))
         if phone and user_allows_notification_channel(user, "whatsapp"):
+            whatsapp_message = format_license_workflow_message(
+                title,
+                get_channel_message(body, "whatsapp"),
+                application,
+                recipient_role,
+            )
             create_and_send_delivery(
                 application=application,
                 event_key=event_key,
@@ -1160,7 +1238,7 @@ def send_license_workflow_notification(
                 channel="whatsapp",
                 recipient=phone,
                 subject=subject,
-                message=message,
+                message=whatsapp_message,
                 metadata=metadata,
             )
 
@@ -1194,6 +1272,29 @@ def format_applicant_registration_message(title, account_name, username, body):
 
     if username:
         lines.append(notify_messages.ACCOUNT_LOGIN_ID_LINE_TEMPLATE.format(username=username))
+
+    lines.extend(["", body])
+    return "\n".join(lines)
+
+
+def format_account_created_message(title, account_name, role_label, username, creator_name, body):
+    lines = [
+        APP_BRAND_NAME,
+        "",
+        title,
+        notify_messages.ACCOUNT_NAME_LINE_TEMPLATE.format(account_name=account_name),
+        notify_messages.ACCOUNT_ROLE_LINE_TEMPLATE.format(role_label=role_label),
+    ]
+
+    if username:
+        lines.append(notify_messages.ACCOUNT_LOGIN_ID_LINE_TEMPLATE.format(username=username))
+
+    if creator_name:
+        lines.append(
+            notify_messages.ACCOUNT_CREATED_BY_LINE_TEMPLATE.format(
+                creator_name=creator_name
+            )
+        )
 
     lines.extend(["", body])
     return "\n".join(lines)
@@ -1301,9 +1402,17 @@ def build_status_messages(application):
         context,
     )
     admin_body = admin_template.format(**context)
+    admin_channel_bodies = format_admin_status_channel_bodies(
+        status_key,
+        {
+            **context,
+            "department_text": "technical units",
+        },
+    )
 
     if status_key == "management_review":
         title, admin_body = get_management_review_admin_text(application)
+        admin_channel_bodies = get_management_review_admin_channel_bodies(application)
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review":
         department_text = format_selected_technical_departments(application)
@@ -1315,6 +1424,13 @@ def build_status_messages(application):
             reference=application.reference_no,
             department_text=department_text,
         )
+        admin_channel_bodies = format_admin_status_channel_bodies(
+            status_key,
+            {
+                **context,
+                "department_text": department_text,
+            },
+        )
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "technical_review_completed" and is_kb_les_returned_to_ku(application):
         amendment_source = get_ku_amendment_source(application) or "KB(LES)"
@@ -1325,19 +1441,39 @@ def build_status_messages(application):
             reference=application.reference_no,
             amendment_source=amendment_source,
         )
+        admin_channel_bodies = {
+            "web": notify_messages.KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_WEB_BODY_TEMPLATE.format(
+                reference=application.reference_no,
+                amendment_source=amendment_source,
+            ),
+            "email": notify_messages.KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_EMAIL_BODY_TEMPLATE.format(
+                reference=application.reference_no,
+                amendment_source=amendment_source,
+            ),
+            "whatsapp": notify_messages.KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_WHATSAPP_BODY_TEMPLATE.format(
+                reference=application.reference_no,
+                amendment_source=amendment_source,
+            ),
+        }
         remark = get_ku_amendment_remark(application)
         if remark:
             admin_body = append_remark_block(admin_body, remark)
+            admin_channel_bodies = {
+                channel: append_remark_block(channel_body, remark)
+                for channel, channel_body in admin_channel_bodies.items()
+            }
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "mphlg_processing":
         title, _, admin_template = notify_messages.MPHLG_PROCESSING_STATUS
         title = title.format(reference=application.reference_no)
         admin_body = admin_template.format(reference=application.reference_no)
+        admin_channel_bodies = format_admin_status_channel_bodies(status_key, context)
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "mphlg_decision_received":
         title, _, admin_template = notify_messages.MPHLG_DECISION_RECEIVED_STATUS
         title = title.format(reference=application.reference_no)
         admin_body = admin_template.format(reference=application.reference_no)
+        admin_channel_bodies = format_admin_status_channel_bodies(status_key, context)
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "approved" and is_mphlg_approved(application):
         title = notify_messages.MPHLG_APPROVED_TITLE_TEMPLATE.format(
@@ -1346,6 +1482,17 @@ def build_status_messages(application):
         admin_body = notify_messages.MPHLG_APPROVED_BODY_TEMPLATE.format(
             reference=application.reference_no
         )
+        admin_channel_bodies = {
+            "web": notify_messages.MPHLG_APPROVED_WEB_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "email": notify_messages.MPHLG_APPROVED_EMAIL_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+            "whatsapp": notify_messages.MPHLG_APPROVED_WHATSAPP_BODY_TEMPLATE.format(
+                reference=application.reference_no
+            ),
+        }
         subject = build_notification_subject(title, application.reference_no)
     elif status_key == "invoice_generated" and is_payment_receipt_rejected(application):
         title = notify_messages.APPLICANT_PAYMENT_RECEIPT_REJECTED_TITLE
@@ -1401,12 +1548,22 @@ def build_status_messages(application):
         application=application,
         recipient_role="admin",
     )
+    admin_channel_messages = {
+        channel: format_notification_message(
+            title=title,
+            body=body,
+            application=application,
+            recipient_role="admin",
+        )
+        for channel, body in admin_channel_bodies.items()
+    }
 
     return {
         "subject": subject,
         "applicant_message": applicant_message,
         "applicant_messages": applicant_channel_messages,
         "admin_message": admin_message,
+        "admin_messages": admin_channel_messages,
         "applicant_metadata": applicant_metadata,
         "admin_metadata": admin_metadata,
     }
@@ -1426,6 +1583,18 @@ def format_applicant_status_channel_bodies(status_key, context):
         status_key,
         notify_messages.APPLICANT_DEFAULT_STATUS_CHANNEL_MESSAGES,
     )
+    return {
+        channel: template.format(**context)
+        for channel, template in templates.items()
+    }
+
+
+def format_admin_status_channel_bodies(status_key, context):
+    templates = notify_messages.ADMIN_STATUS_CHANNEL_MESSAGES.get(status_key)
+    if not templates:
+        templates = notify_messages.ADMIN_DEFAULT_STATUS_CHANNEL_MESSAGES
+        context = {**context, "status_label": str(context.get("status_label") or "").strip()}
+
     return {
         channel: template.format(**context)
         for channel, template in templates.items()
@@ -1921,6 +2090,7 @@ def build_recipients(application, messages):
     applicant_message = messages["applicant_message"]
     applicant_messages = messages.get("applicant_messages") or {}
     admin_message = messages["admin_message"]
+    admin_messages = messages.get("admin_messages") or {}
     applicant_metadata = messages["applicant_metadata"]
     admin_metadata = messages["admin_metadata"]
 
@@ -1973,7 +2143,7 @@ def build_recipients(application, messages):
             "channel": "web",
             "recipient": get_web_recipient(user),
             "subject": subject,
-            "message": admin_message,
+            "message": get_channel_message(admin_messages or admin_message, "web"),
             "metadata": admin_metadata,
         })
 
@@ -1981,23 +2151,23 @@ def build_recipients(application, messages):
         recipients.append({
             "user": user,
             "recipient_role": "admin",
-            "channel": "email",
-            "recipient": email,
-            "subject": subject,
-            "message": admin_message,
-            "metadata": admin_metadata,
-        })
+                "channel": "email",
+                "recipient": email,
+                "subject": subject,
+                "message": get_channel_message(admin_messages or admin_message, "email"),
+                "metadata": admin_metadata,
+            })
 
     for user, phone in get_admin_task_whatsapp_numbers(application, admin_users):
         recipients.append({
             "user": user,
             "recipient_role": "admin",
-            "channel": "whatsapp",
-            "recipient": phone,
-            "subject": subject,
-            "message": admin_message,
-            "metadata": admin_metadata,
-        })
+                "channel": "whatsapp",
+                "recipient": phone,
+                "subject": subject,
+                "message": get_channel_message(admin_messages or admin_message, "whatsapp"),
+                "metadata": admin_metadata,
+            })
 
     return dedupe_recipients(recipients)
 
@@ -2144,6 +2314,48 @@ def get_management_review_admin_text(application):
         title.format(reference=reference),
         admin_template.format(reference=reference),
     )
+
+
+def get_management_review_admin_channel_bodies(application):
+    reference = getattr(application, "reference_no", "") or "-"
+
+    if is_management_support_pending(application):
+        return {
+            "web": notify_messages.TP_PGH_MANAGEMENT_SUPPORT_WEB_BODY_TEMPLATE.format(
+                reference=reference
+            ),
+            "email": notify_messages.TP_PGH_MANAGEMENT_SUPPORT_EMAIL_BODY_TEMPLATE.format(
+                reference=reference
+            ),
+            "whatsapp": notify_messages.TP_PGH_MANAGEMENT_SUPPORT_WHATSAPP_BODY_TEMPLATE.format(
+                reference=reference
+            ),
+        }
+
+    if is_sut_result_recorded(application):
+        return {
+            "web": notify_messages.KB_LES_SUPPORT_AFTER_SUT_WEB_BODY_TEMPLATE.format(
+                reference=reference
+            ),
+            "email": notify_messages.KB_LES_SUPPORT_AFTER_SUT_EMAIL_BODY_TEMPLATE.format(
+                reference=reference
+            ),
+            "whatsapp": notify_messages.KB_LES_SUPPORT_AFTER_SUT_WHATSAPP_BODY_TEMPLATE.format(
+                reference=reference
+            ),
+        }
+
+    return {
+        "web": notify_messages.KB_LES_VERIFICATION_WEB_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "email": notify_messages.KB_LES_VERIFICATION_EMAIL_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+        "whatsapp": notify_messages.KB_LES_VERIFICATION_WHATSAPP_BODY_TEMPLATE.format(
+            reference=reference
+        ),
+    }
 
 
 def get_pending_technical_departments(application):

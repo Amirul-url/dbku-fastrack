@@ -226,6 +226,15 @@ APPLICANT_DEFAULT_STATUS_EMAIL_BODY_TEMPLATE = (
 APPLICANT_DEFAULT_STATUS_WHATSAPP_BODY_TEMPLATE = (
     "Your application {reference} status is now {status_label}."
 )
+ADMIN_DEFAULT_STATUS_WEB_BODY_TEMPLATE = (
+    "Application {reference} status is now {status_label}."
+)
+ADMIN_DEFAULT_STATUS_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} status is now {status_label}."
+)
+ADMIN_DEFAULT_STATUS_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} status is now {status_label}."
+)
 
 APPLICANT_STATUS_CHANNEL_MESSAGES = {
     "incomplete": {
@@ -259,6 +268,11 @@ APPLICANT_DEFAULT_STATUS_CHANNEL_MESSAGES = {
     "email": APPLICANT_DEFAULT_STATUS_EMAIL_BODY_TEMPLATE,
     "whatsapp": APPLICANT_DEFAULT_STATUS_WHATSAPP_BODY_TEMPLATE,
 }
+ADMIN_DEFAULT_STATUS_CHANNEL_MESSAGES = {
+    "web": ADMIN_DEFAULT_STATUS_WEB_BODY_TEMPLATE,
+    "email": ADMIN_DEFAULT_STATUS_EMAIL_BODY_TEMPLATE,
+    "whatsapp": ADMIN_DEFAULT_STATUS_WHATSAPP_BODY_TEMPLATE,
+}
 
 # =================
 # Notify message for KU(IKL)
@@ -269,20 +283,59 @@ KU_IKL_SUBMITTED_STATUS = (
     "Your application {reference} has been submitted successfully.",
     "Application {reference} has been submitted and is ready for KU(IKL) review.",
 )
+KU_IKL_SUBMITTED_WEB_BODY_TEMPLATE = (
+    "Application {reference} has been submitted and is ready for KU(IKL) review."
+)
+KU_IKL_SUBMITTED_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has been submitted and is ready for KU(IKL) review."
+)
+KU_IKL_SUBMITTED_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has been submitted and is ready for KU(IKL) review."
+)
 KU_IKL_REVIEW_STATUS = (
     "KU(IKL) review required",
     "",
     "Application {reference} is ready for KU(IKL) verification.",
+)
+KU_IKL_REVIEW_WEB_BODY_TEMPLATE = (
+    "Application {reference} is ready for KU(IKL) verification."
+)
+KU_IKL_REVIEW_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} is ready for KU(IKL) verification."
+)
+KU_IKL_REVIEW_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} is ready for KU(IKL) verification."
 )
 KU_IKL_TECHNICAL_REVIEW_COMPLETED_STATUS = (
     "Application {reference} requires KU(IKL) technical review",
     "",
     "Application {reference} has completed technical department feedback and is ready for KU(IKL) review.",
 )
+KU_IKL_TECHNICAL_REVIEW_COMPLETED_WEB_BODY_TEMPLATE = (
+    "Application {reference} has completed technical department feedback and is ready for KU(IKL) review."
+)
+KU_IKL_TECHNICAL_REVIEW_COMPLETED_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has completed technical department feedback and is ready for KU(IKL) review."
+)
+KU_IKL_TECHNICAL_REVIEW_COMPLETED_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has completed technical department feedback and is ready for KU(IKL) review."
+)
 KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_TITLE_TEMPLATE = (
     "Application {reference} amendment required"
 )
 KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_BODY_TEMPLATE = (
+    "Application {reference} was returned by {amendment_source} and requires "
+    "KU(IKL) amendment before verification can continue."
+)
+KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_WEB_BODY_TEMPLATE = (
+    "Application {reference} was returned by {amendment_source} and requires "
+    "KU(IKL) amendment before verification can continue."
+)
+KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} was returned by {amendment_source} and requires "
+    "KU(IKL) amendment before verification can continue."
+)
+KU_IKL_TECHNICAL_REVIEW_COMPLETED_RETURNED_WHATSAPP_BODY_TEMPLATE = (
     "Application {reference} was returned by {amendment_source} and requires "
     "KU(IKL) amendment before verification can continue."
 )
@@ -300,6 +353,15 @@ KU_IKL_MANAGEMENT_REVIEW_STATUS = (
 KU_IKL_STAFF_RESUBMITTED_BODY_TEMPLATE = (
     "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
 )
+KU_IKL_STAFF_RESUBMITTED_WEB_BODY_TEMPLATE = (
+    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
+)
+KU_IKL_STAFF_RESUBMITTED_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
+)
+KU_IKL_STAFF_RESUBMITTED_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
+)
 
 
 # =================
@@ -310,6 +372,15 @@ TECHNICAL_REVIEW_STATUS = (
     "Technical task assigned",
     "",
     "Application {reference} is ready for your department technical review.",
+)
+TECHNICAL_REVIEW_WEB_BODY_TEMPLATE = (
+    "Application {reference} is ready for {department_text} review."
+)
+TECHNICAL_REVIEW_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} is ready for {department_text} review."
+)
+TECHNICAL_REVIEW_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} is ready for {department_text} review."
 )
 
 
@@ -322,10 +393,28 @@ IKL_TECHNICAL_SITE_VISIT_STATUS = (
     "",
     "Application {reference} has completed selected unit technical review and is ready for IKL(TECHNICAL) review.",
 )
+IKL_TECHNICAL_SITE_VISIT_WEB_BODY_TEMPLATE = (
+    "Application {reference} has completed selected unit technical review and is ready for IKL(TECHNICAL) review."
+)
+IKL_TECHNICAL_SITE_VISIT_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has completed selected unit technical review and is ready for IKL(TECHNICAL) review."
+)
+IKL_TECHNICAL_SITE_VISIT_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has completed selected unit technical review and is ready for IKL(TECHNICAL) review."
+)
 IKL_TECHNICAL_AMENDMENT_STATUS = (
     "Application {reference} requires technical amendment",
     "",
     "Application {reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue.",
+)
+IKL_TECHNICAL_AMENDMENT_WEB_BODY_TEMPLATE = (
+    "Application {reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue."
+)
+IKL_TECHNICAL_AMENDMENT_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue."
+)
+IKL_TECHNICAL_AMENDMENT_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} requires IKL(TECHNICAL) amendment before KU(IKL) can continue."
 )
 
 
@@ -338,12 +427,45 @@ KB_LES_CANCELLATION_SUPPORT_BODY_TEMPLATE = (
     "The cancellation and enforcement notice for application {reference} has been "
     "confirmed by a supervisor. KB(LES) support is required before release."
 )
+KB_LES_CANCELLATION_SUPPORT_WEB_BODY_TEMPLATE = (
+    "The cancellation and enforcement notice for application {reference} has been "
+    "confirmed by a supervisor. KB(LES) support is required before release."
+)
+KB_LES_CANCELLATION_SUPPORT_EMAIL_BODY_TEMPLATE = (
+    "The cancellation and enforcement notice for application {reference} has been "
+    "confirmed by a supervisor. KB(LES) support is required before release."
+)
+KB_LES_CANCELLATION_SUPPORT_WHATSAPP_BODY_TEMPLATE = (
+    "The cancellation and enforcement notice for application {reference} has been "
+    "confirmed by a supervisor. KB(LES) support is required before release."
+)
 KB_LES_SUPPORT_AFTER_SUT_TITLE_TEMPLATE = (
     "Application {reference} requires KB(LES) support"
 )
 KB_LES_SUPPORT_AFTER_SUT_BODY_TEMPLATE = (
     "SUT approval result for application {reference} has been recorded. KB(LES) "
     "support is required before TP(RES)/PGH final approval."
+)
+KB_LES_SUPPORT_AFTER_SUT_WEB_BODY_TEMPLATE = (
+    "SUT approval result for application {reference} has been recorded. KB(LES) "
+    "support is required before TP(RES)/PGH final approval."
+)
+KB_LES_SUPPORT_AFTER_SUT_EMAIL_BODY_TEMPLATE = (
+    "SUT approval result for application {reference} has been recorded. KB(LES) "
+    "support is required before TP(RES)/PGH final approval."
+)
+KB_LES_SUPPORT_AFTER_SUT_WHATSAPP_BODY_TEMPLATE = (
+    "SUT approval result for application {reference} has been recorded. KB(LES) "
+    "support is required before TP(RES)/PGH final approval."
+)
+KB_LES_VERIFICATION_WEB_BODY_TEMPLATE = (
+    "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification."
+)
+KB_LES_VERIFICATION_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification."
+)
+KB_LES_VERIFICATION_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification."
 )
 
 
@@ -356,10 +478,28 @@ TP_PGH_APPROVED_STATUS = (
     "",
     "Application {reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill.",
 )
+TP_PGH_APPROVED_WEB_BODY_TEMPLATE = (
+    "Application {reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill."
+)
+TP_PGH_APPROVED_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill."
+)
+TP_PGH_APPROVED_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has final TP(RES)/PGH approval. Please generate the approval letter and bill."
+)
 TP_PGH_MANAGEMENT_SUPPORT_TITLE_TEMPLATE = (
     "Application {reference} requires TP(RES)/PGH approval"
 )
 TP_PGH_MANAGEMENT_SUPPORT_BODY_TEMPLATE = (
+    "Application {reference} is ready for TP(RES)/PGH final approval."
+)
+TP_PGH_MANAGEMENT_SUPPORT_WEB_BODY_TEMPLATE = (
+    "Application {reference} is ready for TP(RES)/PGH final approval."
+)
+TP_PGH_MANAGEMENT_SUPPORT_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} is ready for TP(RES)/PGH final approval."
+)
+TP_PGH_MANAGEMENT_SUPPORT_WHATSAPP_BODY_TEMPLATE = (
     "Application {reference} is ready for TP(RES)/PGH final approval."
 )
 
@@ -373,13 +513,22 @@ MPHLG_PROCESSING_STATUS = (
     "",
     "Application {reference} is ready for MPHLG approval.",
 )
+MPHLG_PROCESSING_WEB_BODY_TEMPLATE = "Application {reference} is ready for MPHLG approval."
+MPHLG_PROCESSING_EMAIL_BODY_TEMPLATE = "Application {reference} is ready for MPHLG approval."
+MPHLG_PROCESSING_WHATSAPP_BODY_TEMPLATE = "Application {reference} is ready for MPHLG approval."
 MPHLG_DECISION_RECEIVED_STATUS = (
     "Application {reference} requires SUT approval",
     "",
     "Application {reference} is ready for SUT approval.",
 )
+MPHLG_DECISION_RECEIVED_WEB_BODY_TEMPLATE = "Application {reference} is ready for SUT approval."
+MPHLG_DECISION_RECEIVED_EMAIL_BODY_TEMPLATE = "Application {reference} is ready for SUT approval."
+MPHLG_DECISION_RECEIVED_WHATSAPP_BODY_TEMPLATE = "Application {reference} is ready for SUT approval."
 MPHLG_APPROVED_TITLE_TEMPLATE = "Application {reference} approved by MPHLG"
 MPHLG_APPROVED_BODY_TEMPLATE = "Application {reference} has been approved by MPHLG."
+MPHLG_APPROVED_WEB_BODY_TEMPLATE = "Application {reference} has been approved by MPHLG."
+MPHLG_APPROVED_EMAIL_BODY_TEMPLATE = "Application {reference} has been approved by MPHLG."
+MPHLG_APPROVED_WHATSAPP_BODY_TEMPLATE = "Application {reference} has been approved by MPHLG."
 MPHLG_APPROVED_TITLE_MS = "Permohonan diluluskan oleh MPHLG"
 MPHLG_APPROVED_MESSAGE_MS_TEMPLATE = "Permohonan {reference} telah diluluskan oleh MPHLG."
 
@@ -393,13 +542,43 @@ PT_IKL_BILL_PENDING_KU_STATUS = (
     "",
     "Application {reference} has a generated bill ready to be sent to the applicant.",
 )
+PT_IKL_BILL_PENDING_KU_WEB_BODY_TEMPLATE = (
+    "Application {reference} has a generated bill ready to be sent to the applicant."
+)
+PT_IKL_BILL_PENDING_KU_EMAIL_BODY_TEMPLATE = (
+    "Application {reference} has a generated bill ready to be sent to the applicant."
+)
+PT_IKL_BILL_PENDING_KU_WHATSAPP_BODY_TEMPLATE = (
+    "Application {reference} has a generated bill ready to be sent to the applicant."
+)
 PT_IKL_PAYMENT_VERIFIED_STATUS = (
     "License issuance required",
     "",
     "Payment for application {reference} has been verified. Please generate the advertisement license and QR code.",
 )
+PT_IKL_PAYMENT_VERIFIED_WEB_BODY_TEMPLATE = (
+    "Payment for application {reference} has been verified. Please generate the advertisement license and QR code."
+)
+PT_IKL_PAYMENT_VERIFIED_EMAIL_BODY_TEMPLATE = (
+    "Payment for application {reference} has been verified. Please generate the advertisement license and QR code."
+)
+PT_IKL_PAYMENT_VERIFIED_WHATSAPP_BODY_TEMPLATE = (
+    "Payment for application {reference} has been verified. Please generate the advertisement license and QR code."
+)
 PT_IKL_RENEWAL_DETECTED_TITLE_TEMPLATE = "{months}-month license renewal reminder"
 PT_IKL_RENEWAL_DETECTED_BODY_TEMPLATE = (
+    "License {license_id} for application {reference} will expire on {expiry}. "
+    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+)
+PT_IKL_RENEWAL_DETECTED_WEB_BODY_TEMPLATE = (
+    "License {license_id} for application {reference} will expire on {expiry}. "
+    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+)
+PT_IKL_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE = (
+    "License {license_id} for application {reference} will expire on {expiry}. "
+    "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
+)
+PT_IKL_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE = (
     "License {license_id} for application {reference} will expire on {expiry}. "
     "PT(IKL) must generate the renewal reminder letter and a supervisor must confirm it before release."
 )
@@ -408,13 +587,46 @@ PT_IKL_CANCELLATION_PENDING_BODY_TEMPLATE = (
     "License {license_id} has expired without verified renewal payment. PT(IKL) "
     "must generate the cancellation and enforcement notice."
 )
+PT_IKL_CANCELLATION_PENDING_WEB_BODY_TEMPLATE = (
+    "License {license_id} has expired without verified renewal payment. PT(IKL) "
+    "must generate the cancellation and enforcement notice."
+)
+PT_IKL_CANCELLATION_PENDING_EMAIL_BODY_TEMPLATE = (
+    "License {license_id} has expired without verified renewal payment. PT(IKL) "
+    "must generate the cancellation and enforcement notice."
+)
+PT_IKL_CANCELLATION_PENDING_WHATSAPP_BODY_TEMPLATE = (
+    "License {license_id} has expired without verified renewal payment. PT(IKL) "
+    "must generate the cancellation and enforcement notice."
+)
 PT_IKL_LICENSE_REVOCATION_REQUESTED_TITLE = "Applicant requested license revocation"
 PT_IKL_LICENSE_REVOCATION_REQUESTED_BODY_TEMPLATE = (
     "The applicant has requested license revocation for application {reference}. "
     "Please review and revoke the license if appropriate."
 )
+PT_IKL_LICENSE_REVOCATION_REQUESTED_WEB_BODY_TEMPLATE = (
+    "The applicant has requested license revocation for application {reference}. "
+    "Please review and revoke the license if appropriate."
+)
+PT_IKL_LICENSE_REVOCATION_REQUESTED_EMAIL_BODY_TEMPLATE = (
+    "The applicant has requested license revocation for application {reference}. "
+    "Please review and revoke the license if appropriate."
+)
+PT_IKL_LICENSE_REVOCATION_REQUESTED_WHATSAPP_BODY_TEMPLATE = (
+    "The applicant has requested license revocation for application {reference}. "
+    "Please review and revoke the license if appropriate."
+)
 PT_IKL_LICENSE_REVOCATION_WITHDRAWN_TITLE = "License revocation request withdrawn"
 PT_IKL_LICENSE_REVOCATION_WITHDRAWN_BODY_TEMPLATE = (
+    "The applicant has withdrawn the license revocation request for application {reference}."
+)
+PT_IKL_LICENSE_REVOCATION_WITHDRAWN_WEB_BODY_TEMPLATE = (
+    "The applicant has withdrawn the license revocation request for application {reference}."
+)
+PT_IKL_LICENSE_REVOCATION_WITHDRAWN_EMAIL_BODY_TEMPLATE = (
+    "The applicant has withdrawn the license revocation request for application {reference}."
+)
+PT_IKL_LICENSE_REVOCATION_WITHDRAWN_WHATSAPP_BODY_TEMPLATE = (
     "The applicant has withdrawn the license revocation request for application {reference}."
 )
 
@@ -428,6 +640,15 @@ FIN_PAYMENT_SUBMITTED_STATUS = (
     "",
     "Applicant has uploaded payment proof for application {reference}. FIN must verify the receipt.",
 )
+FIN_PAYMENT_SUBMITTED_WEB_BODY_TEMPLATE = (
+    "Applicant has uploaded payment proof for application {reference}. FIN must verify the receipt."
+)
+FIN_PAYMENT_SUBMITTED_EMAIL_BODY_TEMPLATE = (
+    "Applicant has uploaded payment proof for application {reference}. FIN must verify the receipt."
+)
+FIN_PAYMENT_SUBMITTED_WHATSAPP_BODY_TEMPLATE = (
+    "Applicant has uploaded payment proof for application {reference}. FIN must verify the receipt."
+)
 
 
 # =================
@@ -436,6 +657,15 @@ FIN_PAYMENT_SUBMITTED_STATUS = (
 
 SUPERADMIN_ACCOUNT_CREATED_TITLE_TEMPLATE = "New {role_label} account created"
 SUPERADMIN_ACCOUNT_CREATED_BODY_TEMPLATE = (
+    "{role_label} account {account_name} was created successfully."
+)
+SUPERADMIN_ACCOUNT_CREATED_WEB_BODY_TEMPLATE = (
+    "{role_label} account {account_name} was created successfully."
+)
+SUPERADMIN_ACCOUNT_CREATED_EMAIL_BODY_TEMPLATE = (
+    "{role_label} account {account_name} was created successfully."
+)
+SUPERADMIN_ACCOUNT_CREATED_WHATSAPP_BODY_TEMPLATE = (
     "{role_label} account {account_name} was created successfully."
 )
 SUPERADMIN_ACCOUNT_CREATED_BY_SENTENCE_TEMPLATE = "Created by {creator_name}."
@@ -453,6 +683,18 @@ SUPERVISOR_RENEWAL_CONFIRMATION_BODY_TEMPLATE = (
     "PT(IKL) has generated the {months}-month renewal reminder letter for application "
     "{reference}. Please verify and confirm the letter."
 )
+SUPERVISOR_RENEWAL_CONFIRMATION_WEB_BODY_TEMPLATE = (
+    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
+    "{reference}. Please verify and confirm the letter."
+)
+SUPERVISOR_RENEWAL_CONFIRMATION_EMAIL_BODY_TEMPLATE = (
+    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
+    "{reference}. Please verify and confirm the letter."
+)
+SUPERVISOR_RENEWAL_CONFIRMATION_WHATSAPP_BODY_TEMPLATE = (
+    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
+    "{reference}. Please verify and confirm the letter."
+)
 SUPERVISOR_CANCELLATION_CONFIRMATION_TITLE = (
     "Cancellation notice awaiting supervisor confirmation"
 )
@@ -460,6 +702,86 @@ SUPERVISOR_CANCELLATION_CONFIRMATION_BODY_TEMPLATE = (
     "PT(IKL) has generated the cancellation and enforcement notice for application "
     "{reference}. Please verify and confirm the notice."
 )
+SUPERVISOR_CANCELLATION_CONFIRMATION_WEB_BODY_TEMPLATE = (
+    "PT(IKL) has generated the cancellation and enforcement notice for application "
+    "{reference}. Please verify and confirm the notice."
+)
+SUPERVISOR_CANCELLATION_CONFIRMATION_EMAIL_BODY_TEMPLATE = (
+    "PT(IKL) has generated the cancellation and enforcement notice for application "
+    "{reference}. Please verify and confirm the notice."
+)
+SUPERVISOR_CANCELLATION_CONFIRMATION_WHATSAPP_BODY_TEMPLATE = (
+    "PT(IKL) has generated the cancellation and enforcement notice for application "
+    "{reference}. Please verify and confirm the notice."
+)
+
+ADMIN_STATUS_CHANNEL_MESSAGES = {
+    "submitted": {
+        "web": KU_IKL_SUBMITTED_WEB_BODY_TEMPLATE,
+        "email": KU_IKL_SUBMITTED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": KU_IKL_SUBMITTED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "ku_ikl_review": {
+        "web": KU_IKL_REVIEW_WEB_BODY_TEMPLATE,
+        "email": KU_IKL_REVIEW_EMAIL_BODY_TEMPLATE,
+        "whatsapp": KU_IKL_REVIEW_WHATSAPP_BODY_TEMPLATE,
+    },
+    "technical_review": {
+        "web": TECHNICAL_REVIEW_WEB_BODY_TEMPLATE,
+        "email": TECHNICAL_REVIEW_EMAIL_BODY_TEMPLATE,
+        "whatsapp": TECHNICAL_REVIEW_WHATSAPP_BODY_TEMPLATE,
+    },
+    "technical_site_visit": {
+        "web": IKL_TECHNICAL_SITE_VISIT_WEB_BODY_TEMPLATE,
+        "email": IKL_TECHNICAL_SITE_VISIT_EMAIL_BODY_TEMPLATE,
+        "whatsapp": IKL_TECHNICAL_SITE_VISIT_WHATSAPP_BODY_TEMPLATE,
+    },
+    "technical_amendment": {
+        "web": IKL_TECHNICAL_AMENDMENT_WEB_BODY_TEMPLATE,
+        "email": IKL_TECHNICAL_AMENDMENT_EMAIL_BODY_TEMPLATE,
+        "whatsapp": IKL_TECHNICAL_AMENDMENT_WHATSAPP_BODY_TEMPLATE,
+    },
+    "technical_review_completed": {
+        "web": KU_IKL_TECHNICAL_REVIEW_COMPLETED_WEB_BODY_TEMPLATE,
+        "email": KU_IKL_TECHNICAL_REVIEW_COMPLETED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": KU_IKL_TECHNICAL_REVIEW_COMPLETED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "management_review": {
+        "web": KB_LES_VERIFICATION_WEB_BODY_TEMPLATE,
+        "email": KB_LES_VERIFICATION_EMAIL_BODY_TEMPLATE,
+        "whatsapp": KB_LES_VERIFICATION_WHATSAPP_BODY_TEMPLATE,
+    },
+    "mphlg_processing": {
+        "web": MPHLG_PROCESSING_WEB_BODY_TEMPLATE,
+        "email": MPHLG_PROCESSING_EMAIL_BODY_TEMPLATE,
+        "whatsapp": MPHLG_PROCESSING_WHATSAPP_BODY_TEMPLATE,
+    },
+    "mphlg_decision_received": {
+        "web": MPHLG_DECISION_RECEIVED_WEB_BODY_TEMPLATE,
+        "email": MPHLG_DECISION_RECEIVED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": MPHLG_DECISION_RECEIVED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "approved": {
+        "web": TP_PGH_APPROVED_WEB_BODY_TEMPLATE,
+        "email": TP_PGH_APPROVED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": TP_PGH_APPROVED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "bill_pending_ku": {
+        "web": PT_IKL_BILL_PENDING_KU_WEB_BODY_TEMPLATE,
+        "email": PT_IKL_BILL_PENDING_KU_EMAIL_BODY_TEMPLATE,
+        "whatsapp": PT_IKL_BILL_PENDING_KU_WHATSAPP_BODY_TEMPLATE,
+    },
+    "payment_submitted": {
+        "web": FIN_PAYMENT_SUBMITTED_WEB_BODY_TEMPLATE,
+        "email": FIN_PAYMENT_SUBMITTED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": FIN_PAYMENT_SUBMITTED_WHATSAPP_BODY_TEMPLATE,
+    },
+    "payment_verified": {
+        "web": PT_IKL_PAYMENT_VERIFIED_WEB_BODY_TEMPLATE,
+        "email": PT_IKL_PAYMENT_VERIFIED_EMAIL_BODY_TEMPLATE,
+        "whatsapp": PT_IKL_PAYMENT_VERIFIED_WHATSAPP_BODY_TEMPLATE,
+    },
+}
 
 STATUS_MESSAGES = {
     "submitted": KU_IKL_SUBMITTED_STATUS,
