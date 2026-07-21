@@ -3061,12 +3061,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 icon="arrow_back"
                 onClick={returnToTaskList}
               >
-                {isSimpleApprovalWorkspace
-                  ? fromCompletedApprovals
-                    ? t("workspace.backToCompleted", "Back to Completed")
-                    : t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
-                  : fromPersonalTask
-                    ? t("workspace.backToPersonalTask", "Back to Personal Task")
+                {fromPersonalTask
+                  ? t("workspace.backToPersonalTask", "Back to Personal Task")
+                  : isSimpleApprovalWorkspace
+                    ? fromCompletedApprovals
+                      ? t("workspace.backToCompleted", "Back to Completed")
+                      : t("workspace.backToAwaitingApproval", "Back to Awaiting Approval")
                     : t("workspace.backToELicenseList", "Back to E-Licenses List")}
               </Button>
             </div>
