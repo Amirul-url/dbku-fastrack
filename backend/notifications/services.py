@@ -2790,6 +2790,7 @@ def build_renewal_letter_document_html(application, months):
     data = get_renewal_letter_context(application, months)
     address_lines = "".join(f"<p>{escape_html(line)}</p>" for line in data["address_lines"])
     amount_cell = escape_html(data["amount"]) if data["amount"] else "&nbsp;"
+    your_ref_cell = escape_html(data["your_ref"]) if data["your_ref"] else "&nbsp;"
 
     return f"""
 <article class="dbku-renewal-letter">
@@ -2807,8 +2808,10 @@ def build_renewal_letter_document_html(application, months):
       line-height: 1.28;
     }}
     .dbku-renewal-letter p {{ margin: 0 0 9pt; }}
-    .dbku-renewal-letter .topline {{ display: grid; grid-template-columns: 1fr 52mm; gap: 14mm; }}
-    .dbku-renewal-letter .refline {{ display: grid; grid-template-columns: 18mm 1fr; gap: 4mm; }}
+    .dbku-renewal-letter .topline {{ display: grid; grid-template-columns: 1fr auto; gap: 14mm; align-items: start; }}
+    .dbku-renewal-letter .top-field {{ display: grid; grid-template-columns: 18mm minmax(42mm, 1fr); gap: 4mm; }}
+    .dbku-renewal-letter .date-line {{ justify-self: end; min-width: 52mm; text-align: left; }}
+    .dbku-renewal-letter .editable-blank {{ display: inline-block; min-width: 42mm; min-height: 1em; }}
     .dbku-renewal-letter .recipient {{ margin: 18pt 0 26pt 18mm; }}
     .dbku-renewal-letter .subject {{ margin: 0 0 22pt 18mm; font-weight: 800; text-transform: uppercase; }}
     .dbku-renewal-letter .subject span {{ display: block; }}
@@ -2824,10 +2827,10 @@ def build_renewal_letter_document_html(application, months):
   </style>
   <div class="topline">
     <div>
-      <p>Tuan:</p>
-      <div class="refline"><strong>Kami:</strong><span>{escape_html(data["our_ref"])}</span></div>
+      <p class="top-field"><span>Tuan:</span><span class="editable-blank">{your_ref_cell}</span></p>
+      <div class="top-field"><strong>Kami:</strong><span>{escape_html(data["our_ref"])}</span></div>
     </div>
-    <p>Tarikh: {escape_html(data["letter_date"])}</p>
+    <p class="date-line">Tarikh: {escape_html(data["letter_date"])}</p>
   </div>
 
   <div class="recipient">
@@ -2900,6 +2903,7 @@ def get_renewal_letter_context(application, months):
 
     return {
         "months": months,
+        "your_ref": "",
         "our_ref": build_renewal_letter_reference(today),
         "letter_date": format_malay_date(today),
         "applicant_name": applicant_name,

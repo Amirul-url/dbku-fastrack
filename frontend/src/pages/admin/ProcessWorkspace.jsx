@@ -11236,6 +11236,7 @@ function buildFirstReminderLetterDocumentHtml(app) {
     .map((line) => `<p data-renewal-editable="true">${escapeHtml(line)}</p>`)
     .join("");
   const amountCell = context.amount ? escapeHtml(context.amount) : "&nbsp;";
+  const yourRefCell = context.yourRef ? escapeHtml(context.yourRef) : "&nbsp;";
 
   return `
 <article class="dbku-renewal-letter">
@@ -11254,8 +11255,10 @@ function buildFirstReminderLetterDocumentHtml(app) {
       line-height: 1.28;
     }
     .dbku-renewal-letter p { margin: 0 0 9pt; }
-    .dbku-renewal-letter .topline { display: grid; grid-template-columns: 1fr 52mm; gap: 14mm; }
-    .dbku-renewal-letter .refline { display: grid; grid-template-columns: 18mm 1fr; gap: 4mm; }
+    .dbku-renewal-letter .topline { display: grid; grid-template-columns: 1fr auto; gap: 14mm; align-items: start; }
+    .dbku-renewal-letter .top-field { display: grid; grid-template-columns: 18mm minmax(42mm, 1fr); gap: 4mm; }
+    .dbku-renewal-letter .date-line { justify-self: end; min-width: 52mm; text-align: left; }
+    .dbku-renewal-letter .editable-blank { display: inline-block; min-width: 42mm; min-height: 1em; }
     .dbku-renewal-letter .recipient { margin: 18pt 0 26pt 18mm; }
     .dbku-renewal-letter .subject { margin: 0 0 22pt 18mm; font-weight: 800; text-transform: uppercase; }
     .dbku-renewal-letter .subject span { display: block; }
@@ -11272,10 +11275,10 @@ function buildFirstReminderLetterDocumentHtml(app) {
   </style>
   <div class="topline">
     <div>
-      <p>Tuan:</p>
-      <div class="refline"><strong>Kami:</strong><span data-renewal-editable="true">${escapeHtml(context.ourRef)}</span></div>
+      <p class="top-field"><span>Tuan:</span><span class="editable-blank" data-renewal-editable="true">${yourRefCell}</span></p>
+      <div class="top-field"><strong>Kami:</strong><span data-renewal-editable="true">${escapeHtml(context.ourRef)}</span></div>
     </div>
-    <p>Tarikh: <span data-renewal-editable="true">${escapeHtml(context.letterDate)}</span></p>
+    <p class="date-line">Tarikh: <span data-renewal-editable="true">${escapeHtml(context.letterDate)}</span></p>
   </div>
 
   <div class="recipient">
@@ -11342,6 +11345,7 @@ function getFirstReminderLetterContext(app) {
   const amount = parseCurrencyAmount(payment.amount || payment.payable_total);
 
   return {
+    yourRef: "",
     ourRef: `DBKU/LES/IKL/${new Date().getFullYear().toString().slice(-2)}/1(b)/ (   )`,
     letterDate: formatMalayLetterDate(new Date()),
     applicantName: getApplicantName(app) || getRegisteredApplicantName(app) || "Nama Syarikat",
