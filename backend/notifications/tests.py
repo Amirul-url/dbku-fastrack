@@ -2277,12 +2277,14 @@ class LicenseRenewalWorkflowTests(TestCase):
         )
         self.assertEqual(reminder["letter"]["digital_signature"]["file_url"], "/media/signatures/pt-ikl.png")
         self.assertIn("Reviewed first reminder letter", reminder["letter"]["content"])
-        self.assertTrue(
-            NotificationDelivery.objects.filter(
-                channel="web",
-                user=self.supervisor,
-                metadata__event_status="license_renewal_supervisor_confirmation",
-            ).exists()
+        kb_confirmation_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=self.supervisor,
+            metadata__event_status="license_renewal_supervisor_confirmation",
+        )
+        self.assertEqual(
+            kb_confirmation_delivery.metadata["action_url"],
+            f"/admin/approval?id={self.application.id}&from=personal",
         )
         self.assertFalse(
             NotificationDelivery.objects.filter(
@@ -2313,13 +2315,12 @@ class LicenseRenewalWorkflowTests(TestCase):
             reminder["confirmation_digital_signature"]["file_url"],
             "/media/signatures/kb-les.png",
         )
-        self.assertTrue(
-            NotificationDelivery.objects.filter(
-                channel="web",
-                user=self.applicant,
-                metadata__event_status="license_renewal_released",
-            ).exists()
+        applicant_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=self.applicant,
+            metadata__event_status="license_renewal_released",
         )
+        self.assertIn("ALiS", applicant_delivery.message)
 
     def local_time(self, year, month, day, hour, minute):
         return timezone.make_aware(

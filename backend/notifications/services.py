@@ -1001,7 +1001,7 @@ def notify_license_renewal_kb_confirmation_task(application, months):
         body=body,
         recipients=get_kb_les_recipients(),
         recipient_role="supervisor",
-        action_url=f"/admin/e-licenses/license?id={application.id}",
+        action_url=f"/admin/approval?id={application.id}&from=personal",
         extra_metadata={"months_before_expiry": months},
     )
 

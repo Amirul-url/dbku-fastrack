@@ -653,6 +653,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           !hasTechnicalDepartmentReview(app, userDepartment));
       const isInApprovalScope =
         !isApprovalWorkspace ||
+        (
+          fromPersonalTask &&
+          normalizedUserDepartment === "KB(LES)" &&
+          canConfirmRenewalReminder(app, userDepartment)
+        ) ||
         isApprovalTrackingRecordForDepartment(app, userDepartment);
 
       return isInStatusScope && isInDepartmentScope && isInApprovalScope;
@@ -660,9 +665,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [
     applications,
     config,
+    fromPersonalTask,
     fromCompletedApprovals,
     isApprovalWorkspace,
     isDepartmentTechnicalWorkspace,
+    normalizedUserDepartment,
     selectedId,
     userDepartment,
   ]);
@@ -820,6 +827,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     normalizedUserDepartment === "PT(IKL)" &&
     normalizeStatus(selectedRecord?.status) === "payment_verified";
   const isKbRenewalConfirmationWorkspace =
+    fromPersonalTask &&
+    isApprovalWorkspace &&
+    normalizedUserDepartment === "KB(LES)" &&
+    canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
+  const isKbRenewalConfirmationOutsidePersonalTask =
+    !fromPersonalTask &&
     isApprovalWorkspace &&
     normalizedUserDepartment === "KB(LES)" &&
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
@@ -828,6 +841,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       ? configs.license
       : config;
   const workspaceActions =
+    isKbRenewalConfirmationOutsidePersonalTask ||
     forceReadOnlyApprovalPanel &&
     !hasApprovalLicenseManagementRecord &&
     !isPtPaymentVerifiedPersonalTask &&
@@ -845,6 +859,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const canViewSelectedWorkspace =
     tableFirstWorkspace &&
     Boolean(selectedRecord) &&
+    !isKbRenewalConfirmationOutsidePersonalTask &&
     canViewWorkspaceRow(config, selectedRecord, userDepartment);
   const isReadOnlyActionPanel =
     tableFirstWorkspace &&
@@ -10888,7 +10903,6 @@ function isPaymentTaskForDepartment(app, department) {
 function isApprovalTaskForDepartment(app, department) {
   const stage = getApprovalStageKey(app);
 
-  if (department === "KB(LES)" && canConfirmRenewalReminder(app, department)) return true;
   if (!isApprovalWorkflowRecord(app)) return false;
   if (isApprovalHistoryRecord(app)) return true;
   if (!isApprovalActionDepartment(department)) return true;
@@ -14229,7 +14243,7 @@ const configs = {
     commentPlaceholder: "Add comments",
     commentPlaceholderKey: "workspace.comment.approvalPlaceholder",
     stats: (apps) => [
-      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb" || canConfirmRenewalReminder(app, "KB(LES)")), icon: "verified_user", tone: "amber" },
+      { label: "KB(LES)", value: countBy(apps, (app) => getApprovalStageKey(app) === "kb"), icon: "verified_user", tone: "amber" },
       { label: "TP(RES)/PGH", value: countBy(apps, (app) => getApprovalStageKey(app) === "support"), icon: "check_circle", tone: "blue" },
       { label: "MPHLG", value: countBy(apps, (app) => getApprovalStageKey(app) === "mphlg"), icon: "account_balance", tone: "slate" },
     ],
