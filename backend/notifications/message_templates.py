@@ -166,19 +166,19 @@ APPLICANT_LICENSE_REVOKED_WHATSAPP_BODY_TEMPLATE = (
 
 # License renewal reminder released
 APPLICANT_RENEWAL_RELEASED_TITLE_TEMPLATE = (
-    "{months}-month license renewal reminder released"
+    "{months}-month license renewal reminder"
 )
 APPLICANT_RENEWAL_RELEASED_WEB_BODY_TEMPLATE = (
-    "Your advertisement license for application {reference} is due to expire. "
-    "Please complete the renewal process before the expiry date."
+    "The renewal reminder letter for application {reference} is now available. "
+    "Please review the letter and renew your advertisement license before the expiry date."
 )
 APPLICANT_RENEWAL_RELEASED_EMAIL_BODY_TEMPLATE = (
-    "Your advertisement license for application {reference} is due to expire. "
-    "Please complete the renewal process before the expiry date."
+    "The renewal reminder letter for application {reference} is now available. "
+    "Please review the letter and renew your advertisement license before the expiry date."
 )
 APPLICANT_RENEWAL_RELEASED_WHATSAPP_BODY_TEMPLATE = (
-    "Your advertisement license for application {reference} is due to expire. "
-    "Please complete the renewal process before the expiry date."
+    "The renewal reminder letter for application {reference} is now available. "
+    "Please review the letter and renew your advertisement license before the expiry date."
 )
 
 # License cancellation notice released

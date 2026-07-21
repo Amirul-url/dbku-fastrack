@@ -2321,6 +2321,9 @@ class LicenseRenewalWorkflowTests(TestCase):
             user=self.applicant,
             metadata__event_status="license_renewal_released",
         )
+        self.assertEqual(applicant_delivery.metadata["title"], "3-month license renewal reminder")
+        self.assertIn("renewal reminder letter", applicant_delivery.metadata["message"])
+        self.assertNotIn("released", applicant_delivery.metadata["title"])
         self.assertIn("ALiS", applicant_delivery.message)
 
     @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False)
