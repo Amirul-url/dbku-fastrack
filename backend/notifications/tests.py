@@ -14,6 +14,7 @@ from .services import (
     notify_applicant_registration_success,
     notify_account_created,
     notify_application_status_change,
+    notify_license_renewal_released,
     notify_license_revocation_request,
     process_license_renewal_reminders,
 )
@@ -2321,6 +2322,26 @@ class LicenseRenewalWorkflowTests(TestCase):
             metadata__event_status="license_renewal_released",
         )
         self.assertIn("ALiS", applicant_delivery.message)
+
+    @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False)
+    def test_released_renewal_creates_applicant_web_notification_when_side_effects_disabled(self):
+        notify_license_renewal_released(self.application, 3)
+
+        applicant_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=self.applicant,
+            metadata__event_status="license_renewal_released",
+        )
+        self.assertEqual(applicant_delivery.status, "sent")
+        self.assertEqual(applicant_delivery.metadata["action_url"], "/user/dashboard?tab=status")
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                user=self.applicant,
+                metadata__event_status="license_renewal_released",
+            )
+            .exclude(channel="web")
+            .exists()
+        )
 
     def local_time(self, year, month, day, hour, minute):
         return timezone.make_aware(

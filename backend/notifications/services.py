@@ -1029,6 +1029,7 @@ def notify_license_renewal_released(application, months):
         action_url="/user/dashboard?tab=status",
         extra_metadata={"months_before_expiry": months},
         include_external=True,
+        force_web=True,
     )
 
 
