@@ -989,6 +989,7 @@ function isKuELicensePaymentTask() {
 function isELicenseLicenseTask(application) {
   return (
     normalizeWorkflowStatus(application?.status) === "payment_verified" ||
+    isPendingPtLicenseRenewalReminder(application) ||
     hasPendingLicenseRevocationRequest(application)
   );
 }
@@ -998,11 +999,22 @@ function hasPendingLicenseRevocationRequest(application) {
   return normalizeWorkflowStatus(request.status) === "pending";
 }
 
+function isPendingPtLicenseRenewalReminder(application) {
+  if (normalizeWorkflowStatus(application?.status) !== "license_issued") return false;
+
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const reminders = renewal?.reminders || {};
+  return ["3", "2", "1"].some((months) => {
+    const status = String(reminders?.[months]?.status || "").trim().toLowerCase();
+    return status === "pending_pt_letter";
+  });
+}
+
 function isPersonalTaskForDepartment(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
   if (department === "PT(IKL)") {
-    return PT_IKL_TASK_STATUSES.has(status);
+    return PT_IKL_TASK_STATUSES.has(status) || isPendingPtLicenseRenewalReminder(application);
   }
 
   if (department === "KU(IKL)") {

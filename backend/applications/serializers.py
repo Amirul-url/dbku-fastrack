@@ -141,6 +141,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     approval = serializers.SerializerMethodField()
     approval_letter = serializers.SerializerMethodField()
     payment = serializers.SerializerMethodField()
+    license_renewal = serializers.SerializerMethodField()
     license_revocation_request = serializers.SerializerMethodField()
     latest_remark = serializers.SerializerMethodField()
     display_remark = serializers.SerializerMethodField()
@@ -177,6 +178,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "approval",
             "approval_letter",
             "payment",
+            "license_renewal",
             "license_revocation_request",
             "display_remark",
             "activity_log",
@@ -273,6 +275,9 @@ class ApplicationListSerializer(serializers.ModelSerializer):
 
     def get_payment(self, obj):
         return self.get_form_section(obj, "payment")
+
+    def get_license_renewal(self, obj):
+        return self.get_form_section(obj, "license_renewal")
 
     def get_license_revocation_request(self, obj):
         return self.get_form_section(obj, "license_revocation_request")

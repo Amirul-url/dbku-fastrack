@@ -10539,6 +10539,11 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.receipt_review", "Receipt Review");
   }
 
+  if (config?.key === "license") {
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment);
+    if (renewalTaskLabel) return renewalTaskLabel;
+  }
+
   return t(`status.${status}`, formatWorkflowStatus(status));
 }
 
@@ -11147,7 +11152,7 @@ function getLicenseActionUnavailableMessage(app, department) {
 }
 
 function getLicenseRenewal(app) {
-  const renewal = app?.form_data?.license_renewal || {};
+  const renewal = app?.form_data?.license_renewal || app?.license_renewal || {};
   return renewal && typeof renewal === "object" ? renewal : {};
 }
 
@@ -11156,16 +11161,68 @@ function getLicenseRenewalReminders(app) {
   return reminders && typeof reminders === "object" ? reminders : {};
 }
 
+function getGeneratedRenewalLetters(app) {
+  const reminders = getLicenseRenewalReminders(app);
+  return [3, 2, 1]
+    .map((months) => {
+      const reminder = reminders[String(months)] || {};
+      const letter = reminder.letter || {};
+      if (!letter.document_html) return null;
+
+      return {
+        months,
+        status: reminder.status || "",
+        title: letter.title || getRenewalReminderTaskLabel(months),
+        html: letter.document_html,
+        generatedAt: letter.generated_at || "",
+        reference: getApplicationReference(app),
+      };
+    })
+    .filter(Boolean);
+}
+
 function getReminderStatus(app, months) {
   return String(getLicenseRenewalReminders(app)?.[String(months)]?.status || "")
     .trim()
     .toLowerCase();
 }
 
+function getPendingPtRenewalReminderMonth(app) {
+  return [3, 2, 1].find((months) => getReminderStatus(app, months) === "pending_pt_letter");
+}
+
 function getPendingReminderConfirmationMonth(app) {
   return [3, 2, 1].find(
     (months) => getReminderStatus(app, months) === "pending_supervisor_confirmation"
   );
+}
+
+function getRenewalReminderTaskLabel(months) {
+  if (months === 3) return "1st Reminder";
+  if (months === 2) return "2nd Reminder";
+  if (months === 1) return "Final Reminder";
+  return "";
+}
+
+function getLicenseRenewalTaskStatusLabel(app, department) {
+  if (normalizeStatus(app?.status) !== "license_issued") return "";
+
+  const normalizedDepartment = normalizeDepartmentCode(department);
+  if (normalizedDepartment === "PT(IKL)") {
+    const pendingMonth = getPendingPtRenewalReminderMonth(app);
+    if (pendingMonth) return getRenewalReminderTaskLabel(pendingMonth);
+  }
+
+  const confirmationMonth = getPendingReminderConfirmationMonth(app);
+  if (confirmationMonth && isSupervisorWorkflowDepartment(normalizedDepartment)) {
+    return `${getRenewalReminderTaskLabel(confirmationMonth)} Confirmation`;
+  }
+
+  if (normalizedDepartment === "PT(IKL)" && getCancellationStatus(app) === "pending_pt_notice") {
+    return "Cancellation Notice";
+  }
+
+  return "";
 }
 
 function getCancellationStatus(app) {
@@ -14164,10 +14221,10 @@ const configs = {
         },
       },
       {
-        label: "Generate 3-Month Reminder",
+        label: "Generate 1st Reminder Letter",
         icon: "description",
         endpoint: "license-renewal-action",
-        success: "3-month renewal reminder letter generated for supervisor confirmation.",
+        success: "1st reminder letter generated for supervisor confirmation.",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 3),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
@@ -14176,10 +14233,10 @@ const configs = {
         }),
       },
       {
-        label: "Generate 2-Month Reminder",
+        label: "Generate 2nd Reminder Letter",
         icon: "description",
         endpoint: "license-renewal-action",
-        success: "2-month renewal reminder letter generated for supervisor confirmation.",
+        success: "2nd reminder letter generated for supervisor confirmation.",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 2),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
@@ -14188,7 +14245,7 @@ const configs = {
         }),
       },
       {
-        label: "Generate 1-Month Reminder",
+        label: "Generate Final Reminder Letter",
         icon: "description",
         endpoint: "license-renewal-action",
         success: "Final renewal reminder letter generated for supervisor confirmation.",
@@ -20046,8 +20103,10 @@ function LicenseDetails({
   const renewal = getLicenseRenewal(app);
   const reminders = getLicenseRenewalReminders(app);
   const cancellation = renewal.cancellation || {};
+  const renewalLetters = getGeneratedRenewalLetters(app);
   const status = normalizeStatus(app?.status);
   const licenseFile = license.license_file || null;
+  const [renewalLetterPreview, setRenewalLetterPreview] = useState(null);
   const canUploadLicenseDocument =
     userDepartment === "PT(IKL)" && status === "payment_verified";
 
@@ -20104,9 +20163,65 @@ function LicenseDetails({
                 value={formatWorkflowStatus(cancellation.status || "Not triggered")}
               />
             </div>
+            {renewalLetters.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {renewalLetters.map((letter) => (
+                  <div
+                    key={`${letter.months}-${letter.generatedAt}`}
+                    className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold leading-5 text-slate-950">
+                        {letter.title} Letter
+                      </p>
+                      <p className="text-xs leading-5 text-slate-500">
+                        {formatWorkflowStatus(letter.status)}
+                        {letter.generatedAt ? ` - ${formatCompactDateTime(letter.generatedAt)}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon="visibility"
+                        className="min-h-8 px-3 py-1 text-xs"
+                        onClick={() =>
+                          setRenewalLetterPreview({
+                            title: `${letter.title} Letter`,
+                            reference: letter.reference,
+                            html: letter.html,
+                            scale: 0.78,
+                            allowHorizontalScroll: true,
+                          })
+                        }
+                      >
+                        {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon="print"
+                        className="min-h-8 px-3 py-1 text-xs"
+                        onClick={() => printHtmlDocument(letter.html, `${letter.title} Letter`)}
+                      >
+                        {t("common.print", "Print")}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
+      {renewalLetterPreview && (
+        <GeneratedDocumentReviewModal
+          document={renewalLetterPreview}
+          t={t}
+          saving={saving}
+          onClose={() => setRenewalLetterPreview(null)}
+        />
+      )}
     </div>
   );
 }

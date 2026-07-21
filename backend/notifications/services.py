@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import timedelta
 from copy import deepcopy
 from hashlib import sha1
 
@@ -7,6 +8,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.utils import timezone
+from django.utils.html import strip_tags
 
 from .channels import (
     get_channel_skip_reason,
@@ -508,11 +510,14 @@ def apply_license_reminder_action(application, renewal, action, user, months, no
         reminder["status"] = "pending_supervisor_confirmation"
         reminder["letter"] = {
             "type": "renewal_reminder",
+            "template": "dbku_license_renewal_first_reminder_v1",
             "months_before_expiry": months,
+            "title": get_renewal_reminder_title(months),
             "generated_at": timezone.now().isoformat(),
             "generated_by": get_web_recipient(user),
             "note": clean_remark(note),
             "content": build_renewal_letter_text(application, months),
+            "document_html": build_renewal_letter_document_html(application, months),
         }
         reminders[key] = reminder
         renewal["reminders"] = reminders
@@ -2759,11 +2764,286 @@ def get_license_id(application):
 
 
 def build_renewal_letter_text(application, months):
+    html = build_renewal_letter_document_html(application, months)
+    text = strip_tags(html)
+    return re.sub(r"\n\s*\n\s*\n+", "\n\n", text).strip()
+
+
+def build_renewal_letter_document_html(application, months):
+    data = get_renewal_letter_context(application, months)
+    address_lines = "".join(f"<p>{escape_html(line)}</p>" for line in data["address_lines"])
+    amount_cell = escape_html(data["amount"]) if data["amount"] else "&nbsp;"
+
+    return f"""
+<article class="dbku-renewal-letter">
+  <style>
+    .dbku-renewal-letter {{
+      width: 210mm;
+      min-height: 297mm;
+      box-sizing: border-box;
+      margin: 0 auto;
+      padding: 34mm 26mm 24mm;
+      background: #fff;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12pt;
+      line-height: 1.28;
+    }}
+    .dbku-renewal-letter p {{ margin: 0 0 9pt; }}
+    .dbku-renewal-letter .topline {{ display: grid; grid-template-columns: 1fr 52mm; gap: 14mm; }}
+    .dbku-renewal-letter .refline {{ display: grid; grid-template-columns: 18mm 1fr; gap: 4mm; }}
+    .dbku-renewal-letter .recipient {{ margin: 18pt 0 26pt 18mm; }}
+    .dbku-renewal-letter .subject {{ margin: 0 0 22pt 18mm; font-weight: 800; text-transform: uppercase; }}
+    .dbku-renewal-letter .subject span {{ display: block; }}
+    .dbku-renewal-letter .para {{ display: grid; grid-template-columns: 14mm 1fr; gap: 4mm; text-align: justify; }}
+    .dbku-renewal-letter table {{ width: calc(100% - 18mm); margin: 18pt 0 22pt 18mm; border-collapse: collapse; }}
+    .dbku-renewal-letter th, .dbku-renewal-letter td {{ border: 1px solid #111827; padding: 3pt 6pt; vertical-align: top; }}
+    .dbku-renewal-letter th {{ text-align: center; font-weight: 800; }}
+    .dbku-renewal-letter .center {{ text-align: center; }}
+    .dbku-renewal-letter .right {{ text-align: right; font-weight: 800; }}
+    .dbku-renewal-letter .motto {{ margin-top: 28pt; font-weight: 800; font-style: italic; }}
+    .dbku-renewal-letter .director {{ font-weight: 800; }}
+    .dbku-renewal-letter .note {{ margin-top: 36pt; text-align: center; font-size: 9pt; font-style: italic; }}
+  </style>
+  <div class="topline">
+    <div>
+      <p>Tuan:</p>
+      <div class="refline"><strong>Kami:</strong><span>{escape_html(data["our_ref"])}</span></div>
+    </div>
+    <p>Tarikh: {escape_html(data["letter_date"])}</p>
+  </div>
+
+  <div class="recipient">
+    <p>{escape_html(data["applicant_name"])}</p>
+    {address_lines}
+  </div>
+
+  <p style="margin-left:18mm;">Tuan</p>
+
+  <div class="subject">
+    <span>{escape_html(data["subject"])}</span>
+  </div>
+
+  <p style="margin-left:18mm;">Dengan segala hormatnya perkara di atas dirujuk.</p>
+
+  <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u>{escape_html(data["expiry_date"])}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
+
+  <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u>EMPAT BELAS (14) HARI BEKERJA</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>BUTIRAN BAYARAN</th>
+        <th>TEMPOH LESEN BERKUATKUASA</th>
+        <th>JUMLAH<br>(RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Lesen Iklan</td>
+        <td class="center">{escape_html(data["renewal_period"])}</td>
+        <td class="center">{amount_cell}</td>
+      </tr>
+      <tr>
+        <td>&nbsp;</td>
+        <td class="right">JUMLAH KESELURUHAN</td>
+        <td class="center">{amount_cell}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="para"><span>4.</span><span>Sekiranya pihak tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955.</span></p>
+
+  <div class="motto">
+    <p>"AN HONOUR TO SERVE"<br>"TOGETHER WE CARE"</p>
+  </div>
+
+  <p class="director">Pengarah DBKU</p>
+
+  <p class="note">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.<br>Sila abaikan surat ini sekiranya pembaharuan telah dibuat</p>
+</article>
+""".strip()
+
+
+def get_renewal_letter_context(application, months):
+    form_data = getattr(application, "form_data", None) or {}
+    license_data = get_form_section(application, "license")
+    payment = get_form_section(application, "payment")
+    expiry = parse_license_datetime(license_data.get("expiry_date"))
+    local_expiry = timezone.localtime(expiry) if expiry else None
+    today = timezone.localdate()
+    applicant_name = get_renewal_application_applicant_name(application) or "Nama Syarikat"
+    location = get_renewal_project_location(form_data) or str(getattr(application, "project_location", "") or "")
+    address_lines = split_letter_address(location)
+    if not address_lines:
+        address_profile = get_renewal_registered_applicant_address_profile(application)
+        address_lines = split_letter_address(address_profile.get("address"))
+    if not address_lines:
+        address_lines = ["Alamat lokasi projek iklan"]
+
+    return {
+        "months": months,
+        "our_ref": build_renewal_letter_reference(today),
+        "letter_date": format_malay_date(today),
+        "applicant_name": applicant_name,
+        "address_lines": address_lines[:4],
+        "subject": build_renewal_letter_subject(application, location),
+        "expiry_date": format_malay_date(local_expiry.date()) if local_expiry else "-",
+        "renewal_period": build_renewal_period(local_expiry.date() if local_expiry else None),
+        "amount": format_renewal_amount(payment.get("amount") or payment.get("payable_total")),
+    }
+
+
+def get_renewal_reminder_title(months):
+    if months == 3:
+        return "1st Reminder"
+    if months == 2:
+        return "2nd Reminder"
+    return "Final Reminder"
+
+
+def get_renewal_application_applicant_name(application):
+    form_data = getattr(application, "form_data", None) or {}
+    step_2 = form_data.get("step_2") if isinstance(form_data.get("step_2"), dict) else {}
+    step_3 = form_data.get("step_3") if isinstance(form_data.get("step_3"), dict) else {}
+    step_1 = form_data.get("step_1") if isinstance(form_data.get("step_1"), dict) else {}
+    candidates = [
+        step_2.get("full_name"),
+        step_3.get("full_name"),
+        step_2.get("applicant"),
+        step_3.get("applicant"),
+        step_2.get("org_name"),
+        step_3.get("org_name"),
+        step_1.get("applicant"),
+    ]
+
+    for value in candidates:
+        text = str(value or "").strip()
+        if text:
+            return text
+
+    user = getattr(application, "applicant", None)
+    if not user:
+        return ""
+
+    name = " ".join(
+        part
+        for part in [getattr(user, "first_name", ""), getattr(user, "last_name", "")]
+        if part
+    ).strip()
+    return name
+
+
+def get_renewal_registered_applicant_address_profile(application):
+    user = getattr(application, "applicant", None)
+    if not user:
+        return {"address": ""}
+
+    address = ", ".join(
+        str(part or "").strip()
+        for part in [
+            getattr(user, "address_line1", ""),
+            getattr(user, "address_line2", ""),
+            getattr(user, "postcode", ""),
+            getattr(user, "city", ""),
+            getattr(user, "state", ""),
+        ]
+        if str(part or "").strip()
+    ) or str(getattr(user, "address", "") or "").strip()
+    return {"address": address}
+
+
+def get_renewal_project_location(form_data):
+    step_1 = form_data.get("step_1") if isinstance(form_data.get("step_1"), dict) else {}
+    step_4 = form_data.get("step_4") if isinstance(form_data.get("step_4"), dict) else {}
     return (
-        f"Renewal Reminder {months}: Advertisement license {get_license_id(application)} "
-        f"for application {application.reference_no} is approaching expiry. "
-        "Please renew the license before the expiry date to avoid cancellation or enforcement action."
+        step_1.get("locality_address")
+        or step_1.get("map_address")
+        or step_1.get("site_address")
+        or step_1.get("address")
+        or step_1.get("selected_address")
+        or step_4.get("land_location")
+        or step_4.get("location")
+        or ""
     )
+
+
+def build_renewal_letter_reference(date_value):
+    return f"DBKU/LES/IKL/{date_value:%y}/1(b)/ (   )"
+
+
+def build_renewal_letter_subject(application, location):
+    ad_name = get_advertisement_name(application)
+    location_text = str(location or "ALAMAT LOKASI PROJEK IKLAN").strip()
+    return f'PERINGATAN PERTAMA - BAYARAN LESEN IKLAN "{ad_name}" DI {location_text}'
+
+
+def get_advertisement_name(application):
+    form_data = getattr(application, "form_data", None) or {}
+    step_1 = form_data.get("step_1") if isinstance(form_data.get("step_1"), dict) else {}
+    candidates = [
+        step_1.get("project_name"),
+        step_1.get("advertisement_name"),
+        getattr(application, "title", ""),
+        get_license_id(application),
+    ]
+    for value in candidates:
+        text = re.sub(r"\s+", " ", str(value or "")).strip()
+        if text:
+            return text
+    return "NAMA IKLAN"
+
+
+def split_letter_address(value):
+    text = str(value or "").strip()
+    if not text:
+        return []
+    parts = re.split(r"[\r\n,]+", text)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def build_renewal_period(expiry_date):
+    if not expiry_date:
+        return "-"
+    start = expiry_date + timedelta(days=1)
+    try:
+        end = expiry_date.replace(year=expiry_date.year + 1)
+    except ValueError:
+        end = expiry_date + timedelta(days=365)
+    return f"{start:%d.%m.%Y} hingga {end:%d.%m.%Y}"
+
+
+def format_renewal_amount(value):
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    numeric = re.sub(r"[^\d.]", "", text)
+    if not numeric:
+        return text
+    try:
+        return f"{float(numeric):,.2f}"
+    except ValueError:
+        return text
+
+
+def format_malay_date(date_value):
+    if not date_value:
+        return "-"
+    months = (
+        "Januari",
+        "Februari",
+        "Mac",
+        "April",
+        "Mei",
+        "Jun",
+        "Julai",
+        "Ogos",
+        "September",
+        "Oktober",
+        "November",
+        "Disember",
+    )
+    return f"{date_value.day} {months[date_value.month - 1]} {date_value.year}"
 
 
 def build_cancellation_notice_text(application):

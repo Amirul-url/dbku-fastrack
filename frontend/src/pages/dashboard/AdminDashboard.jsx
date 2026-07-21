@@ -5046,6 +5046,10 @@ function isUnitActionableApplication(application, unit, activeDepartment = "") {
     );
   }
 
+  if (unit.department === "PT(IKL)" && isPendingPtLicenseRenewalReminder(application)) {
+    return isAssignedDepartment;
+  }
+
   const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
   const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
   const isExternalTechnicalTask =
@@ -5134,6 +5138,10 @@ function getAdminTaskWorkspacePath(application, unit) {
   const status = normalizeStatus(application?.status);
 
   if (unit?.department === "PT(IKL)") {
+    if (isPendingPtLicenseRenewalReminder(application)) {
+      return "/admin/e-licenses/license";
+    }
+
     if (["approved", "bill_pending_ku"].includes(status)) {
       return "/admin/e-licenses/payment";
     }
@@ -5152,6 +5160,28 @@ function getAdminTaskWorkspacePath(application, unit) {
 
 function getTechnicalDepartmentReviews(app) {
   return app?.technical_department_reviews || app?.form_data?.technical_department_reviews || {};
+}
+
+function getPendingPtRenewalReminderMonth(application) {
+  if (normalizeStatus(application?.status) !== "license_issued") return 0;
+
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const reminders = renewal?.reminders || {};
+  return [3, 2, 1].find((months) => {
+    const status = String(reminders?.[String(months)]?.status || "").trim().toLowerCase();
+    return status === "pending_pt_letter";
+  }) || 0;
+}
+
+function isPendingPtLicenseRenewalReminder(application) {
+  return Boolean(getPendingPtRenewalReminderMonth(application));
+}
+
+function getRenewalReminderTaskLabel(months) {
+  if (months === 3) return "1st Reminder";
+  if (months === 2) return "2nd Reminder";
+  if (months === 1) return "Final Reminder";
+  return "";
 }
 
 function getSelectedTechnicalDepartments(app) {
@@ -5228,6 +5258,11 @@ function hasTechnicalDepartmentReview(app, department) {
 function getDashboardTaskStatusLabel(application, unit, t) {
   const status = normalizeStatus(application?.status);
   const department = unit?.department;
+
+  if (department === "PT(IKL)") {
+    const renewalMonth = getPendingPtRenewalReminderMonth(application);
+    if (renewalMonth) return getRenewalReminderTaskLabel(renewalMonth);
+  }
 
   if (department === "KU(IKL)" && status === "submitted") {
     return t("status.ku_ikl_review", "KU(IKL) Review");
