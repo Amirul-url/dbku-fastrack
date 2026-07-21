@@ -5,11 +5,14 @@ APP_BRAND_NAME = "ALiS"
 # Notify message for pemohon
 # =================
 
+# Account registration successful
 APPLICANT_REGISTRATION_SUCCESS_TITLE = "Account registration successful"
 APPLICANT_REGISTRATION_SUCCESS_BODY = (
     "Your ALiS account has been registered successfully. You can now log in and "
     "submit advertisement license applications."
 )
+
+# Application submitted
 APPLICANT_APPLICATION_SUBMITTED_SUBJECT_TEMPLATE = (
     "{brand} - Application submitted ({reference})"
 )
@@ -17,6 +20,13 @@ APPLICANT_APPLICATION_SUBMITTED_BODY_TEMPLATE = (
     "Your application {reference} has been submitted successfully. ALiS will review "
     "your application and notify you when there is an update."
 )
+KU_IKL_SUBMITTED_STATUS = (
+    "Application {reference} requires KU(IKL) review",
+    "Your application {reference} has been submitted successfully.",
+    "Application {reference} has been submitted and is ready for KU(IKL) review.",
+)
+
+# Application resubmitted
 APPLICANT_APPLICATION_RESUBMITTED_SUBJECT_TEMPLATE = (
     "{brand} - Application resubmitted ({reference})"
 )
@@ -24,6 +34,19 @@ APPLICANT_APPLICATION_RESUBMITTED_BODY_TEMPLATE = (
     "Your application {reference} has been resubmitted successfully. ALiS will "
     "review your updated application and notify you when there is an update."
 )
+KU_IKL_STAFF_RESUBMITTED_BODY_TEMPLATE = (
+    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
+)
+APPLICATION_RESUBMITTED_TITLE_TEMPLATE = "Application {reference} resubmitted"
+
+# Application incomplete / rejected by ALiS
+INCOMPLETE_STATUS = (
+    "Application rejected",
+    "Your application {reference} was rejected by ALiS. Please review the remark below and update your application.",
+    "",
+)
+
+# Application rejected
 APPLICANT_APPLICATION_REJECTED_SUBJECT_TEMPLATE = (
     "{brand} - Application rejected ({reference})"
 )
@@ -31,11 +54,41 @@ APPLICANT_APPLICATION_REJECTED_BODY_TEMPLATE = (
     "Your application {reference} has been rejected. Please review the remark and "
     "update your application."
 )
+REJECTED_STATUS = (
+    "Application rejected",
+    "Your application {reference} has been rejected. Please review the remark below.",
+    "",
+)
+
+# Payment proof required
+INVOICE_GENERATED_STATUS = (
+    "Payment proof required",
+    "Bill for application {reference} is ready. Please upload your proof of payment.",
+    "",
+)
+
+# Payment receipt rejected
 APPLICANT_PAYMENT_RECEIPT_REJECTED_TITLE = "Payment receipt rejected"
 APPLICANT_PAYMENT_RECEIPT_REJECTED_BODY_TEMPLATE = (
     "Your payment receipt for application {reference} was rejected. Please review "
     "the remark and upload a new proof of payment."
 )
+
+# QR e-license generated
+LICENSE_ISSUED_STATUS = (
+    "QR e-license generated",
+    "Your QR e-license for application {reference} has been issued and is ready to download.",
+    "",
+)
+
+# Advertisement license revoked
+LICENSE_REVOKED_STATUS = (
+    "Advertisement license revoked",
+    "Your advertisement license for application {reference} has been revoked.",
+    "",
+)
+
+# License renewal reminder released
 APPLICANT_RENEWAL_RELEASED_TITLE_TEMPLATE = (
     "{months}-month license renewal reminder released"
 )
@@ -43,6 +96,8 @@ APPLICANT_RENEWAL_RELEASED_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} is due to expire. "
     "Please complete the renewal process before the expiry date."
 )
+
+# License cancellation notice released
 APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE = (
     "License cancellation notice released"
 )
@@ -50,6 +105,8 @@ APPLICANT_LICENSE_CANCELLATION_RELEASED_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} has been cancelled and "
     "enforcement action may proceed because renewal payment was not completed after expiry."
 )
+
+# Password reset OTP
 PASSWORD_RESET_SUBJECT = "ALiS Password Reset OTP"
 PASSWORD_RESET_BODY_TEMPLATE = (
     "Hello {name},\n\n"
@@ -57,16 +114,18 @@ PASSWORD_RESET_BODY_TEMPLATE = (
     "This OTP will expire in 10 minutes. If you did not request this, please ignore this message."
 )
 
+# Default fallback status
+DEFAULT_STATUS_MESSAGE = (
+    "Application status updated: {status_label}",
+    "Your application {reference} status is now {status_label}.",
+    "Application {reference} status is now {status_label}.",
+)
+
 
 # =================
 # Notify message for KU(IKL)
 # =================
 
-KU_IKL_SUBMITTED_STATUS = (
-    "Application {reference} requires KU(IKL) review",
-    "Your application {reference} has been submitted successfully.",
-    "Application {reference} has been submitted and is ready for KU(IKL) review.",
-)
 KU_IKL_REVIEW_STATUS = (
     "KU(IKL) review required",
     "",
@@ -95,10 +154,6 @@ KU_IKL_MANAGEMENT_REVIEW_STATUS = (
     "",
     "Application {reference} has completed KU(IKL) final checking and is ready for KB(LES) verification.",
 )
-KU_IKL_STAFF_RESUBMITTED_BODY_TEMPLATE = (
-    "Application {reference} has been resubmitted by the applicant and is ready for {review_target} review."
-)
-APPLICATION_RESUBMITTED_TITLE_TEMPLATE = "Application {reference} resubmitted"
 
 
 # =================
@@ -244,36 +299,6 @@ SUPERADMIN_ACCOUNT_CREATED_BY_SENTENCE_TEMPLATE = "Created by {creator_name}."
 # Shared notify message
 # =================
 
-DEFAULT_STATUS_MESSAGE = (
-    "Application status updated: {status_label}",
-    "Your application {reference} status is now {status_label}.",
-    "Application {reference} status is now {status_label}.",
-)
-INCOMPLETE_STATUS = (
-    "Application rejected",
-    "Your application {reference} was rejected by ALiS. Please review the remark below and update your application.",
-    "",
-)
-REJECTED_STATUS = (
-    "Application rejected",
-    "Your application {reference} has been rejected. Please review the remark below.",
-    "",
-)
-INVOICE_GENERATED_STATUS = (
-    "Payment proof required",
-    "Bill for application {reference} is ready. Please upload your proof of payment.",
-    "",
-)
-LICENSE_ISSUED_STATUS = (
-    "QR e-license generated",
-    "Your QR e-license for application {reference} has been issued and is ready to download.",
-    "",
-)
-LICENSE_REVOKED_STATUS = (
-    "Advertisement license revoked",
-    "Your advertisement license for application {reference} has been revoked.",
-    "",
-)
 SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE = (
     "{months}-month renewal letter awaiting supervisor confirmation"
 )
