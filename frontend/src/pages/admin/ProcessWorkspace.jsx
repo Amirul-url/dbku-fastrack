@@ -996,7 +996,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     Boolean(selectedRecord) &&
     showActionPanel &&
     !showApprovalPaymentReadOnly &&
-    (!isIssuedLicenseRecord || isPtRenewalReminderWorkspace) &&
+    (!isIssuedLicenseRecord || showRenewalReminderWorkflowPanel) &&
     (
       isFocusedPersonalWorkspace ||
       tableFirstWorkspace ||
