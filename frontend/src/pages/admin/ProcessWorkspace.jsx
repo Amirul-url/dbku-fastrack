@@ -11297,6 +11297,12 @@ function getGeneratedRenewalLetters(app) {
     .filter(Boolean);
 }
 
+function getReleasedRenewalLetters(app) {
+  return getGeneratedRenewalLetters(app).filter(
+    (letter) => normalizeStatus(letter.status) === "released_to_applicant"
+  );
+}
+
 function getRenewalLetterForMonth(app, months) {
   const reminder = getLicenseRenewalReminders(app)?.[String(months)] || {};
   const letter = reminder.letter || {};
@@ -18180,6 +18186,7 @@ function PaymentDetails({
   ) : null;
 
   const revocationRequest = app.form_data?.license_revocation_request || {};
+  const releasedRenewalLetters = getReleasedRenewalLetters(app);
   const canManageLicenseRevocation = normalizeDepartmentCode(userDepartment) === "PT(IKL)";
   const showRevocationRequestNotice =
     canManageLicenseRevocation && normalizeStatus(revocationRequest.status) === "pending";
@@ -18271,6 +18278,12 @@ function PaymentDetails({
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
           onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
         },
+        ...releasedRenewalLetters.map((letter) => ({
+          label: `${letter.title} Letter`,
+          available: true,
+          displayName: `${letter.title} Letter`,
+          onDownload: () => printHtmlDocument(letter.html, `${letter.title} Letter`),
+        })),
       ]}
     />
   ) : null;
