@@ -937,24 +937,39 @@ def build_renewal_reminder_record(months, expiry, current_time):
 
 
 def notify_license_renewal_detected(application, months, expiry):
-    title = notify_messages.PT_IKL_RENEWAL_DETECTED_TITLE_TEMPLATE.format(months=months)
     context = {
         "license_id": get_license_id(application),
         "reference": application.reference_no,
         "expiry": format_notification_datetime(expiry),
     }
-    body = {
+    pt_title = notify_messages.PT_IKL_RENEWAL_DETECTED_TITLE_TEMPLATE.format(months=months)
+    pt_body = {
         "web": notify_messages.PT_IKL_RENEWAL_DETECTED_WEB_BODY_TEMPLATE.format(**context),
         "email": notify_messages.PT_IKL_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE.format(**context),
         "whatsapp": notify_messages.PT_IKL_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE.format(**context),
+    }
+    kb_title = notify_messages.KB_LES_RENEWAL_DETECTED_TITLE_TEMPLATE.format(months=months)
+    kb_body = {
+        "web": notify_messages.KB_LES_RENEWAL_DETECTED_WEB_BODY_TEMPLATE.format(**context),
+        "email": notify_messages.KB_LES_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE.format(**context),
+        "whatsapp": notify_messages.KB_LES_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE.format(**context),
     }
     event_status = f"license_renewal_{months}m"
     send_license_workflow_notification(
         application=application,
         event_status=event_status,
-        title=title,
-        body=body,
-        recipients=get_pt_ikl_and_kb_les_recipients(),
+        title=pt_title,
+        body=pt_body,
+        recipients=get_pt_ikl_recipients(),
+        recipient_role="admin",
+        action_url=f"/admin/e-licenses/license?id={application.id}",
+    )
+    send_license_workflow_notification(
+        application=application,
+        event_status=event_status,
+        title=kb_title,
+        body=kb_body,
+        recipients=get_kb_les_recipients(),
         recipient_role="admin",
         action_url=f"/admin/e-licenses/license?id={application.id}",
     )
