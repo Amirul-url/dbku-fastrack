@@ -32,14 +32,55 @@ function getUserStorageKey(baseKey, user) {
 }
 
 export function getRecordUpdatedTime(record) {
-  const value =
-    record?.updated_at ||
-    record?.updatedAt ||
-    record?.modified_at ||
-    record?.created_at;
-  const time = Date.parse(value || "");
+  const values = [
+    record?.updated_at,
+    record?.updatedAt,
+    record?.modified_at,
+    record?.created_at,
+    ...getLicenseRenewalTimestampValues(record),
+  ];
+  const time = Math.max(
+    0,
+    ...values.map((value) => {
+      const parsed = Date.parse(value || "");
+      return Number.isFinite(parsed) ? parsed : 0;
+    })
+  );
 
   return Number.isFinite(time) ? time : 0;
+}
+
+function getLicenseRenewalTimestampValues(record) {
+  const renewal = record?.form_data?.license_renewal || record?.license_renewal || {};
+  const reminders = renewal?.reminders || {};
+  const values = [];
+
+  if (Array.isArray(renewal?.early_payment_receipts)) {
+    renewal.early_payment_receipts.forEach((receipt) => {
+      values.push(receipt?.uploaded_at);
+    });
+  }
+
+  if (reminders && typeof reminders === "object") {
+    Object.values(reminders).forEach((reminder) => {
+      const letter = reminder?.letter || {};
+      values.push(
+        reminder?.confirmed_at,
+        reminder?.generated_at,
+        letter?.generated_at,
+        letter?.confirmed_at,
+        letter?.released_at
+      );
+
+      if (Array.isArray(reminder?.early_payment_receipts)) {
+        reminder.early_payment_receipts.forEach((receipt) => {
+          values.push(receipt?.uploaded_at);
+        });
+      }
+    });
+  }
+
+  return values.filter(Boolean);
 }
 
 export function getApplicantRecordSeen(user = getStoredUser()) {
