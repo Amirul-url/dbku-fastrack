@@ -43,7 +43,9 @@ import {
 import {
   getApplicantRecordSeen,
   getRecordUpdatedTime,
+  isApplicantRenewalReminderNew,
   markApplicantRecordSeen,
+  markApplicantRenewalReminderSeen,
 } from "../../utils/applicantSeenRecords";
 
 const VALID_SECTIONS = ["applications", "status"];
@@ -309,11 +311,13 @@ function UserDashboard() {
     if (tab === "all") {
       const nextStatusMap = markApplicantRecordSeen("status", app);
       const nextLicenseMap = markApplicantRecordSeen("license", app);
+      const nextRenewalReminderMap = markApplicantRenewalReminderSeen(app, 3);
 
       setRecordSeen((current) => ({
         ...current,
         status: nextStatusMap,
         eLicense: nextLicenseMap,
+        renewalReminder: nextRenewalReminderMap,
       }));
       return;
     }
@@ -805,6 +809,7 @@ function UserDashboard() {
             onMonthChange={setStatusFilterMonth}
             onYearChange={setStatusFilterYear}
             isReferenceNew={(app) =>
+              isReleasedRenewalReminderNew(app, 3, recordSeen) ||
               isApplicantRecordNew(app, "status", recordSeen) ||
               (isELicenseApplication(app) && isApplicantRecordNew(app, "license", recordSeen))
             }
@@ -3135,6 +3140,13 @@ function isApplicantRecordNew(app, tab, seen = {}) {
   const updatedAt = getRecordUpdatedTime(app);
 
   return updatedAt > Number(map?.[app.id] || 0);
+}
+
+function isReleasedRenewalReminderNew(app, months, seen = {}) {
+  return (
+    hasReleasedRenewalReminder(app, months) &&
+    isApplicantRenewalReminderNew(app, months, seen.renewalReminder)
+  );
 }
 
 function shouldHideApplicantAction(app) {
