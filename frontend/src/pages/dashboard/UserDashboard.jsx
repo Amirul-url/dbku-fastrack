@@ -91,6 +91,7 @@ function UserDashboard() {
   const [licensePanelOpen, setLicensePanelOpen] = useState(
     activeSection === "status" && Boolean(querySelectedId)
   );
+  const [licenseDetailsLoading, setLicenseDetailsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [paymentReceipt, setPaymentReceipt] = useState(null);
@@ -131,6 +132,9 @@ function UserDashboard() {
 
   const fetchApplicationDetails = useCallback(async (id, options = {}) => {
     try {
+      if (options.showLicenseDetailsLoading) {
+        setLicenseDetailsLoading(true);
+      }
       const data = await apiRequest(`/applications/${id}/`);
       const paymentData = data?.form_data?.payment || {};
       const receiptWasRejected = isPaymentReceiptRejected(paymentData);
@@ -155,6 +159,10 @@ function UserDashboard() {
       console.error("Failed to load application details:", err);
       setMessage({ type: "error", text: tRef.current("applicant.detailsLoadFailed") });
       return null;
+    } finally {
+      if (options.showLicenseDetailsLoading) {
+        setLicenseDetailsLoading(false);
+      }
     }
   }, []);
 
@@ -188,6 +196,7 @@ function UserDashboard() {
       fetchApplicationDetails(selectedId, {
         markSeen: activeSection === "status" && licensePanelOpen,
         setDefaultPanelTab: activeSection === "status" && licensePanelOpen,
+        showLicenseDetailsLoading: activeSection === "status" && licensePanelOpen,
       });
     }
   }, [activeSection, fetchApplicationDetails, licensePanelOpen, selectedId]);
@@ -205,6 +214,7 @@ function UserDashboard() {
 
     setLicensePanelOpen(false);
     setSelectedApplication(null);
+    setLicenseDetailsLoading(false);
     setPaymentReceipt(null);
     setMessage({ type: "", text: "" });
   }, [activeSection, normalizedQueryStatusFilter, querySelectedId]);
@@ -268,7 +278,9 @@ function UserDashboard() {
   const selectedListApplication = applications.find(
     (app) => String(app.id) === String(selectedId)
   );
-  const activeApplication = selectedApplication || selectedListApplication || latest;
+  const activeApplication = licensePanelOpen
+    ? selectedApplication
+    : selectedApplication || selectedListApplication || latest;
   const payment = activeApplication?.form_data?.payment || {};
   const pageHeader = getDashboardHeader(activeSection, t, {
     hideStatusDetailHeader: activeSection === "status" && licensePanelOpen,
@@ -279,6 +291,7 @@ function UserDashboard() {
     if (tab !== "status") {
       setLicensePanelOpen(false);
       setSelectedApplication(null);
+      setLicenseDetailsLoading(false);
       setPaymentReceipt(null);
       setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
       setReceiptSuccessOpen(false);
@@ -333,17 +346,21 @@ function UserDashboard() {
 
   function openLicenseRecord(app) {
     setSelectedId(String(app.id));
-    setSelectedApplication(app);
+    setSelectedApplication(null);
+    setPaymentReceipt(null);
+    setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
+    setReceiptSuccessOpen(false);
+    setMessage({ type: "", text: "" });
     setLicensePanelOpen(true);
     setLicensePanelTab(getDefaultLicensePanelTab(app));
     setSearchParams({ tab: "status", id: String(app.id) });
     markApplicationSeen("all", app);
-    fetchApplicationDetails(app.id, { markSeen: true, setDefaultPanelTab: true });
   }
 
   function returnToLicenseList() {
     setLicensePanelOpen(false);
     setSelectedApplication(null);
+    setLicenseDetailsLoading(false);
     setPaymentReceipt(null);
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
@@ -769,7 +786,9 @@ function UserDashboard() {
       )}
 
       {activeSection === "status" && (
-        licensePanelOpen && activeApplication ? (
+        licensePanelOpen && (licenseDetailsLoading || !activeApplication) ? (
+          <LicenseDetailLoading t={t} onBack={returnToLicenseList} />
+        ) : licensePanelOpen && activeApplication ? (
           <LicenseSection
             app={activeApplication}
             payment={payment}
@@ -1009,6 +1028,28 @@ function OverviewStatusCard({
         </span>
       </div>
     </button>
+  );
+}
+
+function LicenseDetailLoading({ t, onBack }) {
+  return (
+    <section className="space-y-4">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+      >
+        <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+        {t("applicant.backToStatusLicenses", "Back to Status & E-Licenses")}
+      </button>
+
+      <div className="rounded-md border border-slate-200 bg-white p-8 text-center">
+        <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+        <p className="text-sm font-semibold text-slate-700">
+          {t("common.loading", "Loading...")}
+        </p>
+      </div>
+    </section>
   );
 }
 
