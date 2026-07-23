@@ -69,7 +69,10 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                         "license_cancellation_supervisor_confirmation",
                     }
             elif department == "FIN":
-                allowed_event_statuses = {"payment_submitted"}
+                allowed_event_statuses = {
+                    "payment_submitted",
+                    "license_renewal_payment_submitted",
+                }
             elif department == "MPHLG":
                 allowed_event_statuses = {"mphlg_processing"}
             elif department == "SUT":

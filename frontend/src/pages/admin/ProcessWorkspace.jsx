@@ -12056,6 +12056,10 @@ function buildWorkspaceDecisionLogRows(app, t) {
     }
   });
 
+  getWorkspaceRenewalActivityDecisionLogRows(app).forEach((row) => {
+    addWorkspaceDecisionLogRow(rows, row, t);
+  });
+
   return rows
     .filter((row, index, allRows) => {
       const key = [row.department, row.decision, row.remarks, row.date].join("|");
@@ -12064,6 +12068,105 @@ function buildWorkspaceDecisionLogRows(app, t) {
       ) === index;
     })
     .sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime());
+}
+
+function getWorkspaceRenewalActivityDecisionLogRows(app) {
+  const activityLog = Array.isArray(app?.form_data?.activity_log)
+    ? app.form_data.activity_log
+    : [];
+  const renewalDecisionMap = {
+    "renewal early payment receipt approved": "Approve Renewal Receipt",
+    "renewal early payment receipt rejected": "Reject Renewal Receipt",
+    "renewal official receipt and license generated":
+      "Generate Renewal Official Receipt and Advertisement License",
+  };
+
+  const renewalRows = activityLog
+    .map((activity, index) => {
+      if (!activity || typeof activity !== "object") return null;
+
+      const title = cleanRemark(activity.title);
+      const normalizedTitle = title.toLowerCase();
+      const fallbackDecision = renewalDecisionMap[normalizedTitle];
+      const metadata =
+        activity.metadata && typeof activity.metadata === "object" ? activity.metadata : {};
+      const decision = cleanRemark(metadata.recommendation) || fallbackDecision || "";
+
+      if (!fallbackDecision && !decision.toLowerCase().includes("renewal")) return null;
+
+      const remarks =
+        cleanRemark(metadata.remarks) ||
+        cleanRemark(activity.description) ||
+        cleanRemark(activity.message);
+      const date = cleanRemark(activity.created_at || activity.timestamp || activity.date);
+      const signature =
+        metadata.digital_signature ||
+        metadata.digitalSignature ||
+        activity.digital_signature ||
+        null;
+
+      if (!decision && !remarks && !date) return null;
+
+      return {
+        id: `renewal-activity-${index}-${normalizedTitle.replace(/[^a-z0-9]+/g, "-")}`,
+        department:
+          normalizeDepartmentCode(activity.actor_department) ||
+          normalizeDepartmentCode(activity.department) ||
+          activity.actor_department ||
+          activity.department ||
+          activity.actor ||
+          "-",
+        section: {
+          status: "recorded",
+          remarks,
+          recorded_at: date,
+          digital_signature: signature,
+        },
+        decision,
+        remarks,
+        date,
+        signature,
+        useStatusFallback: false,
+      };
+    })
+    .filter(Boolean);
+
+  return filterSupersededRenewalReceiptDecisionRows(renewalRows);
+}
+
+function filterSupersededRenewalReceiptDecisionRows(rows = []) {
+  let latestApprovalIndex = -1;
+  let latestApprovalTime = 0;
+
+  rows.forEach((row, index) => {
+    if (!isWorkspaceRenewalReceiptDecision(row, "approve renewal receipt")) return;
+
+    const timestamp = getWorkspaceRenewalDecisionLogTimestamp(row);
+    if (!latestApprovalTime || timestamp >= latestApprovalTime) {
+      latestApprovalTime = timestamp;
+      latestApprovalIndex = index;
+    }
+  });
+
+  if (latestApprovalIndex < 0) return rows;
+
+  return rows.filter((row, index) => {
+    if (!isWorkspaceRenewalReceiptDecision(row, "reject renewal receipt")) return true;
+
+    const timestamp = getWorkspaceRenewalDecisionLogTimestamp(row);
+    if (latestApprovalTime && timestamp) return timestamp > latestApprovalTime;
+
+    return index > latestApprovalIndex;
+  });
+}
+
+function isWorkspaceRenewalReceiptDecision(row, expectedDecision) {
+  return cleanRemark(row?.decision).toLowerCase() === expectedDecision;
+}
+
+function getWorkspaceRenewalDecisionLogTimestamp(row) {
+  const timestamp = new Date(row?.date || 0).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function addWorkspaceDecisionLogRow(rows, row, t) {
@@ -12294,6 +12397,12 @@ function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (k
     "hantar surat & bil": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
     "generate approval letter & bill": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
     "jana surat kelulusan & bil": t("workspace.decision.generateApprovalLetterBill", "Generate Approval Letter & Bill"),
+    "approve renewal receipt": t("workspace.decision.approveRenewalReceipt", "Approve Renewal Receipt"),
+    "reject renewal receipt": t("workspace.decision.rejectRenewalReceipt", "Reject Renewal Receipt"),
+    "generate renewal official receipt and advertisement license": t(
+      "workspace.decision.generateRenewalReceiptLicense",
+      "Generate Renewal Official Receipt & Advertisement License"
+    ),
   };
 
   if (routeRecommendationMap[normalized]) {
@@ -14880,7 +14989,6 @@ const configs = {
           const savedApprovalLetter = app.form_data?.approval_letter || {};
           const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
           const savedLicense = app.form_data?.license || {};
-          const savedManualLicense = savedLicense.manual_license || {};
           const expiryDate = parseDateOrFallback(savedLicense.expiry_date, today);
           const issueDate = addDays(expiryDate, 1);
           const expiry = addCalendarYears(expiryDate, 1);
@@ -14949,9 +15057,8 @@ const configs = {
             sent_at: timestamp,
           };
           const nextManualLicense = {
-            ...savedManualLicense,
             template: "dbku_advertisement_license_borang_b_v1",
-            name: translate("workspace.license.documentTitle", "Advertisement License"),
+            name: translate("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
             document_html: licenseDocumentHtml,
             status: "Sent to Applicant",
             generated_by: "PT(IKL)",
@@ -14972,10 +15079,6 @@ const configs = {
                 official_receipt_no: officialReceiptNo,
                 status: "Payment Verified",
               },
-              license: {
-                ...nextLicenseBase,
-                manual_license: nextManualLicense,
-              },
               license_renewal: {
                 ...renewal,
                 payment: {
@@ -14985,6 +15088,7 @@ const configs = {
                   official_receipt_no: officialReceiptNo,
                   official_receipt: nextManualReceipt,
                   renewed_license: nextManualLicense,
+                  manual_advertisement_license: nextManualLicense,
                   completed_by: "PT(IKL)",
                   completed_at: timestamp,
                   completion_note: remarks,

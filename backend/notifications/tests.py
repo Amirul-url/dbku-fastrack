@@ -15,6 +15,7 @@ from .services import (
     notify_account_created,
     notify_application_status_change,
     notify_license_renewal_released,
+    notify_license_renewal_payment_submitted,
     notify_license_revocation_request,
     process_license_renewal_reminders,
 )
@@ -2352,6 +2353,18 @@ class LicenseRenewalWorkflowTests(TestCase):
             )
             .exclude(channel="web")
             .exists()
+        )
+
+    def test_fin_inbox_includes_submitted_renewal_payment_receipts(self):
+        notify_license_renewal_payment_submitted(self.application, 3)
+
+        client = APIClient()
+        client.force_authenticate(user=self.fin)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertTrue(
+            any(item["metadata"]["event_status"] == "license_renewal_payment_submitted" for item in data)
         )
 
     def test_rejected_renewal_payment_receipt_notifies_applicant_on_all_channels(self):

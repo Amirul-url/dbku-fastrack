@@ -1369,6 +1369,7 @@ function LicenseSection({
   const trimmedReferenceDetails = getPaymentReferenceDetails(referenceDetails, { trim: true });
   const isPaymentReferenceDetailsComplete = Object.values(trimmedReferenceDetails).every(Boolean);
   const canSubmitReceipt = Boolean(paymentReceipt) && !receiptUploading && isPaymentReferenceDetailsComplete;
+  const originalPaymentReceiptDocumentFile = getOriginalPaymentReceiptDocumentFile(app);
 
   return (
     <section className="space-y-4">
@@ -1401,141 +1402,143 @@ function LicenseSection({
               onViewApplicationSteps={onViewApplicationSteps}
             />
 
-            <section className="rounded-md border border-slate-200 bg-slate-50">
-              <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-950">
-                    {t("applicant.paymentReceipt", "Payment Receipt")}
-                  </h4>
-                  <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                    {getPaymentHint(app, t)}
-                  </p>
+            {!originalPaymentReceiptDocumentFile && (
+              <section className="rounded-md border border-slate-200 bg-slate-50">
+                <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-950">
+                      {t("applicant.paymentReceipt", "Payment Receipt")}
+                    </h4>
+                    <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                      {getPaymentHint(app, t)}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              {isReceiptRejected && (
-                <div className="mx-3 mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                  {t("applicant.paymentHintReceiptRejected")}
-                </div>
-              )}
+                {isReceiptRejected && (
+                  <div className="mx-3 mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                    {t("applicant.paymentHintReceiptRejected")}
+                  </div>
+                )}
 
-              {isReceiptSubmitted && (
-                <div className="mx-3 mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-                  {t("applicant.paymentSubmittedSuccess")}
-                </div>
-              )}
+                {isReceiptSubmitted && (
+                  <div className="mx-3 mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+                    {t("applicant.paymentSubmittedSuccess")}
+                  </div>
+                )}
 
-              <PaymentReceiptUpload
-                receipt={paymentReceipt}
-                uploading={receiptUploading}
-                locked={isPaymentLocked}
-                t={t}
-                onChange={onReceiptChange}
-                onRemove={onReceiptRemove}
-                onDownload={onReceiptDownload}
-              />
+                <PaymentReceiptUpload
+                  receipt={paymentReceipt}
+                  uploading={receiptUploading}
+                  locked={isPaymentLocked}
+                  t={t}
+                  onChange={onReceiptChange}
+                  onRemove={onReceiptRemove}
+                  onDownload={onReceiptDownload}
+                />
 
-              {canSubmitPaymentProof && (
-                <div className="border-t border-slate-200 bg-white px-3 py-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
-                      2
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {t("applicant.paymentReferenceDetailsTitle", "Payment reference details")}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                        {t("applicant.paymentReferenceDetailsHint", "Enter the payment reference details from your bank transfer or receipt.")}
-                      </p>
+                {canSubmitPaymentProof && (
+                  <div className="border-t border-slate-200 bg-white px-3 py-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+                        2
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {t("applicant.paymentReferenceDetailsTitle", "Payment reference details")}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                          {t("applicant.paymentReferenceDetailsHint", "Enter the payment reference details from your bank transfer or receipt.")}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-600">
+                          {t("applicant.paymentReferenceId", "Reference ID")} <span className="text-red-600">*</span>
+                        </span>
+                        <input
+                          type="text"
+                          value={referenceDetails.reference_id}
+                          onChange={(event) => onPaymentReferenceDetailsChange?.("reference_id", event.target.value)}
+                          disabled={isPaymentLocked}
+                          className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-600">
+                          {t("applicant.paymentRecipientReference", "Recipient Reference")} <span className="text-red-600">*</span>
+                        </span>
+                        <input
+                          type="text"
+                          value={referenceDetails.recipient_reference}
+                          onChange={(event) => onPaymentReferenceDetailsChange?.("recipient_reference", event.target.value)}
+                          disabled={isPaymentLocked}
+                          className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-600">
+                          {t("applicant.paymentDetails", "Payment Details")} <span className="text-red-600">*</span>
+                        </span>
+                        <input
+                          type="text"
+                          value={referenceDetails.payment_details}
+                          onChange={(event) => onPaymentReferenceDetailsChange?.("payment_details", event.target.value)}
+                          disabled={isPaymentLocked}
+                          className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                        />
+                      </label>
                     </div>
                   </div>
+                )}
 
-                  <div className="mt-3 grid gap-3 lg:grid-cols-3">
-                    <label className="block">
-                      <span className="text-xs font-semibold text-slate-600">
-                        {t("applicant.paymentReferenceId", "Reference ID")} <span className="text-red-600">*</span>
+                {canSubmitPaymentProof && (
+                  <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+                        3
                       </span>
-                      <input
-                        type="text"
-                        value={referenceDetails.reference_id}
-                        onChange={(event) => onPaymentReferenceDetailsChange?.("reference_id", event.target.value)}
-                        disabled={isPaymentLocked}
-                        className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-semibold text-slate-600">
-                        {t("applicant.paymentRecipientReference", "Recipient Reference")} <span className="text-red-600">*</span>
-                      </span>
-                      <input
-                        type="text"
-                        value={referenceDetails.recipient_reference}
-                        onChange={(event) => onPaymentReferenceDetailsChange?.("recipient_reference", event.target.value)}
-                        disabled={isPaymentLocked}
-                        className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-semibold text-slate-600">
-                        {t("applicant.paymentDetails", "Payment Details")} <span className="text-red-600">*</span>
-                      </span>
-                      <input
-                        type="text"
-                        value={referenceDetails.payment_details}
-                        onChange={(event) => onPaymentReferenceDetailsChange?.("payment_details", event.target.value)}
-                        disabled={isPaymentLocked}
-                        className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {canSubmitPaymentProof && (
-                <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
-                      3
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                        {canSubmitReceipt
-                          ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
-                          : receiptUploading
-                            ? t("applicant.receiptUploadingHint", "Uploading receipt. Please wait.")
-                          : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
-                      </p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                          {canSubmitReceipt
+                            ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
+                            : receiptUploading
+                              ? t("applicant.receiptUploadingHint", "Uploading receipt. Please wait.")
+                            : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
+                        </p>
+                      </div>
                     </div>
+                    {isReceiptSubmitted ? (
+                      <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
+                        <span className="material-symbols-outlined text-[16px]">
+                          check_circle
+                        </span>
+                        {t("applicant.paymentStatusSubmitted")}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onSubmitPayment}
+                        disabled={saving || !canSubmitReceipt}
+                        className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                      >
+                        <span className="material-symbols-outlined text-[16px] text-white">
+                          upload_file
+                        </span>
+                        {saving
+                          ? t("common.submitting")
+                          : t("applicant.submitReceiptVerificationButton", "Submit for Verification")}
+                      </button>
+                    )}
                   </div>
-                  {isReceiptSubmitted ? (
-                    <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
-                      <span className="material-symbols-outlined text-[16px]">
-                        check_circle
-                      </span>
-                      {t("applicant.paymentStatusSubmitted")}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={onSubmitPayment}
-                      disabled={saving || !canSubmitReceipt}
-                      className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-                    >
-                      <span className="material-symbols-outlined text-[16px] text-white">
-                        upload_file
-                      </span>
-                      {saving
-                        ? t("common.submitting")
-                        : t("applicant.submitReceiptVerificationButton", "Submit for Verification")}
-                    </button>
-                  )}
-                </div>
-              )}
-            </section>
+                )}
+              </section>
+            )}
 
             <RenewalEarlyPaymentReceiptSection
               app={app}
@@ -1753,17 +1756,6 @@ function RenewalEarlyPaymentReceiptSection({
             <h4 className="text-sm font-semibold text-slate-950">
               {t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt")}
             </h4>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              {receipts.length > 0
-                ? t(
-                    "applicant.renewalEarlyPaymentReceiptReady",
-                    "Receipt selected. ALiS will review the renewal payment proof."
-                  )
-                : t(
-                    "applicant.renewalEarlyPaymentReceiptDesc",
-                    "Optional upload for early renewal payment. This will not replace the original payment receipt."
-                  )}
-            </p>
           </div>
         </div>
 
@@ -2165,11 +2157,15 @@ function QrELicenseContent({
 }
 
 function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
+  const [expanded, setExpanded] = useState(true);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
   const manualLicense = license.manual_license || {};
+  const renewalManualLicense = getLicenseRenewalManualAdvertisementLicense(app);
+  const renewalLicenseFile = getLicenseRenewalAdvertisementLicenseFile(app);
   const officialReceiptFile = getSentOfficialReceiptFile(app);
+  const originalPaymentReceiptFile = getOriginalPaymentReceiptDocumentFile(app);
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
@@ -2186,10 +2182,17 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
       manualLicense.status === "Sent to Applicant" ||
       manualLicense.saved_at)
   );
+  const showRenewalAdvertisementLicense = Boolean(
+    getPaymentDocumentSource(renewalLicenseFile) ||
+      renewalManualLicense.document_html ||
+      renewalManualLicense.sent_at ||
+      renewalManualLicense.status === "Sent to Applicant" ||
+      renewalManualLicense.saved_at
+  );
   const documents = [
     {
-      label: t("applicant.submittedApplicationForm", "Submitted Application Form"),
-      name: t("applicant.submittedApplicationSteps", "Application Steps 1-5"),
+      label: t("applicant.submittedApplicationForm", "Application Form"),
+      name: t("applicant.submittedApplicationSteps", "Application Details"),
       available: true,
       type: "submitted_application",
     },
@@ -2215,6 +2218,22 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           },
         ]
       : []),
+    ...(originalPaymentReceiptFile
+      ? [
+          {
+            label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+            file: originalPaymentReceiptFile,
+            type: "original_payment_receipt",
+            hideFileName: true,
+            onDownload: () =>
+              downloadApplicantReceiptPrintFlow(
+                originalPaymentReceiptFile,
+                t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+                t
+              ),
+          },
+        ]
+      : []),
     ...(showAdvertisementLicense
       ? [
           {
@@ -2225,6 +2244,16 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           },
         ]
       : []),
+    ...(showRenewalAdvertisementLicense
+      ? [
+          {
+            label: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+            file: renewalLicenseFile,
+            manual: renewalManualLicense,
+            type: "renewal_advertisement_license",
+          },
+        ]
+      : []),
     ...releasedRenewalLetters.map((letter) => {
       const letterLabel = getLocalizedRenewalReminderLetterLabel(letter.months, t);
       return {
@@ -2232,6 +2261,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
         name: letterLabel,
         available: true,
         type: "renewal_reminder",
+        hideFileName: true,
         onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letterLabel}`),
       };
     }),
@@ -2244,80 +2274,97 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
 
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <h4 className="text-sm font-semibold text-slate-950">
-          {t("applicant.paymentDocumentsTitle", "Documents to Download")}
-        </h4>
-        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-          {t("applicant.paymentDocumentsDesc", "View the submitted application and download documents from ALiS.")}
-        </p>
+      <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-950">
+            {t("applicant.paymentDocumentsTitle", "Documents to Download")}
+          </h4>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="inline-flex min-h-8 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+          aria-expanded={expanded}
+        >
+          <span className="material-symbols-outlined text-[18px]">
+            {expanded ? "expand_less" : "expand_more"}
+          </span>
+          {expanded ? t("common.hide", "Hide") : t("common.show", "Show")}
+        </button>
       </div>
 
-      <div className="divide-y divide-slate-200">
-        {documents.map((item) => (
-          <div
-            key={item.label}
-            className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase text-slate-500">
-                {item.label}
-              </p>
-              {item.file?.name && (
-                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                  {item.file.name}
+      {expanded && (
+        <div className="divide-y divide-slate-200">
+          {documents.map((item) => (
+            <div
+              key={item.label}
+              className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold uppercase text-slate-500">
+                  {item.label}
                 </p>
-              )}
-              {item.name && (
-                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                  {item.name}
-                </p>
-              )}
-            </div>
-            {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
-              <div className="flex flex-wrap gap-2">
                 {item.type === "submitted_application" && (
-                  <button
-                    type="button"
-                    onClick={() => onViewApplicationSteps?.(app)}
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      visibility
-                    </span>
-                    {t("common.view", "View")}
-                  </button>
-                )}
-                {item.type !== "submitted_application" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (item.onDownload) {
-                        item.onDownload();
-                        return;
-                      }
-
-                      item.type === "advertisement_license"
-                        ? item.file
-                          ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                          : downloadApplicantAdvertisementLicenseDocument(app, t)
-                        : item.file
-                        ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                        : downloadApplicantManualPaymentDocument(app, item.type, t);
-                    }}
-                    className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      download
-                    </span>
-                    {t("common.download", "Download")}
-                  </button>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                    {item.name || item.label}
+                  </p>
                 )}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+              {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
+                <div className="flex flex-wrap gap-2">
+                  {item.type === "submitted_application" && (
+                    <button
+                      type="button"
+                      onClick={() => onViewApplicationSteps?.(app)}
+                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        visibility
+                      </span>
+                      {t("common.view", "View")}
+                    </button>
+                  )}
+                  {item.type !== "submitted_application" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (item.onDownload) {
+                          item.onDownload();
+                          return;
+                        }
+
+                        if (
+                          item.type === "advertisement_license" ||
+                          item.type === "renewal_advertisement_license"
+                        ) {
+                          if (item.file) {
+                            downloadApplicantPaymentDocument(item.file, item.label, t);
+                            return;
+                          }
+                          downloadApplicantAdvertisementLicenseDocument(app, t, {
+                            renewal: item.type === "renewal_advertisement_license",
+                          });
+                          return;
+                        }
+
+                        item.file
+                          ? downloadApplicantPaymentDocument(item.file, item.label, t)
+                          : downloadApplicantManualPaymentDocument(app, item.type, t);
+                      }}
+                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        download
+                      </span>
+                      {t("common.download", "Download")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -2848,15 +2895,9 @@ function getApplicationRemark(app) {
   const status = normalizeStatus(app?.status);
   const formData = app?.form_data || {};
   const payment = getApplicationPayment(app);
-  const renewalPayment = getLicenseRenewalPayment(app);
 
   if (getLicenseRenewalPaymentStatus(app) === "rejected") {
-    return cleanRemark(
-      renewalPayment.verification_notes ||
-        renewalPayment.internal_verification_notes ||
-        renewalPayment.remarks ||
-        renewalPayment.note
-    );
+    return getLicenseRenewalRejectedRemark(app);
   }
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
@@ -3064,6 +3105,24 @@ function isReceiptSubmissionNewerThanRejection(payment = {}) {
 
 function getApplicationPayment(app) {
   return app?.form_data?.payment || app?.payment || {};
+}
+
+function getOriginalPaymentReceiptDocumentFile(app) {
+  const payment = getApplicationPayment(app);
+  const receiptFile = payment.receipt_file;
+
+  if (!getPaymentDocumentSource(receiptFile) || isPaymentReceiptRejected(payment)) {
+    return null;
+  }
+
+  const appStatus = normalizeStatus(app?.status);
+  const paymentStatus = normalizePaymentValue(payment.status);
+  const isOriginalPaymentComplete =
+    canViewLicense(app) ||
+    ["payment_verified", "license_issued", "license_revoked"].includes(appStatus) ||
+    ["payment_verified", "receipt_verified", "payment_completed"].includes(paymentStatus);
+
+  return isOriginalPaymentComplete ? receiptFile : null;
 }
 
 function getPaymentReferenceDetails(payment = {}, options = {}) {
@@ -3735,27 +3794,49 @@ async function downloadApplicantManualPaymentDocument(app, type, t) {
   }
 }
 
-async function downloadApplicantAdvertisementLicenseDocument(app, t) {
-  const html = getApplicantAdvertisementLicenseDocumentHtml(app);
+async function downloadApplicantAdvertisementLicenseDocument(app, t, options = {}) {
+  const html = getApplicantAdvertisementLicenseDocumentHtml(app, options);
   if (!html) {
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
     return;
   }
 
   try {
-    await printHtmlDocument(
-      html,
-      `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
-    );
+    const title = options.renewal
+      ? t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License")
+      : t("workspace.license.documentTitle", "Advertisement License");
+    await printHtmlDocument(html, `${getApplicationReference(app)} ${title}`);
   } catch (err) {
     console.error("Failed to download advertisement license:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
 }
 
-function getApplicantAdvertisementLicenseDocumentHtml(app) {
-  const manualLicense = app?.form_data?.license?.manual_license || {};
+function getApplicantAdvertisementLicenseDocumentHtml(app, options = {}) {
+  const manualLicense = options.renewal
+    ? getLicenseRenewalManualAdvertisementLicense(app)
+    : app?.form_data?.license?.manual_license || {};
   return String(manualLicense.document_html || "").trim();
+}
+
+function getLicenseRenewalManualAdvertisementLicense(app) {
+  const payment = getLicenseRenewalPayment(app);
+  const manualLicense =
+    payment.manual_advertisement_license ||
+    payment.renewed_license ||
+    payment.manual_license ||
+    {};
+  return manualLicense && typeof manualLicense === "object" ? manualLicense : {};
+}
+
+function getLicenseRenewalAdvertisementLicenseFile(app) {
+  const payment = getLicenseRenewalPayment(app);
+  return (
+    payment.advertisement_license_file ||
+    payment.renewed_license_file ||
+    payment.license_file ||
+    null
+  );
 }
 
 function getApplicantManualPaymentDocumentHtml(app, type, t) {
@@ -3809,7 +3890,15 @@ function getLicenseRenewalPayment(app) {
 }
 
 function getLicenseRenewalPaymentStatus(app) {
-  return normalizeStatus(getLicenseRenewalPayment(app).status || "");
+  const status = normalizeStatus(getLicenseRenewalPayment(app).status || "");
+  const latestRejectedReceipt = getLatestRejectedRenewalEarlyPaymentReceipt(app);
+
+  if (!latestRejectedReceipt) return status;
+  if (hasRenewalReceiptSubmittedAfterLatestRejection(app)) {
+    return status || "uploaded";
+  }
+
+  return "rejected";
 }
 
 function getLicenseRenewalReminders(app) {
@@ -3908,6 +3997,80 @@ function getRenewalEarlyPaymentReceipts(app) {
       seen.add(key);
       return true;
     });
+}
+
+function getRenewalReceiptSortTime(receipt) {
+  const keys = [
+    "rejected_at",
+    "reviewed_at",
+    "submitted_at",
+    "uploaded_at",
+    "updated_at",
+    "created_at",
+  ];
+  const times = keys
+    .map((key) => Date.parse(receipt?.[key] || ""))
+    .filter((time) => Number.isFinite(time));
+  return times.length ? Math.max(...times) : 0;
+}
+
+function getRejectedRenewalEarlyPaymentReceipts(app) {
+  const renewal = getLicenseRenewal(app);
+  const receipts = Array.isArray(renewal.rejected_early_payment_receipts)
+    ? renewal.rejected_early_payment_receipts
+    : [];
+  const reminders = getLicenseRenewalReminders(app);
+  const reminderReceipts = Object.values(reminders).flatMap((reminder) =>
+    Array.isArray(reminder?.rejected_early_payment_receipts)
+      ? reminder.rejected_early_payment_receipts
+      : []
+  );
+  const seen = new Set();
+
+  return [...receipts, ...reminderReceipts]
+    .map(normalizeRenewalEarlyPaymentReceipt)
+    .filter(Boolean)
+    .filter((receipt) => {
+      const key =
+        receipt.document_id ||
+        `${receipt.name}-${receipt.uploaded_at}-${receipt.rejected_at || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => getRenewalReceiptSortTime(b) - getRenewalReceiptSortTime(a));
+}
+
+function getLatestRejectedRenewalEarlyPaymentReceipt(app) {
+  return getRejectedRenewalEarlyPaymentReceipts(app)[0] || null;
+}
+
+function hasRenewalReceiptSubmittedAfterLatestRejection(app) {
+  const latestRejectedReceipt = getLatestRejectedRenewalEarlyPaymentReceipt(app);
+  const rejectedAt = getRenewalReceiptSortTime(latestRejectedReceipt);
+  if (!rejectedAt) return false;
+
+  return getRenewalEarlyPaymentReceipts(app).some((receipt) => {
+    if (normalizeStatus(receipt.status) === "rejected") return false;
+    return getRenewalReceiptSortTime(receipt) > rejectedAt;
+  });
+}
+
+function getLicenseRenewalRejectedRemark(app) {
+  const renewalPayment = getLicenseRenewalPayment(app);
+  const rejectedReceipt = getLatestRejectedRenewalEarlyPaymentReceipt(app);
+
+  return cleanRemark(
+    rejectedReceipt?.verification_notes ||
+      rejectedReceipt?.internal_verification_notes ||
+      rejectedReceipt?.remarks ||
+      rejectedReceipt?.remark ||
+      rejectedReceipt?.note ||
+      renewalPayment.verification_notes ||
+      renewalPayment.internal_verification_notes ||
+      renewalPayment.remarks ||
+      renewalPayment.note
+  );
 }
 
 function getLicenseVerificationUrl(licenseId) {
