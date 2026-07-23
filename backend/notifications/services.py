@@ -650,6 +650,77 @@ def apply_license_renewal_payment_action(
             notify_license_renewal_payment_verified(application, payment.get("months_before_expiry") or months or 3)
             return {}
 
+        receipt = payment.get("receipt") if isinstance(payment.get("receipt"), dict) else {}
+        rejected_receipt_id = str(
+            payment.get("receipt_document_id")
+            or receipt.get("document_id")
+            or receipt.get("id")
+            or ""
+        ).strip()
+        rejected_receipt = None
+        active_receipts = []
+        receipts = renewal.get("early_payment_receipts")
+        if isinstance(receipts, list):
+            for current_receipt in receipts:
+                current_id = str(
+                    (current_receipt or {}).get("document_id")
+                    or (current_receipt or {}).get("id")
+                    or ""
+                ).strip()
+                if rejected_receipt_id and current_id == rejected_receipt_id:
+                    rejected_receipt = current_receipt
+                    continue
+                active_receipts.append(current_receipt)
+            renewal["early_payment_receipts"] = active_receipts
+
+        if rejected_receipt is None and receipt:
+            rejected_receipt = receipt
+
+        if rejected_receipt:
+            rejected_receipt = {
+                **rejected_receipt,
+                "status": "rejected",
+                "reference_id": payment.get("reference_id") or rejected_receipt.get("reference_id") or "",
+                "recipient_reference": payment.get("recipient_reference") or rejected_receipt.get("recipient_reference") or "",
+                "payment_details": payment.get("payment_details") or rejected_receipt.get("payment_details") or "",
+                "verification_notes": clean_note,
+                "internal_verification_notes": clean_note,
+                "rejected_by": get_web_recipient(user),
+                "rejected_at": now,
+            }
+            rejected_receipts = renewal.get("rejected_early_payment_receipts")
+            if not isinstance(rejected_receipts, list):
+                rejected_receipts = []
+            renewal["rejected_early_payment_receipts"] = [*rejected_receipts, rejected_receipt]
+
+        reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+        for reminder_key, reminder in list(reminders.items()):
+            if not isinstance(reminder, dict):
+                continue
+
+            reminder_receipts = reminder.get("early_payment_receipts")
+            if isinstance(reminder_receipts, list):
+                reminder["early_payment_receipts"] = [
+                    current_receipt
+                    for current_receipt in reminder_receipts
+                    if str(
+                        (current_receipt or {}).get("document_id")
+                        or (current_receipt or {}).get("id")
+                        or ""
+                    ).strip() != rejected_receipt_id
+                ]
+
+            if rejected_receipt:
+                reminder_rejected_receipts = reminder.get("rejected_early_payment_receipts")
+                if not isinstance(reminder_rejected_receipts, list):
+                    reminder_rejected_receipts = []
+                reminder["rejected_early_payment_receipts"] = [
+                    *reminder_rejected_receipts,
+                    rejected_receipt,
+                ]
+            reminders[reminder_key] = reminder
+        renewal["reminders"] = reminders
+
         payment.update({
             "status": "rejected",
             "recommendation": "Reject Renewal Receipt",
@@ -657,6 +728,13 @@ def apply_license_renewal_payment_action(
             "verification_result": "Invalid",
             "verification_notes": clean_note,
             "internal_verification_notes": clean_note,
+            "receipt": None,
+            "receipt_document_id": "",
+            "reference_id": "",
+            "recipient_reference": "",
+            "payment_details": "",
+            "submitted_by": "",
+            "submitted_at": "",
             "verified_by": "",
             "verified_at": "",
             "rejected_by": get_web_recipient(user),

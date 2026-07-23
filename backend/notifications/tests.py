@@ -2356,9 +2356,30 @@ class LicenseRenewalWorkflowTests(TestCase):
 
     def test_rejected_renewal_payment_receipt_notifies_applicant_on_all_channels(self):
         self.application.form_data["license_renewal"] = {
+            "early_payment_receipts": [
+                {
+                    "document_id": 999,
+                    "name": "Receipt.jpg",
+                    "uploaded_at": "2026-07-23T09:37:00+08:00",
+                    "months_before_expiry": 3,
+                    "reference_id": "REF-123",
+                    "recipient_reference": "ALIS-RENEWAL",
+                    "payment_details": "Renewal payment",
+                }
+            ],
             "payment": {
                 "status": "submitted",
                 "months_before_expiry": 3,
+                "receipt": {
+                    "document_id": 999,
+                    "name": "Receipt.jpg",
+                    "uploaded_at": "2026-07-23T09:37:00+08:00",
+                    "months_before_expiry": 3,
+                    "reference_id": "REF-123",
+                    "recipient_reference": "ALIS-RENEWAL",
+                    "payment_details": "Renewal payment",
+                },
+                "receipt_document_id": 999,
                 "receipt_name": "Receipt.jpg",
                 "reference_id": "REF-123",
                 "recipient_reference": "ALIS-RENEWAL",
@@ -2384,6 +2405,16 @@ class LicenseRenewalWorkflowTests(TestCase):
         payment = self.application.form_data["license_renewal"]["payment"]
         self.assertEqual(payment["status"], "rejected")
         self.assertEqual(payment["verification_notes"], "Receipt amount is unclear.")
+        self.assertIsNone(payment["receipt"])
+        self.assertEqual(payment["receipt_document_id"], "")
+        self.assertEqual(payment["reference_id"], "")
+        self.assertEqual(payment["recipient_reference"], "")
+        self.assertEqual(payment["payment_details"], "")
+        self.assertEqual(self.application.form_data["license_renewal"]["early_payment_receipts"], [])
+        self.assertEqual(
+            self.application.form_data["license_renewal"]["rejected_early_payment_receipts"][0]["status"],
+            "rejected",
+        )
 
         deliveries = NotificationDelivery.objects.filter(
             user=self.applicant,
