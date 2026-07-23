@@ -76,7 +76,18 @@ export function getRenewalReminderUpdatedTime(record, months = 3) {
 function getLicenseRenewalTimestampValues(record) {
   const renewal = record?.form_data?.license_renewal || record?.license_renewal || {};
   const reminders = renewal?.reminders || {};
+  const payment = renewal?.payment || {};
   const values = [];
+
+  values.push(
+    payment?.uploaded_at,
+    payment?.submitted_at,
+    payment?.verified_at,
+    payment?.rejected_at,
+    payment?.updated_at,
+    payment?.receipt?.uploaded_at,
+    payment?.receipt?.submitted_at
+  );
 
   if (Array.isArray(renewal?.early_payment_receipts)) {
     renewal.early_payment_receipts.forEach((receipt) => {

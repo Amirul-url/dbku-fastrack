@@ -972,6 +972,7 @@ function UserDashboard() {
             onMonthChange={setStatusFilterMonth}
             onYearChange={setStatusFilterYear}
             isReferenceNew={(app) =>
+              isRenewalPaymentRejectedNew(app, recordSeen) ||
               isReleasedRenewalReminderNew(app, 3, recordSeen) ||
               isApplicantRecordNew(app, "status", recordSeen) ||
               (isELicenseApplication(app) && isApplicantRecordNew(app, "license", recordSeen))
@@ -2847,6 +2848,16 @@ function getApplicationRemark(app) {
   const status = normalizeStatus(app?.status);
   const formData = app?.form_data || {};
   const payment = getApplicationPayment(app);
+  const renewalPayment = getLicenseRenewalPayment(app);
+
+  if (getLicenseRenewalPaymentStatus(app) === "rejected") {
+    return cleanRemark(
+      renewalPayment.verification_notes ||
+        renewalPayment.internal_verification_notes ||
+        renewalPayment.remarks ||
+        renewalPayment.note
+    );
+  }
 
   if (["invoice_generated", "payment_submitted"].includes(status)) {
     return isPaymentReceiptRejected(payment)
@@ -3495,6 +3506,12 @@ function isReleasedRenewalReminderNew(app, months, seen = {}) {
     hasReleasedRenewalReminder(app, months) &&
     isApplicantRenewalReminderNew(app, months, seen.renewalReminder)
   );
+}
+
+function isRenewalPaymentRejectedNew(app, seen = {}) {
+  if (getLicenseRenewalPaymentStatus(app) !== "rejected") return false;
+
+  return isApplicantRecordNew(app, "status", seen);
 }
 
 function shouldHideApplicantAction(app) {
@@ -4817,7 +4834,10 @@ function getPaymentStatusText(app, t) {
       return t("applicant.renewalPaymentCompletedStatus", "Renewal payment completed");
     }
     if (renewalPaymentStatus === "rejected") {
-      return t("applicant.renewalPaymentRejectedStatus", "Upload renewal receipt again");
+      return t(
+        "applicant.renewalPaymentRejectedStatus",
+        "Rejected, upload renewal receipt again"
+      );
     }
     if (renewalPaymentStatus === "submitted" && hasRenewalReferenceDetails) {
       return t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted");
