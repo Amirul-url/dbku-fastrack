@@ -43,6 +43,7 @@ from notifications.services import (
     notify_applicant_application_submitted,
     notify_application_status_change,
     notify_license_revocation_request,
+    notify_license_renewal_payment_submitted,
     notify_staff_application_resubmitted,
 )
 
@@ -576,9 +577,27 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         reminder["early_payment_receipts"] = [*reminder_receipts, receipt]
         reminders[str(months)] = reminder
         renewal["reminders"] = reminders
+        payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
+        renewal["payment"] = {
+            **payment,
+            "status": "submitted",
+            "months_before_expiry": months,
+            "receipt": receipt,
+            "receipt_document_id": receipt["document_id"],
+            "submitted_at": timestamp,
+            "submitted_by": get_activity_actor_name(request.user),
+            "verification_result": "",
+            "verification_notes": "",
+            "internal_verification_notes": "",
+            "verified_by": "",
+            "verified_at": "",
+            "rejected_by": "",
+            "rejected_at": "",
+        }
         form_data["license_renewal"] = renewal
         application.form_data = form_data
         application.save(update_fields=["form_data", "updated_at"])
+        notify_license_renewal_payment_submitted(application, months)
 
         append_application_activity(
             application,

@@ -666,6 +666,30 @@ FIN_PAYMENT_SUBMITTED_EMAIL_BODY_TEMPLATE = (
 FIN_PAYMENT_SUBMITTED_WHATSAPP_BODY_TEMPLATE = (
     "Applicant has uploaded payment proof for application {reference}. FIN must verify the receipt."
 )
+FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_TITLE = "Renewal payment proof submitted"
+FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_WEB_BODY_TEMPLATE = (
+    "Applicant has uploaded early renewal payment proof for application {reference}. FIN must verify the receipt."
+)
+FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_EMAIL_BODY_TEMPLATE = (
+    "Applicant has uploaded early renewal payment proof for application {reference}. FIN must verify the receipt."
+)
+FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_WHATSAPP_BODY_TEMPLATE = (
+    "Applicant has uploaded early renewal payment proof for application {reference}. FIN must verify the receipt."
+)
+
+PT_IKL_RENEWAL_PAYMENT_VERIFIED_TITLE = "Renewal payment verified"
+PT_IKL_RENEWAL_PAYMENT_VERIFIED_WEB_BODY_TEMPLATE = (
+    "FIN has verified the early renewal payment proof for application {reference}. "
+    "PT(IKL) must generate the official receipt and renewed advertisement license."
+)
+PT_IKL_RENEWAL_PAYMENT_VERIFIED_EMAIL_BODY_TEMPLATE = (
+    "FIN has verified the early renewal payment proof for application {reference}. "
+    "PT(IKL) must generate the official receipt and renewed advertisement license."
+)
+PT_IKL_RENEWAL_PAYMENT_VERIFIED_WHATSAPP_BODY_TEMPLATE = (
+    "FIN has verified the early renewal payment proof for application {reference}. "
+    "PT(IKL) must generate the official receipt and renewed advertisement license."
+)
 
 
 # =================

@@ -3451,6 +3451,11 @@ function getLicenseRenewal(app) {
   return renewal && typeof renewal === "object" ? renewal : {};
 }
 
+function getLicenseRenewalPaymentStatus(app) {
+  const payment = getLicenseRenewal(app).payment || {};
+  return normalizeStatus(payment && typeof payment === "object" ? payment.status : "");
+}
+
 function getLicenseRenewalReminders(app) {
   const reminders = getLicenseRenewal(app).reminders || {};
   return reminders && typeof reminders === "object" ? reminders : {};
@@ -4394,15 +4399,20 @@ function getPaymentStatusText(app, t) {
   const payment = getApplicationPayment(app);
 
   if (hasReleasedRenewalReminder(app, 3)) {
-    return getRenewalEarlyPaymentReceipts(app).length > 0
-      ? t(
-          "applicant.renewalReceiptUploadedStatus",
-          "Renewal receipt uploaded"
-        )
-      : t(
-          "applicant.renewalPaymentRequiredStatus",
-          "Renewal payment required"
-        );
+    const renewalPaymentStatus = getLicenseRenewalPaymentStatus(app);
+    if (renewalPaymentStatus === "verified") {
+      return t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified");
+    }
+    if (renewalPaymentStatus === "completed") {
+      return t("applicant.renewalPaymentCompletedStatus", "Renewal payment completed");
+    }
+    if (renewalPaymentStatus === "rejected") {
+      return t("applicant.renewalPaymentRejectedStatus", "Upload renewal receipt again");
+    }
+    if (renewalPaymentStatus === "submitted") {
+      return t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted");
+    }
+    return t("applicant.renewalPaymentRequiredStatus", "Renewal payment required");
   }
 
   if (isPaymentReceiptRejected(payment)) {

@@ -645,7 +645,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       }
 
       const normalizedStatus = normalizeStatus(app.status);
+      const isRenewalPaymentTask = isRenewalPaymentTaskForWorkspace(
+        app,
+        config,
+        normalizedUserDepartment
+      );
       const isInStatusScope =
+        isRenewalPaymentTask ||
         statusScope.length === 0 || statusScope.includes(normalizedStatus);
       const isInDepartmentScope =
         !isDepartmentTechnicalWorkspace ||
@@ -1022,8 +1028,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const showPaymentReceiptDecision =
     actionConfig.key === "payment" &&
     userDepartment === "FIN" &&
-    normalizeStatus(selectedRecord?.status) === "payment_submitted" &&
-    workspaceActions.some((action) => action.requiresSubmittedReceipt);
+    (
+      normalizeStatus(selectedRecord?.status) === "payment_submitted" ||
+      getLicenseRenewalPaymentStatus(selectedRecord) === "submitted"
+    ) &&
+    workspaceActions.some((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt);
   const showPaymentDocumentDecision =
     actionConfig.key === "payment" &&
     userDepartment === "PT(IKL)" &&
@@ -1056,7 +1065,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         action.requiresComment ||
         action.requiresPaymentDocuments ||
         action.requiresReceipt ||
-        action.requiresSubmittedReceipt
+        action.requiresSubmittedReceipt ||
+        action.requiresRenewalReceipt
       )
     );
   const showDetailsBeforeComment =
@@ -1069,7 +1079,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showIssueLicenseDecision &&
     Boolean(selectedIssueLicenseAction);
   const paymentReceiptDecisionOptions = showPaymentReceiptDecision
-    ? workspaceActions.filter((action) => action.requiresSubmittedReceipt)
+    ? workspaceActions.filter((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt)
     : [];
   const paymentDocumentDecisionOptions = showPaymentDocumentDecision
     ? workspaceActions
@@ -1101,7 +1111,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
   const requiresPaymentReceiptSignature =
     showPaymentReceiptDecision &&
-    selectedPaymentReceiptAction?.label === "Approve Receipt";
+    ["Approve Receipt", "Approve Renewal Receipt"].includes(selectedPaymentReceiptAction?.label);
   const selectedPaymentReceiptActionRequirementsReady =
     !selectedPaymentReceiptAction ||
     (selectedPaymentReceiptActionReady &&
@@ -2297,6 +2307,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if (action.requiresSubmittedReceipt && normalizeStatus(selectedRecord.status) !== "payment_submitted") {
       setError("Receipt verification is available after the applicant submits a receipt.");
+      return;
+    }
+
+    if (action.requiresRenewalReceipt && getRenewalEarlyPaymentReceipts(selectedRecord).length === 0) {
+      setError("Please wait for the applicant to upload an early renewal payment receipt first.");
       return;
     }
 
@@ -3991,12 +4006,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           }}
                           disabled={saving}
                           variant="primary"
-                          icon={selectedPaymentReceiptAction?.label === "Reject Receipt" ? "send" : "verified"}
+                          icon={["Reject Receipt", "Reject Renewal Receipt"].includes(selectedPaymentReceiptAction?.label) ? "send" : "verified"}
                           className="min-w-40"
                         >
                           {saving
                             ? t("workspace.saving")
-                            : selectedPaymentReceiptAction?.label === "Reject Receipt"
+                            : ["Reject Receipt", "Reject Renewal Receipt"].includes(selectedPaymentReceiptAction?.label)
                               ? t("common.submit", "Submit")
                               : t(selectedPaymentReceiptAction?.labelKey, selectedPaymentReceiptAction?.label || "Submit")}
                         </Button>
@@ -10641,7 +10656,15 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.receipt_review", "Receipt Review");
   }
 
+  if (config?.key === "payment" && userDepartment === "FIN" && getLicenseRenewalPaymentStatus(app) === "submitted") {
+    return t("status.renewal_receipt_review", "Renewal Receipt Review");
+  }
+
   if (config?.key === "license") {
+    if (userDepartment === "PT(IKL)" && getLicenseRenewalPaymentStatus(app) === "verified") {
+      return t("status.renewal_payment_verified", "Renewal Payment Verified");
+    }
+
     const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment);
     if (renewalTaskLabel) return renewalTaskLabel;
   }
@@ -10730,6 +10753,10 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
     }
 
     if (userDepartment === "FIN") {
+      if (getLicenseRenewalPaymentStatus(selectedRecord) === "submitted") {
+        return "Review the early renewal payment receipt, then approve or reject it.";
+      }
+
       return t("workspace.payment.finReceiptAction", "Review the uploaded receipt, then approve or reject it.");
     }
 
@@ -10737,6 +10764,10 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
   }
 
   if (config?.key === "license" && userDepartment === "PT(IKL)") {
+    if (getLicenseRenewalPaymentStatus(selectedRecord) === "verified") {
+      return "Generate the official receipt and renewed advertisement license after FIN verifies the early renewal payment.";
+    }
+
     const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment);
     if (renewalTaskLabel) {
       return `Review and generate the ${renewalTaskLabel.toLowerCase()} letter for KB(LES) confirmation.`;
@@ -10885,6 +10916,10 @@ function canViewWorkspaceRow(config, app, department) {
 
 function isPaymentTaskForDepartment(app, department) {
   const status = normalizeStatus(app?.status);
+
+  if (department === "FIN" && getLicenseRenewalPaymentStatus(app) === "submitted") {
+    return true;
+  }
 
   if (department === "PT(IKL)") {
     return [
@@ -11275,6 +11310,78 @@ function getLicenseRenewal(app) {
 function getLicenseRenewalReminders(app) {
   const reminders = getLicenseRenewal(app).reminders || {};
   return reminders && typeof reminders === "object" ? reminders : {};
+}
+
+function getLicenseRenewalPayment(app) {
+  const payment = getLicenseRenewal(app).payment || {};
+  return payment && typeof payment === "object" ? payment : {};
+}
+
+function getLicenseRenewalPaymentStatus(app) {
+  return normalizeStatus(getLicenseRenewalPayment(app).status);
+}
+
+function getLicenseRenewalPaymentMonths(app) {
+  const paymentMonths = Number(getLicenseRenewalPayment(app).months_before_expiry);
+  if ([1, 2, 3].includes(paymentMonths)) return paymentMonths;
+  const receiptMonths = Number(getRenewalEarlyPaymentReceipts(app)[0]?.months_before_expiry);
+  if ([1, 2, 3].includes(receiptMonths)) return receiptMonths;
+  return 3;
+}
+
+function normalizeRenewalEarlyPaymentReceipt(receipt) {
+  if (!receipt || typeof receipt !== "object") return null;
+
+  const documentId = receipt.document_id || receipt.id || "";
+  const source =
+    receipt.url ||
+    receipt.file_url ||
+    receipt.file ||
+    receipt.download_url ||
+    "";
+
+  return {
+    ...receipt,
+    document_id: documentId,
+    name: receipt.name || receipt.title || "Renewal early payment receipt",
+    url: source,
+    file_url: receipt.file_url || source,
+    uploaded_at: receipt.uploaded_at || receipt.created_at || "",
+  };
+}
+
+function getRenewalEarlyPaymentReceipts(app) {
+  const renewal = getLicenseRenewal(app);
+  const receipts = Array.isArray(renewal.early_payment_receipts)
+    ? renewal.early_payment_receipts
+    : [];
+  const reminderReceipts = Object.values(getLicenseRenewalReminders(app)).flatMap((reminder) =>
+    Array.isArray(reminder?.early_payment_receipts)
+      ? reminder.early_payment_receipts
+      : []
+  );
+  const seen = new Set();
+
+  return [...receipts, ...reminderReceipts]
+    .map(normalizeRenewalEarlyPaymentReceipt)
+    .filter(Boolean)
+    .filter((receipt) => {
+      const key = String(receipt.document_id || receipt.url || receipt.name || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function isRenewalPaymentTaskForWorkspace(app, config, department) {
+  const status = getLicenseRenewalPaymentStatus(app);
+  if (config?.key === "payment" && department === "FIN") {
+    return status === "submitted";
+  }
+  if (config?.key === "license" && department === "PT(IKL)") {
+    return status === "verified";
+  }
+  return false;
 }
 
 function getGeneratedRenewalLetters(app) {
@@ -14028,6 +14135,10 @@ function getStatusFilterValues(value) {
 function getWorkspaceFetchParams(config, department, includeCompletedFallback = false) {
   if (includeCompletedFallback) return {};
 
+  if (config?.key === "payment" && department === "FIN") {
+    return { status: ["payment_submitted", "license_issued"] };
+  }
+
   const statuses = getWorkspaceStatusScope(config, department);
   return statuses.length > 0 ? { status: statuses } : {};
 }
@@ -14430,6 +14541,40 @@ const configs = {
         }),
       },
       {
+        key: "approve_renewal_receipt",
+        label: "Approve Renewal Receipt",
+        icon: "verified",
+        endpoint: "license-renewal-action",
+        success: "Renewal receipt approved. PT(IKL) can generate the renewed official receipt and advertisement license.",
+        requiresComment: true,
+        requiresRenewalReceipt: true,
+        isAvailable: (app, department) =>
+          department === "FIN" && getLicenseRenewalPaymentStatus(app) === "submitted",
+        buildPayload: (app, data) => ({
+          action: "verify_early_payment",
+          months: getLicenseRenewalPaymentMonths(app),
+          note: data.comment,
+          digital_signature: data.approvalSupportSignature || null,
+        }),
+      },
+      {
+        key: "reject_renewal_receipt",
+        label: "Reject Renewal Receipt",
+        icon: "report",
+        variant: "danger",
+        endpoint: "license-renewal-action",
+        success: "Renewal receipt rejected. Applicant can upload another renewal receipt.",
+        requiresComment: true,
+        requiresRenewalReceipt: true,
+        isAvailable: (app, department) =>
+          department === "FIN" && getLicenseRenewalPaymentStatus(app) === "submitted",
+        buildPayload: (app, data) => ({
+          action: "reject_early_payment",
+          months: getLicenseRenewalPaymentMonths(app),
+          note: data.comment,
+        }),
+      },
+      {
         key: "revoke_license",
         label: "Revoke License",
         labelKey: "workspace.action.revokeLicense",
@@ -14664,6 +14809,137 @@ const configs = {
           digital_signature: data.approvalSupportSignature || null,
           document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
         }),
+      },
+      {
+        key: "complete_renewal_payment",
+        label: "Generate Renewal Receipt & License",
+        icon: "qr_code_2",
+        success: "Renewal official receipt and advertisement license generated.",
+        isAvailable: (app, department) =>
+          department === "PT(IKL)" && getLicenseRenewalPaymentStatus(app) === "verified",
+        buildPayload: (app, data) => {
+          const translate = data?.t || ((key, fallback) => fallback || key);
+          const today = new Date();
+          const timestamp = today.toISOString();
+          const renewal = getLicenseRenewal(app);
+          const payment = getLicenseRenewalPayment(app);
+          const months = getLicenseRenewalPaymentMonths(app);
+          const savedApprovalLetter = app.form_data?.approval_letter || {};
+          const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
+          const savedLicense = app.form_data?.license || {};
+          const savedManualLicense = savedLicense.manual_license || {};
+          const expiryDate = parseDateOrFallback(savedLicense.expiry_date, today);
+          const issueDate = addDays(expiryDate, 1);
+          const expiry = addCalendarYears(expiryDate, 1);
+          const licenseId = savedLicense.license_id || getLicenseId(app);
+          const officialReceiptNo =
+            payment.official_receipt_no ||
+            `${getGeneratedOfficialReceiptNumber(app)}-R${months}`;
+          const recommendation = data.decision || "Generate Renewal Official Receipt and Advertisement License";
+          const remarks = cleanRemark(data.comment);
+          const nextLicenseBase = {
+            ...savedLicense,
+            creation_mode: "generated",
+            license_id: licenseId,
+            status: "Active",
+            recommendation,
+            remarks,
+            issued_by: "PT(IKL)",
+            holder: getApplicantName(app),
+            type: getApplicationType(app),
+            location: getApplicationLocation(app),
+            issue_date: issueDate.toISOString(),
+            expiry_date: expiry.toISOString(),
+            validity_years: 1,
+            verification_url: getLicenseVerificationUrl(licenseId),
+            renewed_at: timestamp,
+            issued_at: timestamp,
+            renewal_reminders: [
+              { months_before_expiry: 3, status: "Scheduled" },
+              { months_before_expiry: 2, status: "Scheduled" },
+              { months_before_expiry: 1, status: "Scheduled" },
+            ],
+          };
+          const documentApp = {
+            ...app,
+            form_data: {
+              ...(app.form_data || {}),
+              approval_letter: {
+                ...savedApprovalLetter,
+                manual_receipt: {
+                  ...savedManualReceipt,
+                  receipt_no: officialReceiptNo,
+                },
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                official_receipt_no: officialReceiptNo,
+              },
+              license: nextLicenseBase,
+            },
+          };
+          const receiptDocumentHtml = buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+          const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
+            getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate),
+            documentApp
+          );
+          const nextManualReceipt = {
+            ...savedManualReceipt,
+            template: "dbku_official_receipt_acc_3_88_v1",
+            name: "Renewal Official Receipt",
+            receipt_no: officialReceiptNo,
+            document_html: receiptDocumentHtml,
+            status: "Sent to Applicant",
+            generated_by: "PT(IKL)",
+            generated_at: timestamp,
+            saved_at: timestamp,
+            sent_at: timestamp,
+          };
+          const nextManualLicense = {
+            ...savedManualLicense,
+            template: "dbku_advertisement_license_borang_b_v1",
+            name: translate("workspace.license.documentTitle", "Advertisement License"),
+            document_html: licenseDocumentHtml,
+            status: "Sent to Applicant",
+            generated_by: "PT(IKL)",
+            generated_at: timestamp,
+            saved_at: timestamp,
+            sent_at: timestamp,
+          };
+
+          return {
+            status: "license_issued",
+            form_data: mergeFormData(app, {
+              approval_letter: {
+                ...savedApprovalLetter,
+                manual_receipt: nextManualReceipt,
+              },
+              payment: {
+                ...(app.form_data?.payment || {}),
+                official_receipt_no: officialReceiptNo,
+                status: "Payment Verified",
+              },
+              license: {
+                ...nextLicenseBase,
+                manual_license: nextManualLicense,
+              },
+              license_renewal: {
+                ...renewal,
+                payment: {
+                  ...payment,
+                  status: "completed",
+                  recommendation,
+                  official_receipt_no: officialReceiptNo,
+                  official_receipt: nextManualReceipt,
+                  renewed_license: nextManualLicense,
+                  completed_by: "PT(IKL)",
+                  completed_at: timestamp,
+                  completion_note: remarks,
+                },
+              },
+            }),
+          };
+        },
       },
       {
         key: "generate_2nd_reminder_letter",
@@ -17978,6 +18254,8 @@ function PaymentDetails({
   const payment = app.form_data?.payment || {};
   const approvalLetter = app.form_data?.approval_letter || {};
   const license = app.form_data?.license || {};
+  const renewalPayment = getLicenseRenewalPayment(app);
+  const renewalReceipts = getRenewalEarlyPaymentReceipts(app);
   const receiptFile = payment.receipt_file;
   const receiptSource = getPaymentReceiptSource(receiptFile);
   const letterFile = getStoredPaymentDocument(app, "letter");
@@ -18296,6 +18574,58 @@ function PaymentDetails({
       payment={payment}
     />
   ) : null;
+  const renewalReceiptSection = renewalReceipts.length > 0 ? (
+    <section className="rounded-md border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-3 py-3">
+        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+          Renewal Early Payment Receipt
+        </p>
+        <p className="mt-1 text-sm leading-5 text-slate-500">
+          {formatWorkflowStatus(renewalPayment.status || "Submitted")}
+        </p>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {renewalReceipts.map((receipt, index) => {
+          const source = getPaymentReceiptSource(receipt);
+          return (
+            <div
+              key={`${receipt.document_id || receipt.url || receipt.name}-${index}`}
+              className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-950">
+                  {index + 1}. {receipt.name || "Receipt"}
+                </p>
+                {receipt.uploaded_at && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatCompactDateTime(receipt.uploaded_at)}
+                  </p>
+                )}
+              </div>
+              {source && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="download"
+                  className="min-h-9 px-3 py-1 text-xs"
+                  onClick={() =>
+                    printPaymentReceiptDocument(
+                      receipt,
+                      receipt.name || "renewal-receipt.pdf",
+                      `${getApplicationReference(app)} Renewal Early Payment Receipt`,
+                      t
+                    )
+                  }
+                >
+                  {t("common.download", "Download")}
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  ) : null;
   const verificationDocuments = [
     {
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
@@ -18339,6 +18669,7 @@ function PaymentDetails({
               <div className="space-y-4">
                 {revocationRequestNotice}
                 {issuedDocumentSection}
+                {renewalReceiptSection}
                 {issuedReceiptSection}
                 {licenseManagementActionSection}
               </div>
@@ -18349,6 +18680,7 @@ function PaymentDetails({
               <div className="space-y-4">
                 {documentSection}
                 {verificationDocumentSection}
+                {renewalReceiptSection}
                 {receiptSection}
               </div>
             </div>
@@ -18358,6 +18690,7 @@ function PaymentDetails({
               <div className="space-y-4">
                 {licenseManagementActionSection}
                 {verificationDocumentSection}
+                {renewalReceiptSection}
                 {receiptSection}
               </div>
             </div>
@@ -18368,6 +18701,7 @@ function PaymentDetails({
                 <div className="space-y-4">
                   {revocationRequestNotice}
                   {licenseManagementActionSection}
+                  {renewalReceiptSection}
                   {documentSection}
                   {receiptSection}
                 </div>
@@ -20819,6 +21153,8 @@ function LicenseDetails({
   const license = app.form_data?.license || {};
   const renewal = getLicenseRenewal(app);
   const reminders = getLicenseRenewalReminders(app);
+  const renewalPayment = getLicenseRenewalPayment(app);
+  const renewalReceipts = getRenewalEarlyPaymentReceipts(app);
   const cancellation = renewal.cancellation || {};
   const renewalLetters = getGeneratedRenewalLetters(app);
   const status = normalizeStatus(app?.status);
@@ -20929,6 +21265,56 @@ function LicenseDetails({
               </div>
             )}
           </div>
+        )}
+
+        {renewalReceipts.length > 0 && (
+          <section className="rounded-md border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-3 py-3">
+              <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                Renewal Early Payment Receipt
+              </p>
+              <p className="mt-1 text-sm leading-5 text-slate-500">
+                {formatWorkflowStatus(renewalPayment.status || "Submitted")}
+              </p>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {renewalReceipts.map((receipt, index) => (
+                <div
+                  key={`${receipt.document_id || receipt.url || receipt.name}-${index}`}
+                  className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-950">
+                      {index + 1}. {receipt.name || "Receipt"}
+                    </p>
+                    {receipt.uploaded_at && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatCompactDateTime(receipt.uploaded_at)}
+                      </p>
+                    )}
+                  </div>
+                  {getPaymentReceiptSource(receipt) && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon="download"
+                      className="min-h-8 px-3 py-1 text-xs"
+                      onClick={() =>
+                        printPaymentReceiptDocument(
+                          receipt,
+                          receipt.name || "renewal-receipt.pdf",
+                          `${getApplicationReference(app)} Renewal Early Payment Receipt`,
+                          t
+                        )
+                      }
+                    >
+                      {t("common.download", "Download")}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
         )}
       </div>
       {renewalLetterPreview && (

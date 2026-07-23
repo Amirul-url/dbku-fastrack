@@ -990,6 +990,7 @@ function isELicenseLicenseTask(application) {
   return (
     normalizeWorkflowStatus(application?.status) === "payment_verified" ||
     isPendingPtLicenseRenewalReminder(application) ||
+    isVerifiedRenewalPaymentForPt(application) ||
     hasPendingLicenseRevocationRequest(application)
   );
 }
@@ -1021,11 +1022,29 @@ function isPendingKbRenewalConfirmation(application) {
   });
 }
 
+function getLicenseRenewalPaymentStatus(application) {
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const payment = renewal?.payment || {};
+  return normalizeWorkflowStatus(payment.status);
+}
+
+function isSubmittedRenewalPaymentForFin(application) {
+  return getLicenseRenewalPaymentStatus(application) === "submitted";
+}
+
+function isVerifiedRenewalPaymentForPt(application) {
+  return getLicenseRenewalPaymentStatus(application) === "verified";
+}
+
 function isPersonalTaskForDepartment(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
   if (department === "PT(IKL)") {
-    return PT_IKL_TASK_STATUSES.has(status) || isPendingPtLicenseRenewalReminder(application);
+    return (
+      PT_IKL_TASK_STATUSES.has(status) ||
+      isPendingPtLicenseRenewalReminder(application) ||
+      isVerifiedRenewalPaymentForPt(application)
+    );
   }
 
   if (department === "KU(IKL)") {
@@ -1051,7 +1070,7 @@ function isPersonalTaskForDepartment(application, department) {
     );
   }
 
-  if (department === "FIN" && status === "payment_submitted") {
+  if (department === "FIN" && (status === "payment_submitted" || isSubmittedRenewalPaymentForFin(application))) {
     return true;
   }
 

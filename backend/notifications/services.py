@@ -134,6 +134,8 @@ LICENSE_RENEWAL_NOTIFICATION_STATUSES = {
     "license_renewal_1m",
     "license_renewal_supervisor_confirmation",
     "license_renewal_released",
+    "license_renewal_payment_submitted",
+    "license_renewal_payment_verified",
     "license_cancellation_pending",
     "license_cancellation_supervisor_confirmation",
     "license_cancellation_kb_support",
@@ -498,6 +500,20 @@ def apply_license_renewal_action(
         "support_cancellation_notice",
     }:
         result = apply_license_cancellation_action(application, form_data, renewal, action, user, note)
+    elif action in {
+        "verify_early_payment",
+        "reject_early_payment",
+        "complete_early_payment",
+    }:
+        result = apply_license_renewal_payment_action(
+            application,
+            renewal,
+            action,
+            user,
+            months,
+            note,
+            digital_signature=digital_signature,
+        )
     else:
         raise ValueError("Unsupported license renewal action.")
 
@@ -586,6 +602,86 @@ def apply_license_reminder_action(
         return {}
 
     raise ValueError("Unsupported reminder action.")
+
+
+def apply_license_renewal_payment_action(
+    application,
+    renewal,
+    action,
+    user,
+    months,
+    note,
+    digital_signature=None,
+):
+    payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
+    payment_status = normalize_status_value(payment.get("status"))
+    clean_note = clean_remark(note)
+
+    if action in {"verify_early_payment", "reject_early_payment"}:
+        if not is_fin_user(user):
+            raise PermissionError("Only FIN can verify renewal payment receipts.")
+
+        if payment_status != "submitted":
+            raise ValueError("Renewal payment receipt is not waiting for FIN verification.")
+
+        if not clean_note:
+            raise ValueError("Remarks are required.")
+
+        now = timezone.now().isoformat()
+        if action == "verify_early_payment":
+            if not has_digital_signature_content(digital_signature):
+                raise ValueError("Digital signature is required.")
+
+            payment.update({
+                "status": "verified",
+                "recommendation": "Approve Renewal Receipt",
+                "receipt_decision": "Approve Renewal Receipt",
+                "verification_result": "Valid",
+                "verification_notes": "",
+                "internal_verification_notes": clean_note,
+                "digital_signature": digital_signature,
+                "verified_by": get_web_recipient(user),
+                "verified_at": now,
+                "rejected_at": "",
+                "rejected_by": "",
+            })
+            renewal["payment"] = payment
+            notify_license_renewal_payment_verified(application, payment.get("months_before_expiry") or months or 3)
+            return {}
+
+        payment.update({
+            "status": "rejected",
+            "recommendation": "Reject Renewal Receipt",
+            "receipt_decision": "Reject Renewal Receipt",
+            "verification_result": "Invalid",
+            "verification_notes": clean_note,
+            "internal_verification_notes": clean_note,
+            "verified_by": "",
+            "verified_at": "",
+            "rejected_by": get_web_recipient(user),
+            "rejected_at": now,
+        })
+        renewal["payment"] = payment
+        return {}
+
+    if action == "complete_early_payment":
+        if not is_pt_ikl_user(user):
+            raise PermissionError("Only PT(IKL) can complete renewal payment processing.")
+
+        if payment_status != "verified":
+            raise ValueError("Renewal payment must be verified by FIN first.")
+
+        payment.update({
+            "status": "completed",
+            "recommendation": "Generate Renewal Official Receipt and Advertisement License",
+            "completed_by": get_web_recipient(user),
+            "completed_at": timezone.now().isoformat(),
+            "completion_note": clean_note,
+        })
+        renewal["payment"] = payment
+        return {}
+
+    raise ValueError("Unsupported renewal payment action.")
 
 
 def apply_license_cancellation_action(application, form_data, renewal, action, user, note):
@@ -1029,6 +1125,62 @@ def notify_license_renewal_released(application, months):
         action_url="/user/dashboard?tab=status",
         extra_metadata={"months_before_expiry": months},
         include_external=True,
+        force_web=True,
+    )
+
+
+def notify_license_renewal_payment_submitted(application, months):
+    body = {
+        "web": notify_messages.FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_WEB_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "email": notify_messages.FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_EMAIL_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "whatsapp": notify_messages.FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+    }
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_renewal_payment_submitted",
+        title=notify_messages.FIN_RENEWAL_EARLY_PAYMENT_SUBMITTED_TITLE,
+        body=body,
+        recipients=get_fin_recipients(),
+        recipient_role="admin",
+        action_url=f"/admin/e-licenses/payment?id={application.id}",
+        extra_metadata={
+            "months_before_expiry": months,
+            "occurrence": timezone.now().isoformat(),
+        },
+        force_web=True,
+    )
+
+
+def notify_license_renewal_payment_verified(application, months):
+    body = {
+        "web": notify_messages.PT_IKL_RENEWAL_PAYMENT_VERIFIED_WEB_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "email": notify_messages.PT_IKL_RENEWAL_PAYMENT_VERIFIED_EMAIL_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "whatsapp": notify_messages.PT_IKL_RENEWAL_PAYMENT_VERIFIED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+    }
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_renewal_payment_verified",
+        title=notify_messages.PT_IKL_RENEWAL_PAYMENT_VERIFIED_TITLE,
+        body=body,
+        recipients=get_pt_ikl_recipients(),
+        recipient_role="admin",
+        action_url=f"/admin/e-licenses/license?id={application.id}",
+        extra_metadata={
+            "months_before_expiry": months,
+            "occurrence": timezone.now().isoformat(),
+        },
         force_web=True,
     )
 
@@ -2697,6 +2849,11 @@ def get_admin_web_recipients():
 def get_pt_ikl_recipients():
     User = get_user_model()
     return [user for user in User.objects.filter(role__in=["admin", "staff"], is_active=True) if is_pt_ikl_user(user)]
+
+
+def get_fin_recipients():
+    User = get_user_model()
+    return [user for user in User.objects.filter(role__in=["admin", "supervisor", "staff"], is_active=True) if is_fin_user(user)]
 
 
 def get_supervisor_recipients():

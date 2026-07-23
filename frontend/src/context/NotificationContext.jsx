@@ -57,6 +57,8 @@ adminNotificationStatuses.add("license_renewal_3m");
 adminNotificationStatuses.add("license_renewal_2m");
 adminNotificationStatuses.add("license_renewal_1m");
 adminNotificationStatuses.add("license_renewal_supervisor_confirmation");
+adminNotificationStatuses.add("license_renewal_payment_submitted");
+adminNotificationStatuses.add("license_renewal_payment_verified");
 adminNotificationStatuses.add("license_cancellation_pending");
 adminNotificationStatuses.add("license_cancellation_supervisor_confirmation");
 adminNotificationStatuses.add("license_cancellation_kb_support");
