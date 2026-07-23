@@ -13,6 +13,7 @@ from .serializers import (
 )
 from .services.activity import (
     append_application_activity,
+    clean_remark,
     get_activity_actor_name,
     get_user_workflow_department,
     timezone_now_iso,
@@ -50,6 +51,23 @@ from notifications.services import (
 STAFF_ROLES = ["admin", "supervisor", "staff"]
 APPLICANT_CORRECTION_STATUSES = {"incomplete", "rejected", "technical_amendment"}
 APPLICANT_RESUBMIT_STATUSES = {"submitted", "ku_ikl_review", "mphlg_processing"}
+LICENSE_RENEWAL_ACTIVITY_ACTIONS = {
+    "verify_early_payment": {
+        "title": "Renewal early payment receipt approved",
+        "recommendation": "Approve Renewal Receipt",
+        "fallback": "FIN approved the renewal early payment receipt.",
+    },
+    "reject_early_payment": {
+        "title": "Renewal early payment receipt rejected",
+        "recommendation": "Reject Renewal Receipt",
+        "fallback": "FIN rejected the renewal early payment receipt.",
+    },
+    "complete_early_payment": {
+        "title": "Renewal official receipt and license generated",
+        "recommendation": "Generate Renewal Official Receipt and Advertisement License",
+        "fallback": "PT(IKL) generated the renewal official receipt and advertisement license.",
+    },
+}
 RESUBMIT_WORKFLOW_RESET_FIELDS = [
     "auto_screening",
     "correction_request",
@@ -67,6 +85,30 @@ RESUBMIT_WORKFLOW_RESET_FIELDS = [
     "sut_approval",
     "approval",
 ]
+
+
+def append_license_renewal_action_activity(application, actor, action_name, note="", digital_signature=None):
+    activity_config = LICENSE_RENEWAL_ACTIVITY_ACTIONS.get(str(action_name or "").strip())
+    if not activity_config:
+        return application
+
+    clean_note = clean_remark(note)
+    metadata = {
+        "recommendation": activity_config["recommendation"],
+        "remarks": clean_note,
+    }
+    if digital_signature:
+        metadata["digital_signature"] = digital_signature
+
+    append_application_activity(
+        application,
+        actor,
+        activity_config["title"],
+        clean_note or activity_config["fallback"],
+        category="workflow",
+        metadata=metadata,
+    )
+    return Application.objects.get(pk=application.pk)
 
 
 def get_previous_correction_remark(old_remark="", old_form_data=None):
@@ -1060,6 +1102,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 note=note,
                 document_html=document_html,
                 digital_signature=digital_signature,
+            )
+            application = append_license_renewal_action_activity(
+                application,
+                request.user,
+                action_name,
+                note,
+                digital_signature,
             )
         except PermissionError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)

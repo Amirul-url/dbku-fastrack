@@ -5173,6 +5173,15 @@ function getLicenseRenewalPaymentStatus(application) {
   return normalizeStatus(renewal?.payment?.status);
 }
 
+function getLicenseRenewalPaymentWorkflowStatus(application) {
+  const paymentStatus = getLicenseRenewalPaymentStatus(application);
+  if (paymentStatus === "submitted") return "renewal_receipt_review";
+  if (paymentStatus === "rejected") return "renewal_receipt_rejected";
+  if (paymentStatus === "verified") return "renewal_payment_verified";
+  if (paymentStatus === "completed") return "renewal_payment_completed";
+  return "";
+}
+
 function isSubmittedRenewalPayment(application) {
   return getLicenseRenewalPaymentStatus(application) === "submitted";
 }
@@ -5288,6 +5297,11 @@ function hasTechnicalDepartmentReview(app, department) {
 function getDashboardTaskStatusLabel(application, unit, t) {
   const status = normalizeStatus(application?.status);
   const department = unit?.department;
+  const renewalPaymentWorkflowStatus = getLicenseRenewalPaymentWorkflowStatus(application);
+
+  if (renewalPaymentWorkflowStatus) {
+    return t(`status.${renewalPaymentWorkflowStatus}`, formatWorkflowStatus(renewalPaymentWorkflowStatus));
+  }
 
   if (department === "PT(IKL)") {
     const renewalMonth = getPendingPtRenewalReminderMonth(application);
@@ -5313,10 +5327,6 @@ function getDashboardTaskStatusLabel(application, unit, t) {
 
   if (department === "IKL (TECHNICAL)" && TECHNICAL_DEPARTMENT_STATUS_SET.has(status)) {
     return t("status.ikl_technical_review", "IKL(TECH) Review");
-  }
-
-  if (department === "FIN" && isSubmittedRenewalPayment(application)) {
-    return t("status.renewal_receipt_review", "Renewal Receipt Review");
   }
 
   if (status === "payment_submitted") {

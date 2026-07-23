@@ -10610,6 +10610,11 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   const isIklWorkspace = config?.key === "screening";
   const isDepartmentTechnicalWorkspace = config?.key === "technical";
   const isApprovalWorkspace = config?.key === "approval";
+  const renewalPaymentWorkflowStatus = getLicenseRenewalPaymentWorkflowStatus(app);
+
+  if (renewalPaymentWorkflowStatus) {
+    return t(`status.${renewalPaymentWorkflowStatus}`, formatWorkflowStatus(renewalPaymentWorkflowStatus));
+  }
 
   if (isIklWorkspace && status === "submitted") {
     return t("status.ku_ikl_review", "KU(IKL) Review");
@@ -10660,15 +10665,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return t("status.receipt_review", "Receipt Review");
   }
 
-  if (config?.key === "payment" && userDepartment === "FIN" && getLicenseRenewalPaymentStatus(app) === "submitted") {
-    return t("status.renewal_receipt_review", "Renewal Receipt Review");
-  }
-
   if (config?.key === "license") {
-    if (userDepartment === "PT(IKL)" && getLicenseRenewalPaymentStatus(app) === "verified") {
-      return t("status.renewal_payment_verified", "Renewal Payment Verified");
-    }
-
     const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment, t);
     if (renewalTaskLabel) return renewalTaskLabel;
   }
@@ -11337,6 +11334,15 @@ function getLicenseRenewalPayment(app) {
 
 function getLicenseRenewalPaymentStatus(app) {
   return normalizeStatus(getLicenseRenewalPayment(app).status);
+}
+
+function getLicenseRenewalPaymentWorkflowStatus(app) {
+  const paymentStatus = getLicenseRenewalPaymentStatus(app);
+  if (paymentStatus === "submitted") return "renewal_receipt_review";
+  if (paymentStatus === "rejected") return "renewal_receipt_rejected";
+  if (paymentStatus === "verified") return "renewal_payment_verified";
+  if (paymentStatus === "completed") return "renewal_payment_completed";
+  return "";
 }
 
 function getLicenseRenewalPaymentMonths(app) {
