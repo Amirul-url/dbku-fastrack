@@ -18633,13 +18633,23 @@ function PaymentDetails({
       ]}
     />
   ) : null;
-  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails && !isRenewalReceiptVerification ? (
+  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails ? (
     <IssuedPaymentReceiptSection
       app={app}
       t={t}
       receiptFile={receiptFile}
       receiptSource={receiptSource}
       payment={payment}
+      title={
+        isRenewalReceiptVerification
+          ? t("applicant.originalPaymentReceipt", "Original Payment Receipt")
+          : t("applicant.paymentReceipt", "Payment Receipt")
+      }
+      description={
+        isRenewalReceiptVerification
+          ? t("applicant.originalPaymentReceiptDesc", "Original payment receipt kept for reference.")
+          : t("applicant.paymentCompleteQrReady", "Payment is complete and QR e-license is ready to download.")
+      }
     />
   ) : null;
   const renewalReceiptSection = renewalReceipts.length > 0 ? (
@@ -18939,7 +18949,15 @@ function IssuedPaymentDocumentList({ t, documents }) {
   );
 }
 
-function IssuedPaymentReceiptSection({ app, t, receiptFile, receiptSource, payment }) {
+function IssuedPaymentReceiptSection({
+  app,
+  t,
+  receiptFile,
+  receiptSource,
+  payment,
+  title = "",
+  description = "",
+}) {
   if (!receiptSource && !receiptFile?.name && !payment?.receipt_reference) return null;
 
   const paymentReferenceDetails = [
@@ -18953,10 +18971,10 @@ function IssuedPaymentReceiptSection({ app, t, receiptFile, receiptSource, payme
       <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h4 className="text-sm font-semibold text-slate-950">
-            {t("applicant.paymentReceipt", "Payment Receipt")}
+            {title || t("applicant.paymentReceipt", "Payment Receipt")}
           </h4>
           <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-            {t("applicant.paymentCompleteQrReady", "Payment is complete and QR e-license is ready to download.")}
+            {description || t("applicant.paymentCompleteQrReady", "Payment is complete and QR e-license is ready to download.")}
           </p>
         </div>
       </div>
