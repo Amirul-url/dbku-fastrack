@@ -4689,7 +4689,7 @@ function buildQrPrintHtml(qrDataUrl, reference, t) {
   <meta charset="utf-8" />
   <title>${safeReference} ${safeTitle}</title>
   <style>
-    @page { size: A4; margin: 18mm; }
+    @page { size: A4; margin: 10mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -4698,25 +4698,17 @@ function buildQrPrintHtml(qrDataUrl, reference, t) {
       font-family: Arial, Helvetica, sans-serif;
     }
     .page {
-      min-height: 261mm;
+      min-height: 277mm;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       text-align: center;
-    }
-    h1 {
-      margin: 0 0 12mm;
-      font-size: 18pt;
-      line-height: 1.25;
-      font-weight: 700;
+      padding-top: 12mm;
     }
     .qr {
-      width: 95mm;
-      height: 95mm;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 8mm;
+      width: 135mm;
+      height: 135mm;
     }
     .qr img {
       width: 100%;
@@ -4724,7 +4716,7 @@ function buildQrPrintHtml(qrDataUrl, reference, t) {
       display: block;
     }
     .reference {
-      margin-top: 8mm;
+      margin-top: 10mm;
       font-size: 12pt;
       font-weight: 700;
       letter-spacing: 0.03em;
@@ -4736,7 +4728,6 @@ function buildQrPrintHtml(qrDataUrl, reference, t) {
 </head>
 <body>
   <main class="page">
-    <h1>${safeTitle}</h1>
     <div class="qr">
       <img src="${safeQrDataUrl}" alt="${safeTitle}" />
     </div>
