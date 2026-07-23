@@ -3569,8 +3569,9 @@ function isImageReceipt(receipt, source = "") {
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(filename);
 }
 
-function buildApplicantReceiptPrintHtml(receipt, url, title) {
+function buildApplicantReceiptPrintHtml(receipt, url, title, options = {}) {
   const filename = receipt?.name || title;
+  const showTitle = options.showTitle !== false;
 
   return `<!doctype html>
 <html>
@@ -3593,7 +3594,7 @@ function buildApplicantReceiptPrintHtml(receipt, url, title) {
 </head>
 <body>
   <main class="page">
-    <p class="title">${escapeHtml(filename)}</p>
+    ${showTitle ? `<p class="title">${escapeHtml(filename)}</p>` : ""}
     <img src="${escapeHtml(url)}" alt="${escapeHtml(filename)}" />
   </main>
 </body>
@@ -3638,7 +3639,7 @@ async function downloadApplicantReceiptPrintFlow(file, fallbackLabel, t) {
 
     if (isImageReceipt(file, url)) {
       await printHtmlDocument(
-        buildApplicantReceiptPrintHtml(file, url, title),
+        buildApplicantReceiptPrintHtml(file, url, title, { showTitle: false }),
         title
       );
     } else {
