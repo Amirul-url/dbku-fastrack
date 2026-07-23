@@ -5,6 +5,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import UserDashboardLayout from "../../layout/UserDashboardLayout";
 import {
   apiRequest,
+  deleteLicenseRenewalEarlyPaymentReceipt,
   fetchApplicationList,
   fetchAuthenticatedBlob,
   getStoredUser,
@@ -680,6 +681,54 @@ function UserDashboard() {
     }
   }
 
+  async function handleRenewalEarlyPaymentReceiptRemove(receipt) {
+    const receiptId = receipt?.document_id || receipt?.id;
+    if (!activeApplication?.id || !receiptId) return;
+
+    const confirmed = window.confirm(
+      t(
+        "applicant.confirmRemoveRenewalEarlyPaymentReceipt",
+        "Remove this renewal payment receipt?"
+      )
+    );
+    if (!confirmed) return;
+
+    try {
+      setRenewalReceiptUploading(true);
+      setMessage({ type: "", text: "" });
+
+      const updatedApplication =
+        (await deleteLicenseRenewalEarlyPaymentReceipt(activeApplication.id, receiptId)) ||
+        (await fetchApplicationDetails(activeApplication.id, { markSeen: true }));
+
+      markApplicationSeen("all", updatedApplication || activeApplication);
+      await fetchApplications({ silent: true });
+      setSelectedApplication(updatedApplication || activeApplication);
+      setSelectedId(String((updatedApplication || activeApplication).id));
+      setLicensePanelOpen(true);
+      setMessage({
+        type: "success",
+        text: t(
+          "applicant.renewalEarlyPaymentReceiptRemoved",
+          "Renewal early payment receipt removed."
+        ),
+      });
+    } catch (err) {
+      console.error("Renewal early payment receipt remove failed:", err);
+      setMessage({
+        type: "error",
+        text:
+          err.message ||
+          t(
+            "applicant.renewalEarlyPaymentReceiptRemoveFailed",
+            "Unable to remove the renewal early payment receipt."
+          ),
+      });
+    } finally {
+      setRenewalReceiptUploading(false);
+    }
+  }
+
   function handlePaymentReceiptRemove() {
     receiptUploadRequestRef.current = 0;
     setReceiptUploading(false);
@@ -803,6 +852,7 @@ function UserDashboard() {
             onReceiptRemove={handlePaymentReceiptRemove}
             onReceiptDownload={downloadPaymentReceipt}
             onRenewalEarlyPaymentReceiptChange={handleRenewalEarlyPaymentReceiptChange}
+            onRenewalEarlyPaymentReceiptRemove={handleRenewalEarlyPaymentReceiptRemove}
             onPaymentReferenceDetailsChange={handlePaymentReferenceDetailsChange}
             onSubmitPayment={submitPayment}
             onRequestRevocation={requestLicenseRevocation}
@@ -1204,6 +1254,7 @@ function LicenseSection({
   onReceiptRemove,
   onReceiptDownload,
   onRenewalEarlyPaymentReceiptChange,
+  onRenewalEarlyPaymentReceiptRemove,
   onPaymentReferenceDetailsChange,
   onSubmitPayment,
   onRequestRevocation,
@@ -1393,6 +1444,7 @@ function LicenseSection({
               t={t}
               uploading={renewalReceiptUploading}
               onChange={onRenewalEarlyPaymentReceiptChange}
+              onRemove={onRenewalEarlyPaymentReceiptRemove}
             />
 
             <LicenseRevocationRequestPanel
@@ -1555,10 +1607,13 @@ function RenewalEarlyPaymentReceiptSection({
   t,
   uploading = false,
   onChange,
+  onRemove,
 }) {
   const releasedLetters = getReleasedRenewalLetters(app);
   const receipts = getRenewalEarlyPaymentReceipts(app);
   const activeLetter = releasedLetters[0] || null;
+  const renewalPaymentStatus = getLicenseRenewalPaymentStatus(app);
+  const locked = ["verified", "completed"].includes(renewalPaymentStatus);
 
   if (!activeLetter) return null;
 
@@ -1572,40 +1627,52 @@ function RenewalEarlyPaymentReceiptSection({
 
   return (
     <section className="rounded-md border border-slate-200 bg-slate-50">
-      <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-slate-950">
-            {t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt")}
-          </h4>
-          <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-            {t(
-              "applicant.renewalEarlyPaymentReceiptDesc",
-              "Optional upload for early renewal payment. This will not replace the original payment receipt."
-            )}
-          </p>
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-3 py-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+            1
+          </span>
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-slate-950">
+              {t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt")}
+            </h4>
+            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+              {receipts.length > 0
+                ? t(
+                    "applicant.renewalEarlyPaymentReceiptReady",
+                    "Receipt selected. FIN will verify the renewal payment proof."
+                  )
+                : t(
+                    "applicant.renewalEarlyPaymentReceiptDesc",
+                    "Optional upload for early renewal payment. This will not replace the original payment receipt."
+                  )}
+            </p>
+          </div>
         </div>
 
-        <label className={`inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold leading-5 text-white sm:w-auto ${
-          uploading
-            ? "cursor-not-allowed border-slate-400 bg-slate-400"
-            : "cursor-pointer border-emerald-700 bg-emerald-700 hover:bg-emerald-800"
-        }`}>
-          <span className="material-symbols-outlined text-[16px] text-white">
-            upload_file
-          </span>
-          {uploading
-            ? t("applicant.receiptUploading", "Uploading...")
-            : receipts.length > 0
-              ? t("applicant.uploadAnotherReceipt", "Upload another receipt")
-              : t("common.uploadReceipt", "Upload Receipt")}
-          <input
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-            onChange={handleFileChange}
-            disabled={uploading}
-            className="hidden"
-          />
-        </label>
+        {!locked && (
+          <label className={`inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold leading-5 text-white sm:w-auto ${
+            uploading
+              ? "cursor-not-allowed border-slate-400 bg-slate-400"
+              : "cursor-pointer border-emerald-700 bg-emerald-700 hover:bg-emerald-800"
+          }`}>
+            <span className="material-symbols-outlined text-[16px] text-white">
+              upload_file
+            </span>
+            {uploading
+              ? t("applicant.receiptUploading", "Uploading...")
+              : receipts.length > 0
+                ? t("applicant.replaceReceiptFile", "Replace receipt file")
+                : t("common.uploadReceipt", "Upload Receipt")}
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+              onChange={handleFileChange}
+              disabled={uploading}
+              className="hidden"
+            />
+          </label>
+        )}
       </div>
 
       <div className="border-t border-slate-200 bg-white px-3 py-3">
@@ -1617,9 +1684,6 @@ function RenewalEarlyPaymentReceiptSection({
                 className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
-                    {index + 1}
-                  </span>
                   <span className="material-symbols-outlined text-xl text-slate-500">
                     {isImageReceipt(receipt, getPaymentDocumentSource(receipt)) ? "image" : "description"}
                   </span>
@@ -1635,23 +1699,37 @@ function RenewalEarlyPaymentReceiptSection({
                   </div>
                 </div>
 
-                {getPaymentDocumentSource(receipt) && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadApplicantPaymentDocument(
-                        receipt,
-                        t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt"),
-                        t
-                      )
-                    }
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
-                    title={t("common.download", "Download")}
-                    aria-label={t("common.download", "Download")}
-                  >
-                    <span className="material-symbols-outlined text-xl">download</span>
-                  </button>
-                )}
+                <div className="flex shrink-0 items-center gap-2">
+                  {getPaymentDocumentSource(receipt) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadApplicantPaymentDocument(
+                          receipt,
+                          t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt"),
+                          t
+                        )
+                      }
+                      className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
+                      title={t("common.download", "Download")}
+                      aria-label={t("common.download", "Download")}
+                    >
+                      <span className="material-symbols-outlined text-xl">download</span>
+                    </button>
+                  )}
+                  {!locked && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove?.(receipt)}
+                      disabled={uploading}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-white hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      title={t("common.remove", "Remove")}
+                      aria-label={t("common.remove", "Remove")}
+                    >
+                      <span className="material-symbols-outlined text-xl">delete</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -1664,6 +1742,11 @@ function RenewalEarlyPaymentReceiptSection({
               )}
             </p>
           </div>
+        )}
+        {!locked && (
+          <p className="mt-2 text-[11px] text-slate-500">
+            {t("applicant.receiptUploadHint", "PDF or image accepted as payment proof.")}
+          </p>
         )}
       </div>
     </section>

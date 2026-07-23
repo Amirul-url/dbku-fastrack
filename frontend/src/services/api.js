@@ -704,3 +704,14 @@ export async function uploadLicenseRenewalEarlyPaymentReceipt(applicationId, mon
     application: response?.data || null,
   };
 }
+
+export async function deleteLicenseRenewalEarlyPaymentReceipt(applicationId, receiptId) {
+  if (!applicationId || !receiptId) return null;
+
+  const response = await apiRequest(
+    `/applications/${applicationId}/license-renewal-early-payment/${receiptId}/`,
+    { method: "DELETE" }
+  );
+
+  return response?.data || null;
+}

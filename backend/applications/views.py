@@ -620,6 +620,132 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        methods=["delete"],
+        url_path=r"license-renewal-early-payment/(?P<receipt_id>[^/.]+)",
+    )
+    def delete_license_renewal_early_payment(self, request, pk=None, receipt_id=None):
+        application = self.get_object()
+
+        if getattr(request.user, "role", "") in STAFF_ROLES or application.applicant_id != request.user.id:
+            return Response(
+                {"error": "Only the applicant can remove renewal payment receipts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        form_data = deepcopy(application.form_data or {})
+        renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+        payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
+        payment_status = str(payment.get("status") or "").strip().lower()
+
+        if payment_status in {"verified", "completed"}:
+            return Response(
+                {"error": "Verified renewal payment receipts cannot be removed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        receipt_id_text = str(receipt_id or "").strip()
+        receipts = renewal.get("early_payment_receipts")
+        if not isinstance(receipts, list):
+            receipts = []
+
+        removed_receipt = None
+        remaining_receipts = []
+        for receipt in receipts:
+            current_id = str(
+                (receipt or {}).get("document_id")
+                or (receipt or {}).get("id")
+                or ""
+            ).strip()
+            if current_id == receipt_id_text:
+                removed_receipt = receipt
+                continue
+            remaining_receipts.append(receipt)
+
+        if removed_receipt is None:
+            return Response(
+                {"error": "Renewal payment receipt not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        document = get_application_document(application, receipt_id_text)
+        removed_filename = get_document_filename(document)
+        renewal["early_payment_receipts"] = remaining_receipts
+
+        reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+        for key, reminder in list(reminders.items()):
+            if not isinstance(reminder, dict):
+                continue
+            reminder_receipts = reminder.get("early_payment_receipts")
+            if not isinstance(reminder_receipts, list):
+                continue
+            reminder["early_payment_receipts"] = [
+                receipt for receipt in reminder_receipts
+                if str((receipt or {}).get("document_id") or (receipt or {}).get("id") or "").strip() != receipt_id_text
+            ]
+            reminders[key] = reminder
+        renewal["reminders"] = reminders
+
+        latest_receipt = remaining_receipts[-1] if remaining_receipts else None
+        if latest_receipt:
+            renewal["payment"] = {
+                **payment,
+                "status": "submitted",
+                "months_before_expiry": latest_receipt.get("months_before_expiry") or payment.get("months_before_expiry") or 3,
+                "receipt": latest_receipt,
+                "receipt_document_id": latest_receipt.get("document_id") or latest_receipt.get("id") or "",
+                "submitted_at": latest_receipt.get("uploaded_at") or payment.get("submitted_at") or "",
+                "submitted_by": payment.get("submitted_by") or get_activity_actor_name(request.user),
+                "verification_result": "",
+                "verification_notes": "",
+                "internal_verification_notes": "",
+                "verified_by": "",
+                "verified_at": "",
+                "rejected_by": "",
+                "rejected_at": "",
+            }
+        else:
+            renewal["payment"] = {
+                **payment,
+                "status": "",
+                "receipt": None,
+                "receipt_document_id": "",
+                "submitted_at": "",
+                "verification_result": "",
+                "verification_notes": "",
+                "internal_verification_notes": "",
+                "verified_by": "",
+                "verified_at": "",
+                "rejected_by": "",
+                "rejected_at": "",
+            }
+
+        form_data["license_renewal"] = renewal
+        application.form_data = form_data
+        application.save(update_fields=["form_data", "updated_at"])
+
+        delete_document_file(document)
+        document.delete()
+
+        append_application_activity(
+            application,
+            request.user,
+            "Renewal early payment receipt removed",
+            removed_filename or str(removed_receipt.get("name") or ""),
+        )
+
+        return Response(
+            {
+                "message": "Renewal early payment receipt removed.",
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=True,
         methods=["get"],
         url_path=r"documents/(?P<document_id>[^/.]+)/download",
     )
