@@ -1828,12 +1828,11 @@ function RenewalEarlyPaymentReceiptSection({
                           t
                         )
                       }
-                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
                       title={t("common.download", "Download")}
                       aria-label={t("common.download", "Download")}
                     >
-                      <span className="material-symbols-outlined text-[16px]">download</span>
-                      {t("common.download", "Download")}
+                      <span className="material-symbols-outlined text-xl">download</span>
                     </button>
                   )}
                   {!locked && (
