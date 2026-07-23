@@ -182,18 +182,18 @@ APPLICANT_RENEWAL_RELEASED_WHATSAPP_BODY_TEMPLATE = (
 )
 
 # Renewal early payment receipt rejected
-APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE = "Renewal payment receipt rejected"
+APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE = "Payment receipt rejected"
 APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE = (
-    "Your renewal payment receipt for application {reference} was rejected. "
-    "Remark: {remark}. Please upload a new renewal payment receipt."
+    "Your payment receipt for application {reference} was rejected. Please review "
+    "the remark and upload a new proof of payment.\n\nRemark: {remark}"
 )
 APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_EMAIL_BODY_TEMPLATE = (
-    "Your renewal payment receipt for application {reference} was rejected. "
-    "Remark: {remark}. Please upload a new renewal payment receipt."
+    "Your payment receipt for application {reference} was rejected. Please review "
+    "the remark and upload a new proof of payment.\n\nRemark: {remark}"
 )
 APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WHATSAPP_BODY_TEMPLATE = (
-    "Your renewal payment receipt for application {reference} was rejected. "
-    "Remark: {remark}. Please upload a new renewal payment receipt."
+    "Your payment receipt for application {reference} was rejected. Please review "
+    "the remark and upload a new proof of payment.\n\nRemark: {remark}"
 )
 
 # License cancellation notice released

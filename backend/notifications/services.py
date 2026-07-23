@@ -1192,8 +1192,13 @@ def notify_license_renewal_payment_verified(application, months):
 
 
 def notify_license_renewal_payment_rejected(application, months, remark):
+    applicant = application.applicant if getattr(application, "applicant_id", None) else None
+    if not applicant:
+        return
+
     clean_note = clean_remark(remark) or "-"
-    body = {
+    title = notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE
+    channel_bodies = {
         "web": notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE.format(
             reference=application.reference_no,
             remark=clean_note,
@@ -1207,22 +1212,83 @@ def notify_license_renewal_payment_rejected(application, months, remark):
             remark=clean_note,
         ),
     }
-    send_license_workflow_notification(
-        application=application,
-        event_status="license_renewal_payment_rejected",
-        title=notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE,
-        body=body,
-        recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
-        recipient_role="applicant",
-        action_url="/user/dashboard?tab=status",
-        extra_metadata={
-            "months_before_expiry": months,
-            "remark": clean_note,
-            "occurrence": timezone.now().isoformat(),
-        },
-        include_external=True,
-        force_web=True,
+    subject = build_notification_subject(title, application.reference_no)
+    metadata = {
+        "category": "payment",
+        "type": "error",
+        "title": title,
+        "title_en": title,
+        "message": channel_bodies["web"],
+        "message_en": channel_bodies["web"],
+        "recipient_role": "applicant",
+        "event_status": "license_renewal_payment_rejected",
+        "action_url": "/user/dashboard?tab=status",
+        "months_before_expiry": months,
+        "remark": clean_note,
+        "occurrence": timezone.now().isoformat(),
+        "suppress_remark": True,
+    }
+    event_key = (
+        f"application:{application.id}:license_renewal_payment_rejected:"
+        f"{months}:{metadata['occurrence']}"
     )
+
+    create_and_send_delivery(
+        application=application,
+        event_key=event_key,
+        user=applicant,
+        recipient_role="applicant",
+        channel="web",
+        recipient=get_web_recipient(applicant),
+        subject=subject,
+        message=format_notification_message(
+            title=title,
+            body=channel_bodies["web"],
+            application=application,
+            recipient_role="applicant",
+            include_remark=False,
+        ),
+        metadata=metadata,
+        force=True,
+    )
+    for email in get_applicant_emails(application):
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=applicant,
+            recipient_role="applicant",
+            channel="email",
+            recipient=email,
+            subject=subject,
+            message=format_notification_message(
+                title=title,
+                body=channel_bodies["email"],
+                application=application,
+                recipient_role="applicant",
+                include_remark=False,
+            ),
+            metadata=metadata,
+            force=True,
+        )
+    for phone in get_applicant_whatsapp_numbers(application):
+        create_and_send_delivery(
+            application=application,
+            event_key=event_key,
+            user=applicant,
+            recipient_role="applicant",
+            channel="whatsapp",
+            recipient=phone,
+            subject=subject,
+            message=format_notification_message(
+                title=title,
+                body=channel_bodies["whatsapp"],
+                application=application,
+                recipient_role="applicant",
+                include_remark=False,
+            ),
+            metadata=metadata,
+            force=True,
+        )
 
 
 def notify_license_cancellation_task(application, event_status):
