@@ -3508,10 +3508,8 @@ function isReleasedRenewalReminderNew(app, months, seen = {}) {
   );
 }
 
-function isRenewalPaymentRejectedNew(app, seen = {}) {
-  if (getLicenseRenewalPaymentStatus(app) !== "rejected") return false;
-
-  return isApplicantRecordNew(app, "status", seen);
+function isRenewalPaymentRejectedNew(app) {
+  return getLicenseRenewalPaymentStatus(app) === "rejected";
 }
 
 function shouldHideApplicantAction(app) {

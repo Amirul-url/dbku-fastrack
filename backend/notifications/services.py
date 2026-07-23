@@ -1197,6 +1197,26 @@ def notify_license_renewal_payment_rejected(application, months, remark):
         return
 
     clean_note = clean_remark(remark) or "-"
+    form_data = application.form_data if isinstance(application.form_data, dict) else {}
+    renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+    payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
+    receipt = payment.get("receipt") if isinstance(payment.get("receipt"), dict) else {}
+    receipt_fingerprint = sha1(
+        "|".join(
+            str(value or "")
+            for value in (
+                payment.get("receipt_id"),
+                payment.get("receipt_name"),
+                payment.get("submitted_at"),
+                payment.get("reference_id"),
+                payment.get("recipient_reference"),
+                payment.get("payment_details"),
+                receipt.get("id"),
+                receipt.get("name"),
+                clean_note,
+            )
+        ).encode("utf-8")
+    ).hexdigest()[:12]
     title = notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE
     channel_bodies = {
         "web": notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE.format(
@@ -1230,7 +1250,7 @@ def notify_license_renewal_payment_rejected(application, months, remark):
     }
     event_key = (
         f"application:{application.id}:license_renewal_payment_rejected:"
-        f"{months}:{metadata['occurrence']}"
+        f"{months}:{receipt_fingerprint}"
     )
 
     create_and_send_delivery(
