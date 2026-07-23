@@ -181,6 +181,21 @@ APPLICANT_RENEWAL_RELEASED_WHATSAPP_BODY_TEMPLATE = (
     "Please review the letter and renew your advertisement license before the expiry date."
 )
 
+# Renewal early payment receipt rejected
+APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE = "Renewal payment receipt rejected"
+APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE = (
+    "Your renewal payment receipt for application {reference} was rejected. "
+    "Remark: {remark}. Please upload a new renewal payment receipt."
+)
+APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_EMAIL_BODY_TEMPLATE = (
+    "Your renewal payment receipt for application {reference} was rejected. "
+    "Remark: {remark}. Please upload a new renewal payment receipt."
+)
+APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WHATSAPP_BODY_TEMPLATE = (
+    "Your renewal payment receipt for application {reference} was rejected. "
+    "Remark: {remark}. Please upload a new renewal payment receipt."
+)
+
 # License cancellation notice released
 APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE = (
     "License cancellation notice released"

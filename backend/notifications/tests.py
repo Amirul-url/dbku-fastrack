@@ -2193,6 +2193,14 @@ class LicenseRenewalWorkflowTests(TestCase):
             department="KB(LES)",
             is_active=True,
         )
+        self.fin = User.objects.create_user(
+            username="fin-renewal",
+            email="fin@example.com",
+            password="Password123",
+            role="admin",
+            department="FIN",
+            is_active=True,
+        )
         self.tp_res_supervisor = User.objects.create_user(
             username="tp-res-renewal",
             email="tp-res@example.com",
@@ -2344,6 +2352,57 @@ class LicenseRenewalWorkflowTests(TestCase):
             )
             .exclude(channel="web")
             .exists()
+        )
+
+    def test_rejected_renewal_payment_receipt_notifies_applicant_on_all_channels(self):
+        self.application.form_data["license_renewal"] = {
+            "payment": {
+                "status": "submitted",
+                "months_before_expiry": 3,
+                "receipt_name": "Receipt.jpg",
+                "reference_id": "REF-123",
+                "recipient_reference": "ALIS-RENEWAL",
+                "payment_details": "Renewal payment",
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        client = APIClient()
+        client.force_authenticate(user=self.fin)
+        response = client.post(
+            f"/api/applications/{self.application.id}/license-renewal-action/",
+            {
+                "action": "reject_early_payment",
+                "months": 3,
+                "note": "Receipt amount is unclear.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.application.refresh_from_db()
+        payment = self.application.form_data["license_renewal"]["payment"]
+        self.assertEqual(payment["status"], "rejected")
+        self.assertEqual(payment["verification_notes"], "Receipt amount is unclear.")
+
+        deliveries = NotificationDelivery.objects.filter(
+            user=self.applicant,
+            metadata__event_status="license_renewal_payment_rejected",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertTrue(
+            deliveries.filter(
+                channel="web",
+                metadata__message__icontains="Receipt amount is unclear.",
+            ).exists()
+        )
+
+        client.force_authenticate(user=self.applicant)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertTrue(
+            any(item["metadata"]["event_status"] == "license_renewal_payment_rejected" for item in data)
         )
 
     def local_time(self, year, month, day, hour, minute):

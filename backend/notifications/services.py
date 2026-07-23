@@ -136,6 +136,7 @@ LICENSE_RENEWAL_NOTIFICATION_STATUSES = {
     "license_renewal_released",
     "license_renewal_payment_submitted",
     "license_renewal_payment_verified",
+    "license_renewal_payment_rejected",
     "license_cancellation_pending",
     "license_cancellation_supervisor_confirmation",
     "license_cancellation_kb_support",
@@ -662,6 +663,11 @@ def apply_license_renewal_payment_action(
             "rejected_at": now,
         })
         renewal["payment"] = payment
+        notify_license_renewal_payment_rejected(
+            application,
+            payment.get("months_before_expiry") or months or 3,
+            clean_note,
+        )
         return {}
 
     if action == "complete_early_payment":
@@ -1181,6 +1187,40 @@ def notify_license_renewal_payment_verified(application, months):
             "months_before_expiry": months,
             "occurrence": timezone.now().isoformat(),
         },
+        force_web=True,
+    )
+
+
+def notify_license_renewal_payment_rejected(application, months, remark):
+    clean_note = clean_remark(remark) or "-"
+    body = {
+        "web": notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WEB_BODY_TEMPLATE.format(
+            reference=application.reference_no,
+            remark=clean_note,
+        ),
+        "email": notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_EMAIL_BODY_TEMPLATE.format(
+            reference=application.reference_no,
+            remark=clean_note,
+        ),
+        "whatsapp": notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=application.reference_no,
+            remark=clean_note,
+        ),
+    }
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_renewal_payment_rejected",
+        title=notify_messages.APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_TITLE,
+        body=body,
+        recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
+        recipient_role="applicant",
+        action_url="/user/dashboard?tab=status",
+        extra_metadata={
+            "months_before_expiry": months,
+            "remark": clean_note,
+            "occurrence": timezone.now().isoformat(),
+        },
+        include_external=True,
         force_web=True,
     )
 
