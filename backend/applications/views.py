@@ -542,6 +542,20 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
+        payment_status = str(payment.get("status") or "").strip().lower()
+        has_reference_details = all(
+            str(payment.get(key) or "").strip()
+            for key in ("reference_id", "recipient_reference", "payment_details")
+        )
+        if payment_status in {"verified", "completed"} or (
+            payment_status == "submitted" and has_reference_details
+        ):
+            return Response(
+                {"error": "Submitted renewal payment receipts cannot be replaced."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         title = f"{months}-Month Renewal Early Payment Receipt"
         document = create_application_document(application, title, uploaded_file)
         serializer = SupportingDocumentSerializer(
@@ -577,15 +591,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         reminder["early_payment_receipts"] = [*reminder_receipts, receipt]
         reminders[str(months)] = reminder
         renewal["reminders"] = reminders
-        payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
         renewal["payment"] = {
             **payment,
-            "status": "submitted",
+            "status": "uploaded",
             "months_before_expiry": months,
             "receipt": receipt,
             "receipt_document_id": receipt["document_id"],
-            "submitted_at": timestamp,
-            "submitted_by": get_activity_actor_name(request.user),
+            "uploaded_at": timestamp,
+            "uploaded_by": get_activity_actor_name(request.user),
+            "submitted_at": "",
+            "submitted_by": "",
             "verification_result": "",
             "verification_notes": "",
             "internal_verification_notes": "",
@@ -597,7 +612,6 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         form_data["license_renewal"] = renewal
         application.form_data = form_data
         application.save(update_fields=["form_data", "updated_at"])
-        notify_license_renewal_payment_submitted(application, months)
 
         append_application_activity(
             application,
@@ -616,6 +630,160 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 ).data,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=["post"], url_path="license-renewal-early-payment-submit")
+    def submit_license_renewal_early_payment(self, request, pk=None):
+        application = self.get_object()
+
+        if getattr(request.user, "role", "") in STAFF_ROLES or application.applicant_id != request.user.id:
+            return Response(
+                {"error": "Only the applicant can submit renewal payment receipts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        form_data = deepcopy(application.form_data or {})
+        renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+        reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+        payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
+        payment_status = str(payment.get("status") or "").strip().lower()
+
+        has_reference_details = all(
+            str(payment.get(key) or "").strip()
+            for key in ("reference_id", "recipient_reference", "payment_details")
+        )
+        if payment_status in {"verified", "completed"} or (
+            payment_status == "submitted" and has_reference_details
+        ):
+            return Response(
+                {"error": "This renewal payment receipt has already been submitted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        months = request.data.get("months") or payment.get("months_before_expiry") or 3
+        try:
+            months = int(months)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Reminder month must be a number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reminder = reminders.get(str(months)) if isinstance(reminders.get(str(months)), dict) else {}
+        if str(reminder.get("status") or "").strip().lower() != "released_to_applicant":
+            return Response(
+                {"error": "Renewal reminder letter has not been released to the applicant."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reference_id = str(request.data.get("reference_id") or "").strip()
+        recipient_reference = str(request.data.get("recipient_reference") or "").strip()
+        payment_details = str(request.data.get("payment_details") or "").strip()
+
+        if not all([reference_id, recipient_reference, payment_details]):
+            return Response(
+                {"error": "Payment reference details are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        receipts = renewal.get("early_payment_receipts")
+        if not isinstance(receipts, list):
+            receipts = []
+
+        receipt_document_id = str(
+            request.data.get("receipt_document_id")
+            or payment.get("receipt_document_id")
+            or ""
+        ).strip()
+        if not receipt_document_id and receipts:
+            receipt_document_id = str(
+                receipts[-1].get("document_id")
+                or receipts[-1].get("id")
+                or ""
+            ).strip()
+
+        receipt_index = None
+        selected_receipt = None
+        for index, receipt in enumerate(receipts):
+            current_id = str(
+                (receipt or {}).get("document_id")
+                or (receipt or {}).get("id")
+                or ""
+            ).strip()
+            if current_id == receipt_document_id:
+                receipt_index = index
+                selected_receipt = receipt
+                break
+
+        if selected_receipt is None:
+            return Response(
+                {"error": "Renewal payment receipt is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        timestamp = timezone_now_iso()
+        selected_receipt = {
+            **selected_receipt,
+            "reference_id": reference_id,
+            "recipient_reference": recipient_reference,
+            "payment_details": payment_details,
+            "submitted_at": timestamp,
+        }
+        receipts[receipt_index] = selected_receipt
+        renewal["early_payment_receipts"] = receipts
+
+        reminder_receipts = reminder.get("early_payment_receipts")
+        if isinstance(reminder_receipts, list):
+            reminder["early_payment_receipts"] = [
+                selected_receipt
+                if str((receipt or {}).get("document_id") or (receipt or {}).get("id") or "").strip() == receipt_document_id
+                else receipt
+                for receipt in reminder_receipts
+            ]
+            reminders[str(months)] = reminder
+            renewal["reminders"] = reminders
+
+        renewal["payment"] = {
+            **payment,
+            "status": "submitted",
+            "months_before_expiry": months,
+            "receipt": selected_receipt,
+            "receipt_document_id": receipt_document_id,
+            "reference_id": reference_id,
+            "recipient_reference": recipient_reference,
+            "payment_details": payment_details,
+            "submitted_at": timestamp,
+            "submitted_by": get_activity_actor_name(request.user),
+            "verification_result": "",
+            "verification_notes": "",
+            "internal_verification_notes": "",
+            "verified_by": "",
+            "verified_at": "",
+            "rejected_by": "",
+            "rejected_at": "",
+        }
+        form_data["license_renewal"] = renewal
+        application.form_data = form_data
+        application.save(update_fields=["form_data", "updated_at"])
+        notify_license_renewal_payment_submitted(application, months)
+
+        append_application_activity(
+            application,
+            request.user,
+            "Renewal early payment receipt submitted",
+            f"Renewal payment reference submitted for {months}-month reminder.",
+        )
+
+        return Response(
+            {
+                "message": "Renewal early payment receipt submitted for verification.",
+                "receipt": selected_receipt,
+                "data": ApplicationDetailSerializer(
+                    application,
+                    context={"request": request},
+                ).data,
+            },
+            status=status.HTTP_200_OK,
         )
 
     @action(
@@ -637,9 +805,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
         payment_status = str(payment.get("status") or "").strip().lower()
 
-        if payment_status in {"verified", "completed"}:
+        has_reference_details = all(
+            str(payment.get(key) or "").strip()
+            for key in ("reference_id", "recipient_reference", "payment_details")
+        )
+        if payment_status in {"verified", "completed"} or (
+            payment_status == "submitted" and has_reference_details
+        ):
             return Response(
-                {"error": "Verified renewal payment receipts cannot be removed."},
+                {"error": "Submitted renewal payment receipts cannot be removed."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -689,12 +863,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if latest_receipt:
             renewal["payment"] = {
                 **payment,
-                "status": "submitted",
+                "status": "uploaded",
                 "months_before_expiry": latest_receipt.get("months_before_expiry") or payment.get("months_before_expiry") or 3,
                 "receipt": latest_receipt,
                 "receipt_document_id": latest_receipt.get("document_id") or latest_receipt.get("id") or "",
-                "submitted_at": latest_receipt.get("uploaded_at") or payment.get("submitted_at") or "",
-                "submitted_by": payment.get("submitted_by") or get_activity_actor_name(request.user),
+                "submitted_at": "",
+                "submitted_by": "",
+                "reference_id": latest_receipt.get("reference_id") or "",
+                "recipient_reference": latest_receipt.get("recipient_reference") or "",
+                "payment_details": latest_receipt.get("payment_details") or "",
                 "verification_result": "",
                 "verification_notes": "",
                 "internal_verification_notes": "",
@@ -710,6 +887,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 "receipt": None,
                 "receipt_document_id": "",
                 "submitted_at": "",
+                "submitted_by": "",
+                "reference_id": "",
+                "recipient_reference": "",
+                "payment_details": "",
                 "verification_result": "",
                 "verification_notes": "",
                 "internal_verification_notes": "",

@@ -9,6 +9,7 @@ import {
   fetchApplicationList,
   fetchAuthenticatedBlob,
   getStoredUser,
+  submitLicenseRenewalEarlyPaymentReceipt,
   uploadApplicationDocument,
   uploadLicenseRenewalEarlyPaymentReceipt,
 } from "../../services/api";
@@ -99,6 +100,7 @@ function UserDashboard() {
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [renewalReceiptUploading, setRenewalReceiptUploading] = useState(false);
   const [paymentReferenceDetails, setPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
+  const [renewalPaymentReferenceDetails, setRenewalPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
   const [revocationConfirmOpen, setRevocationConfirmOpen] = useState(false);
@@ -148,6 +150,9 @@ function UserDashboard() {
         receiptWasRejected
           ? EMPTY_PAYMENT_REFERENCE_DETAILS
           : getPaymentReferenceDetails(paymentData)
+      );
+      setRenewalPaymentReferenceDetails(
+        getPaymentReferenceDetails(getLicenseRenewalPayment(data))
       );
       if (options.setDefaultPanelTab) {
         setLicensePanelTab(getDefaultLicensePanelTab(data));
@@ -217,6 +222,8 @@ function UserDashboard() {
     setSelectedApplication(null);
     setLicenseDetailsLoading(false);
     setPaymentReceipt(null);
+    setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
+    setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setMessage({ type: "", text: "" });
   }, [activeSection, normalizedQueryStatusFilter, querySelectedId]);
 
@@ -295,6 +302,7 @@ function UserDashboard() {
       setLicenseDetailsLoading(false);
       setPaymentReceipt(null);
       setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
+      setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
       setReceiptSuccessOpen(false);
       setMessage({ type: "", text: "" });
     }
@@ -350,6 +358,7 @@ function UserDashboard() {
     setSelectedApplication(null);
     setPaymentReceipt(null);
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
+    setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     setLicensePanelOpen(true);
@@ -364,6 +373,7 @@ function UserDashboard() {
     setLicenseDetailsLoading(false);
     setPaymentReceipt(null);
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
+    setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     setSearchParams({ tab: "status" });
@@ -380,6 +390,7 @@ function UserDashboard() {
     setSelectedApplication(null);
     setPaymentReceipt(null);
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
+    setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     const params = { tab: "status" };
@@ -657,6 +668,9 @@ function UserDashboard() {
       await fetchApplications({ silent: true });
       setSelectedApplication(updatedApplication || activeApplication);
       setSelectedId(String((updatedApplication || activeApplication).id));
+      setRenewalPaymentReferenceDetails(
+        getPaymentReferenceDetails(getLicenseRenewalPayment(updatedApplication || activeApplication))
+      );
       setLicensePanelOpen(true);
       setMessage({
         type: "success",
@@ -705,6 +719,9 @@ function UserDashboard() {
       await fetchApplications({ silent: true });
       setSelectedApplication(updatedApplication || activeApplication);
       setSelectedId(String((updatedApplication || activeApplication).id));
+      setRenewalPaymentReferenceDetails(
+        getPaymentReferenceDetails(getLicenseRenewalPayment(updatedApplication || activeApplication))
+      );
       setLicensePanelOpen(true);
       setMessage({
         type: "success",
@@ -759,6 +776,80 @@ function UserDashboard() {
       [field]: value,
     }));
     setMessage({ type: "", text: "" });
+  }
+
+  function handleRenewalPaymentReferenceDetailsChange(field, value) {
+    setRenewalPaymentReferenceDetails((current) => ({
+      ...current,
+      [field]: value,
+    }));
+    setMessage({ type: "", text: "" });
+  }
+
+  async function submitRenewalEarlyPaymentReceipt() {
+    if (!activeApplication?.id) return;
+
+    const receipts = getRenewalEarlyPaymentReceipts(activeApplication);
+    const receipt = receipts[receipts.length - 1] || null;
+    const referenceDetails = getPaymentReferenceDetails(renewalPaymentReferenceDetails, { trim: true });
+
+    if (!receipt) {
+      setMessage({
+        type: "error",
+        text: t(
+          "applicant.renewalEarlyPaymentReceiptRequired",
+          "Please upload the renewal payment receipt first."
+        ),
+      });
+      return;
+    }
+
+    if (Object.values(referenceDetails).some((value) => !value)) {
+      setMessage({ type: "error", text: t("applicant.paymentReferenceDetailsRequired") });
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setMessage({ type: "", text: "" });
+
+      const updatedApplication =
+        (await submitLicenseRenewalEarlyPaymentReceipt(activeApplication.id, {
+          months: receipt.months_before_expiry || 3,
+          receipt_document_id: receipt.document_id || receipt.id,
+          ...referenceDetails,
+        })) ||
+        (await fetchApplicationDetails(activeApplication.id, { markSeen: true }));
+
+      markApplicationSeen("all", updatedApplication || activeApplication);
+      await fetchApplications({ silent: true });
+      setSelectedApplication(updatedApplication || activeApplication);
+      setSelectedId(String((updatedApplication || activeApplication).id));
+      setLicensePanelOpen(true);
+      setRenewalPaymentReferenceDetails(
+        getPaymentReferenceDetails(getLicenseRenewalPayment(updatedApplication || activeApplication))
+      );
+      setMessage({
+        type: "success",
+        text: t(
+          "applicant.renewalEarlyPaymentReceiptSubmitted",
+          "Renewal payment receipt submitted for FIN verification."
+        ),
+      });
+    } catch (err) {
+      console.error("Renewal early payment receipt submit failed:", err);
+      setMessage({
+        type: "error",
+        text:
+          err.message ||
+          t(
+            "applicant.renewalEarlyPaymentReceiptSubmitFailed",
+            "Unable to submit the renewal payment receipt."
+          ),
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function downloadPaymentReceipt() {
@@ -845,6 +936,7 @@ function UserDashboard() {
             receiptUploading={receiptUploading}
             renewalReceiptUploading={renewalReceiptUploading}
             paymentReferenceDetails={paymentReferenceDetails}
+            renewalPaymentReferenceDetails={renewalPaymentReferenceDetails}
             saving={saving}
             t={t}
             onViewApplicationSteps={openSubmittedApplicationSteps}
@@ -854,7 +946,9 @@ function UserDashboard() {
             onRenewalEarlyPaymentReceiptChange={handleRenewalEarlyPaymentReceiptChange}
             onRenewalEarlyPaymentReceiptRemove={handleRenewalEarlyPaymentReceiptRemove}
             onPaymentReferenceDetailsChange={handlePaymentReferenceDetailsChange}
+            onRenewalPaymentReferenceDetailsChange={handleRenewalPaymentReferenceDetailsChange}
             onSubmitPayment={submitPayment}
+            onSubmitRenewalEarlyPayment={submitRenewalEarlyPaymentReceipt}
             onRequestRevocation={requestLicenseRevocation}
             onCancelRevocationRequest={cancelLicenseRevocationRequest}
             onBack={returnToLicenseList}
@@ -1247,6 +1341,7 @@ function LicenseSection({
   receiptUploading = false,
   renewalReceiptUploading = false,
   paymentReferenceDetails,
+  renewalPaymentReferenceDetails,
   saving,
   t,
   onViewApplicationSteps,
@@ -1256,7 +1351,9 @@ function LicenseSection({
   onRenewalEarlyPaymentReceiptChange,
   onRenewalEarlyPaymentReceiptRemove,
   onPaymentReferenceDetailsChange,
+  onRenewalPaymentReferenceDetailsChange,
   onSubmitPayment,
+  onSubmitRenewalEarlyPayment,
   onRequestRevocation,
   onCancelRevocationRequest,
   onBack,
@@ -1443,8 +1540,12 @@ function LicenseSection({
               app={app}
               t={t}
               uploading={renewalReceiptUploading}
+              saving={saving}
+              referenceDetails={renewalPaymentReferenceDetails}
               onChange={onRenewalEarlyPaymentReceiptChange}
               onRemove={onRenewalEarlyPaymentReceiptRemove}
+              onReferenceDetailsChange={onRenewalPaymentReferenceDetailsChange}
+              onSubmit={onSubmitRenewalEarlyPayment}
             />
 
             <LicenseRevocationRequestPanel
@@ -1606,14 +1707,31 @@ function RenewalEarlyPaymentReceiptSection({
   app,
   t,
   uploading = false,
+  saving = false,
+  referenceDetails,
   onChange,
   onRemove,
+  onReferenceDetailsChange,
+  onSubmit,
 }) {
   const releasedLetters = getReleasedRenewalLetters(app);
   const receipts = getRenewalEarlyPaymentReceipts(app);
   const activeLetter = releasedLetters[0] || null;
   const renewalPaymentStatus = getLicenseRenewalPaymentStatus(app);
-  const locked = ["verified", "completed"].includes(renewalPaymentStatus);
+  const selectedReceipt = receipts[receipts.length - 1] || null;
+  const displayReferenceDetails = getPaymentReferenceDetails(
+    referenceDetails || getLicenseRenewalPayment(app)
+  );
+  const trimmedReferenceDetails = getPaymentReferenceDetails(displayReferenceDetails, { trim: true });
+  const hasReferenceDetails = Object.values(trimmedReferenceDetails).every(Boolean);
+  const submitted = renewalPaymentStatus === "submitted" && hasReferenceDetails;
+  const verified = ["verified", "completed"].includes(renewalPaymentStatus);
+  const locked = submitted || verified;
+  const canSubmit = Boolean(selectedReceipt) &&
+    !uploading &&
+    !saving &&
+    !locked &&
+    hasReferenceDetails;
 
   if (!activeLetter) return null;
 
@@ -1710,7 +1828,7 @@ function RenewalEarlyPaymentReceiptSection({
                           t
                         )
                       }
-                      className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-white hover:text-slate-900"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-white hover:text-slate-900"
                       title={t("common.download", "Download")}
                       aria-label={t("common.download", "Download")}
                     >
@@ -1722,7 +1840,7 @@ function RenewalEarlyPaymentReceiptSection({
                       type="button"
                       onClick={() => onRemove?.(receipt)}
                       disabled={uploading}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-white hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-600 hover:bg-white hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                       title={t("common.remove", "Remove")}
                       aria-label={t("common.remove", "Remove")}
                     >
@@ -1749,6 +1867,111 @@ function RenewalEarlyPaymentReceiptSection({
           </p>
         )}
       </div>
+
+      {selectedReceipt && (
+        <div className="border-t border-slate-200 bg-white px-3 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+              2
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                {t("applicant.paymentReferenceDetailsTitle", "Payment reference details")}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                {t("applicant.paymentReferenceDetailsHint", "Enter the payment reference details from your bank transfer or receipt.")}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-600">
+                {t("applicant.paymentReferenceId", "Reference ID")} <span className="text-red-600">*</span>
+              </span>
+              <input
+                type="text"
+                value={displayReferenceDetails.reference_id}
+                onChange={(event) => onReferenceDetailsChange?.("reference_id", event.target.value)}
+                disabled={locked}
+                className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-600">
+                {t("applicant.paymentRecipientReference", "Recipient Reference")} <span className="text-red-600">*</span>
+              </span>
+              <input
+                type="text"
+                value={displayReferenceDetails.recipient_reference}
+                onChange={(event) => onReferenceDetailsChange?.("recipient_reference", event.target.value)}
+                disabled={locked}
+                className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-600">
+                {t("applicant.paymentDetails", "Payment Details")} <span className="text-red-600">*</span>
+              </span>
+              <input
+                type="text"
+                value={displayReferenceDetails.payment_details}
+                onChange={(event) => onReferenceDetailsChange?.("payment_details", event.target.value)}
+                disabled={locked}
+                className="mt-1 h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {selectedReceipt && (
+        <div className="flex flex-col gap-2 border-t border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
+              3
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                {verified
+                  ? t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified")
+                  : submitted
+                    ? t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted")
+                    : canSubmit
+                      ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
+                      : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
+              </p>
+            </div>
+          </div>
+          {locked ? (
+            <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
+              <span className="material-symbols-outlined text-[16px]">
+                check_circle
+              </span>
+              {verified
+                ? t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified")
+                : t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted")}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!canSubmit}
+              className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
+              <span className="material-symbols-outlined text-[16px] text-white">
+                upload_file
+              </span>
+              {saving
+                ? t("common.submitting")
+                : t("applicant.submitReceiptVerificationButton", "Submit for Verification")}
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -3534,9 +3757,13 @@ function getLicenseRenewal(app) {
   return renewal && typeof renewal === "object" ? renewal : {};
 }
 
-function getLicenseRenewalPaymentStatus(app) {
+function getLicenseRenewalPayment(app) {
   const payment = getLicenseRenewal(app).payment || {};
-  return normalizeStatus(payment && typeof payment === "object" ? payment.status : "");
+  return payment && typeof payment === "object" ? payment : {};
+}
+
+function getLicenseRenewalPaymentStatus(app) {
+  return normalizeStatus(getLicenseRenewalPayment(app).status || "");
 }
 
 function getLicenseRenewalReminders(app) {
@@ -4483,6 +4710,8 @@ function getPaymentStatusText(app, t) {
 
   if (hasReleasedRenewalReminder(app, 3)) {
     const renewalPaymentStatus = getLicenseRenewalPaymentStatus(app);
+    const renewalReferenceDetails = getPaymentReferenceDetails(getLicenseRenewalPayment(app), { trim: true });
+    const hasRenewalReferenceDetails = Object.values(renewalReferenceDetails).every(Boolean);
     if (renewalPaymentStatus === "verified") {
       return t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified");
     }
@@ -4492,8 +4721,11 @@ function getPaymentStatusText(app, t) {
     if (renewalPaymentStatus === "rejected") {
       return t("applicant.renewalPaymentRejectedStatus", "Upload renewal receipt again");
     }
-    if (renewalPaymentStatus === "submitted") {
+    if (renewalPaymentStatus === "submitted" && hasRenewalReferenceDetails) {
       return t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted");
+    }
+    if (renewalPaymentStatus === "uploaded" || renewalPaymentStatus === "submitted") {
+      return t("applicant.renewalPaymentDetailsRequiredStatus", "Complete renewal payment details");
     }
     return t("applicant.renewalPaymentRequiredStatus", "Renewal payment required");
   }
