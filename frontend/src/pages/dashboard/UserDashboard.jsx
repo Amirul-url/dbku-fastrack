@@ -2151,7 +2151,7 @@ function QrELicenseContent({
       </p>
       <button
         type="button"
-        onClick={() => downloadApplicantQrCode(qrContainerRef.current, displayReference)}
+        onClick={() => printApplicantQrCode(qrContainerRef.current, displayReference, t)}
         className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
       >
         <span className="material-symbols-outlined text-[16px]">
@@ -4652,36 +4652,98 @@ function getQrSvgBlob(qrContainer) {
   });
 }
 
-async function downloadApplicantQrCode(qrContainer, licenseId) {
+async function printApplicantQrCode(qrContainer, reference, t) {
   const blob = getQrSvgBlob(qrContainer);
   if (!blob) return;
 
-  const sourceUrl = URL.createObjectURL(blob);
-
   try {
-    const image = new Image();
-    image.src = sourceUrl;
-    await image.decode();
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 720;
-    canvas.height = 720;
-    const context = canvas.getContext("2d");
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!pngBlob) return;
-
-    const downloadUrl = URL.createObjectURL(pngBlob);
-    triggerDownload(downloadUrl, `${licenseId || "e-license"}-qr.png`);
-    setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
+    const dataUrl = await blobToDataUrl(blob);
+    const printTitle = `${reference || "E-License"} QR E-License`;
+    await printHtmlDocument(
+      buildQrPrintHtml(dataUrl, reference, t),
+      printTitle
+    );
   } catch (err) {
-    console.error("Failed to download QR code:", err);
-  } finally {
-    URL.revokeObjectURL(sourceUrl);
+    console.error("Failed to print QR code:", err);
   }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function buildQrPrintHtml(qrDataUrl, reference, t) {
+  const title = t("applicant.qrELicenseTab", "QR E-License");
+  const safeTitle = escapeHtml(title);
+  const safeReference = escapeHtml(reference || "");
+  const safeQrDataUrl = escapeHtml(qrDataUrl);
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeReference} ${safeTitle}</title>
+  <style>
+    @page { size: A4; margin: 18mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: #0f172a;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .page {
+      min-height: 261mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 12mm;
+      font-size: 18pt;
+      line-height: 1.25;
+      font-weight: 700;
+    }
+    .qr {
+      width: 95mm;
+      height: 95mm;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8mm;
+    }
+    .qr img {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .reference {
+      margin-top: 8mm;
+      font-size: 12pt;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+    @media print {
+      .page { break-after: avoid; page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>${safeTitle}</h1>
+    <div class="qr">
+      <img src="${safeQrDataUrl}" alt="${safeTitle}" />
+    </div>
+    ${safeReference ? `<div class="reference">${safeReference}</div>` : ""}
+  </main>
+</body>
+</html>`;
 }
 
 function triggerDownload(url, filename) {
