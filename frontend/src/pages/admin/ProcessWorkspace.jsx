@@ -18620,18 +18620,18 @@ function PaymentDetails({
         ...(isRenewalReceiptVerification && showReceiptDetails
           ? [
               {
-                label: t("applicant.originalPaymentReceipt", "Original Payment Receipt"),
+                label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
                 file: receiptFile,
                 available: Boolean(receiptSource || receiptFile?.name || payment.receipt_reference),
                 displayName:
                   receiptFile?.name ||
                   payment.receipt_reference ||
-                  t("applicant.originalPaymentReceipt", "Original Payment Receipt"),
+                  t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
                 onDownload: () =>
                   printPaymentReceiptDocument(
                     receiptFile,
                     payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
-                    `${getApplicationReference(app)} ${t("applicant.originalPaymentReceipt", "Original Payment Receipt")}`,
+                    `${getApplicationReference(app)} ${t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant")}`,
                     t
                   ),
               },
@@ -18662,12 +18662,12 @@ function PaymentDetails({
       payment={payment}
       title={
         isRenewalReceiptVerification
-          ? t("applicant.originalPaymentReceipt", "Original Payment Receipt")
+          ? t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant")
           : t("applicant.paymentReceipt", "Payment Receipt")
       }
       description={
         isRenewalReceiptVerification
-          ? t("applicant.originalPaymentReceiptDesc", "Original payment receipt kept for reference.")
+          ? t("applicant.originalPaymentReceiptDesc", "Applicant original payment receipt kept for reference.")
           : t("applicant.paymentCompleteQrReady", "Payment is complete and QR e-license is ready to download.")
       }
     />
