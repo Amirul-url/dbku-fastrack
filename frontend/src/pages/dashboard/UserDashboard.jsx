@@ -1822,17 +1822,18 @@ function RenewalEarlyPaymentReceiptSection({
                     <button
                       type="button"
                       onClick={() =>
-                        downloadApplicantPaymentDocument(
+                        downloadApplicantReceiptPrintFlow(
                           receipt,
                           t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt"),
                           t
                         )
                       }
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-white hover:text-slate-900"
+                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       title={t("common.download", "Download")}
                       aria-label={t("common.download", "Download")}
                     >
-                      <span className="material-symbols-outlined text-xl">download</span>
+                      <span className="material-symbols-outlined text-[16px]">download</span>
+                      {t("common.download", "Download")}
                     </button>
                   )}
                   {!locked && (
@@ -3620,6 +3621,35 @@ async function openApplicantPaymentDocument(file, t) {
     }
   } catch (err) {
     console.error("Failed to open payment document:", err);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+async function downloadApplicantReceiptPrintFlow(file, fallbackLabel, t) {
+  const source = getPaymentDocumentSource(file);
+  if (!source) return;
+
+  try {
+    const isInlineFile = source.startsWith("blob:") || source.startsWith("data:");
+    const url = isInlineFile
+      ? source
+      : URL.createObjectURL(await fetchAuthenticatedBlob(source));
+    const title = fallbackLabel || file?.name || t("applicant.paymentReceipt", "Payment Receipt");
+
+    if (isImageReceipt(file, url)) {
+      await printHtmlDocument(
+        buildApplicantReceiptPrintHtml(file, url, title),
+        title
+      );
+    } else {
+      window.open(url, "_blank");
+    }
+
+    if (!isInlineFile) {
+      window.setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+    }
+  } catch (err) {
+    console.error("Failed to open payment receipt:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
 }
