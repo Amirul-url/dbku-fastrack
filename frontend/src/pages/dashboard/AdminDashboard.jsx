@@ -5112,6 +5112,10 @@ function isApprovalPersonalTaskForDepartment(application, department) {
     return true;
   }
 
+  if (department === "FIN" && isSubmittedRenewalPayment(application)) {
+    return true;
+  }
+
   if (APPROVAL_SUPPORT_DEPARTMENTS.has(department)) {
     return (
       status === "management_review" &&
@@ -5154,11 +5158,23 @@ function getAdminTaskWorkspacePath(application, unit) {
     }
   }
 
-  if (unit?.department === "FIN" && status === "payment_submitted") {
+  if (
+    unit?.department === "FIN" &&
+    (status === "payment_submitted" || isSubmittedRenewalPayment(application))
+  ) {
     return "/admin/e-licenses/payment";
   }
 
   return unit?.path || "/dashboard/admin";
+}
+
+function getLicenseRenewalPaymentStatus(application) {
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  return normalizeStatus(renewal?.payment?.status);
+}
+
+function isSubmittedRenewalPayment(application) {
+  return getLicenseRenewalPaymentStatus(application) === "submitted";
 }
 
 function getTechnicalDepartmentReviews(app) {
