@@ -18617,6 +18617,26 @@ function PaymentDetails({
           displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
         },
+        ...(isRenewalReceiptVerification && showReceiptDetails
+          ? [
+              {
+                label: t("applicant.originalPaymentReceipt", "Original Payment Receipt"),
+                file: receiptFile,
+                available: Boolean(receiptSource || receiptFile?.name || payment.receipt_reference),
+                displayName:
+                  receiptFile?.name ||
+                  payment.receipt_reference ||
+                  t("applicant.originalPaymentReceipt", "Original Payment Receipt"),
+                onDownload: () =>
+                  printPaymentReceiptDocument(
+                    receiptFile,
+                    payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
+                    `${getApplicationReference(app)} ${t("applicant.originalPaymentReceipt", "Original Payment Receipt")}`,
+                    t
+                  ),
+              },
+            ]
+          : []),
         {
           label: t("workspace.license.documentTitle", "Advertisement License"),
           file: licenseFile,
@@ -18633,7 +18653,7 @@ function PaymentDetails({
       ]}
     />
   ) : null;
-  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails ? (
+  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails && !isRenewalReceiptVerification ? (
     <IssuedPaymentReceiptSection
       app={app}
       t={t}
@@ -18881,70 +18901,84 @@ function PaymentQrPanel({ app, t }) {
 }
 
 function IssuedPaymentDocumentList({ t, documents }) {
+  const [expanded, setExpanded] = useState(true);
   const availableDocuments = documents.filter((item) =>
     getPaymentDocumentSource(item.file) || item.available || item.onView || item.onDownload
   );
 
   return (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-2">
-        <h4 className="text-sm font-semibold text-slate-950">
-          {t("applicant.paymentDocumentsTitle", "Documents to Download")}
-        </h4>
-        <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-          {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
-        </p>
+      <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-950">
+            {t("applicant.paymentDocumentsTitle", "Documents to Download")}
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+            {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="inline-flex min-h-8 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+          aria-expanded={expanded}
+        >
+          <Icon name={expanded ? "expand_less" : "expand_more"} className="text-lg" />
+          {expanded ? t("common.hide", "Hide") : t("common.show", "Show")}
+        </button>
       </div>
 
-      <div className="divide-y divide-slate-200">
-        {availableDocuments.map((item) => (
-          <div
-            key={item.label}
-            className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase text-slate-500">
-                {item.label}
-              </p>
-              {item.type === "application_form" && (
-                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                  {item.displayName || item.label}
+      {expanded && (
+        <div className="divide-y divide-slate-200">
+          {availableDocuments.map((item) => (
+            <div
+              key={item.label}
+              className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold uppercase text-slate-500">
+                  {item.label}
                 </p>
-              )}
-            </div>
+                {(item.type === "application_form" || item.displayName) && (
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                    {item.displayName || item.label}
+                  </p>
+                )}
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              {item.type === "application_form" ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon="visibility"
-                  className="min-h-9 px-3 py-1 text-xs"
-                  onClick={() => item.onView?.()}
-                >
-                  {t("common.view", "View")}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon="download"
-                  className="min-h-9 px-3 py-1 text-xs"
-                  onClick={() => {
-                    if (item.onDownload) {
-                      item.onDownload();
-                      return;
-                    }
-                    downloadPaymentDocument(item.file, item.label, t);
-                  }}
-                >
-                  {t("common.download", "Download")}
-                </Button>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {item.type === "application_form" ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="visibility"
+                    className="min-h-9 px-3 py-1 text-xs"
+                    onClick={() => item.onView?.()}
+                  >
+                    {t("common.view", "View")}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="download"
+                    className="min-h-9 px-3 py-1 text-xs"
+                    onClick={() => {
+                      if (item.onDownload) {
+                        item.onDownload();
+                        return;
+                      }
+                      downloadPaymentDocument(item.file, item.label, t);
+                    }}
+                  >
+                    {t("common.download", "Download")}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
