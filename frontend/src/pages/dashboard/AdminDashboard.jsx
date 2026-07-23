@@ -5315,6 +5315,10 @@ function getDashboardTaskStatusLabel(application, unit, t) {
     return t("status.ikl_technical_review", "IKL(TECH) Review");
   }
 
+  if (department === "FIN" && isSubmittedRenewalPayment(application)) {
+    return t("status.renewal_receipt_review", "Renewal Receipt Review");
+  }
+
   if (status === "payment_submitted") {
     return t("status.receipt_review", "Receipt Review");
   }
