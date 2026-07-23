@@ -1595,16 +1595,16 @@ function PaymentReceiptUpload({
   return (
     <div className="border-t border-slate-200 bg-white px-3 py-3">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
-              1
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900">
-                {t("applicant.uploadReceiptFile", "Upload receipt file")}
-              </p>
-              {!locked && (
+        {!locked && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                1
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">
+                  {t("applicant.uploadReceiptFile", "Upload receipt file")}
+                </p>
                 <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
                   {receipt
                     ? uploading
@@ -1612,11 +1612,9 @@ function PaymentReceiptUpload({
                       : t("applicant.receiptReadyToSubmit", "Receipt selected. Submit it for ALiS verification.")
                     : t("applicant.receiptAcceptedFormats", "Choose a PDF, JPG, or PNG file. Maximum upload size: 15MB.")}
                 </p>
-              )}
+              </div>
             </div>
-          </div>
 
-          {!locked && (
             <label className={`inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm font-semibold leading-5 text-white sm:w-auto ${
               uploading
                 ? "cursor-not-allowed border-slate-400 bg-slate-400"
@@ -1638,8 +1636,8 @@ function PaymentReceiptUpload({
                 className="hidden"
               />
             </label>
-          )}
-        </div>
+          </div>
+        )}
 
         {receipt ? (
           <div className="flex min-h-14 items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
