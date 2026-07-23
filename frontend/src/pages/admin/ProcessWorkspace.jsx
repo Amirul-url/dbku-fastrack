@@ -10644,7 +10644,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   if (isApprovalWorkspace) {
-    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment);
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment, t);
     if (renewalTaskLabel) return renewalTaskLabel;
   }
 
@@ -10665,7 +10665,7 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
       return t("status.renewal_payment_verified", "Renewal Payment Verified");
     }
 
-    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment);
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment, t);
     if (renewalTaskLabel) return renewalTaskLabel;
   }
 
@@ -10697,8 +10697,12 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
 
   if (config?.key === "approval") {
     if (userDepartment === "KB(LES)" && canConfirmRenewalReminder(selectedRecord, userDepartment)) {
-      const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment);
-      return `Review and confirm the ${renewalTaskLabel.toLowerCase()} letter before it is released to the applicant.`;
+      const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment, t);
+      return t(
+        "workspace.approval.confirmReminderAction",
+        "Review and confirm the {label} letter before it is released to the applicant.",
+        { label: String(renewalTaskLabel || "").toLowerCase() }
+      );
     }
 
     if (
@@ -10754,7 +10758,10 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
 
     if (userDepartment === "FIN") {
       if (getLicenseRenewalPaymentStatus(selectedRecord) === "submitted") {
-        return "Review the early renewal payment receipt, then approve or reject it.";
+        return t(
+          "workspace.payment.finRenewalReceiptAction",
+          "Review the early renewal payment receipt, then approve or reject it."
+        );
       }
 
       return t("workspace.payment.finReceiptAction", "Review the uploaded receipt, then approve or reject it.");
@@ -10765,12 +10772,19 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
 
   if (config?.key === "license" && userDepartment === "PT(IKL)") {
     if (getLicenseRenewalPaymentStatus(selectedRecord) === "verified") {
-      return "Generate the official receipt and renewed advertisement license after FIN verifies the early renewal payment.";
+      return t(
+        "workspace.license.renewalPaymentVerifiedAction",
+        "Generate the official receipt and renewed advertisement license after FIN verifies the early renewal payment."
+      );
     }
 
-    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment);
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment, t);
     if (renewalTaskLabel) {
-      return `Review and generate the ${renewalTaskLabel.toLowerCase()} letter for KB(LES) confirmation.`;
+      return t(
+        "workspace.license.generateReminderAction",
+        "Review and generate the {label} letter for KB(LES) confirmation.",
+        { label: String(renewalTaskLabel || "").toLowerCase() }
+      );
     }
 
     return t("workspace.license.ptAction", "Generate the advertisement license and QR code after payment is verified.");
@@ -11689,22 +11703,43 @@ function getRenewalReminderTaskLabel(months) {
   return "";
 }
 
-function getLicenseRenewalTaskStatusLabel(app, department) {
+function getLocalizedRenewalReminderTaskLabel(months, t) {
+  if (months === 3) return t("workspace.license.firstReminder", "1st Reminder");
+  if (months === 2) return t("workspace.license.secondReminder", "2nd Reminder");
+  if (months === 1) return t("workspace.license.finalReminder", "Final Reminder");
+  return "";
+}
+
+function getLocalizedWorkflowStatus(status, t) {
+  const normalized = normalizeStatus(status);
+  return t(`status.${normalized}`, formatWorkflowStatus(status));
+}
+
+function getLicenseRenewalTaskStatusLabel(app, department, t = null) {
   if (normalizeStatus(app?.status) !== "license_issued") return "";
 
   const normalizedDepartment = normalizeDepartmentCode(department);
   if (normalizedDepartment === "PT(IKL)") {
     const pendingMonth = getPendingPtRenewalReminderMonth(app);
-    if (pendingMonth) return getRenewalReminderTaskLabel(pendingMonth);
+    if (pendingMonth) {
+      return t
+        ? getLocalizedRenewalReminderTaskLabel(pendingMonth, t)
+        : getRenewalReminderTaskLabel(pendingMonth);
+    }
   }
 
   const confirmationMonth = getPendingReminderConfirmationMonth(app);
   if (confirmationMonth && normalizedDepartment === "KB(LES)") {
-    return `${getRenewalReminderTaskLabel(confirmationMonth)} Confirmation`;
+    const label = t
+      ? getLocalizedRenewalReminderTaskLabel(confirmationMonth, t)
+      : getRenewalReminderTaskLabel(confirmationMonth);
+    return t
+      ? t("workspace.license.reminderConfirmation", "{label} Confirmation", { label })
+      : `${label} Confirmation`;
   }
 
   if (normalizedDepartment === "PT(IKL)" && getCancellationStatus(app) === "pending_pt_notice") {
-    return "Cancellation Notice";
+    return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
   }
 
   return "";
@@ -14543,9 +14578,11 @@ const configs = {
       {
         key: "approve_renewal_receipt",
         label: "Approve Renewal Receipt",
+        labelKey: "workspace.action.approveRenewalReceipt",
         icon: "verified",
         endpoint: "license-renewal-action",
         success: "Renewal receipt approved. PT(IKL) can generate the renewed official receipt and advertisement license.",
+        successKey: "workspace.message.renewalReceiptApproved",
         requiresComment: true,
         requiresRenewalReceipt: true,
         isAvailable: (app, department) =>
@@ -14560,10 +14597,12 @@ const configs = {
       {
         key: "reject_renewal_receipt",
         label: "Reject Renewal Receipt",
+        labelKey: "workspace.action.rejectRenewalReceipt",
         icon: "report",
         variant: "danger",
         endpoint: "license-renewal-action",
         success: "Renewal receipt rejected. Applicant can upload another renewal receipt.",
+        successKey: "workspace.message.renewalReceiptRejected",
         requiresComment: true,
         requiresRenewalReceipt: true,
         isAvailable: (app, department) =>
@@ -14797,10 +14836,12 @@ const configs = {
       {
         key: "generate_1st_reminder_letter",
         label: "Generate 1st Reminder Letter",
+        labelKey: "workspace.action.generateFirstReminderLetter",
         icon: "description",
         endpoint: "license-renewal-action",
         reminderMonths: 3,
         success: "1st reminder letter generated for KB(LES) confirmation.",
+        successKey: "workspace.message.firstReminderGenerated",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 3),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
@@ -14813,8 +14854,10 @@ const configs = {
       {
         key: "complete_renewal_payment",
         label: "Generate Renewal Receipt & License",
+        labelKey: "workspace.action.generateRenewalReceiptLicense",
         icon: "qr_code_2",
         success: "Renewal official receipt and advertisement license generated.",
+        successKey: "workspace.message.renewalReceiptLicenseGenerated",
         isAvailable: (app, department) =>
           department === "PT(IKL)" && getLicenseRenewalPaymentStatus(app) === "verified",
         buildPayload: (app, data) => {
@@ -14944,10 +14987,12 @@ const configs = {
       {
         key: "generate_2nd_reminder_letter",
         label: "Generate 2nd Reminder Letter",
+        labelKey: "workspace.action.generateSecondReminderLetter",
         icon: "description",
         endpoint: "license-renewal-action",
         reminderMonths: 2,
         success: "2nd reminder letter generated for KB(LES) confirmation.",
+        successKey: "workspace.message.secondReminderGenerated",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 2),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
@@ -14960,10 +15005,12 @@ const configs = {
       {
         key: "generate_final_reminder_letter",
         label: "Generate Final Reminder Letter",
+        labelKey: "workspace.action.generateFinalReminderLetter",
         icon: "description",
         endpoint: "license-renewal-action",
         reminderMonths: 1,
         success: "Final renewal reminder letter generated for KB(LES) confirmation.",
+        successKey: "workspace.message.finalReminderGenerated",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 1),
         buildPayload: (app, data) => ({
           action: "generate_reminder_letter",
@@ -14976,9 +15023,11 @@ const configs = {
       {
         key: "confirm_reminder_letter",
         label: "Confirm Reminder Letter",
+        labelKey: "workspace.action.confirmReminderLetter",
         icon: "verified",
         endpoint: "license-renewal-action",
         success: "Renewal reminder released to the applicant.",
+        successKey: "workspace.message.renewalReminderReleased",
         isAvailable: (app, department) => canConfirmRenewalReminder(app, department),
         buildPayload: (app, data) => ({
           action: "confirm_reminder_letter",
@@ -14989,10 +15038,12 @@ const configs = {
       },
       {
         label: "Generate Cancellation Notice",
+        labelKey: "workspace.action.generateCancellationNotice",
         icon: "gavel",
         endpoint: "license-renewal-action",
         variant: "danger",
         success: "Cancellation and enforcement notice generated for supervisor confirmation.",
+        successKey: "workspace.message.cancellationNoticeGenerated",
         isAvailable: canGenerateCancellationNotice,
         buildPayload: (app, data) => ({
           action: "generate_cancellation_notice",
@@ -15001,10 +15052,12 @@ const configs = {
       },
       {
         label: "Confirm Cancellation Notice",
+        labelKey: "workspace.action.confirmCancellationNotice",
         icon: "fact_check",
         endpoint: "license-renewal-action",
         variant: "danger",
         success: "Cancellation notice confirmed and sent to KB(LES) for support.",
+        successKey: "workspace.message.cancellationNoticeConfirmed",
         isAvailable: canConfirmCancellationNotice,
         buildPayload: (app, data) => ({
           action: "confirm_cancellation_notice",
@@ -15013,10 +15066,12 @@ const configs = {
       },
       {
         label: "Support Cancellation Notice",
+        labelKey: "workspace.action.supportCancellationNotice",
         icon: "verified_user",
         endpoint: "license-renewal-action",
         variant: "danger",
         success: "Cancellation notice released to the applicant and license revoked.",
+        successKey: "workspace.message.cancellationNoticeReleased",
         isAvailable: canSupportCancellationNotice,
         buildPayload: (app, data) => ({
           action: "support_cancellation_notice",
@@ -18578,10 +18633,10 @@ function PaymentDetails({
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-          Renewal Early Payment Receipt
+          {t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt")}
         </p>
         <p className="mt-1 text-sm leading-5 text-slate-500">
-          {formatWorkflowStatus(renewalPayment.status || "Submitted")}
+          {getLocalizedWorkflowStatus(renewalPayment.status || "Submitted", t)}
         </p>
       </div>
       <div className="divide-y divide-slate-100">
@@ -18612,7 +18667,11 @@ function PaymentDetails({
                     printPaymentReceiptDocument(
                       receipt,
                       receipt.name || "renewal-receipt.pdf",
-                      `${getApplicationReference(app)} Renewal Early Payment Receipt`,
+                      t(
+                        "workspace.license.renewalEarlyPaymentReceiptPrintTitle",
+                        "{reference} Renewal Early Payment Receipt",
+                        { reference: getApplicationReference(app) }
+                      ),
                       t
                     )
                   }
@@ -20949,9 +21008,9 @@ function FirstReminderTaskPanel({
 }) {
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("qr");
   const [reviewDocument, setReviewDocument] = useState(null);
-  const label = getRenewalReminderTaskLabel(months) || "1st Reminder";
+  const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
-  const documentTitle = `${label} Letter`;
+  const documentTitle = t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
   const documentDescription = confirmationMode
     ? t(
         "workspace.license.firstReminderConfirmDesc",
@@ -20971,8 +21030,12 @@ function FirstReminderTaskPanel({
         "Enter PT(IKL) remarks before sending this reminder letter to KB(LES)."
       );
   const submitLabel = confirmationMode
-    ? `Confirm ${label} Letter`
-    : `Generate ${label} Letter`;
+    ? t("workspace.action.confirmReminderLetter", "Confirm Reminder Letter")
+    : months === 3
+      ? t("workspace.action.generateFirstReminderLetter", "Generate 1st Reminder Letter")
+      : months === 2
+        ? t("workspace.action.generateSecondReminderLetter", "Generate 2nd Reminder Letter")
+        : t("workspace.action.generateFinalReminderLetter", "Generate Final Reminder Letter");
 
   function submitReminderLetter() {
     const cleanedRemarks = cleanRemark(remarks);
@@ -21027,7 +21090,7 @@ function FirstReminderTaskPanel({
               <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
-                    {label.toUpperCase()} LETTER <span className="text-red-600">*</span>
+                    {t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase()} <span className="text-red-600">*</span>
                   </p>
                   <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
                     {documentDescription}
@@ -21201,67 +21264,83 @@ function LicenseDetails({
         {Object.keys(renewal).length > 0 && (
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-              Renewal workflow
+              {t("workspace.license.renewalWorkflowTitle", "Renewal workflow")}
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               {[3, 2, 1].map((months) => (
                 <Info
                   key={months}
-                  label={`${months}-month reminder`}
-                  value={formatWorkflowStatus(reminders[String(months)]?.status || "Not detected")}
+                  label={
+                    months === 3
+                      ? t("workspace.license.renewal3MonthReminder", "3-month reminder")
+                      : months === 2
+                        ? t("workspace.license.renewal2MonthReminder", "2-month reminder")
+                        : t("workspace.license.renewal1MonthReminder", "1-month reminder")
+                  }
+                  value={getLocalizedWorkflowStatus(reminders[String(months)]?.status || "Not detected", t)}
                 />
               ))}
               <Info
-                label="Cancellation"
-                value={formatWorkflowStatus(cancellation.status || "Not triggered")}
+                label={t("workspace.license.renewalCancellation", "Cancellation")}
+                value={getLocalizedWorkflowStatus(cancellation.status || "Not triggered", t)}
               />
             </div>
             {renewalLetters.length > 0 && (
               <div className="mt-3 space-y-2">
-                {renewalLetters.map((letter) => (
-                  <div
-                    key={`${letter.months}-${letter.generatedAt}`}
-                    className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold leading-5 text-slate-950">
-                        {letter.title} Letter
-                      </p>
-                      <p className="text-xs leading-5 text-slate-500">
-                        {formatWorkflowStatus(letter.status)}
-                        {letter.generatedAt ? ` - ${formatCompactDateTime(letter.generatedAt)}` : ""}
-                      </p>
+                {renewalLetters.map((letter) => {
+                  const letterLabel =
+                    getLocalizedRenewalReminderTaskLabel(Number(letter.months), t) ||
+                    letter.title ||
+                    t("workspace.license.firstReminder", "1st Reminder");
+                  const letterTitle = t("workspace.license.reminderLetterTitle", "{label} Letter", {
+                    label: letterLabel,
+                  });
+
+                  return (
+                    <div
+                      key={`${letter.months}-${letter.generatedAt}`}
+                      className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold leading-5 text-slate-950">
+                          {letterTitle}
+                        </p>
+                        <p className="text-xs leading-5 text-slate-500">
+                          {getLocalizedWorkflowStatus(letter.status, t)}
+                          {letter.generatedAt ? ` - ${formatCompactDateTime(letter.generatedAt)}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          icon="visibility"
+                          className="min-h-8 px-3 py-1 text-xs"
+                          onClick={() =>
+                            setRenewalLetterPreview({
+                              title: letterTitle,
+                              reference: letter.reference,
+                              html: letter.html,
+                              scale: 1.08,
+                              allowHorizontalScroll: false,
+                            })
+                          }
+                        >
+                          {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          icon="print"
+                          className="min-h-8 px-3 py-1 text-xs"
+                          onClick={() => printHtmlDocument(letter.html, letterTitle)}
+                        >
+                          {t("common.print", "Print")}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex shrink-0 gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        icon="visibility"
-                        className="min-h-8 px-3 py-1 text-xs"
-                        onClick={() =>
-                          setRenewalLetterPreview({
-                            title: `${letter.title} Letter`,
-                            reference: letter.reference,
-                            html: letter.html,
-                            scale: 1.08,
-                            allowHorizontalScroll: false,
-                          })
-                        }
-                      >
-                        {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        icon="print"
-                        className="min-h-8 px-3 py-1 text-xs"
-                        onClick={() => printHtmlDocument(letter.html, `${letter.title} Letter`)}
-                      >
-                        {t("common.print", "Print")}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -21271,10 +21350,10 @@ function LicenseDetails({
           <section className="rounded-md border border-slate-200 bg-white">
             <div className="border-b border-slate-200 px-3 py-3">
               <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-                Renewal Early Payment Receipt
+                {t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt")}
               </p>
               <p className="mt-1 text-sm leading-5 text-slate-500">
-                {formatWorkflowStatus(renewalPayment.status || "Submitted")}
+                {getLocalizedWorkflowStatus(renewalPayment.status || "Submitted", t)}
               </p>
             </div>
             <div className="divide-y divide-slate-100">
@@ -21303,7 +21382,11 @@ function LicenseDetails({
                         printPaymentReceiptDocument(
                           receipt,
                           receipt.name || "renewal-receipt.pdf",
-                          `${getApplicationReference(app)} Renewal Early Payment Receipt`,
+                          t(
+                            "workspace.license.renewalEarlyPaymentReceiptPrintTitle",
+                            "{reference} Renewal Early Payment Receipt",
+                            { reference: getApplicationReference(app) }
+                          ),
                           t
                         )
                       }
