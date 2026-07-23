@@ -3441,6 +3441,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onEditBill={() => setShowManualBillEditor(true)}
                           onEditReceipt={() => setShowManualReceiptEditor(true)}
                           onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
+                          onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                           onLicenseDocumentUpload={uploadLicenseDocument}
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
@@ -18332,6 +18333,10 @@ function PaymentDetails({
     !readOnly && userDepartment === "PT(IKL)" && status === "approved";
   const isReceiptVerification =
     !readOnly && userDepartment === "FIN" && status === "payment_submitted";
+  const isRenewalReceiptVerification =
+    !readOnly &&
+    userDepartment === "FIN" &&
+    getLicenseRenewalPaymentStatus(app) === "submitted";
   const showReceiptDetails = Boolean(
     readOnly ||
     receiptFile?.name ||
@@ -18345,6 +18350,11 @@ function PaymentDetails({
     ["Reference ID", payment.reference_id],
     ["Recipient Reference", payment.recipient_reference],
     ["Payment Details", payment.payment_details],
+  ].filter(([, value]) => String(value || "").trim());
+  const renewalPaymentReferenceDetails = [
+    ["Reference ID", renewalPayment.reference_id],
+    ["Recipient Reference", renewalPayment.recipient_reference],
+    ["Payment Details", renewalPayment.payment_details],
   ].filter(([, value]) => String(value || "").trim());
   const showVerificationUploads =
     !readOnly &&
@@ -18623,7 +18633,7 @@ function PaymentDetails({
       ]}
     />
   ) : null;
-  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails ? (
+  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails && !isRenewalReceiptVerification ? (
     <IssuedPaymentReceiptSection
       app={app}
       t={t}
@@ -18639,7 +18649,12 @@ function PaymentDetails({
           {t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt")}
         </p>
         <p className="mt-1 text-sm leading-5 text-slate-500">
-          {getLocalizedWorkflowStatus(renewalPayment.status || "Submitted", t)}
+          {isRenewalReceiptVerification
+            ? t(
+                "workspace.license.renewalReceiptVerificationDesc",
+                "Review the renewal payment receipt and payment reference details."
+              )
+            : getLocalizedWorkflowStatus(renewalPayment.status || "Submitted", t)}
         </p>
       </div>
       <div className="divide-y divide-slate-100">
@@ -18650,15 +18665,20 @@ function PaymentDetails({
               key={`${receipt.document_id || receipt.url || receipt.name}-${index}`}
               className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-950">
-                  {index + 1}. {receipt.name || "Receipt"}
-                </p>
-                {receipt.uploaded_at && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    {formatCompactDateTime(receipt.uploaded_at)}
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">
+                    {receipt.name || "Receipt"}
                   </p>
-                )}
+                  {receipt.uploaded_at && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {formatCompactDateTime(receipt.uploaded_at)}
+                    </p>
+                  )}
+                </div>
               </div>
               {source && (
                 <Button
@@ -18686,6 +18706,13 @@ function PaymentDetails({
           );
         })}
       </div>
+      {renewalPaymentReferenceDetails.length > 0 && (
+        <div className="grid gap-2 border-t border-slate-100 px-3 pb-3 pt-2 sm:grid-cols-3">
+          {renewalPaymentReferenceDetails.map(([label, value]) => (
+            <Info key={label} label={label} value={value} />
+          ))}
+        </div>
+      )}
     </section>
   ) : null;
   const verificationDocuments = [
