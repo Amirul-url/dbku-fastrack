@@ -18939,7 +18939,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
                 <p className="text-sm font-semibold uppercase text-slate-500">
                   {item.label}
                 </p>
-                {(item.type === "application_form" || item.displayName) && (
+                {item.type === "application_form" && (
                   <p className="mt-1 truncate text-sm font-semibold text-slate-900">
                     {item.displayName || item.label}
                   </p>
