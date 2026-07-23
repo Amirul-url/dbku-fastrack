@@ -1756,7 +1756,7 @@ function RenewalEarlyPaymentReceiptSection({
               {receipts.length > 0
                 ? t(
                     "applicant.renewalEarlyPaymentReceiptReady",
-                    "Receipt selected. FIN will verify the renewal payment proof."
+                    "Receipt selected. ALiS will review the renewal payment proof."
                   )
                 : t(
                     "applicant.renewalEarlyPaymentReceiptDesc",
