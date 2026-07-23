@@ -1071,7 +1071,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     );
   const showDetailsBeforeComment =
     actionConfig.key === "payment" &&
-    (showPaymentDocumentDecision || workspaceActions.some((action) => action.requiresSubmittedReceipt));
+    (
+      showPaymentDocumentDecision ||
+      workspaceActions.some((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt)
+    );
   const selectedIssueLicenseAction = showIssueLicenseDecision
     ? workspaceActions.find((action) => action.key === "issue_license")
     : null;
