@@ -3480,7 +3480,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               );
                             }
                           }}
-                          className={`form-input form-input-sm w-full max-w-[17rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          className={`form-input form-input-sm w-full max-w-[32rem] bg-white text-[13px] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                           placeholder={getWorkspaceDecisionInputPrompt(paymentTypedDecisionOptions, t)}
                           inputMode="text"
                           aria-invalid={Boolean(decisionError)}
@@ -3533,7 +3533,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               );
                             }
                           }}
-                          className={`form-input form-input-sm max-w-xs ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
+                          className={`form-input form-input-sm w-full max-w-[32rem] ${decisionError ? "border-red-300 focus:border-red-500 focus:shadow-[0_0_0_3px_rgba(220,38,38,0.12)]" : ""}`}
                           placeholder={getWorkspaceDecisionInputPrompt(paymentTypedDecisionOptions, t)}
                           inputMode="text"
                           aria-invalid={Boolean(decisionError)}
