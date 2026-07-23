@@ -2224,13 +2224,16 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           },
         ]
       : []),
-    ...releasedRenewalLetters.map((letter) => ({
-      label: `${letter.title} Letter`,
-      name: `${letter.title} Letter`,
-      available: true,
-      type: "renewal_reminder",
-      onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letter.title} Letter`),
-    })),
+    ...releasedRenewalLetters.map((letter) => {
+      const letterLabel = getLocalizedRenewalReminderLetterLabel(letter.months, t);
+      return {
+        label: letterLabel,
+        name: letterLabel,
+        available: true,
+        type: "renewal_reminder",
+        onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letterLabel}`),
+      };
+    }),
   ];
   const hasAnyDocument = documents.some((item) =>
     item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at
@@ -3804,6 +3807,20 @@ function getRenewalReminderTaskLabel(months) {
   if (Number(months) === 2) return "2nd Reminder";
   if (Number(months) === 1) return "Final Reminder";
   return `${months}-Month Reminder`;
+}
+
+function getLocalizedRenewalReminderTaskLabel(months, t) {
+  if (Number(months) === 3) return t("applicant.firstReminder", "1st Reminder");
+  if (Number(months) === 2) return t("applicant.secondReminder", "2nd Reminder");
+  if (Number(months) === 1) return t("applicant.finalReminder", "Final Reminder");
+  return t("applicant.monthReminder", "{months}-Month Reminder", { months });
+}
+
+function getLocalizedRenewalReminderLetterLabel(months, t) {
+  if (Number(months) === 3) return t("applicant.firstReminderLetter", "1st Reminder Letter");
+  if (Number(months) === 2) return t("applicant.secondReminderLetter", "2nd Reminder Letter");
+  if (Number(months) === 1) return t("applicant.finalReminderLetter", "Final Reminder Letter");
+  return t("applicant.monthReminderLetter", "{months}-Month Reminder Letter", { months });
 }
 
 function getGeneratedRenewalLetters(app) {
