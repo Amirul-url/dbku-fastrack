@@ -2495,7 +2495,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                     </p>
                   )}
                 </div>
-                {isDocumentAvailable(item) && (
+                {isDocumentAvailable(item) && !item.isDocumentGroup && (
                   <div className="flex flex-wrap gap-2">
                     {item.type === "submitted_application" && (
                       <button
