@@ -14296,6 +14296,10 @@ function hasValue(value) {
   return String(value).trim().length > 0;
 }
 
+function firstPresentValue(...values) {
+  return values.find((value) => hasValue(value)) || "";
+}
+
 function cleanRemark(value) {
   const remark = String(value || "").trim();
   return ["", "-", "[]"].includes(remark) ? "" : remark;
@@ -18752,9 +18756,9 @@ function PaymentDetails({
     ["Payment Details", payment.payment_details],
   ].filter(([, value]) => String(value || "").trim());
   const renewalPaymentReferenceDetails = [
-    ["Reference ID", renewalPayment.reference_id],
-    ["Recipient Reference", renewalPayment.recipient_reference],
-    ["Payment Details", renewalPayment.payment_details],
+    ["Reference ID", firstPresentValue(renewalPayment.reference_id, renewalReceipts[0]?.reference_id)],
+    ["Recipient Reference", firstPresentValue(renewalPayment.recipient_reference, renewalReceipts[0]?.recipient_reference)],
+    ["Payment Details", firstPresentValue(renewalPayment.payment_details, renewalReceipts[0]?.payment_details)],
   ].filter(([, value]) => String(value || "").trim());
   const showVerificationUploads =
     !readOnly &&
