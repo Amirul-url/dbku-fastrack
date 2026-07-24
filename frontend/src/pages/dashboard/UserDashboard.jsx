@@ -103,6 +103,7 @@ function UserDashboard() {
   const [renewalPaymentReferenceDetails, setRenewalPaymentReferenceDetails] = useState(EMPTY_PAYMENT_REFERENCE_DETAILS);
   const [licensePanelTab, setLicensePanelTab] = useState("bank");
   const [receiptSuccessOpen, setReceiptSuccessOpen] = useState(false);
+  const [renewalReceiptSuccessOpen, setRenewalReceiptSuccessOpen] = useState(false);
   const [revocationConfirmOpen, setRevocationConfirmOpen] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
   const [search, setSearch] = useState("");
@@ -304,6 +305,7 @@ function UserDashboard() {
       setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
       setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
       setReceiptSuccessOpen(false);
+      setRenewalReceiptSuccessOpen(false);
       setMessage({ type: "", text: "" });
     }
   }
@@ -360,6 +362,7 @@ function UserDashboard() {
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
+    setRenewalReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     setLicensePanelOpen(true);
     setLicensePanelTab(getDefaultLicensePanelTab(app));
@@ -375,6 +378,7 @@ function UserDashboard() {
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
+    setRenewalReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     setSearchParams({ tab: "status" });
   }
@@ -392,6 +396,7 @@ function UserDashboard() {
     setPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setRenewalPaymentReferenceDetails(EMPTY_PAYMENT_REFERENCE_DETAILS);
     setReceiptSuccessOpen(false);
+    setRenewalReceiptSuccessOpen(false);
     setMessage({ type: "", text: "" });
     const params = { tab: "status" };
     if (nextStatusFilter !== "all") {
@@ -829,13 +834,8 @@ function UserDashboard() {
       setRenewalPaymentReferenceDetails(
         getPaymentReferenceDetails(getLicenseRenewalPayment(updatedApplication || activeApplication))
       );
-      setMessage({
-        type: "success",
-        text: t(
-          "applicant.renewalEarlyPaymentReceiptSubmitted",
-          "Renewal payment receipt submitted for FIN verification."
-        ),
-      });
+      setRenewalReceiptSuccessOpen(true);
+      setMessage({ type: "", text: "" });
     } catch (err) {
       console.error("Renewal early payment receipt submit failed:", err);
       setMessage({
@@ -998,6 +998,17 @@ function UserDashboard() {
         />
       )}
 
+      {renewalReceiptSuccessOpen && (
+        <ReceiptSubmittedModal
+          message={t(
+            "applicant.renewalReceiptSubmittedModalMessage",
+            "Receipt submitted for verification."
+          )}
+          t={t}
+          onClose={() => setRenewalReceiptSuccessOpen(false)}
+        />
+      )}
+
       {revocationConfirmOpen && (
         <LicenseRevocationConfirmModal
           t={t}
@@ -1010,7 +1021,7 @@ function UserDashboard() {
   );
 }
 
-function ReceiptSubmittedModal({ t, onClose }) {
+function ReceiptSubmittedModal({ t, onClose, message = "" }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4"
@@ -1031,7 +1042,7 @@ function ReceiptSubmittedModal({ t, onClose }) {
           {t("applicant.receiptSuccessTitle", "SUCCESS!")}
         </h2>
         <p className="mt-5 text-2xl font-medium text-black">
-          {t("applicant.receiptSubmittedModalMessage", "Receipt Submitted!")}
+          {message || t("applicant.receiptSubmittedModalMessage", "Receipt Submitted!")}
         </p>
         <button
           type="button"
