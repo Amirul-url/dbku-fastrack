@@ -19035,7 +19035,9 @@ function PaymentDetails({
         ...(hasOriginalPaymentReceipt
           ? [
               {
-                label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+                label: showRenewalReceiptInDocuments
+                  ? t("applicant.paymentReceiptDetails", "Payment Receipt Details")
+                  : t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
                 file: receiptFile,
                 available: true,
                 details: paymentReferenceDetails,
