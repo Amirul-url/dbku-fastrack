@@ -8360,12 +8360,13 @@ function buildDecisionLogSignatureOverlayHtml(signatureDetails, signatureSource,
     .map((item) => {
       const width = Number(item.width ?? 38);
       const safeWidth = Number.isFinite(width) ? width : 38;
-      const downloadWidth = Math.min(200, safeWidth * 1.35);
+      const downloadWidth = Math.min(200, Math.max(12, safeWidth));
+      const itemSource = getSignatureItemSource(item) || signatureSource;
       return `
         <img
-          src="${escapeHtml(item.dataUrl || signatureSource)}"
+          src="${escapeHtml(itemSource)}"
           alt="${alt}"
-          style="left:${Number(item.x ?? 50)}%;top:${Number(item.y ?? 50)}%;width:${downloadWidth}%;max-height:100%;max-width:100%;transform:translate(-50%, -50%);"
+          style="left:${Number(item.x ?? 50)}%;top:${Number(item.y ?? 50)}%;width:${downloadWidth}%;transform:translate(-50%, -50%);"
         />
       `;
     })
@@ -9148,19 +9149,23 @@ function DecisionLogSignatureConfirmation({
             <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
               {uploadedItems.length > 0 ? (
                 uploadedItems.map((item, index) => (
-                  <img
+                  <div
                     key={item.id || `${item.fileName || "signature"}-${index}`}
-                    src={item.dataUrl || signatureSource}
-                    alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                    className="absolute max-h-full max-w-full select-none object-contain"
-                    draggable={false}
                     style={{
+                      position: "absolute",
                       left: `${item.x ?? 50}%`,
                       top: `${item.y ?? 50}%`,
                       width: `${getUploadedItemWidth(item)}%`,
                       transform: "translate(-50%, -50%)",
                     }}
-                  />
+                  >
+                    <img
+                      src={getSignatureItemSource(item) || signatureSource}
+                      alt={t("workspace.signature.previewAlt", "Digital signature preview")}
+                      className="block h-auto w-full max-w-none select-none object-contain"
+                      draggable={false}
+                    />
+                  </div>
                 ))
               ) : (
                 <img
