@@ -19770,9 +19770,12 @@ function IssuedPaymentDocumentList({ t, documents }) {
           {availableDocuments.map((item) => {
             const hasDetails = item.details?.length > 0;
             const hasRelatedDocuments = item.relatedDocuments?.length > 0;
+            const isDropdownRow = hasDetails || hasRelatedDocuments;
             const detailsOpen =
-              (hasDetails || hasRelatedDocuments) && expandedDetailRows[item.label] === true;
+              isDropdownRow && expandedDetailRows[item.label] === true;
             const isDocumentGroup = item.isDocumentGroup === true;
+            const hasDirectDownload =
+              Boolean(item.onDownload) || Boolean(getPaymentDocumentSource(item.file));
 
             return (
               <div
@@ -19781,7 +19784,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    {hasDetails || hasRelatedDocuments ? (
+                    {isDropdownRow ? (
                       <button
                         type="button"
                         onClick={() =>
@@ -19803,7 +19806,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
                     )}
                   </div>
 
-                  {!isDocumentGroup && (
+                  {!isDropdownRow && (
                     <div className="flex flex-wrap gap-2">
                       {item.type === "application_form" ? (
                         <Button
@@ -19838,27 +19841,29 @@ function IssuedPaymentDocumentList({ t, documents }) {
 
                 {detailsOpen && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
-                    {hasDetails && (isDocumentGroup ? (
+                    {hasDetails && (isDocumentGroup || hasDirectDownload ? (
                       <div className="border-b border-slate-200 pb-3">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-sm font-semibold text-slate-500">
                             {item.detailLabel || item.label}
                           </p>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            icon="download"
-                            className="min-h-9 px-3 py-1 text-xs"
-                            onClick={() => {
-                              if (item.onDownload) {
-                                item.onDownload();
-                                return;
-                              }
-                              downloadPaymentDocument(item.file, item.detailLabel || item.label, t);
-                            }}
-                          >
-                            {t("common.download", "Download")}
-                          </Button>
+                          {hasDirectDownload && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              icon="download"
+                              className="min-h-9 px-3 py-1 text-xs"
+                              onClick={() => {
+                                if (item.onDownload) {
+                                  item.onDownload();
+                                  return;
+                                }
+                                downloadPaymentDocument(item.file, item.detailLabel || item.label, t);
+                              }}
+                            >
+                              {t("common.download", "Download")}
+                            </Button>
+                          )}
                         </div>
                         <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
                           {item.details.map(([label, value]) => (
