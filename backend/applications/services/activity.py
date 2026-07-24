@@ -19,6 +19,11 @@ STAFF_SAFE_APPLICANT_ACTIVITY_TITLES = {
     "application resubmitted",
     "payment receipt submitted",
 }
+STAFF_SAFE_RENEWAL_WORKFLOW_TITLES = {
+    "renewal early payment receipt approved",
+    "renewal early payment receipt rejected",
+    "renewal official receipt and license generated",
+}
 
 
 def append_application_activity(application, actor, title, description="", category="user", metadata=None):
@@ -140,7 +145,12 @@ def scope_activity_log_for_user(activity_log, user):
             continue
 
         if role in STAFF_ACTIVITY_ROLES:
-            if actor_matches_user or is_rejected_activity(activity) or is_staff_safe_applicant_activity(activity):
+            if (
+                actor_matches_user
+                or is_rejected_activity(activity)
+                or is_staff_safe_applicant_activity(activity)
+                or is_staff_safe_renewal_workflow_activity(activity)
+            ):
                 scoped.append(activity)
             continue
 
@@ -164,6 +174,13 @@ def is_staff_safe_applicant_activity(activity):
         title in STAFF_SAFE_APPLICANT_ACTIVITY_TITLES
         and (category == "user" or actor_role in APPLICANT_ACTIVITY_ROLES)
     )
+
+
+def is_staff_safe_renewal_workflow_activity(activity):
+    title = str(activity.get("title") or "").strip().lower()
+    category = str(activity.get("category") or "").strip().lower()
+
+    return category == "workflow" and title in STAFF_SAFE_RENEWAL_WORKFLOW_TITLES
 
 
 def clean_remark(value):

@@ -400,6 +400,19 @@ class ApplicationActivityVisibilityTests(TestCase):
                         "created_at": "2026-06-24T00:30:00Z",
                     },
                     {
+                        "title": "Renewal early payment receipt approved",
+                        "description": "FIN approved the renewal early payment receipt.",
+                        "category": "workflow",
+                        "actor_id": self.mphlg.id,
+                        "actor_role": "admin",
+                        "actor_department": "FIN",
+                        "created_at": "2026-06-24T00:25:00Z",
+                        "metadata": {
+                            "recommendation": "Approve Renewal Receipt",
+                            "remarks": "Payment checked.",
+                        },
+                    },
+                    {
                         "title": "Application sent to technical review",
                         "description": "Reviewed by KU(IKL).",
                         "category": "workflow",
@@ -461,6 +474,7 @@ class ApplicationActivityVisibilityTests(TestCase):
         self.assertEqual(
             [activity["description"] for activity in item["activity_log"]],
             [
+                "FIN approved the renewal early payment receipt.",
                 "Reviewed by KU(IKL).",
                 "You sent your application to ALiS for review.",
             ],
