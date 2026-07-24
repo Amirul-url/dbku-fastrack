@@ -266,6 +266,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     redirectTo: "",
   });
+  const [firstReminderGeneratedModal, setFirstReminderGeneratedModal] = useState({
+    open: false,
+    reference: "",
+    redirectTo: "",
+  });
   const [licenseActionConfirmationModal, setLicenseActionConfirmationModal] = useState({
     open: false,
     action: null,
@@ -2361,6 +2366,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setError("");
       setSuccess("");
       setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+      setFirstReminderGeneratedModal({ open: false, reference: "", redirectTo: "" });
       setReceiptVerificationResultModal({ open: false, result: "", redirectTo: "" });
       setApplicationRejectedModal({
         open: false,
@@ -2449,6 +2455,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowReceiptRejectedSuccess = shouldShowReceiptRejectedModal(action, body);
       const shouldShowReceiptVerifiedSuccess = shouldShowReceiptVerifiedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
+      const shouldShowFirstReminderGeneratedSuccess =
+        action.key === "generate_1st_reminder_letter";
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
       const shouldShowInvoiceGeneratedSuccess = shouldShowInvoiceGeneratedModal(action, body);
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
@@ -2465,6 +2473,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowApprovalSupportAmendmentModal(action, body);
       const shouldShowWorkspaceResultModal =
         shouldShowLicenseIssuedSuccess ||
+        shouldShowFirstReminderGeneratedSuccess ||
         shouldShowReceiptVerifiedSuccess ||
         shouldShowApplicationRejectedSuccess ||
         shouldShowReceiptRejectedSuccess ||
@@ -2512,6 +2521,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (shouldShowLicenseIssuedSuccess) {
         setLicenseIssuedSuccessModal({
           open: true,
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+        });
+      }
+      if (shouldShowFirstReminderGeneratedSuccess) {
+        setFirstReminderGeneratedModal({
+          open: true,
+          reference: getApplicationReference(selectedRecord),
           redirectTo:
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
@@ -2638,6 +2657,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (shouldShowLicenseIssuedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
+      if (shouldShowFirstReminderGeneratedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+        return true;
+      }
       if (shouldShowReceiptVerifiedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
@@ -2741,6 +2763,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   function closeLicenseIssuedSuccessModal() {
     const redirectTo = licenseIssuedSuccessModal.redirectTo;
     setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+    if (redirectTo) {
+      navigate(redirectTo);
+    }
+  }
+
+  function closeFirstReminderGeneratedModal() {
+    const redirectTo = firstReminderGeneratedModal.redirectTo;
+    setFirstReminderGeneratedModal({ open: false, reference: "", redirectTo: "" });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -4165,6 +4195,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
+      {firstReminderGeneratedModal.open && (
+        <FirstReminderGeneratedSuccessModal
+          reference={firstReminderGeneratedModal.reference}
+          t={t}
+          onClose={closeFirstReminderGeneratedModal}
+        />
+      )}
+
       {licenseActionConfirmationModal.open && (
         <LicenseActionConfirmationModal
           action={licenseActionConfirmationModal.action}
@@ -4666,6 +4704,47 @@ function LicenseIssuedSuccessModal({ t, onClose }) {
         </h2>
         <p className="mt-5 text-2xl font-medium text-black">
           {t("workspace.license.issueSuccessMessage", "License Has Been Issued!")}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-8 inline-flex min-h-16 w-48 items-center justify-center rounded-xl bg-[#8bd86f] px-8 text-2xl font-semibold text-white transition hover:bg-[#7bcb60] focus:outline-none focus:ring-4 focus:ring-lime-200"
+        >
+          {t("common.ok", "OK")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FirstReminderGeneratedSuccessModal({ reference, t, onClose }) {
+  const displayReference = reference || "Application";
+  const message = t(
+    "workspace.license.firstReminderGeneratedSuccessMessage",
+    "1st Reminder Letter For Application {reference} Has Been Generated."
+  ).replace("{reference}", displayReference);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="first-reminder-generated-success-title"
+    >
+      <div className="w-full max-w-[830px] rounded-lg border-2 border-slate-900 bg-white px-6 py-8 text-center shadow-xl sm:px-10">
+        <img
+          src="/green_tick.png"
+          alt=""
+          className="mx-auto h-36 w-36 object-contain"
+        />
+        <h2
+          id="first-reminder-generated-success-title"
+          className="mt-5 text-4xl font-extrabold uppercase tracking-normal text-black"
+        >
+          {t("workspace.license.firstReminderGeneratedSuccessTitle", "SUCCESS!")}
+        </h2>
+        <p className="mt-5 text-2xl font-medium leading-snug text-black">
+          {message}
         </p>
         <button
           type="button"
