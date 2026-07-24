@@ -11562,7 +11562,7 @@ function getRenewalEarlyPaymentReceipts(app) {
   );
   const seen = new Set();
 
-  return [...receipts, ...reminderReceipts]
+  const activeRenewalReceipts = [...receipts, ...reminderReceipts]
     .map(normalizeRenewalEarlyPaymentReceipt)
     .filter(Boolean)
     .filter((receipt) => {
@@ -11571,6 +11571,78 @@ function getRenewalEarlyPaymentReceipts(app) {
       seen.add(key);
       return true;
     });
+
+  const latestRejectedReceipt = getLatestRejectedRenewalEarlyPaymentReceipt(app);
+  if (
+    latestRejectedReceipt &&
+    !hasRenewalReceiptSubmittedAfterLatestRejection(app, { activeReceipts: activeRenewalReceipts })
+  ) {
+    return [latestRejectedReceipt, ...activeRenewalReceipts];
+  }
+
+  return activeRenewalReceipts;
+}
+
+function getRenewalReceiptSortTime(receipt) {
+  const keys = [
+    "rejected_at",
+    "reviewed_at",
+    "submitted_at",
+    "uploaded_at",
+    "updated_at",
+    "created_at",
+  ];
+  const times = keys
+    .map((key) => Date.parse(receipt?.[key] || ""))
+    .filter((time) => Number.isFinite(time));
+  return times.length ? Math.max(...times) : 0;
+}
+
+function getRejectedRenewalEarlyPaymentReceipts(app) {
+  const renewal = getLicenseRenewal(app);
+  const receipts = Array.isArray(renewal.rejected_early_payment_receipts)
+    ? renewal.rejected_early_payment_receipts
+    : [];
+  const reminderReceipts = Object.values(getLicenseRenewalReminders(app)).flatMap((reminder) =>
+    Array.isArray(reminder?.rejected_early_payment_receipts)
+      ? reminder.rejected_early_payment_receipts
+      : []
+  );
+  const seen = new Set();
+
+  return [...receipts, ...reminderReceipts]
+    .map(normalizeRenewalEarlyPaymentReceipt)
+    .filter(Boolean)
+    .filter((receipt) => {
+      const key = String(
+        receipt.document_id ||
+          receipt.url ||
+          `${receipt.name}-${receipt.uploaded_at}-${receipt.rejected_at || ""}`
+      );
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => getRenewalReceiptSortTime(b) - getRenewalReceiptSortTime(a));
+}
+
+function getLatestRejectedRenewalEarlyPaymentReceipt(app) {
+  return getRejectedRenewalEarlyPaymentReceipts(app)[0] || null;
+}
+
+function hasRenewalReceiptSubmittedAfterLatestRejection(app, options = {}) {
+  const latestRejectedReceipt = getLatestRejectedRenewalEarlyPaymentReceipt(app);
+  const rejectedAt = getRenewalReceiptSortTime(latestRejectedReceipt);
+  if (!rejectedAt) return false;
+
+  const activeReceipts = Array.isArray(options.activeReceipts)
+    ? options.activeReceipts
+    : getRenewalEarlyPaymentReceipts(app);
+
+  return activeReceipts.some((receipt) => {
+    if (normalizeStatus(receipt.status) === "rejected") return false;
+    return getRenewalReceiptSortTime(receipt) > rejectedAt;
+  });
 }
 
 function isRenewalPaymentTaskForWorkspace(app, config, department) {
