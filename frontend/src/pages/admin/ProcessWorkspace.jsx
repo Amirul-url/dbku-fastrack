@@ -2611,6 +2611,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         comment: cleanedComment,
         technicalSite: preparedTechnicalSite,
         department: userDepartment,
+        applications,
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
@@ -5559,6 +5560,39 @@ function getGeneratedOfficialReceiptNumber(app = null) {
   const referenceDigits = String(getApplicationReference(app) || app?.reference_no || "")
     .match(/(\d+)$/)?.[1];
   return String(referenceDigits || app?.id || 1).padStart(6, "0");
+}
+
+function getReceiptSequenceValue(value) {
+  const match = String(value || "").match(/(\d{1,})/);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+function collectApplicationReceiptNumbers(app = null) {
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || {};
+  const payment = formData.payment || {};
+  const renewalPayment = formData.license_renewal?.payment || {};
+
+  return [
+    approvalLetter.manual_receipt?.receipt_no,
+    payment.official_receipt_no,
+    payment.official_receipt?.receipt_no,
+    renewalPayment.official_receipt_no,
+    renewalPayment.official_receipt?.receipt_no,
+    renewalPayment.manual_official_receipt?.receipt_no,
+  ].filter(Boolean);
+}
+
+function getNextGeneratedOfficialReceiptNumber(applications = [], currentApp = null) {
+  const records = Array.isArray(applications) ? applications : [];
+  const highest = [...records, currentApp]
+    .flatMap(collectApplicationReceiptNumbers)
+    .reduce((max, receiptNo) => Math.max(max, getReceiptSequenceValue(receiptNo)), 0);
+
+  if (highest > 0) return String(highest + 1).padStart(6, "0");
+
+  const fallback = getReceiptSequenceValue(getGeneratedOfficialReceiptNumber(currentApp));
+  return String((fallback || 0) + 1).padStart(6, "0");
 }
 
 function formatManualApprovalLetterDate(value) {
@@ -15552,8 +15586,9 @@ const configs = {
           const expiry = addCalendarYears(expiryDate, 1);
           const licenseId = savedLicense.license_id || getLicenseId(app);
           const officialReceiptNo =
+            savedRenewalManualReceipt.receipt_no ||
             payment.official_receipt_no ||
-            `${getGeneratedOfficialReceiptNumber(app)}-R${months}`;
+            getNextGeneratedOfficialReceiptNumber(data?.applications, app);
           const recommendation = data.decision || "Generate Renewal Official Receipt and Advertisement License";
           const remarks = cleanRemark(data.comment);
           const digitalSignature = data.approvalSupportSignature || null;
