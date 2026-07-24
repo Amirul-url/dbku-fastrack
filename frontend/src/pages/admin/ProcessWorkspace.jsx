@@ -940,6 +940,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const isPtIssueLicenseWorkspace =
     isPtPaymentVerifiedPersonalTask &&
     workspaceActions.some((action) => action.key === "issue_license");
+  const isPtRenewalCompletionWorkspace =
+    fromPersonalTask &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    workspaceActions.some((action) => action.key === "complete_renewal_payment");
   const isApprovalLicenseManagement =
     hasApprovalLicenseManagementRecord && !isPtIssueLicenseWorkspace;
   const isIssuedLicenseRecord = ["license_issued", "license_revoked"].includes(
@@ -3505,6 +3509,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     onEditReceipt={() => setShowManualReceiptEditor(true)}
                     onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
+                    enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
                     licenseManagementActions={
                       isPtIssueLicenseWorkspace || fromPersonalTask ? [] : workspaceActions
                     }
@@ -3686,6 +3691,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
                           paymentReceiptDecision={decision}
+                          enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
                         />
                       )
                     )
@@ -4148,6 +4154,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
                         paymentReceiptDecision={decision}
+                        enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
                       />
                     )
                   )}
@@ -18913,6 +18920,7 @@ function PaymentDetails({
   onOpenForm,
   paymentReceiptDecision = "",
   readOnly = false,
+  enableRenewalCompletionDocuments = false,
   licenseManagementActions = [],
   onLicenseManagementAction = null,
 }) {
@@ -18970,6 +18978,7 @@ function PaymentDetails({
     normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
     status === "payment_verified";
   const showRenewalCompletionDocuments =
+    enableRenewalCompletionDocuments &&
     !readOnly &&
     normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
     getLicenseRenewalPaymentStatus(app) === "verified";
