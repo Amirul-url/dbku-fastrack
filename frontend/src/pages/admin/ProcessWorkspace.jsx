@@ -884,6 +884,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     tableFirstWorkspace
       ? Boolean(selectedRecord) && (canSubmitWorkspaceAction || canViewSelectedWorkspace)
       : !isApprovalViewOnlyWorkspace && canSubmitWorkspaceAction;
+  const showSelectedRecordLoadingShell =
+    tableFirstWorkspace &&
+    Boolean(selectedId) &&
+    !selectedRecord &&
+    (loading || detailLoading);
+  const showTableFirstDetailView = showActionPanel || showSelectedRecordLoadingShell;
   const showApprovalTechnicalReport =
     isSimpleApprovalWorkspace &&
     shouldShowApprovalTechnicalReport(userDepartment, selectedRecord);
@@ -2840,7 +2846,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         />
       )}
 
-      {isELicenseWorkspace && !showActionPanel && (
+      {isELicenseWorkspace && !showTableFirstDetailView && (
         <PageHeader
           eyebrow={t(config.listEyebrowKey, config.listEyebrow)}
           title={t(config.listTitleKey, config.listTitle)}
@@ -2868,7 +2874,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             : "mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3"
         }
       >
-        {!isFocusedPersonalWorkspace && !(tableFirstWorkspace && showActionPanel) && (
+        {!isFocusedPersonalWorkspace && !(tableFirstWorkspace && showTableFirstDetailView) && (
           <Panel
             title={isSimpleApprovalWorkspace ? t("admin.dashboard.awaitingApproval", "Awaiting Approval") : t(config.queueTitleKey, config.queueTitle)}
             description={isSimpleApprovalWorkspace ? "" : t("workspace.queue.instructions")}
@@ -3084,7 +3090,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           </div>
         )}
 
-        {!isFocusedPersonalWorkspace && tableFirstWorkspace && showActionPanel && (
+        {!isFocusedPersonalWorkspace && tableFirstWorkspace && showTableFirstDetailView && (
           <div className="space-y-4">
             <div className="flex justify-start">
               <Button
@@ -3118,7 +3124,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           </div>
         )}
 
-        {showActionPanel && (
+        {showTableFirstDetailView && (
           <Panel
             compact
             title={t("workspace.actionPanel")}
@@ -3133,7 +3139,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             }
           >
             {!selectedRecord ? (
-              <p className="text-sm text-slate-500">{t("workspace.selectApplication")}</p>
+              <p className="text-sm text-slate-500">
+                {showSelectedRecordLoadingShell
+                  ? t("common.loadingSelectedApplication")
+                  : t("workspace.selectApplication")}
+              </p>
             ) : (
               <div className="space-y-4">
                 <ApplicationSummary
