@@ -2191,8 +2191,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   );
   const documents = [
     {
-      label: t("applicant.submittedApplicationForm", "Application Form"),
-      name: t("applicant.submittedApplicationSteps", "Application Details"),
+      label: t("applicant.submittedApplicationForm", "Application Form Details"),
       available: true,
       type: "submitted_application",
     },
@@ -2304,11 +2303,6 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                 <p className="text-sm font-semibold uppercase text-slate-500">
                   {item.label}
                 </p>
-                {item.type === "submitted_application" && (
-                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                    {item.name || item.label}
-                  </p>
-                )}
               </div>
               {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
                 <div className="flex flex-wrap gap-2">

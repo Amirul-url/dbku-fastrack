@@ -18712,8 +18712,7 @@ function PaymentDetails({
       t={t}
       documents={[
         {
-          label: t("applicant.applicationForm", "Application Form"),
-          displayName: t("workspace.applicationDetails", "Application Details"),
+          label: t("applicant.submittedApplicationForm", "Application Form Details"),
           available: true,
           type: "application_form",
           onView: onOpenForm,
@@ -19061,11 +19060,6 @@ function IssuedPaymentDocumentList({ t, documents }) {
                 <p className="text-sm font-semibold uppercase text-slate-500">
                   {item.label}
                 </p>
-                {item.type === "application_form" && (
-                  <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                    {item.displayName || item.label}
-                  </p>
-                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -21293,8 +21287,7 @@ function FirstReminderTaskPanel({
   const documentRows = [
     {
       key: "application_form",
-      label: t("applicant.applicationForm", "Application Form"),
-      displayName: t("workspace.applicationDetails", "Application Details"),
+      label: t("applicant.submittedApplicationForm", "Application Form Details"),
       available: true,
       onView: onOpenForm,
     },
