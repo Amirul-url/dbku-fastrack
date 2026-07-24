@@ -21401,7 +21401,7 @@ function FirstReminderTaskPanel({
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
               <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                  <p className="text-[13px] font-semibold leading-5 tracking-wide text-slate-500">
                     {t("workspace.payment.documents", "List of Document")}
                   </p>
                 </div>
@@ -21423,7 +21423,7 @@ function FirstReminderTaskPanel({
                       className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0">
-                        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                        <p className="text-[13px] font-semibold leading-5 tracking-wide text-slate-500">
                           {item.label}
                           {item.required && <span className="ml-1 text-red-600">*</span>}
                         </p>
@@ -21480,8 +21480,8 @@ function FirstReminderTaskPanel({
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
               <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
-                    {t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase()} <span className="text-red-600">*</span>
+                  <p className="text-[13px] font-bold leading-5 text-slate-500">
+                    {t("workspace.license.reminderLetterTitle", "{label} Letter", { label })} <span className="text-red-600">*</span>
                   </p>
                   <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
                     {documentDescription}
