@@ -2160,6 +2160,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const [expanded, setExpanded] = useState(true);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
+  const payment = app?.form_data?.payment || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
   const manualLicense = license.manual_license || {};
   const renewalManualLicense = getLicenseRenewalManualAdvertisementLicense(app);
@@ -2167,6 +2168,11 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const officialReceiptFile = getSentOfficialReceiptFile(app);
   const originalPaymentReceiptFile = getOriginalPaymentReceiptDocumentFile(app);
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
+  const originalPaymentReceiptDetails = [
+    [t("applicant.paymentReferenceId", "Reference ID"), payment.reference_id],
+    [t("applicant.paymentRecipientReference", "Recipient Reference"), payment.recipient_reference],
+    [t("applicant.paymentDetails", "Payment Details"), payment.payment_details],
+  ].filter(([, value]) => String(value || "").trim());
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
     manualReceipt.document_html ||
@@ -2224,6 +2230,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             file: originalPaymentReceiptFile,
             type: "original_payment_receipt",
             hideFileName: true,
+            details: originalPaymentReceiptDetails,
             onDownload: () =>
               downloadApplicantReceiptPrintFlow(
                 originalPaymentReceiptFile,
@@ -2297,62 +2304,71 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           {documents.map((item) => (
             <div
               key={item.label}
-              className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+              className="px-3 py-2"
             >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-500">
-                  {item.label}
-                </p>
-              </div>
-              {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
-                <div className="flex flex-wrap gap-2">
-                  {item.type === "submitted_application" && (
-                    <button
-                      type="button"
-                      onClick={() => onViewApplicationSteps?.(app)}
-                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        visibility
-                      </span>
-                      {t("common.view", "View")}
-                    </button>
-                  )}
-                  {item.type !== "submitted_application" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (item.onDownload) {
-                          item.onDownload();
-                          return;
-                        }
-
-                        if (
-                          item.type === "advertisement_license" ||
-                          item.type === "renewal_advertisement_license"
-                        ) {
-                          if (item.file) {
-                            downloadApplicantPaymentDocument(item.file, item.label, t);
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-500">
+                    {item.label}
+                  </p>
+                </div>
+                {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
+                  <div className="flex flex-wrap gap-2">
+                    {item.type === "submitted_application" && (
+                      <button
+                        type="button"
+                        onClick={() => onViewApplicationSteps?.(app)}
+                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">
+                          visibility
+                        </span>
+                        {t("common.view", "View")}
+                      </button>
+                    )}
+                    {item.type !== "submitted_application" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (item.onDownload) {
+                            item.onDownload();
                             return;
                           }
-                          downloadApplicantAdvertisementLicenseDocument(app, t, {
-                            renewal: item.type === "renewal_advertisement_license",
-                          });
-                          return;
-                        }
 
-                        item.file
-                          ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                          : downloadApplicantManualPaymentDocument(app, item.type, t);
-                      }}
-                      className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        download
-                      </span>
-                      {t("common.download", "Download")}
-                    </button>
-                  )}
+                          if (
+                            item.type === "advertisement_license" ||
+                            item.type === "renewal_advertisement_license"
+                          ) {
+                            if (item.file) {
+                              downloadApplicantPaymentDocument(item.file, item.label, t);
+                              return;
+                            }
+                            downloadApplicantAdvertisementLicenseDocument(app, t, {
+                              renewal: item.type === "renewal_advertisement_license",
+                            });
+                            return;
+                          }
+
+                          item.file
+                            ? downloadApplicantPaymentDocument(item.file, item.label, t)
+                            : downloadApplicantManualPaymentDocument(app, item.type, t);
+                        }}
+                        className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">
+                          download
+                        </span>
+                        {t("common.download", "Download")}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              {item.details?.length > 0 && (
+                <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                  {item.details.map(([label, value]) => (
+                    <Info key={label} label={label} value={value} />
+                  ))}
                 </div>
               )}
             </div>
