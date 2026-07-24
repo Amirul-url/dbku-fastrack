@@ -19813,24 +19813,16 @@ function IssuedPaymentReceiptSection({
 
 function PaymentVerificationDocumentList({ t, documents, saving }) {
   return (
-    <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-3">
-        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-          {t("workspace.payment.documents", "List of Document")}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 py-3">
-        {documents.map((item) => (
-          <PaymentVerificationDocumentRow
-            key={item.label}
-            item={item}
-            t={t}
-            saving={saving}
-          />
-        ))}
-      </div>
-    </section>
+    <div className="grid grid-cols-1 gap-3">
+      {documents.map((item) => (
+        <PaymentVerificationDocumentRow
+          key={item.label}
+          item={item}
+          t={t}
+          saving={saving}
+        />
+      ))}
+    </div>
   );
 }
 
