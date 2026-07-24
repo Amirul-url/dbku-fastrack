@@ -19039,6 +19039,29 @@ function PaymentDetails({
                 file: receiptFile,
                 available: true,
                 details: paymentReferenceDetails,
+                relatedDocuments: showRenewalReceiptInDocuments
+                  ? [
+                      {
+                        label: t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+                        file: renewalReceiptDocument,
+                        details: renewalPaymentReferenceDetails,
+                        displayName:
+                          renewalReceiptDocument.name ||
+                          t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+                        onDownload: () =>
+                          printPaymentReceiptDocument(
+                            renewalReceiptDocument,
+                            renewalReceiptDocument.name || "renewal-receipt.pdf",
+                            t(
+                              "workspace.license.renewalEarlyPaymentReceiptPrintTitle",
+                              "{reference} Renewal Early Payment Receipt",
+                              { reference: getApplicationReference(app) }
+                            ),
+                            t
+                          ),
+                      },
+                    ]
+                  : [],
                 displayName:
                   receiptFile?.name ||
                   payment.receipt_reference ||
@@ -19048,30 +19071,6 @@ function PaymentDetails({
                     receiptFile,
                     payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
                     `${getApplicationReference(app)} ${t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant")}`,
-                    t
-                  ),
-              },
-            ]
-          : []),
-        ...(showRenewalReceiptInDocuments
-          ? [
-              {
-                label: t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
-                file: renewalReceiptDocument,
-                available: true,
-                details: renewalPaymentReferenceDetails,
-                displayName:
-                  renewalReceiptDocument.name ||
-                  t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
-                onDownload: () =>
-                  printPaymentReceiptDocument(
-                    renewalReceiptDocument,
-                    renewalReceiptDocument.name || "renewal-receipt.pdf",
-                    t(
-                      "workspace.license.renewalEarlyPaymentReceiptPrintTitle",
-                      "{reference} Renewal Early Payment Receipt",
-                      { reference: getApplicationReference(app) }
-                    ),
                     t
                   ),
               },
@@ -19342,7 +19341,7 @@ function PaymentQrPanel({ app, t }) {
 
 function IssuedPaymentDocumentList({ t, documents }) {
   const [expanded, setExpanded] = useState(false);
-  const [collapsedDetailRows, setCollapsedDetailRows] = useState({});
+  const [expandedDetailRows, setExpandedDetailRows] = useState({});
   const availableDocuments = documents.filter((item) =>
     getPaymentDocumentSource(item.file) || item.available || item.onView || item.onDownload
   );
@@ -19373,7 +19372,9 @@ function IssuedPaymentDocumentList({ t, documents }) {
         <div className="divide-y divide-slate-200">
           {availableDocuments.map((item) => {
             const hasDetails = item.details?.length > 0;
-            const detailsOpen = hasDetails && collapsedDetailRows[item.label] !== true;
+            const hasRelatedDocuments = item.relatedDocuments?.length > 0;
+            const detailsOpen =
+              (hasDetails || hasRelatedDocuments) && expandedDetailRows[item.label] === true;
 
             return (
               <div
@@ -19382,11 +19383,11 @@ function IssuedPaymentDocumentList({ t, documents }) {
               >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    {hasDetails ? (
+                    {hasDetails || hasRelatedDocuments ? (
                       <button
                         type="button"
                         onClick={() =>
-                          setCollapsedDetailRows((current) => ({
+                          setExpandedDetailRows((current) => ({
                             ...current,
                             [item.label]: current[item.label] !== true,
                           }))
@@ -19436,10 +19437,49 @@ function IssuedPaymentDocumentList({ t, documents }) {
                 </div>
 
                 {detailsOpen && (
-                  <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                    {item.details.map(([label, value]) => (
-                      <Info key={label} label={label} value={value} />
-                    ))}
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    {hasDetails && (
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {item.details.map(([label, value]) => (
+                          <Info key={label} label={label} value={value} />
+                        ))}
+                      </div>
+                    )}
+                    {hasRelatedDocuments && (
+                      <div className={hasDetails ? "mt-3 divide-y divide-slate-100 border-t border-slate-100" : "divide-y divide-slate-100"}>
+                        {item.relatedDocuments.map((related) => (
+                          <div key={related.label} className="py-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm font-semibold text-slate-500">
+                                {related.label}
+                              </p>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                icon="download"
+                                className="min-h-9 px-3 py-1 text-xs"
+                                onClick={() => {
+                                  if (related.onDownload) {
+                                    related.onDownload();
+                                    return;
+                                  }
+                                  downloadPaymentDocument(related.file, related.label, t);
+                                }}
+                              >
+                                {t("common.download", "Download")}
+                              </Button>
+                            </div>
+                            {related.details?.length > 0 && (
+                              <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                                {related.details.map(([label, value]) => (
+                                  <Info key={label} label={label} value={value} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
