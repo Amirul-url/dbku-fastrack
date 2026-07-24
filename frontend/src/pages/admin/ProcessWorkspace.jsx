@@ -3232,6 +3232,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     if (approvalSupportSignatureError) setApprovalSupportSignatureError("");
                   }}
                   onSignatureError={setApprovalSupportSignatureError}
+                  onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                   onGenerate={(documentHtml, submitData = {}) => {
                     if (!selectedRenewalReminderAction) return;
                     submitAction(selectedRenewalReminderAction, {
@@ -21206,9 +21207,11 @@ function FirstReminderTaskPanel({
   onRemarksError,
   onSignatureChange,
   onSignatureError,
+  onOpenForm,
   onGenerate,
 }) {
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("qr");
+  const [documentsExpanded, setDocumentsExpanded] = useState(true);
   const [reviewDocument, setReviewDocument] = useState(null);
   const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
@@ -21271,6 +21274,113 @@ function FirstReminderTaskPanel({
     });
   }
 
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const license = app?.form_data?.license || {};
+  const payment = app?.form_data?.payment || {};
+  const letterFile = getStoredPaymentDocument(app, "letter");
+  const billFile = getStoredPaymentDocument(app, "bill");
+  const officialReceiptFile =
+    getStoredPaymentDocument(app, "official_receipt") ||
+    approvalLetter.official_receipt_file ||
+    null;
+  const licenseFile = license.license_file || null;
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const manualLicense = license.manual_license || {};
+  const receiptFile = payment.receipt_file || null;
+  const receiptSource = getPaymentReceiptSource(receiptFile);
+  const releasedRenewalLetters = getReleasedRenewalLetters(app);
+  const reminderDocumentKey = `renewal-reminder-${months}`;
+  const documentRows = [
+    {
+      key: "application_form",
+      label: t("applicant.applicationForm", "Application Form"),
+      displayName: t("workspace.applicationDetails", "Application Details"),
+      available: true,
+      onView: onOpenForm,
+    },
+    {
+      key: "approval_letter",
+      label: t("workspace.payment.approvalLetter", "Approval Letter"),
+      file: letterFile,
+      available: hasManualApprovalLetter(app),
+      onDownload: () => printManualApprovalLetterDocument(app, t),
+    },
+    {
+      key: "bill",
+      label: t("workspace.payment.billDocument", "Bill"),
+      file: billFile,
+      available: hasManualBill(app),
+      onDownload: () => printManualBillDocument(app, t),
+    },
+    {
+      key: "official_receipt",
+      label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+      file: officialReceiptFile,
+      available: Boolean(
+        getPaymentDocumentSource(officialReceiptFile) ||
+          manualReceipt.document_html ||
+          manualReceipt.saved_at
+      ),
+      onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
+    },
+    ...(receiptSource
+      ? [
+          {
+            key: "original_payment_receipt",
+            label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+            file: receiptFile,
+            available: true,
+            onDownload: () =>
+              printPaymentReceiptDocument(
+                receiptFile,
+                payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
+                `${getApplicationReference(app)} ${t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant")}`,
+                t
+              ),
+          },
+        ]
+      : []),
+    {
+      key: "advertisement_license",
+      label: t("workspace.license.documentTitle", "Advertisement License"),
+      file: licenseFile,
+      available: Boolean(
+        getPaymentDocumentSource(licenseFile) ||
+          manualLicense.document_html ||
+          manualLicense.saved_at
+      ),
+      onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
+    },
+    ...releasedRenewalLetters
+      .filter((letter) => Number(letter.months) !== Number(months))
+      .map((letter) => ({
+        key: `released-renewal-${letter.months}`,
+        label: `${letter.title} Letter`,
+        available: true,
+        onDownload: () => printRenewalReminderDocument(letter.html, `${getApplicationReference(app)} ${letter.title} Letter`, t),
+      })),
+    {
+      key: reminderDocumentKey,
+      label: t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase(),
+      required: true,
+      available: true,
+      displayName: documentDescription,
+      onDownload: () =>
+        printRenewalReminderDocument(
+          documentHtml,
+          `${getApplicationReference(app)} ${documentTitle}`,
+          t
+        ),
+      onReview: confirmationMode ? null : openReview,
+    },
+  ].filter((item) =>
+    item.available ||
+    item.onView ||
+    item.onReview ||
+    item.onDownload ||
+    getPaymentDocumentSource(item.file)
+  );
+
   return (
     <>
       <div className="space-y-5 text-sm">
@@ -21284,49 +21394,82 @@ function FirstReminderTaskPanel({
 
           <div className="min-w-0">
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-                  {t("workspace.payment.documents", "List of Document")}
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
-                    {t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase()} <span className="text-red-600">*</span>
-                  </p>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
-                    {documentDescription}
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                    {t("workspace.payment.documents", "List of Document")}
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon="download"
-                    className="min-h-9 px-4 py-1.5"
-                    onClick={() =>
-                      printRenewalReminderDocument(
-                        documentHtml,
-                        `${getApplicationReference(app)} ${documentTitle}`,
-                        t
-                      )
-                    }
-                  >
-                    {t("common.download", "Download")}
-                  </Button>
-                  {!confirmationMode && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      icon="edit"
-                      className="min-h-9 px-4 py-1.5"
-                      onClick={openReview}
+                <button
+                  type="button"
+                  onClick={() => setDocumentsExpanded((value) => !value)}
+                  className="inline-flex min-h-8 items-center gap-1 self-start rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                  aria-expanded={documentsExpanded}
+                >
+                  <Icon name={documentsExpanded ? "expand_less" : "expand_more"} className="text-lg" />
+                  {documentsExpanded ? t("common.hide", "Hide") : t("common.show", "Show")}
+                </button>
+              </div>
+              {documentsExpanded && (
+                <div className="divide-y divide-slate-200">
+                  {documentRows.map((item) => (
+                    <div
+                      key={item.key}
+                      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
-                      {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                    </Button>
-                  )}
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
+                          {item.label}
+                          {item.required && <span className="ml-1 text-red-600">*</span>}
+                        </p>
+                        {item.displayName && (
+                          <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                            {item.displayName}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {item.onView && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            icon="visibility"
+                            className="min-h-9 px-4 py-1.5"
+                            disabled={saving}
+                            onClick={item.onView}
+                          >
+                            {t("common.view", "View")}
+                          </Button>
+                        )}
+                        {item.onDownload && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            icon="download"
+                            className="min-h-9 px-4 py-1.5"
+                            disabled={saving}
+                            onClick={item.onDownload}
+                          >
+                            {t("common.download", "Download")}
+                          </Button>
+                        )}
+                        {item.onReview && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            icon="edit"
+                            className="min-h-9 px-4 py-1.5"
+                            disabled={saving}
+                            onClick={item.onReview}
+                          >
+                            {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </section>
           </div>
         </div>
