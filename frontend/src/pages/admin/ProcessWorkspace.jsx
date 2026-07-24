@@ -21399,14 +21399,16 @@ function FirstReminderTaskPanel({
 
           <div className="min-w-0 space-y-4">
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              <div className="relative border-b border-slate-200 px-4 py-3">
-                <p className="min-h-8 px-24 text-center text-[13px] font-bold leading-8 tracking-wide text-slate-500">
-                  {t("workspace.payment.documents", "List of Document")}
-                </p>
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold leading-5 tracking-wide text-slate-500">
+                    {t("workspace.payment.documents", "List of Document")}
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setDocumentsExpanded((value) => !value)}
-                  className="absolute right-4 top-1/2 inline-flex min-h-8 -translate-y-1/2 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                  className="inline-flex min-h-8 items-center gap-1 self-start rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
                   aria-expanded={documentsExpanded}
                 >
                   <Icon name={documentsExpanded ? "expand_less" : "expand_more"} className="text-lg" />
