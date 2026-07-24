@@ -2586,6 +2586,49 @@ class LicenseRenewalWorkflowTests(TestCase):
             any(item["metadata"]["event_status"] == "license_renewal_payment_rejected" for item in data)
         )
 
+    def test_completed_renewal_payment_notifies_applicant_on_all_channels(self):
+        self.application.form_data["license_renewal"] = {
+            "payment": {
+                "status": "verified",
+                "months_before_expiry": 3,
+                "reference_id": "REF-123",
+                "recipient_reference": "ALIS-RENEWAL",
+                "payment_details": "Renewal payment",
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        client = APIClient()
+        client.force_authenticate(user=self.pt_ikl)
+        response = client.post(
+            f"/api/applications/{self.application.id}/license-renewal-action/",
+            {
+                "action": "complete_early_payment",
+                "months": 3,
+                "note": "Renewal official receipt and license generated.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.application.refresh_from_db()
+        payment = self.application.form_data["license_renewal"]["payment"]
+        self.assertEqual(payment["status"], "completed")
+
+        deliveries = NotificationDelivery.objects.filter(
+            user=self.applicant,
+            metadata__event_status="license_renewal_issued",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertTrue(
+            deliveries.filter(
+                channel="web",
+                metadata__message__icontains="renewed advertisement license",
+            ).exists()
+        )
+        for delivery in deliveries:
+            self.assertNotIn("License ID:", delivery.message)
+
     def local_time(self, year, month, day, hour, minute):
         return timezone.make_aware(
             datetime(year, month, day, hour, minute),

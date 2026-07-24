@@ -134,6 +134,7 @@ LICENSE_RENEWAL_NOTIFICATION_STATUSES = {
     "license_renewal_1m",
     "license_renewal_supervisor_confirmation",
     "license_renewal_released",
+    "license_renewal_issued",
     "license_renewal_payment_submitted",
     "license_renewal_payment_verified",
     "license_renewal_payment_rejected",
@@ -763,6 +764,7 @@ def apply_license_renewal_payment_action(
             "completion_note": clean_note,
         })
         renewal["payment"] = payment
+        notify_license_renewal_issued(application, payment.get("months_before_expiry") or months or 3)
         return {}
 
     raise ValueError("Unsupported renewal payment action.")
@@ -1275,6 +1277,42 @@ def notify_license_renewal_payment_verified(application, months):
             "occurrence": timezone.now().isoformat(),
         },
         force_web=True,
+    )
+
+
+def notify_license_renewal_issued(application, months):
+    applicant = application.applicant if getattr(application, "applicant_id", None) else None
+    if not applicant:
+        return
+
+    title = notify_messages.APPLICANT_RENEWAL_LICENSE_ISSUED_TITLE
+    body = {
+        "web": notify_messages.APPLICANT_RENEWAL_LICENSE_ISSUED_WEB_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "email": notify_messages.APPLICANT_RENEWAL_LICENSE_ISSUED_EMAIL_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+        "whatsapp": notify_messages.APPLICANT_RENEWAL_LICENSE_ISSUED_WHATSAPP_BODY_TEMPLATE.format(
+            reference=application.reference_no
+        ),
+    }
+    send_license_workflow_notification(
+        application=application,
+        event_status="license_renewal_issued",
+        title=title,
+        body=body,
+        recipients=[applicant],
+        recipient_role="applicant",
+        action_url="/user/dashboard?tab=status",
+        extra_metadata={
+            "months_before_expiry": months,
+            "occurrence": timezone.now().isoformat(),
+        },
+        include_external=True,
+        force_web=True,
+        force_external=True,
+        include_license_id=False,
     )
 
 
