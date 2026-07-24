@@ -5046,6 +5046,10 @@ function isUnitActionableApplication(application, unit, activeDepartment = "") {
     return isAssignedDepartment;
   }
 
+  if (unit.department === "PT(IKL)" && isVerifiedRenewalPayment(application)) {
+    return isAssignedDepartment;
+  }
+
   const isMatchingStatus = unit.statuses.includes(normalizeStatus(application.status));
   const isExternalTechnicalUnit = EXTERNAL_TECHNICAL_DEPARTMENTS.has(unit.department);
   const isExternalTechnicalTask =
@@ -5141,6 +5145,10 @@ function getAdminTaskWorkspacePath(application, unit) {
   const status = normalizeStatus(application?.status);
 
   if (unit?.department === "PT(IKL)") {
+    if (isVerifiedRenewalPayment(application)) {
+      return "/admin/e-licenses/license";
+    }
+
     if (isPendingPtLicenseRenewalReminder(application)) {
       return "/admin/e-licenses/license";
     }
@@ -5180,6 +5188,10 @@ function getLicenseRenewalPaymentWorkflowStatus(application) {
 
 function isSubmittedRenewalPayment(application) {
   return getLicenseRenewalPaymentStatus(application) === "submitted";
+}
+
+function isVerifiedRenewalPayment(application) {
+  return getLicenseRenewalPaymentStatus(application) === "verified";
 }
 
 function getTechnicalDepartmentReviews(app) {
