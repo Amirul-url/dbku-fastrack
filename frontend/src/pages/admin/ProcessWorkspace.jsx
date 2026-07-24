@@ -19448,7 +19448,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
                 {detailsOpen && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
                     {hasDetails && (isDocumentGroup ? (
-                      <div>
+                      <div className="rounded-md border border-slate-200 bg-white px-3 py-3">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-sm font-semibold text-slate-500">
                             {item.detailLabel || item.label}
@@ -19483,9 +19483,9 @@ function IssuedPaymentDocumentList({ t, documents }) {
                       </div>
                     ))}
                     {hasRelatedDocuments && (
-                      <div className={hasDetails ? "mt-3 divide-y divide-slate-100 border-t border-slate-100" : "divide-y divide-slate-100"}>
+                      <div className={hasDetails ? "mt-3 space-y-3" : "space-y-3"}>
                         {item.relatedDocuments.map((related) => (
-                          <div key={related.label} className="py-3">
+                          <div key={related.label} className="rounded-md border border-slate-200 bg-white px-3 py-3">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <p className="text-sm font-semibold text-slate-500">
                                 {related.label}
