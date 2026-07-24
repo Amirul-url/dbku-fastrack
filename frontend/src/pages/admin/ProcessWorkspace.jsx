@@ -21388,6 +21388,11 @@ function FirstReminderTaskPanel({
   const manualLicense = license.manual_license || {};
   const receiptFile = payment.receipt_file || null;
   const receiptSource = getPaymentReceiptSource(receiptFile);
+  const paymentReferenceDetails = [
+    ["Reference ID", payment.reference_id],
+    ["Recipient Reference", payment.recipient_reference],
+    ["Payment Details", payment.payment_details],
+  ].filter(([, value]) => hasValue(value));
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
   const documentRows = [
     {
@@ -21428,6 +21433,7 @@ function FirstReminderTaskPanel({
             label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
             file: receiptFile,
             available: true,
+            details: paymentReferenceDetails,
             onDownload: () =>
               printPaymentReceiptDocument(
                 receiptFile,
@@ -21499,57 +21505,66 @@ function FirstReminderTaskPanel({
                   {documentRows.map((item) => (
                     <div
                       key={item.key}
-                      className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                      className="px-4 py-3"
                     >
-                      <div className="min-w-0">
-                        <p className="text-[13px] font-semibold leading-5 tracking-wide text-slate-500">
-                          {item.label}
-                          {item.required && <span className="ml-1 text-red-600">*</span>}
-                        </p>
-                        {item.displayName && (
-                          <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
-                            {item.displayName}
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold leading-5 tracking-wide text-slate-500">
+                            {item.label}
+                            {item.required && <span className="ml-1 text-red-600">*</span>}
                           </p>
-                        )}
+                          {item.displayName && (
+                            <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                              {item.displayName}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          {item.onView && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              icon="visibility"
+                              className="min-h-9 px-4 py-1.5"
+                              disabled={saving}
+                              onClick={item.onView}
+                            >
+                              {t("common.view", "View")}
+                            </Button>
+                          )}
+                          {item.onDownload && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              icon="download"
+                              className="min-h-9 px-4 py-1.5"
+                              disabled={saving}
+                              onClick={item.onDownload}
+                            >
+                              {t("common.download", "Download")}
+                            </Button>
+                          )}
+                          {item.onReview && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              icon="edit"
+                              className="min-h-9 px-4 py-1.5"
+                              disabled={saving}
+                              onClick={item.onReview}
+                            >
+                              {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
-                        {item.onView && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            icon="visibility"
-                            className="min-h-9 px-4 py-1.5"
-                            disabled={saving}
-                            onClick={item.onView}
-                          >
-                            {t("common.view", "View")}
-                          </Button>
-                        )}
-                        {item.onDownload && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            icon="download"
-                            className="min-h-9 px-4 py-1.5"
-                            disabled={saving}
-                            onClick={item.onDownload}
-                          >
-                            {t("common.download", "Download")}
-                          </Button>
-                        )}
-                        {item.onReview && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            icon="edit"
-                            className="min-h-9 px-4 py-1.5"
-                            disabled={saving}
-                            onClick={item.onReview}
-                          >
-                            {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                          </Button>
-                        )}
-                      </div>
+                      {item.details?.length > 0 && (
+                        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                          {item.details.map(([detailLabel, value]) => (
+                            <Info key={detailLabel} label={detailLabel} value={value} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
