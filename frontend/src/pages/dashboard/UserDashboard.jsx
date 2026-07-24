@@ -1746,7 +1746,7 @@ function RenewalEarlyPaymentReceiptSection({
     !locked &&
     hasReferenceDetails;
 
-  if (!activeLetter) return null;
+  if (!activeLetter || verified) return null;
 
   function handleFileChange(event) {
     const file = event.target.files?.[0] || null;
@@ -2176,12 +2176,23 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const renewalLicenseFile = getLicenseRenewalAdvertisementLicenseFile(app);
   const officialReceiptFile = getSentOfficialReceiptFile(app);
   const originalPaymentReceiptFile = getOriginalPaymentReceiptDocumentFile(app);
+  const renewalReceipts = getRenewalEarlyPaymentReceipts(app);
+  const renewalReceiptDocument = renewalReceipts[renewalReceipts.length - 1] || null;
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
   const originalPaymentReceiptDetails = [
     [t("applicant.paymentReferenceId", "Reference ID"), payment.reference_id],
     [t("applicant.paymentRecipientReference", "Recipient Reference"), payment.recipient_reference],
     [t("applicant.paymentDetails", "Payment Details"), payment.payment_details],
   ].filter(([, value]) => String(value || "").trim());
+  const renewalPaymentReceiptDetails = [
+    [t("applicant.paymentReferenceId", "Reference ID"), renewalPayment.reference_id],
+    [t("applicant.paymentRecipientReference", "Recipient Reference"), renewalPayment.recipient_reference],
+    [t("applicant.paymentDetails", "Payment Details"), renewalPayment.payment_details],
+  ].filter(([, value]) => String(value || "").trim());
+  const showRenewalReceiptInDocuments = Boolean(
+    renewalReceiptDocument &&
+      ["verified", "completed"].includes(getLicenseRenewalPaymentStatus(app))
+  );
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
     manualReceipt.document_html ||
@@ -2270,6 +2281,32 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           )
         : downloadApplicantAdvertisementLicenseDocument(app, t, { renewal: true }),
   };
+  const originalPaymentReceiptRow = {
+    label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+    file: originalPaymentReceiptFile,
+    type: "original_payment_receipt",
+    available: Boolean(originalPaymentReceiptFile),
+    details: originalPaymentReceiptDetails,
+    onDownload: () =>
+      downloadApplicantReceiptPrintFlow(
+        originalPaymentReceiptFile,
+        t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+        t
+      ),
+  };
+  const renewalEarlyPaymentReceiptRow = {
+    label: t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+    file: renewalReceiptDocument,
+    type: "renewal_early_payment_receipt",
+    available: Boolean(renewalReceiptDocument),
+    details: renewalPaymentReceiptDetails,
+    onDownload: () =>
+      downloadApplicantReceiptPrintFlow(
+        renewalReceiptDocument,
+        t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+        t
+      ),
+  };
   const documents = [
     {
       label: t("applicant.submittedApplicationForm", "Application Form Details"),
@@ -2312,19 +2349,23 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     ...(originalPaymentReceiptFile
       ? [
           {
-            label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+            label: showRenewalReceiptInDocuments
+              ? t("applicant.paymentReceiptDetails", "Payment Receipt Details")
+              : t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
             file: originalPaymentReceiptFile,
             type: "original_payment_receipt",
             hideFileName: true,
-            details: originalPaymentReceiptDetails,
-            onDownload: () =>
-              downloadApplicantReceiptPrintFlow(
-                originalPaymentReceiptFile,
-                t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
-                t
-              ),
+            details: showRenewalReceiptInDocuments ? [] : originalPaymentReceiptDetails,
+            isDocumentGroup: showRenewalReceiptInDocuments,
+            relatedDocuments: showRenewalReceiptInDocuments
+              ? [originalPaymentReceiptRow, renewalEarlyPaymentReceiptRow]
+              : [],
+            onDownload: originalPaymentReceiptRow.onDownload,
           },
         ]
+      : []),
+    ...(!originalPaymentReceiptFile && showRenewalReceiptInDocuments
+      ? [renewalEarlyPaymentReceiptRow]
       : []),
     ...(showAdvertisementLicense
       ? [
