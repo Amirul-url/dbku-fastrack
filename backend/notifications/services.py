@@ -1188,6 +1188,7 @@ def notify_license_renewal_kb_confirmation_task(application, months):
         recipient_role="supervisor",
         action_url=f"/admin/approval?id={application.id}&from=personal",
         extra_metadata={"months_before_expiry": months},
+        force_web=True,
     )
 
 

@@ -16,6 +16,7 @@ from .services import (
     notify_account_created,
     notify_application_status_change,
     notify_license_renewal_released,
+    notify_license_renewal_kb_confirmation_task,
     notify_license_renewal_payment_submitted,
     notify_license_revocation_request,
     process_license_renewal_reminders,
@@ -2257,6 +2258,29 @@ class LicenseRenewalWorkflowTests(TestCase):
             NotificationDelivery.objects.filter(
                 channel="web",
                 user=self.tp_res_supervisor,
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
+
+    @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False, NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
+    def test_kb_confirmation_web_notification_is_created_when_side_effects_disabled(self):
+        notify_license_renewal_kb_confirmation_task(self.application, 3)
+
+        delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=self.supervisor,
+            metadata__event_status="license_renewal_supervisor_confirmation",
+        )
+        self.assertEqual(delivery.status, "sent")
+        self.assertEqual(
+            delivery.metadata["message"],
+            "The 1st reminder letter for application "
+            f"{self.application.reference_no} has been generated. "
+            "Please confirm it before it is sent to the applicant.",
+        )
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                user=self.supervisor,
                 metadata__event_status="license_renewal_3m",
             ).exists()
         )
