@@ -19427,7 +19427,7 @@ function PaymentDetails({
                 file: receiptFile,
                 available: true,
                 detailLabel: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
-                isDocumentGroup: showRenewalReceiptInDocuments,
+                isDocumentGroup: true,
                 details: paymentReferenceDetails,
                 relatedDocuments: showRenewalReceiptInDocuments
                   ? [
@@ -19766,10 +19766,11 @@ function IssuedPaymentDocumentList({ t, documents }) {
           {availableDocuments.map((item) => {
             const hasDetails = item.details?.length > 0;
             const hasRelatedDocuments = item.relatedDocuments?.length > 0;
-            const isDropdownRow = hasDetails || hasRelatedDocuments;
+            const isDocumentGroup = item.isDocumentGroup === true;
+            const hasPrimaryDocumentDetail = Boolean(item.detailLabel) || hasDetails;
+            const isDropdownRow = hasDetails || hasRelatedDocuments || isDocumentGroup;
             const detailsOpen =
               isDropdownRow && expandedDetailRows[item.label] === true;
-            const isDocumentGroup = item.isDocumentGroup === true;
             const hasDirectDownload =
               Boolean(item.onDownload) || Boolean(getPaymentDocumentSource(item.file));
 
@@ -19837,7 +19838,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
 
                 {detailsOpen && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
-                    {hasDetails && (isDocumentGroup || hasDirectDownload ? (
+                    {hasPrimaryDocumentDetail && (isDocumentGroup || hasDirectDownload ? (
                       <div className="border-b border-slate-200 pb-3">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <p className="text-sm font-semibold text-slate-500">
@@ -19861,11 +19862,13 @@ function IssuedPaymentDocumentList({ t, documents }) {
                             </Button>
                           )}
                         </div>
-                        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                          {item.details.map(([label, value]) => (
-                            <Info key={label} label={label} value={value} />
-                          ))}
-                        </div>
+                        {hasDetails && (
+                          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                            {item.details.map(([label, value]) => (
+                              <Info key={label} label={label} value={value} />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="grid gap-2 sm:grid-cols-3">
