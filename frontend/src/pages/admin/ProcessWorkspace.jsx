@@ -19411,13 +19411,12 @@ function PaymentDetails({
           label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           file: officialReceiptFile,
           available: originalOfficialReceiptDocument.available || showRenewalOfficialReceiptInDocuments,
-          isDocumentGroup: showRenewalOfficialReceiptInDocuments,
-          relatedDocuments: showRenewalOfficialReceiptInDocuments
-            ? [
-                ...(originalOfficialReceiptDocument.available ? [originalOfficialReceiptDocument] : []),
-                renewalOfficialReceiptDocumentRow,
-              ]
-            : [],
+          isDocumentGroup:
+            originalOfficialReceiptDocument.available || showRenewalOfficialReceiptInDocuments,
+          relatedDocuments: [
+            ...(originalOfficialReceiptDocument.available ? [originalOfficialReceiptDocument] : []),
+            ...(showRenewalOfficialReceiptInDocuments ? [renewalOfficialReceiptDocumentRow] : []),
+          ],
           displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
         },
@@ -19475,13 +19474,12 @@ function PaymentDetails({
           label: t("workspace.license.documentTitle", "Advertisement License"),
           file: licenseFile,
           available: originalAdvertisementLicenseDocument.available || showRenewalAdvertisementLicenseInDocuments,
-          isDocumentGroup: showRenewalAdvertisementLicenseInDocuments,
-          relatedDocuments: showRenewalAdvertisementLicenseInDocuments
-            ? [
-                ...(originalAdvertisementLicenseDocument.available ? [originalAdvertisementLicenseDocument] : []),
-                renewalAdvertisementLicenseDocumentRow,
-              ]
-            : [],
+          isDocumentGroup:
+            originalAdvertisementLicenseDocument.available || showRenewalAdvertisementLicenseInDocuments,
+          relatedDocuments: [
+            ...(originalAdvertisementLicenseDocument.available ? [originalAdvertisementLicenseDocument] : []),
+            ...(showRenewalAdvertisementLicenseInDocuments ? [renewalAdvertisementLicenseDocumentRow] : []),
+          ],
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
           onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
         },
