@@ -2395,6 +2395,7 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.assertEqual(web_delivery.status, "sent")
         self.assertEqual(web_delivery.metadata["action_url"], "/user/dashboard?tab=status")
         self.assertTrue(web_delivery.metadata.get("occurrence"))
+        self.assertNotIn("License ID:", web_delivery.message)
 
         email_delivery = NotificationDelivery.objects.get(
             channel="email",
@@ -2408,6 +2409,8 @@ class LicenseRenewalWorkflowTests(TestCase):
         )
         self.assertEqual(email_delivery.status, "skipped")
         self.assertEqual(whatsapp_delivery.status, "skipped")
+        self.assertNotIn("License ID:", email_delivery.message)
+        self.assertNotIn("License ID:", whatsapp_delivery.message)
         self.assertIn(
             "renewal reminder letter",
             email_delivery.metadata["message"],

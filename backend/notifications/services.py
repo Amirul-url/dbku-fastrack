@@ -1218,6 +1218,7 @@ def notify_license_renewal_released(application, months):
         include_external=True,
         force_web=True,
         force_external=True,
+        include_license_id=False,
     )
 
 
@@ -1556,10 +1557,17 @@ def send_license_workflow_notification(
     include_external=False,
     force_web=False,
     force_external=False,
+    include_license_id=True,
 ):
     subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     web_body = get_channel_message(body, "web")
-    message = format_license_workflow_message(title, web_body, application, recipient_role)
+    message = format_license_workflow_message(
+        title,
+        web_body,
+        application,
+        recipient_role,
+        include_license_id=include_license_id,
+    )
     metadata = {
         "category": "license",
         "type": "warning" if "cancellation" not in event_status else "error",
@@ -1601,6 +1609,7 @@ def send_license_workflow_notification(
                 get_channel_message(body, "email"),
                 application,
                 recipient_role,
+                include_license_id=include_license_id,
             )
             create_and_send_delivery(
                 application=application,
@@ -1620,6 +1629,7 @@ def send_license_workflow_notification(
                 get_channel_message(body, "whatsapp"),
                 application,
                 recipient_role,
+                include_license_id=include_license_id,
             )
             create_and_send_delivery(
                 application=application,
@@ -1643,6 +1653,7 @@ def send_license_workflow_notification(
                 get_channel_message(body, "email"),
                 application,
                 recipient_role,
+                include_license_id=include_license_id,
             )
             create_and_send_delivery(
                 application=application,
@@ -1662,6 +1673,7 @@ def send_license_workflow_notification(
                 get_channel_message(body, "whatsapp"),
                 application,
                 recipient_role,
+                include_license_id=include_license_id,
             )
             create_and_send_delivery(
                 application=application,
@@ -1676,23 +1688,32 @@ def send_license_workflow_notification(
             )
 
 
-def format_license_workflow_message(title, body, application, recipient_role="admin"):
+def format_license_workflow_message(
+    title,
+    body,
+    application,
+    recipient_role="admin",
+    include_license_id=True,
+):
     if recipient_role != "applicant":
         return format_simple_internal_notification_message(body)
 
-    return "\n".join([
+    lines = [
         APP_BRAND_NAME,
         "",
         title,
         notify_messages.APPLICATION_REFERENCE_LINE_TEMPLATE.format(
             reference=application.reference_no
         ),
-        notify_messages.LICENSE_ID_LINE_TEMPLATE.format(
+    ]
+
+    if include_license_id:
+        lines.append(notify_messages.LICENSE_ID_LINE_TEMPLATE.format(
             license_id=get_license_id(application)
-        ),
-        "",
-        body,
-    ])
+        ))
+
+    lines.extend(["", body])
+    return "\n".join(lines)
 
 
 def format_applicant_registration_message(title, account_name, username, body):
