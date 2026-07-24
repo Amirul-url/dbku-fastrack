@@ -265,6 +265,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [licenseIssuedSuccessModal, setLicenseIssuedSuccessModal] = useState({
     open: false,
     redirectTo: "",
+    messageKey: "workspace.license.issueSuccessMessage",
+    defaultMessage: "License Has Been Issued!",
   });
   const [firstReminderGeneratedModal, setFirstReminderGeneratedModal] = useState({
     open: false,
@@ -2508,7 +2510,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       setSaving(true);
       setError("");
       setSuccess("");
-      setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+      setLicenseIssuedSuccessModal({
+        open: false,
+        redirectTo: "",
+        messageKey: "workspace.license.issueSuccessMessage",
+        defaultMessage: "License Has Been Issued!",
+      });
       setFirstReminderGeneratedModal({ open: false, reference: "", redirectTo: "" });
       setReminderLetterConfirmedModal({ open: false, reference: "", redirectTo: "" });
       setReceiptVerificationResultModal({ open: false, result: "", redirectTo: "" });
@@ -2521,7 +2528,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       });
       setApplicationAmendmentModal(createClosedApplicationAmendmentModalState());
       setApplicationApprovedModal(createClosedApplicationApprovedModalState());
-      const shouldShowLicenseIssuedSuccess = action.key === "issue_license";
+      const shouldShowLicenseIssuedSuccess =
+        action.key === "issue_license" || action.key === "complete_renewal_payment";
 
       if (action.key === "issue_license") {
         if (manualLicenseDraftTimerRef.current) {
@@ -2678,6 +2686,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
+          messageKey:
+            action.key === "complete_renewal_payment"
+              ? "workspace.license.renewalIssueSuccessMessage"
+              : "workspace.license.issueSuccessMessage",
+          defaultMessage:
+            action.key === "complete_renewal_payment"
+              ? "Renewal License Has Been Issued!"
+              : "License Has Been Issued!",
         });
       }
       if (shouldShowFirstReminderGeneratedSuccess) {
@@ -2931,7 +2947,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function closeLicenseIssuedSuccessModal() {
     const redirectTo = licenseIssuedSuccessModal.redirectTo;
-    setLicenseIssuedSuccessModal({ open: false, redirectTo: "" });
+    setLicenseIssuedSuccessModal({
+      open: false,
+      redirectTo: "",
+      messageKey: "workspace.license.issueSuccessMessage",
+      defaultMessage: "License Has Been Issued!",
+    });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -4378,6 +4399,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       {licenseIssuedSuccessModal.open && (
         <LicenseIssuedSuccessModal
           t={t}
+          messageKey={licenseIssuedSuccessModal.messageKey}
+          defaultMessage={licenseIssuedSuccessModal.defaultMessage}
           onClose={closeLicenseIssuedSuccessModal}
         />
       )}
@@ -4877,7 +4900,12 @@ function shouldShowKbVerificationModal(action, body) {
   );
 }
 
-function LicenseIssuedSuccessModal({ t, onClose }) {
+function LicenseIssuedSuccessModal({
+  t,
+  messageKey = "workspace.license.issueSuccessMessage",
+  defaultMessage = "License Has Been Issued!",
+  onClose,
+}) {
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/35 px-4"
@@ -4898,7 +4926,7 @@ function LicenseIssuedSuccessModal({ t, onClose }) {
           {t("workspace.license.issueSuccessTitle", "SUCCESS!")}
         </h2>
         <p className="mt-5 text-2xl font-medium text-black">
-          {t("workspace.license.issueSuccessMessage", "License Has Been Issued!")}
+          {t(messageKey, defaultMessage)}
         </p>
         <button
           type="button"
