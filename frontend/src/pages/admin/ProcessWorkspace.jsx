@@ -1022,7 +1022,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     Boolean(selectedRecord) &&
     showActionPanel &&
     !showApprovalPaymentReadOnly &&
-    (!isIssuedLicenseRecord || showRenewalReminderWorkflowPanel) &&
+    !showRenewalReminderWorkflowPanel &&
+    !isIssuedLicenseRecord &&
     (
       isFocusedPersonalWorkspace ||
       tableFirstWorkspace ||
@@ -21289,7 +21290,6 @@ function FirstReminderTaskPanel({
   const receiptFile = payment.receipt_file || null;
   const receiptSource = getPaymentReceiptSource(receiptFile);
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
-  const reminderDocumentKey = `renewal-reminder-${months}`;
   const documentRows = [
     {
       key: "application_form",
@@ -21359,20 +21359,6 @@ function FirstReminderTaskPanel({
         available: true,
         onDownload: () => printRenewalReminderDocument(letter.html, `${getApplicationReference(app)} ${letter.title} Letter`, t),
       })),
-    {
-      key: reminderDocumentKey,
-      label: t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase(),
-      required: true,
-      available: true,
-      displayName: documentDescription,
-      onDownload: () =>
-        printRenewalReminderDocument(
-          documentHtml,
-          `${getApplicationReference(app)} ${documentTitle}`,
-          t
-        ),
-      onReview: confirmationMode ? null : openReview,
-    },
   ].filter((item) =>
     item.available ||
     item.onView ||
@@ -21392,7 +21378,50 @@ function FirstReminderTaskPanel({
             onTabChange={setActivePaymentDocumentTab}
           />
 
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-4">
+            <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+              <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
+                    {t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase()} <span className="text-red-600">*</span>
+                  </p>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                    {documentDescription}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="download"
+                    className="min-h-9 px-4 py-1.5"
+                    disabled={saving}
+                    onClick={() =>
+                      printRenewalReminderDocument(
+                        documentHtml,
+                        `${getApplicationReference(app)} ${documentTitle}`,
+                        t
+                      )
+                    }
+                  >
+                    {t("common.download", "Download")}
+                  </Button>
+                  {!confirmationMode && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon="edit"
+                      className="min-h-9 px-4 py-1.5"
+                      disabled={saving}
+                      onClick={openReview}
+                    >
+                      {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </section>
+
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
               <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
