@@ -736,20 +736,20 @@ SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE = (
     "{months}-month renewal letter awaiting KB(LES) confirmation"
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_BODY_TEMPLATE = (
-    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. KB(LES) must verify and confirm the letter."
+    "The {reminder_label} letter for application {reference} has been generated. "
+    "Please confirm it before it is sent to the applicant."
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_WEB_BODY_TEMPLATE = (
-    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. KB(LES) must verify and confirm the letter."
+    "The {reminder_label} letter for application {reference} has been generated. "
+    "Please confirm it before it is sent to the applicant."
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_EMAIL_BODY_TEMPLATE = (
-    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. KB(LES) must verify and confirm the letter."
+    "The {reminder_label} letter for application {reference} has been generated. "
+    "Please confirm it before it is sent to the applicant."
 )
 SUPERVISOR_RENEWAL_CONFIRMATION_WHATSAPP_BODY_TEMPLATE = (
-    "PT(IKL) has generated the {months}-month renewal reminder letter for application "
-    "{reference}. KB(LES) must verify and confirm the letter."
+    "The {reminder_label} letter for application {reference} has been generated. "
+    "Please confirm it before it is sent to the applicant."
 )
 SUPERVISOR_CANCELLATION_CONFIRMATION_TITLE = (
     "Cancellation notice awaiting supervisor confirmation"

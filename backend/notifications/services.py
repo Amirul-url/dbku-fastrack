@@ -1168,7 +1168,12 @@ def notify_license_renewal_kb_confirmation_task(application, months):
     title = notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_TITLE_TEMPLATE.format(
         months=months
     )
-    context = {"months": months, "reference": application.reference_no}
+    reminder_label = get_renewal_reminder_title(months).lower()
+    context = {
+        "months": months,
+        "reference": application.reference_no,
+        "reminder_label": reminder_label,
+    }
     body = {
         "web": notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_WEB_BODY_TEMPLATE.format(**context),
         "email": notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_EMAIL_BODY_TEMPLATE.format(**context),

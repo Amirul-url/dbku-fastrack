@@ -8,6 +8,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from applications.models import Application
 
+from . import message_templates as notify_messages
 from .models import NotificationDelivery
 from .services import (
     notify_applicant_application_submitted,
@@ -2295,6 +2296,29 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.assertEqual(
             kb_confirmation_delivery.metadata["action_url"],
             f"/admin/approval?id={self.application.id}&from=personal",
+        )
+        expected_confirmation_message = (
+            "The 1st reminder letter for application "
+            f"{self.application.reference_no} has been generated. "
+            "Please confirm it before it is sent to the applicant."
+        )
+        self.assertEqual(kb_confirmation_delivery.metadata["message"], expected_confirmation_message)
+        confirmation_context = {
+            "months": 3,
+            "reference": self.application.reference_no,
+            "reminder_label": "1st reminder",
+        }
+        self.assertEqual(
+            notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_EMAIL_BODY_TEMPLATE.format(
+                **confirmation_context
+            ),
+            expected_confirmation_message,
+        )
+        self.assertEqual(
+            notify_messages.SUPERVISOR_RENEWAL_CONFIRMATION_WHATSAPP_BODY_TEMPLATE.format(
+                **confirmation_context
+            ),
+            expected_confirmation_message,
         )
         self.assertFalse(
             NotificationDelivery.objects.filter(
