@@ -2462,6 +2462,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowRenewalReceiptRejectedSuccess =
         action.key === "reject_renewal_receipt" || body.action === "reject_early_payment";
       const shouldShowReceiptVerifiedSuccess = shouldShowReceiptVerifiedModal(action, body);
+      const shouldShowRenewalReceiptVerifiedSuccess =
+        action.key === "approve_renewal_receipt" || body.action === "verify_early_payment";
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowFirstReminderGeneratedSuccess =
         action.key === "generate_1st_reminder_letter";
@@ -2486,6 +2488,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowFirstReminderGeneratedSuccess ||
         shouldShowReminderLetterConfirmedSuccess ||
         shouldShowReceiptVerifiedSuccess ||
+        shouldShowRenewalReceiptVerifiedSuccess ||
         shouldShowApplicationRejectedSuccess ||
         shouldShowReceiptRejectedSuccess ||
         shouldShowRenewalReceiptRejectedSuccess ||
@@ -2559,7 +2562,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               : "",
         });
       }
-      if (shouldShowReceiptVerifiedSuccess) {
+      if (shouldShowReceiptVerifiedSuccess || shouldShowRenewalReceiptVerifiedSuccess) {
         setReceiptVerificationResultModal({
           open: true,
           result: "verified",
@@ -2685,7 +2688,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       if (shouldShowReminderLetterConfirmedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
         return true;
       }
-      if (shouldShowReceiptVerifiedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
+      if (
+        (shouldShowReceiptVerifiedSuccess || shouldShowRenewalReceiptVerifiedSuccess) &&
+        (isFocusedPersonalWorkspace || fromPersonalTask)
+      ) {
         return true;
       }
       if (shouldShowApplicationRejectedSuccess && (isFocusedPersonalWorkspace || fromPersonalTask)) {
