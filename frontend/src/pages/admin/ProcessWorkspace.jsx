@@ -10657,6 +10657,9 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
   }
 
   if (isApprovalWorkspace) {
+    const renewalCurrentStatusLabel = getLicenseRenewalCurrentStatusLabel(app, t);
+    if (renewalCurrentStatusLabel) return renewalCurrentStatusLabel;
+
     const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment, t);
     if (renewalTaskLabel) return renewalTaskLabel;
   }
@@ -11762,6 +11765,29 @@ function getLicenseRenewalTaskStatusLabel(app, department, t = null) {
 
   if (normalizedDepartment === "PT(IKL)" && getCancellationStatus(app) === "pending_pt_notice") {
     return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
+  }
+
+  return "";
+}
+
+function getLicenseRenewalCurrentStatusLabel(app, t = null) {
+  if (normalizeStatus(app?.status) !== "license_issued") return "";
+
+  const pendingPtMonth = getPendingPtRenewalReminderMonth(app);
+  if (pendingPtMonth) {
+    return t
+      ? getLocalizedRenewalReminderTaskLabel(pendingPtMonth, t)
+      : getRenewalReminderTaskLabel(pendingPtMonth);
+  }
+
+  const confirmationMonth = getPendingReminderConfirmationMonth(app);
+  if (confirmationMonth) {
+    const label = t
+      ? getLocalizedRenewalReminderTaskLabel(confirmationMonth, t)
+      : getRenewalReminderTaskLabel(confirmationMonth);
+    return t
+      ? t("workspace.license.reminderConfirmation", "{label} Confirmation", { label })
+      : `${label} Confirmation`;
   }
 
   return "";
