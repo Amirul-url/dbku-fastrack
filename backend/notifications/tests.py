@@ -2637,6 +2637,69 @@ class LicenseRenewalWorkflowTests(TestCase):
             any(item["metadata"]["event_status"] == "license_renewal_issued" for item in data)
         )
 
+    def test_patch_completed_renewal_payment_notifies_applicant_on_all_channels(self):
+        self.application.form_data["license_renewal"] = {
+            "payment": {
+                "status": "verified",
+                "months_before_expiry": 3,
+                "reference_id": "REF-123",
+                "recipient_reference": "ALIS-RENEWAL",
+                "payment_details": "Renewal payment",
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        client = APIClient()
+        client.force_authenticate(user=self.pt_ikl)
+        response = client.patch(
+            f"/api/applications/{self.application.id}/",
+            {
+                "status": "license_issued",
+                "form_data": {
+                    "license_renewal": {
+                        "payment": {
+                            "status": "completed",
+                            "months_before_expiry": 3,
+                            "completed_at": "2026-07-24T06:51:08.223Z",
+                            "completed_by": "PT(IKL)",
+                        },
+                    },
+                },
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        deliveries = NotificationDelivery.objects.filter(
+            user=self.applicant,
+            metadata__event_status="license_renewal_issued",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertEqual(deliveries.filter(channel="web").count(), 1)
+
+        response = client.patch(
+            f"/api/applications/{self.application.id}/",
+            {
+                "form_data": {
+                    "license_renewal": {
+                        "payment": {
+                            "status": "completed",
+                            "completed_at": "2026-07-24T06:51:08.223Z",
+                        },
+                    },
+                },
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            NotificationDelivery.objects.filter(
+                user=self.applicant,
+                metadata__event_status="license_renewal_issued",
+            ).count(),
+            3,
+        )
+
     def local_time(self, year, month, day, hour, minute):
         return timezone.make_aware(
             datetime(year, month, day, hour, minute),

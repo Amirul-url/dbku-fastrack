@@ -44,6 +44,7 @@ from notifications.services import (
     notify_applicant_application_submitted,
     notify_application_status_change,
     notify_license_revocation_request,
+    notify_license_renewal_issued,
     notify_license_renewal_payment_submitted,
     notify_staff_application_resubmitted,
 )
@@ -85,6 +86,34 @@ RESUBMIT_WORKFLOW_RESET_FIELDS = [
     "sut_approval",
     "approval",
 ]
+
+
+def get_license_renewal_payment(form_data):
+    if not isinstance(form_data, dict):
+        return {}
+
+    renewal = form_data.get("license_renewal")
+    if not isinstance(renewal, dict):
+        return {}
+
+    payment = renewal.get("payment")
+    return payment if isinstance(payment, dict) else {}
+
+
+def maybe_notify_completed_license_renewal(application, old_form_data):
+    old_payment = get_license_renewal_payment(old_form_data)
+    new_payment = get_license_renewal_payment(application.form_data or {})
+    old_status = str(old_payment.get("status") or "").strip().lower()
+    new_status = str(new_payment.get("status") or "").strip().lower()
+
+    if old_status == "completed" or new_status != "completed":
+        return
+
+    notify_license_renewal_issued(
+        application,
+        new_payment.get("months_before_expiry") or old_payment.get("months_before_expiry") or 3,
+        occurrence=new_payment.get("completed_at") or new_payment.get("sent_at"),
+    )
 
 
 def append_license_renewal_action_activity(application, actor, action_name, note="", digital_signature=None):
@@ -495,6 +524,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 or applicant_payment_submitted
             ),
         )
+        maybe_notify_completed_license_renewal(application, old_form_data)
         if (
             self.request.user.role in STAFF_ROLES
             and new_status_key == "rejected"

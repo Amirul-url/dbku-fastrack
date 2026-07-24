@@ -764,7 +764,11 @@ def apply_license_renewal_payment_action(
             "completion_note": clean_note,
         })
         renewal["payment"] = payment
-        notify_license_renewal_issued(application, payment.get("months_before_expiry") or months or 3)
+        notify_license_renewal_issued(
+            application,
+            payment.get("months_before_expiry") or months or 3,
+            occurrence=payment.get("completed_at"),
+        )
         return {}
 
     raise ValueError("Unsupported renewal payment action.")
@@ -1280,7 +1284,7 @@ def notify_license_renewal_payment_verified(application, months):
     )
 
 
-def notify_license_renewal_issued(application, months):
+def notify_license_renewal_issued(application, months, occurrence=None):
     applicant = application.applicant if getattr(application, "applicant_id", None) else None
     if not applicant:
         return
@@ -1307,7 +1311,7 @@ def notify_license_renewal_issued(application, months):
         action_url="/user/dashboard?tab=status",
         extra_metadata={
             "months_before_expiry": months,
-            "occurrence": timezone.now().isoformat(),
+            "occurrence": occurrence or timezone.now().isoformat(),
         },
         include_external=True,
         force_web=True,
