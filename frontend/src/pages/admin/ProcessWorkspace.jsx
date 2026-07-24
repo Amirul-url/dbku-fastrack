@@ -10656,17 +10656,17 @@ function getWorkspaceStatusLabel(app, config, t, userDepartment = "") {
     return getApprovalStageLabel(app, t);
   }
 
+  if (isApprovalWorkspace) {
+    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment, t);
+    if (renewalTaskLabel) return renewalTaskLabel;
+  }
+
   if (isApprovalWorkspace && isPostApprovalPaymentRecord(app)) {
     return getPostApprovalPaymentStatusLabel(app, t);
   }
 
   if (isApprovalWorkspace && ["approved", "approved_with_conditions"].includes(status)) {
     return t("status.approved", "Approved");
-  }
-
-  if (isApprovalWorkspace) {
-    const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(app, userDepartment, t);
-    if (renewalTaskLabel) return renewalTaskLabel;
   }
 
   if (config?.key === "payment" && status === "bill_pending_ku") {
