@@ -1937,15 +1937,6 @@ function RenewalEarlyPaymentReceiptSection({
               <p className="text-sm font-semibold text-slate-900">
                 {t("applicant.submitReceiptForVerification", "Submit receipt for verification")}
               </p>
-              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                {verified
-                  ? t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified")
-                  : submitted
-                    ? t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted")
-                    : canSubmit
-                      ? t("applicant.submitReceiptReadyHint", "Send the selected receipt to ALiS.")
-                      : t("applicant.submitReceiptDisabledHint", "Choose a receipt file and complete payment details first.")}
-              </p>
             </div>
           </div>
           {locked ? (
