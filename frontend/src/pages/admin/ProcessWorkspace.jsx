@@ -5919,8 +5919,11 @@ function getManualApprovalLetterTechnicalReportSite(app = null) {
 function getManualApprovalLetterLicensePeriod(app = null) {
   const license = app?.form_data?.license || {};
   const validityYears = Number(license.validity_years) || 1;
-  const startDate = new Date();
-  const endDate = addCalendarYears(startDate, validityYears);
+  const startDate = parseDateOrFallback(license.issue_date, new Date());
+  const endDate = parseDateOrFallback(
+    license.expiry_date,
+    addCalendarYears(startDate, validityYears)
+  );
 
   return `${formatManualApprovalLetterDate(startDate)} hingga ${formatManualApprovalLetterDate(endDate)}`;
 }
