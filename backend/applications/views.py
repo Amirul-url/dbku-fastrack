@@ -116,6 +116,27 @@ def maybe_notify_completed_license_renewal(application, old_form_data):
     )
 
 
+def maybe_append_completed_license_renewal_activity(application, actor, old_form_data):
+    if getattr(actor, "role", "") not in STAFF_ROLES:
+        return application
+
+    old_payment = get_license_renewal_payment(old_form_data)
+    new_payment = get_license_renewal_payment(application.form_data or {})
+    old_status = str(old_payment.get("status") or "").strip().lower()
+    new_status = str(new_payment.get("status") or "").strip().lower()
+
+    if old_status == "completed" or new_status != "completed":
+        return application
+
+    return append_license_renewal_action_activity(
+        application,
+        actor,
+        "complete_early_payment",
+        new_payment.get("completion_note") or new_payment.get("remarks") or "",
+        new_payment.get("digital_signature"),
+    )
+
+
 def append_license_renewal_action_activity(application, actor, action_name, note="", digital_signature=None):
     activity_config = LICENSE_RENEWAL_ACTIVITY_ACTIONS.get(str(action_name or "").strip())
     if not activity_config:
@@ -523,6 +544,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 or (old_status_key == "draft" and new_status_key == "submitted")
                 or applicant_payment_submitted
             ),
+        )
+        application = maybe_append_completed_license_renewal_activity(
+            application,
+            self.request.user,
+            old_form_data,
         )
         maybe_notify_completed_license_renewal(application, old_form_data)
         if (

@@ -859,6 +859,64 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertEqual(staff_deliveries.get(channel="web").user, fin)
         self.assertIn("uploaded payment proof", staff_deliveries.get(channel="email").message)
 
+    def test_pt_ikl_complete_renewal_payment_adds_activity_log_entry(self):
+        User = get_user_model()
+        pt_ikl = User.objects.create_user(
+            username="pt-ikl-renewal-completion",
+            email="pt-ikl-renewal-completion@example.com",
+            password="testpass123",
+            role="admin",
+            department="PT(IKL)",
+            is_active=True,
+        )
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="Renewal payment completion application",
+            status="license_issued",
+            form_data={
+                "license_renewal": {
+                    "payment": {
+                        "status": "verified",
+                        "months_before_expiry": 3,
+                    },
+                },
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=pt_ikl)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "license_issued",
+                "form_data": {
+                    "license_renewal": {
+                        "payment": {
+                            "status": "completed",
+                            "months_before_expiry": 3,
+                            "completion_note": "Renewal receipt and license generated.",
+                            "digital_signature": {"mode": "drawn"},
+                        },
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        activity_log = application.form_data.get("activity_log", [])
+        self.assertEqual(activity_log[0]["title"], "Renewal official receipt and license generated")
+        self.assertEqual(activity_log[0]["actor_department"], "PT(IKL)")
+        self.assertEqual(
+            activity_log[0]["description"],
+            "Renewal receipt and license generated.",
+        )
+        self.assertEqual(
+            activity_log[0]["metadata"]["recommendation"],
+            "Generate Renewal Official Receipt and Advertisement License",
+        )
+
     def test_applicant_submit_creates_safe_applicant_and_internal_staff_notifications(self):
         application = Application.objects.create(
             applicant=self.applicant,
