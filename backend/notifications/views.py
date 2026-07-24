@@ -102,6 +102,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
             NotificationDelivery.objects.filter(
                 recipient_filter,
                 channel="web",
+                status="sent",
                 metadata__event_status__in=allowed_event_statuses,
             )
             .select_related("application", "user")

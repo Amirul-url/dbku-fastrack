@@ -439,19 +439,19 @@ IKL_TECHNICAL_AMENDMENT_WHATSAPP_BODY_TEMPLATE = (
 
 KB_LES_RENEWAL_DETECTED_TITLE_TEMPLATE = "{months}-month license renewal reminder"
 KB_LES_RENEWAL_DETECTED_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "KB(LES) will receive a confirmation task after PT(IKL) generates the renewal reminder letter."
 )
 KB_LES_RENEWAL_DETECTED_WEB_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "KB(LES) will receive a confirmation task after PT(IKL) generates the renewal reminder letter."
 )
 KB_LES_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "KB(LES) will receive a confirmation task after PT(IKL) generates the renewal reminder letter."
 )
 KB_LES_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "KB(LES) will receive a confirmation task after PT(IKL) generates the renewal reminder letter."
 )
 KB_LES_CANCELLATION_SUPPORT_TITLE = "Cancellation notice awaiting KB(LES) support"
@@ -599,19 +599,19 @@ PT_IKL_PAYMENT_VERIFIED_WHATSAPP_BODY_TEMPLATE = (
 )
 PT_IKL_RENEWAL_DETECTED_TITLE_TEMPLATE = "{months}-month license renewal reminder"
 PT_IKL_RENEWAL_DETECTED_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "PT(IKL) must generate the renewal reminder letter before sending it to KB(LES) for confirmation."
 )
 PT_IKL_RENEWAL_DETECTED_WEB_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "PT(IKL) must generate the renewal reminder letter before sending it to KB(LES) for confirmation."
 )
 PT_IKL_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "PT(IKL) must generate the renewal reminder letter before sending it to KB(LES) for confirmation."
 )
 PT_IKL_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE = (
-    "License {license_id} for application {reference} will expire on {expiry}. "
+    "Application {reference} will expire on {expiry}. "
     "PT(IKL) must generate the renewal reminder letter before sending it to KB(LES) for confirmation."
 )
 PT_IKL_CANCELLATION_PENDING_TITLE = "Cancellation notice required"
