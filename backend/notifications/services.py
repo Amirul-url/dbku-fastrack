@@ -1194,6 +1194,7 @@ def notify_license_renewal_kb_confirmation_task(application, months):
 
 def notify_license_renewal_released(application, months):
     title = notify_messages.APPLICANT_RENEWAL_RELEASED_TITLE_TEMPLATE.format(months=months)
+    occurrence = timezone.now().isoformat()
     body = {
         "web": notify_messages.APPLICANT_RENEWAL_RELEASED_WEB_BODY_TEMPLATE.format(
             reference=application.reference_no
@@ -1213,9 +1214,10 @@ def notify_license_renewal_released(application, months):
         recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
         recipient_role="applicant",
         action_url="/user/dashboard?tab=status",
-        extra_metadata={"months_before_expiry": months},
+        extra_metadata={"months_before_expiry": months, "occurrence": occurrence},
         include_external=True,
         force_web=True,
+        force_external=True,
     )
 
 
@@ -1553,6 +1555,7 @@ def send_license_workflow_notification(
     extra_metadata=None,
     include_external=False,
     force_web=False,
+    force_external=False,
 ):
     subject = f"{APP_BRAND_NAME} - {title} ({application.reference_no})"
     web_body = get_channel_message(body, "web")
@@ -1609,6 +1612,7 @@ def send_license_workflow_notification(
                 subject=subject,
                 message=email_message,
                 metadata=metadata,
+                force=force_external,
             )
         for phone in get_applicant_whatsapp_numbers(application):
             whatsapp_message = format_license_workflow_message(
@@ -1627,6 +1631,7 @@ def send_license_workflow_notification(
                 subject=subject,
                 message=whatsapp_message,
                 metadata=metadata,
+                force=force_external,
             )
         return
 

@@ -2384,23 +2384,37 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.assertIn("ALiS", applicant_delivery.message)
 
     @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False)
-    def test_released_renewal_creates_applicant_web_notification_when_side_effects_disabled(self):
+    def test_released_renewal_creates_applicant_channel_deliveries_when_side_effects_disabled(self):
         notify_license_renewal_released(self.application, 3)
 
-        applicant_delivery = NotificationDelivery.objects.get(
+        web_delivery = NotificationDelivery.objects.get(
             channel="web",
             user=self.applicant,
             metadata__event_status="license_renewal_released",
         )
-        self.assertEqual(applicant_delivery.status, "sent")
-        self.assertEqual(applicant_delivery.metadata["action_url"], "/user/dashboard?tab=status")
-        self.assertFalse(
-            NotificationDelivery.objects.filter(
-                user=self.applicant,
-                metadata__event_status="license_renewal_released",
-            )
-            .exclude(channel="web")
-            .exists()
+        self.assertEqual(web_delivery.status, "sent")
+        self.assertEqual(web_delivery.metadata["action_url"], "/user/dashboard?tab=status")
+        self.assertTrue(web_delivery.metadata.get("occurrence"))
+
+        email_delivery = NotificationDelivery.objects.get(
+            channel="email",
+            user=self.applicant,
+            metadata__event_status="license_renewal_released",
+        )
+        whatsapp_delivery = NotificationDelivery.objects.get(
+            channel="whatsapp",
+            user=self.applicant,
+            metadata__event_status="license_renewal_released",
+        )
+        self.assertEqual(email_delivery.status, "skipped")
+        self.assertEqual(whatsapp_delivery.status, "skipped")
+        self.assertIn(
+            "renewal reminder letter",
+            email_delivery.metadata["message"],
+        )
+        self.assertIn(
+            "renewal reminder letter",
+            whatsapp_delivery.metadata["message"],
         )
 
     def test_fin_inbox_includes_submitted_renewal_payment_receipts(self):
