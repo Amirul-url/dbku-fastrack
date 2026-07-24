@@ -20143,39 +20143,6 @@ function GeneratedDocumentReviewModal({ document, t, saving, onClose, onSave }) 
                 >
                   <Icon name="delete" className="text-[18px]" />
                 </button>
-                <div className="h-px w-full bg-slate-200" />
-                <button
-                  type="button"
-                  onClick={() => changeDocumentZoom(0.1)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={documentZoom >= 1.35}
-                  title={t("workspace.document.zoomIn", "Zoom in")}
-                  aria-label={t("workspace.document.zoomIn", "Zoom in")}
-                >
-                  <Icon name="zoom_in" className="text-[18px]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => changeDocumentZoom(-0.1)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={documentZoom <= 0.55}
-                  title={t("workspace.document.zoomOut", "Zoom out")}
-                  aria-label={t("workspace.document.zoomOut", "Zoom out")}
-                >
-                  <Icon name="zoom_out" className="text-[18px]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={resetDocumentZoom}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50"
-                  title={t("workspace.document.resetZoom", "Reset zoom")}
-                  aria-label={t("workspace.document.resetZoom", "Reset zoom")}
-                >
-                  <Icon name="restart_alt" className="text-[18px]" />
-                </button>
-                <span className="text-center text-[11px] font-semibold leading-4 text-slate-500">
-                  {Math.round(documentZoom * 100)}%
-                </span>
                 <input
                   ref={signatureFileInputRef}
                   type="file"
