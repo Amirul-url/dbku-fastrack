@@ -182,18 +182,18 @@ APPLICANT_RENEWAL_RELEASED_WHATSAPP_BODY_TEMPLATE = (
 )
 
 # Renewal license issued
-APPLICANT_RENEWAL_LICENSE_ISSUED_TITLE = "Renewal license issued"
+APPLICANT_RENEWAL_LICENSE_ISSUED_TITLE = "Renewal license completed"
 APPLICANT_RENEWAL_LICENSE_ISSUED_WEB_BODY_TEMPLATE = (
-    "The renewed advertisement license and official receipt for application {reference} "
-    "are now available. Please download them from Documents to Download."
+    "Application {reference} has been successfully renewed. "
+    "Please download the renewed advertisement license and official receipt from Documents to Download."
 )
 APPLICANT_RENEWAL_LICENSE_ISSUED_EMAIL_BODY_TEMPLATE = (
-    "The renewed advertisement license and official receipt for application {reference} "
-    "are now available. Please download them from Documents to Download."
+    "Application {reference} has been successfully renewed. "
+    "Please download the renewed advertisement license and official receipt from Documents to Download."
 )
 APPLICANT_RENEWAL_LICENSE_ISSUED_WHATSAPP_BODY_TEMPLATE = (
-    "The renewed advertisement license and official receipt for application {reference} "
-    "are now available. Please download them from Documents to Download."
+    "Application {reference} has been successfully renewed. "
+    "Please download the renewed advertisement license and official receipt from Documents to Download."
 )
 
 # Renewal early payment receipt rejected

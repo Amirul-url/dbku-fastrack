@@ -2623,7 +2623,7 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.assertTrue(
             deliveries.filter(
                 channel="web",
-                metadata__message__icontains="renewed advertisement license",
+                metadata__message__icontains="has been successfully renewed",
             ).exists()
         )
         for delivery in deliveries:
