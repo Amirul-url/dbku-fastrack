@@ -11879,6 +11879,12 @@ function getPendingReminderConfirmationMonth(app) {
   );
 }
 
+function getLatestReleasedReminderMonth(app) {
+  return [1, 2, 3].find(
+    (months) => getReminderStatus(app, months) === "released_to_applicant"
+  );
+}
+
 function getRenewalReminderTaskLabel(months) {
   if (months === 3) return "1st Reminder";
   if (months === 2) return "2nd Reminder";
@@ -11946,6 +11952,16 @@ function getLicenseRenewalCurrentStatusLabel(app, t = null) {
     return t
       ? t("workspace.license.reminderConfirmation", "{label} Confirmation", { label })
       : `${label} Confirmation`;
+  }
+
+  const releasedMonth = getLatestReleasedReminderMonth(app);
+  if (releasedMonth) {
+    const label = t
+      ? getLocalizedRenewalReminderTaskLabel(releasedMonth, t)
+      : getRenewalReminderTaskLabel(releasedMonth);
+    return t
+      ? t("workspace.license.reminderSent", "{label} Sent", { label })
+      : `${label} Sent`;
   }
 
   return "";
