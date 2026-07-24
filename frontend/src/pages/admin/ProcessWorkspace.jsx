@@ -15638,10 +15638,6 @@ const configs = {
           return {
             status: "license_issued",
             form_data: mergeFormData(app, {
-              approval_letter: {
-                ...savedApprovalLetter,
-                manual_receipt: nextManualReceipt,
-              },
               payment: {
                 ...(app.form_data?.payment || {}),
                 official_receipt_no: officialReceiptNo,
@@ -19234,6 +19230,80 @@ function PaymentDetails({
       renewalReceiptDocument &&
       ["verified", "completed"].includes(normalizeStatus(renewalPayment.status))
   );
+  const renewalOfficialReceiptDocument =
+    renewalPayment.official_receipt ||
+    renewalPayment.official_receipt_draft ||
+    null;
+  const renewalAdvertisementLicenseDocument =
+    renewalPayment.renewed_license ||
+    renewalPayment.manual_advertisement_license ||
+    renewalPayment.renewed_license_draft ||
+    renewalPayment.manual_advertisement_license_draft ||
+    null;
+  const showRenewalOfficialReceiptInDocuments = Boolean(
+    isIssuedLicenseView &&
+      renewalOfficialReceiptDocument &&
+      (renewalOfficialReceiptDocument.document_html ||
+        renewalOfficialReceiptDocument.saved_at ||
+        getPaymentDocumentSource(renewalOfficialReceiptDocument))
+  );
+  const showRenewalAdvertisementLicenseInDocuments = Boolean(
+    isIssuedLicenseView &&
+      renewalAdvertisementLicenseDocument &&
+      (renewalAdvertisementLicenseDocument.document_html ||
+        renewalAdvertisementLicenseDocument.saved_at ||
+        getPaymentDocumentSource(renewalAdvertisementLicenseDocument))
+  );
+  const originalOfficialReceiptDocument = {
+    label: t("workspace.payment.originalOfficialReceiptTitle", "Original Official Receipt"),
+    file: officialReceiptFile,
+    available: Boolean(
+      getPaymentDocumentSource(officialReceiptFile) ||
+        manualReceipt.document_html ||
+        manualReceipt.saved_at
+    ),
+    displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+    onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
+  };
+  const renewalOfficialReceiptDocumentRow = {
+    label: t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
+    file: renewalOfficialReceiptDocument,
+    available: showRenewalOfficialReceiptInDocuments,
+    displayName:
+      renewalOfficialReceiptDocument?.name ||
+      t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
+    onDownload: () =>
+      printHtmlDocument(
+        renewalOfficialReceiptDocument?.document_html ||
+          getRenewalGeneratedOfficialReceiptDocumentHtml(app, t),
+        `${getApplicationReference(app)} ${t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt")}`
+      ),
+  };
+  const originalAdvertisementLicenseDocument = {
+    label: t("workspace.license.originalDocumentTitle", "Original Advertisement License"),
+    file: licenseFile,
+    available: Boolean(
+      getPaymentDocumentSource(licenseFile) ||
+        manualLicense.document_html ||
+        manualLicense.saved_at
+    ),
+    displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
+    onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
+  };
+  const renewalAdvertisementLicenseDocumentRow = {
+    label: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+    file: renewalAdvertisementLicenseDocument,
+    available: showRenewalAdvertisementLicenseInDocuments,
+    displayName:
+      renewalAdvertisementLicenseDocument?.name ||
+      t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+    onDownload: () =>
+      printHtmlDocument(
+        renewalAdvertisementLicenseDocument?.document_html ||
+          getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t),
+        `${getApplicationReference(app)} ${t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License")}`
+      ),
+  };
   const revocationRequestNotice = showRevocationRequestNotice ? (
     <section className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
       <p className="text-sm font-semibold text-amber-900">
@@ -19305,7 +19375,14 @@ function PaymentDetails({
         {
           label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           file: officialReceiptFile,
-          available: Boolean(manualReceipt.document_html || manualReceipt.saved_at),
+          available: originalOfficialReceiptDocument.available || showRenewalOfficialReceiptInDocuments,
+          isDocumentGroup: showRenewalOfficialReceiptInDocuments,
+          relatedDocuments: showRenewalOfficialReceiptInDocuments
+            ? [
+                ...(originalOfficialReceiptDocument.available ? [originalOfficialReceiptDocument] : []),
+                renewalOfficialReceiptDocumentRow,
+              ]
+            : [],
           displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
         },
@@ -19362,7 +19439,14 @@ function PaymentDetails({
         {
           label: t("workspace.license.documentTitle", "Advertisement License"),
           file: licenseFile,
-          available: Boolean(manualLicense.document_html || manualLicense.saved_at),
+          available: originalAdvertisementLicenseDocument.available || showRenewalAdvertisementLicenseInDocuments,
+          isDocumentGroup: showRenewalAdvertisementLicenseInDocuments,
+          relatedDocuments: showRenewalAdvertisementLicenseInDocuments
+            ? [
+                ...(originalAdvertisementLicenseDocument.available ? [originalAdvertisementLicenseDocument] : []),
+                renewalAdvertisementLicenseDocumentRow,
+              ]
+            : [],
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
           onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
         },
