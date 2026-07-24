@@ -18667,6 +18667,9 @@ function PaymentDetails({
     payment.verification_result ||
     payment.verification_notes
   );
+  const hasOriginalPaymentReceipt = Boolean(
+    receiptSource || receiptFile?.name || payment.receipt_reference
+  );
   const isRejectReceiptDecision = paymentReceiptDecision === "Reject Receipt";
   const paymentReferenceDetails = [
     ["Reference ID", payment.reference_id],
@@ -18938,7 +18941,7 @@ function PaymentDetails({
           displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
         },
-        ...(receiptSource || receiptFile?.name || payment.receipt_reference
+        ...(hasOriginalPaymentReceipt
           ? [
               {
                 label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
@@ -18975,7 +18978,7 @@ function PaymentDetails({
       ]}
     />
   ) : null;
-  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails && !isRenewalReceiptVerification ? (
+  const issuedReceiptSection = isIssuedLicenseView && showReceiptDetails && !hasOriginalPaymentReceipt ? (
     <IssuedPaymentReceiptSection
       app={app}
       t={t}
