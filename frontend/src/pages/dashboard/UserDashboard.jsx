@@ -2159,7 +2159,7 @@ function QrELicenseContent({
 }
 
 function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
   const payment = app?.form_data?.payment || {};

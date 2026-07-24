@@ -19223,7 +19223,7 @@ function PaymentQrPanel({ app, t }) {
 }
 
 function IssuedPaymentDocumentList({ t, documents }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const availableDocuments = documents.filter((item) =>
     getPaymentDocumentSource(item.file) || item.available || item.onView || item.onDownload
   );
