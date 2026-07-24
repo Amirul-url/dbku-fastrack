@@ -1062,6 +1062,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
   const showPaymentTypedDecision = showPaymentReceiptDecision;
   const showIssueLicenseDecision = isPtIssueLicenseWorkspace;
+  const requiresWorkspaceActionSignature =
+    workspaceActions.some((action) => action.requiresDigitalSignature);
   const useTypedApprovalDecision =
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
@@ -1073,13 +1075,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !showPaymentTypedDecision;
   const workspaceCommentRequired =
     workspaceActions.some((action) => action.requiresComment) ||
+    requiresWorkspaceActionSignature ||
     useTypedApprovalDecision ||
     showPaymentTypedDecision ||
     showIssueLicenseDecision;
   const showWorkspaceCommentField =
     !showRenewalReminderWorkflowPanel &&
     !isApprovalLicenseManagement &&
-    (actionConfig.showComment || showIssueLicenseDecision) &&
+    (actionConfig.showComment || showIssueLicenseDecision || requiresWorkspaceActionSignature) &&
     canSubmitWorkspaceAction &&
     !useApprovalSignatureTemplate &&
     (
@@ -1093,10 +1096,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       )
     );
   const showDetailsBeforeComment =
-    actionConfig.key === "payment" &&
+    requiresWorkspaceActionSignature ||
     (
-      showPaymentDocumentDecision ||
-      workspaceActions.some((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt)
+      actionConfig.key === "payment" &&
+      (
+        showPaymentDocumentDecision ||
+        workspaceActions.some((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt)
+      )
     );
   const selectedIssueLicenseAction = showIssueLicenseDecision
     ? workspaceActions.find((action) => action.key === "issue_license")
@@ -1293,8 +1299,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   ]);
 
   useEffect(() => {
-    if (!requiresPaymentReceiptSignature && !requiresIssueLicenseSignature) {
-      if (showPaymentReceiptDecision || showIssueLicenseDecision) {
+    if (!requiresPaymentReceiptSignature && !requiresIssueLicenseSignature && !requiresWorkspaceActionSignature) {
+      if (showPaymentReceiptDecision || showIssueLicenseDecision || requiresWorkspaceActionSignature) {
         setApprovalSupportSignature(null);
       }
       setApprovalSupportSignatureError("");
@@ -1302,6 +1308,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [
     requiresIssueLicenseSignature,
     requiresPaymentReceiptSignature,
+    requiresWorkspaceActionSignature,
     showIssueLicenseDecision,
     showPaymentReceiptDecision,
   ]);
@@ -2376,6 +2383,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         commentRef.current?.focus();
         return;
       }
+    }
+
+    if (action.requiresDigitalSignature) {
+      if (!hasDigitalSignatureContent(approvalSupportSignature)) {
+        setApprovalSupportSignatureError(
+          t("workspace.signature.required", "Digital signature is required.")
+        );
+        return;
+      }
+
+      submitAction(action, { approvalSupportSignature });
+      return;
     }
 
     submitAction(action);
@@ -3862,6 +3881,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               {useTypedApprovalDecision
                                 || showPaymentTypedDecision
                                 || showIssueLicenseDecision
+                                || requiresWorkspaceActionSignature
                                 ? t("workspace.comment.remarks", "Remarks")
                                 : t(config.commentLabelKey, config.commentLabel || "Notes")}
                               {workspaceCommentRequired && (
@@ -3869,9 +3889,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                               )}
                             </>
                           }
-                          labelClassName={showPaymentTypedDecision || showIssueLicenseDecision ? "!text-[13px]" : ""}
+                          labelClassName={showPaymentTypedDecision || showIssueLicenseDecision || requiresWorkspaceActionSignature ? "!text-[13px]" : ""}
                         >
-                          {showPaymentTypedDecision || showIssueLicenseDecision ? (
+                          {showPaymentTypedDecision || showIssueLicenseDecision || requiresWorkspaceActionSignature ? (
                             <div
                               className={`relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
                               style={{
@@ -3917,7 +3937,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             </p>
                           )}
                         </Field>
-                        {(requiresPaymentReceiptSignature || requiresIssueLicenseSignature) && (
+                        {(requiresPaymentReceiptSignature || requiresIssueLicenseSignature || requiresWorkspaceActionSignature) && (
                           <div className="mt-4">
                             <ApprovalSupportSignatureBox
                               t={t}
@@ -15402,6 +15422,8 @@ const configs = {
         icon: "qr_code_2",
         success: "Renewal official receipt and advertisement license generated.",
         successKey: "workspace.message.renewalReceiptLicenseGenerated",
+        requiresComment: true,
+        requiresDigitalSignature: true,
         isAvailable: (app, department) =>
           department === "PT(IKL)" && getLicenseRenewalPaymentStatus(app) === "verified",
         buildPayload: (app, data) => {
@@ -15430,6 +15452,7 @@ const configs = {
             `${getGeneratedOfficialReceiptNumber(app)}-R${months}`;
           const recommendation = data.decision || "Generate Renewal Official Receipt and Advertisement License";
           const remarks = cleanRemark(data.comment);
+          const digitalSignature = data.approvalSupportSignature || null;
           const nextLicenseBase = {
             ...savedLicense,
             creation_mode: "generated",
@@ -15437,6 +15460,7 @@ const configs = {
             status: "Active",
             recommendation,
             remarks,
+            digital_signature: digitalSignature,
             issued_by: "PT(IKL)",
             holder: getApplicantName(app),
             type: getApplicationType(app),
@@ -15488,6 +15512,7 @@ const configs = {
             receipt_no: officialReceiptNo,
             document_html: receiptDocumentHtml,
             status: "Sent to Applicant",
+            digital_signature: digitalSignature,
             generated_by: "PT(IKL)",
             generated_at: timestamp,
             saved_at: timestamp,
@@ -15499,6 +15524,7 @@ const configs = {
             name: translate("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
             document_html: licenseDocumentHtml,
             status: "Sent to Applicant",
+            digital_signature: digitalSignature,
             generated_by: "PT(IKL)",
             generated_at: timestamp,
             saved_at: timestamp,
@@ -15530,6 +15556,7 @@ const configs = {
                   completed_by: "PT(IKL)",
                   completed_at: timestamp,
                   completion_note: remarks,
+                  digital_signature: digitalSignature,
                 },
               },
             }),
