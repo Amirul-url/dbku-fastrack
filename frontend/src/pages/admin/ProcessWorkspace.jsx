@@ -21212,7 +21212,7 @@ function FirstReminderTaskPanel({
   onGenerate,
 }) {
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("qr");
-  const [documentsExpanded, setDocumentsExpanded] = useState(true);
+  const [documentsExpanded, setDocumentsExpanded] = useState(false);
   const [reviewDocument, setReviewDocument] = useState(null);
   const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
@@ -21380,49 +21380,6 @@ function FirstReminderTaskPanel({
 
           <div className="min-w-0 space-y-4">
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
-                    {t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase()} <span className="text-red-600">*</span>
-                  </p>
-                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
-                    {documentDescription}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon="download"
-                    className="min-h-9 px-4 py-1.5"
-                    disabled={saving}
-                    onClick={() =>
-                      printRenewalReminderDocument(
-                        documentHtml,
-                        `${getApplicationReference(app)} ${documentTitle}`,
-                        t
-                      )
-                    }
-                  >
-                    {t("common.download", "Download")}
-                  </Button>
-                  {!confirmationMode && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      icon="edit"
-                      className="min-h-9 px-4 py-1.5"
-                      disabled={saving}
-                      onClick={openReview}
-                    >
-                      {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
               <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
@@ -21499,6 +21456,49 @@ function FirstReminderTaskPanel({
                   ))}
                 </div>
               )}
+            </section>
+
+            <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+              <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold uppercase leading-5 text-slate-500">
+                    {t("workspace.license.reminderLetterUpper", "{label} LETTER", { label }).toUpperCase()} <span className="text-red-600">*</span>
+                  </p>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                    {documentDescription}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="download"
+                    className="min-h-9 px-4 py-1.5"
+                    disabled={saving}
+                    onClick={() =>
+                      printRenewalReminderDocument(
+                        documentHtml,
+                        `${getApplicationReference(app)} ${documentTitle}`,
+                        t
+                      )
+                    }
+                  >
+                    {t("common.download", "Download")}
+                  </Button>
+                  {!confirmationMode && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon="edit"
+                      className="min-h-9 px-4 py-1.5"
+                      disabled={saving}
+                      onClick={openReview}
+                    >
+                      {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                    </Button>
+                  )}
+                </div>
+              </div>
             </section>
           </div>
         </div>
