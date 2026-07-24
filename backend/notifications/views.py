@@ -37,6 +37,7 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                     "license_renewal_3m",
                     "license_renewal_2m",
                     "license_renewal_1m",
+                    "license_renewal_payment_verified",
                     "license_cancellation_pending",
                 }
             elif department == "KU(IKL)":

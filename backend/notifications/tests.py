@@ -2184,6 +2184,7 @@ class LicenseRenewalWorkflowTests(TestCase):
             username="pt-ikl-renewal",
             email="pt@example.com",
             password="Password123",
+            mobile_number="0162223333",
             role="admin",
             department="PT(IKL)",
             is_active=True,
@@ -2430,6 +2431,77 @@ class LicenseRenewalWorkflowTests(TestCase):
         data = response.data if isinstance(response.data, list) else response.data["results"]
         self.assertTrue(
             any(item["metadata"]["event_status"] == "license_renewal_payment_submitted" for item in data)
+        )
+
+    def test_verified_renewal_payment_receipt_notifies_pt_ikl_on_all_channels(self):
+        self.application.form_data["license_renewal"] = {
+            "early_payment_receipts": [
+                {
+                    "document_id": 999,
+                    "name": "Receipt.jpg",
+                    "uploaded_at": "2026-07-23T09:37:00+08:00",
+                    "months_before_expiry": 3,
+                    "reference_id": "REF-123",
+                    "recipient_reference": "ALIS-RENEWAL",
+                    "payment_details": "Renewal payment",
+                }
+            ],
+            "payment": {
+                "status": "submitted",
+                "months_before_expiry": 3,
+                "receipt": {
+                    "document_id": 999,
+                    "name": "Receipt.jpg",
+                    "uploaded_at": "2026-07-23T09:37:00+08:00",
+                    "months_before_expiry": 3,
+                    "reference_id": "REF-123",
+                    "recipient_reference": "ALIS-RENEWAL",
+                    "payment_details": "Renewal payment",
+                },
+                "receipt_document_id": 999,
+                "reference_id": "REF-123",
+                "recipient_reference": "ALIS-RENEWAL",
+                "payment_details": "Renewal payment",
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        client = APIClient()
+        client.force_authenticate(user=self.fin)
+        response = client.post(
+            f"/api/applications/{self.application.id}/license-renewal-action/",
+            {
+                "action": "verify_early_payment",
+                "months": 3,
+                "note": "Receipt verified.",
+                "digital_signature": {"mode": "upload", "file_url": "/media/signatures/fin.png"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.application.refresh_from_db()
+        payment = self.application.form_data["license_renewal"]["payment"]
+        self.assertEqual(payment["status"], "verified")
+
+        deliveries = NotificationDelivery.objects.filter(
+            user=self.pt_ikl,
+            metadata__event_status="license_renewal_payment_verified",
+        )
+        self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
+        self.assertTrue(
+            deliveries.filter(
+                channel="web",
+                metadata__message__icontains="PT(IKL) must generate",
+            ).exists()
+        )
+
+        client.force_authenticate(user=self.pt_ikl)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertTrue(
+            any(item["metadata"]["event_status"] == "license_renewal_payment_verified" for item in data)
         )
 
     def test_rejected_renewal_payment_receipt_notifies_applicant_on_all_channels(self):
