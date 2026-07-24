@@ -2160,11 +2160,18 @@ function QrELicenseContent({
 
 function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const [expanded, setExpanded] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState({});
   const approvalLetter = app?.form_data?.approval_letter || {};
   const license = app?.form_data?.license || {};
   const payment = app?.form_data?.payment || {};
+  const renewalPayment = getLicenseRenewalPayment(app);
   const manualReceipt = approvalLetter.manual_receipt || {};
   const manualLicense = license.manual_license || {};
+  const renewalManualReceipt =
+    renewalPayment.official_receipt ||
+    renewalPayment.manual_official_receipt ||
+    renewalPayment.official_receipt_draft ||
+    {};
   const renewalManualLicense = getLicenseRenewalManualAdvertisementLicense(app);
   const renewalLicenseFile = getLicenseRenewalAdvertisementLicenseFile(app);
   const officialReceiptFile = getSentOfficialReceiptFile(app);
@@ -2197,6 +2204,72 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
       renewalManualLicense.status === "Sent to Applicant" ||
       renewalManualLicense.saved_at
   );
+  const showRenewalOfficialReceipt = Boolean(
+    getPaymentDocumentSource(renewalManualReceipt) ||
+      renewalManualReceipt.document_html ||
+      renewalManualReceipt.sent_at ||
+      renewalManualReceipt.status === "Sent to Applicant" ||
+      renewalManualReceipt.saved_at
+  );
+  const originalOfficialReceiptRow = {
+    label: t("workspace.payment.originalOfficialReceiptTitle", "Original Official Receipt"),
+    file: officialReceiptFile,
+    manual: manualReceipt,
+    type: "receipt",
+    available: showOfficialReceipt,
+    onDownload: () =>
+      officialReceiptFile
+        ? downloadApplicantPaymentDocument(
+            officialReceiptFile,
+            t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+            t
+          )
+        : downloadApplicantManualPaymentDocument(app, "receipt", t),
+  };
+  const renewalOfficialReceiptRow = {
+    label: t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
+    file: renewalManualReceipt,
+    manual: renewalManualReceipt,
+    type: "renewal_official_receipt",
+    available: showRenewalOfficialReceipt,
+    onDownload: () =>
+      downloadApplicantHtmlOrFileDocument(
+        renewalManualReceipt,
+        t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
+        t,
+        app
+      ),
+  };
+  const originalAdvertisementLicenseRow = {
+    label: t("workspace.license.originalDocumentTitle", "Original Advertisement License"),
+    file: license.license_file,
+    manual: manualLicense,
+    type: "advertisement_license",
+    available: showAdvertisementLicense,
+    onDownload: () =>
+      license.license_file
+        ? downloadApplicantPaymentDocument(
+            license.license_file,
+            t("workspace.license.documentTitle", "Advertisement License"),
+            t
+          )
+        : downloadApplicantAdvertisementLicenseDocument(app, t),
+  };
+  const renewalAdvertisementLicenseRow = {
+    label: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+    file: renewalLicenseFile || renewalManualLicense,
+    manual: renewalManualLicense,
+    type: "renewal_advertisement_license",
+    available: showRenewalAdvertisementLicense,
+    onDownload: () =>
+      renewalLicenseFile
+        ? downloadApplicantPaymentDocument(
+            renewalLicenseFile,
+            t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+            t
+          )
+        : downloadApplicantAdvertisementLicenseDocument(app, t, { renewal: true }),
+  };
   const documents = [
     {
       label: t("applicant.submittedApplicationForm", "Application Form Details"),
@@ -2215,13 +2288,24 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
       manual: approvalLetter.manual_bill,
       type: "bill",
     },
-    ...(showOfficialReceipt
+    ...(showOfficialReceipt || showRenewalOfficialReceipt
       ? [
           {
             label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
             file: officialReceiptFile,
             manual: manualReceipt,
             type: "receipt",
+            isDocumentGroup: showRenewalOfficialReceipt,
+            relatedDocuments: showRenewalOfficialReceipt
+              ? [
+                  ...(showOfficialReceipt ? [originalOfficialReceiptRow] : []),
+                  renewalOfficialReceiptRow,
+                ]
+              : [],
+            onDownload: showOfficialReceipt
+              ? originalOfficialReceiptRow.onDownload
+              : renewalOfficialReceiptRow.onDownload,
+            available: showOfficialReceipt || showRenewalOfficialReceipt,
           },
         ]
       : []),
@@ -2249,18 +2333,19 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             file: license.license_file,
             manual: manualLicense,
             type: "advertisement_license",
+            isDocumentGroup: showRenewalAdvertisementLicense,
+            relatedDocuments: showRenewalAdvertisementLicense
+              ? [
+                  ...(showAdvertisementLicense ? [originalAdvertisementLicenseRow] : []),
+                  renewalAdvertisementLicenseRow,
+                ]
+              : [],
+            onDownload: originalAdvertisementLicenseRow.onDownload,
           },
         ]
       : []),
-    ...(showRenewalAdvertisementLicense
-      ? [
-          {
-            label: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
-            file: renewalLicenseFile,
-            manual: renewalManualLicense,
-            type: "renewal_advertisement_license",
-          },
-        ]
+    ...(!showAdvertisementLicense && showRenewalAdvertisementLicense
+      ? [renewalAdvertisementLicenseRow]
       : []),
     ...releasedRenewalLetters.map((letter) => {
       const letterLabel = getLocalizedRenewalReminderLetterLabel(letter.months, t);
@@ -2275,8 +2360,38 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     }),
   ];
   const hasAnyDocument = documents.some((item) =>
-    item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at
+    item.available ||
+    item.onDownload ||
+    getPaymentDocumentSource(item.file) ||
+    item.manual?.saved_at ||
+    item.relatedDocuments?.some((related) => related.available)
   );
+  const isDocumentAvailable = (item) =>
+    Boolean(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at);
+  const downloadDocumentItem = (item) => {
+    if (item.onDownload) {
+      item.onDownload();
+      return;
+    }
+
+    if (
+      item.type === "advertisement_license" ||
+      item.type === "renewal_advertisement_license"
+    ) {
+      if (item.file) {
+        downloadApplicantPaymentDocument(item.file, item.label, t);
+        return;
+      }
+      downloadApplicantAdvertisementLicenseDocument(app, t, {
+        renewal: item.type === "renewal_advertisement_license",
+      });
+      return;
+    }
+
+    item.file
+      ? downloadApplicantPaymentDocument(item.file, item.label, t)
+      : downloadApplicantManualPaymentDocument(app, item.type, t);
+  };
 
   if (!hasAnyDocument) return null;
 
@@ -2316,11 +2431,30 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-500">
-                    {item.label}
-                  </p>
+                  {item.isDocumentGroup ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedGroups((current) => ({
+                          ...current,
+                          [item.label]: !current[item.label],
+                        }))
+                      }
+                      className="inline-flex items-center gap-2 text-left text-sm font-semibold text-slate-500 hover:text-slate-700"
+                      aria-expanded={Boolean(expandedGroups[item.label])}
+                    >
+                      <span className="material-symbols-outlined text-[18px] text-slate-800">
+                        {expandedGroups[item.label] ? "expand_less" : "expand_more"}
+                      </span>
+                      {item.label}
+                    </button>
+                  ) : (
+                    <p className="text-sm font-semibold text-slate-500">
+                      {item.label}
+                    </p>
+                  )}
                 </div>
-                {(item.available || item.onDownload || getPaymentDocumentSource(item.file) || item.manual?.saved_at) && (
+                {isDocumentAvailable(item) && (
                   <div className="flex flex-wrap gap-2">
                     {item.type === "submitted_application" && (
                       <button
@@ -2337,30 +2471,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                     {item.type !== "submitted_application" && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (item.onDownload) {
-                            item.onDownload();
-                            return;
-                          }
-
-                          if (
-                            item.type === "advertisement_license" ||
-                            item.type === "renewal_advertisement_license"
-                          ) {
-                            if (item.file) {
-                              downloadApplicantPaymentDocument(item.file, item.label, t);
-                              return;
-                            }
-                            downloadApplicantAdvertisementLicenseDocument(app, t, {
-                              renewal: item.type === "renewal_advertisement_license",
-                            });
-                            return;
-                          }
-
-                          item.file
-                            ? downloadApplicantPaymentDocument(item.file, item.label, t)
-                            : downloadApplicantManualPaymentDocument(app, item.type, t);
-                        }}
+                        onClick={() => downloadDocumentItem(item)}
                         className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                       >
                         <span className="material-symbols-outlined text-[16px]">
@@ -2377,6 +2488,38 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                   {item.details.map(([label, value]) => (
                     <Info key={label} label={label} value={value} />
                   ))}
+                </div>
+              )}
+              {item.isDocumentGroup && expandedGroups[item.label] && (
+                <div className="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-2">
+                  {item.relatedDocuments
+                    ?.filter(isDocumentAvailable)
+                    .map((related) => (
+                      <div key={related.label} className="py-2">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm font-semibold text-slate-500">
+                            {related.label}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => downloadDocumentItem(related)}
+                            className="inline-flex min-h-9 items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">
+                              download
+                            </span>
+                            {t("common.download", "Download")}
+                          </button>
+                        </div>
+                        {related.details?.length > 0 && (
+                          <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                            {related.details.map(([label, value]) => (
+                              <Info key={label} label={label} value={value} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                 </div>
               )}
             </div>
@@ -3775,6 +3918,22 @@ async function downloadApplicantPaymentDocument(file, fallbackLabel, t) {
     console.error("Failed to download payment document:", err);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
+}
+
+async function downloadApplicantHtmlOrFileDocument(documentData, fallbackLabel, t, app) {
+  const html = String(documentData?.document_html || documentData?.editable_body_html || "").trim();
+  if (html) {
+    try {
+      await printHtmlDocument(html, `${getApplicationReference(app)} ${fallbackLabel}`);
+      return;
+    } catch (err) {
+      console.error("Failed to download generated document:", err);
+      window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+      return;
+    }
+  }
+
+  return downloadApplicantPaymentDocument(documentData, fallbackLabel, t);
 }
 
 function openApplicantManualPaymentDocument(app, type, t) {
