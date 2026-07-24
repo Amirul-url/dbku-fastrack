@@ -11960,8 +11960,8 @@ function getLicenseRenewalCurrentStatusLabel(app, t = null) {
       ? getLocalizedRenewalReminderTaskLabel(releasedMonth, t)
       : getRenewalReminderTaskLabel(releasedMonth);
     return t
-      ? t("workspace.license.reminderSent", "{label} Sent", { label })
-      : `${label} Sent`;
+      ? t("workspace.license.reminderConfirmed", "{label} Confirmed", { label })
+      : `${label} Confirmed`;
   }
 
   return "";
