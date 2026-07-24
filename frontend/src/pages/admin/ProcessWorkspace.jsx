@@ -1020,6 +1020,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !isPtIssueLicenseWorkspace &&
     !isApprovalLicenseManagement &&
     !isKbRenewalConfirmationWorkspace;
+  const WorkspaceDetailsComponent =
+    actionConfig.key === "license" &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
+      ? PaymentDetails
+      : config.details;
   const showApprovalLicenseManagementDetails =
     isApprovalLicenseManagement ||
     isPtIssueLicenseWorkspace;
@@ -3507,8 +3513,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     detailLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     ) : (
-                      !showRenewalReminderWorkflowPanel && !showApprovalLicenseManagementDetails && config.details && (
-                        <config.details
+                      !showRenewalReminderWorkflowPanel && !showApprovalLicenseManagementDetails && WorkspaceDetailsComponent && (
+                        <WorkspaceDetailsComponent
                           app={selectedRecord}
                           t={t}
                           canChooseLicenseExpiry={canChooseLicenseExpiry}
@@ -3968,8 +3974,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     !showRenewalReminderWorkflowPanel &&
                     !showDetailsBeforeComment &&
                     !showApprovalLicenseManagementDetails &&
-                    config.details && (
-                      <config.details
+                    WorkspaceDetailsComponent && (
+                      <WorkspaceDetailsComponent
                         app={selectedRecord}
                         t={t}
                         canChooseLicenseExpiry={canChooseLicenseExpiry}
@@ -3983,6 +3989,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onEditBill={() => setShowManualBillEditor(true)}
                         onEditReceipt={() => setShowManualReceiptEditor(true)}
                         onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
+                        onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                         onLicenseDocumentUpload={uploadLicenseDocument}
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
