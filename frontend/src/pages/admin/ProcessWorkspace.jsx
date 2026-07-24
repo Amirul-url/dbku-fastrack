@@ -19083,7 +19083,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
               className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <p className="text-sm font-semibold uppercase text-slate-500">
+                <p className="text-sm font-semibold text-slate-500">
                   {item.label}
                 </p>
               </div>

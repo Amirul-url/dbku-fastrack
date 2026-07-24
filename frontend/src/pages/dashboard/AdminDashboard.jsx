@@ -2380,7 +2380,7 @@ function CompleteDocumentRow({ app, document, t }) {
     return (
       <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-semibold uppercase text-slate-500">{document.label}</p>
+          <p className="text-sm font-semibold text-slate-500">{document.label}</p>
         </div>
         <Link
           className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
@@ -2405,7 +2405,7 @@ function CompleteDocumentRow({ app, document, t }) {
   return (
     <div className="flex flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <p className="text-sm font-semibold uppercase text-slate-500">{document.label}</p>
+        <p className="text-sm font-semibold text-slate-500">{document.label}</p>
         <p className={`mt-1 truncate text-sm font-semibold ${canDownload ? "text-slate-900" : "text-slate-500"}`}>
           {documentName}
         </p>
