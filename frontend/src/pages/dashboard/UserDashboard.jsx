@@ -1979,7 +1979,7 @@ function ApplicationSelectionSummary({ app, t }) {
     {
       label: t("common.status"),
       value: (
-        <StatusPill value={translatedStatus(t, normalizeStatus(app?.status))} />
+        <StatusPill value={getApplicantDetailStatusLabel(app, t)} />
       ),
     },
     {
@@ -2385,6 +2385,14 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
       )}
     </section>
   );
+}
+
+function getApplicantDetailStatusLabel(app, t) {
+  if (hasReleasedRenewalReminder(app, 3)) {
+    return getPaymentStatusText(app, t);
+  }
+
+  return translatedStatus(t, normalizeStatus(app?.status));
 }
 
 function LicenseRevocationRequestPanel({
