@@ -18951,6 +18951,12 @@ function PaymentDetails({
     Array.isArray(licenseManagementActions) &&
     licenseManagementActions.length > 0 &&
     typeof onLicenseManagementAction === "function";
+  const renewalReceiptDocument = renewalReceipts[0] || null;
+  const showRenewalReceiptInDocuments = Boolean(
+    isIssuedLicenseView &&
+      renewalReceiptDocument &&
+      ["verified", "completed"].includes(normalizeStatus(renewalPayment.status))
+  );
   const revocationRequestNotice = showRevocationRequestNotice ? (
     <section className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
       <p className="text-sm font-semibold text-amber-900">
@@ -19047,6 +19053,30 @@ function PaymentDetails({
               },
             ]
           : []),
+        ...(showRenewalReceiptInDocuments
+          ? [
+              {
+                label: t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+                file: renewalReceiptDocument,
+                available: true,
+                details: renewalPaymentReferenceDetails,
+                displayName:
+                  renewalReceiptDocument.name ||
+                  t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+                onDownload: () =>
+                  printPaymentReceiptDocument(
+                    renewalReceiptDocument,
+                    renewalReceiptDocument.name || "renewal-receipt.pdf",
+                    t(
+                      "workspace.license.renewalEarlyPaymentReceiptPrintTitle",
+                      "{reference} Renewal Early Payment Receipt",
+                      { reference: getApplicationReference(app) }
+                    ),
+                    t
+                  ),
+              },
+            ]
+          : []),
         {
           label: t("workspace.license.documentTitle", "Advertisement License"),
           file: licenseFile,
@@ -19082,7 +19112,7 @@ function PaymentDetails({
       }
     />
   ) : null;
-  const renewalReceiptSection = renewalReceipts.length > 0 ? (
+  const renewalReceiptSection = renewalReceipts.length > 0 && !showRenewalReceiptInDocuments ? (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
@@ -19312,6 +19342,7 @@ function PaymentQrPanel({ app, t }) {
 
 function IssuedPaymentDocumentList({ t, documents }) {
   const [expanded, setExpanded] = useState(false);
+  const [collapsedDetailRows, setCollapsedDetailRows] = useState({});
   const availableDocuments = documents.filter((item) =>
     getPaymentDocumentSource(item.file) || item.available || item.onView || item.onDownload
   );
@@ -19340,58 +19371,80 @@ function IssuedPaymentDocumentList({ t, documents }) {
 
       {expanded && (
         <div className="divide-y divide-slate-200">
-          {availableDocuments.map((item) => (
-            <div
-              key={item.label}
-              className="px-3 py-2"
-            >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-500">
-                    {item.label}
-                  </p>
-                </div>
+          {availableDocuments.map((item) => {
+            const hasDetails = item.details?.length > 0;
+            const detailsOpen = hasDetails && collapsedDetailRows[item.label] !== true;
 
-                <div className="flex flex-wrap gap-2">
-                  {item.type === "application_form" ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      icon="visibility"
-                      className="min-h-9 px-3 py-1 text-xs"
-                      onClick={() => item.onView?.()}
-                    >
-                      {t("common.view", "View")}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      icon="download"
-                      className="min-h-9 px-3 py-1 text-xs"
-                      onClick={() => {
-                        if (item.onDownload) {
-                          item.onDownload();
-                          return;
+            return (
+              <div
+                key={item.label}
+                className="px-3 py-2"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    {hasDetails ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedDetailRows((current) => ({
+                            ...current,
+                            [item.label]: current[item.label] !== true,
+                          }))
                         }
-                        downloadPaymentDocument(item.file, item.label, t);
-                      }}
-                    >
-                      {t("common.download", "Download")}
-                    </Button>
-                  )}
-                </div>
-              </div>
+                        className="inline-flex min-h-8 items-center gap-1 text-left text-sm font-semibold text-slate-500 transition hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                        aria-expanded={detailsOpen}
+                      >
+                        <Icon name={detailsOpen ? "expand_less" : "expand_more"} className="text-lg text-slate-700" />
+                        <span>{item.label}</span>
+                      </button>
+                    ) : (
+                      <p className="text-sm font-semibold text-slate-500">
+                        {item.label}
+                      </p>
+                    )}
+                  </div>
 
-              {item.details?.length > 0 && (
-                <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                  {item.details.map(([label, value]) => (
-                    <Info key={label} label={label} value={value} />
-                  ))}
+                  <div className="flex flex-wrap gap-2">
+                    {item.type === "application_form" ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon="visibility"
+                        className="min-h-9 px-3 py-1 text-xs"
+                        onClick={() => item.onView?.()}
+                      >
+                        {t("common.view", "View")}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        icon="download"
+                        className="min-h-9 px-3 py-1 text-xs"
+                        onClick={() => {
+                          if (item.onDownload) {
+                            item.onDownload();
+                            return;
+                          }
+                          downloadPaymentDocument(item.file, item.label, t);
+                        }}
+                      >
+                        {t("common.download", "Download")}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {detailsOpen && (
+                  <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                    {item.details.map(([label, value]) => (
+                      <Info key={label} label={label} value={value} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </section>
