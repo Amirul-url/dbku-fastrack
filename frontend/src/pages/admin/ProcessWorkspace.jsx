@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { QRCodeSVG } from "qrcode.react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -343,6 +343,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const manualLicenseDraftDataRef = useRef(null);
   const decisionInputRef = useRef(null);
   const commentRef = useRef(null);
+  const approvalSupportSignatureBoxRef = useRef(null);
   const formViewFallbackTimerRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
     application_subtype: "",
@@ -2428,6 +2429,22 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
+  async function captureApprovalSupportSignatureSnapshot(signature) {
+    if (!hasDigitalSignatureContent(signature)) return signature || null;
+
+    const captureLatestSnapshot =
+      approvalSupportSignatureBoxRef.current?.captureLatestSnapshot;
+    if (typeof captureLatestSnapshot !== "function") return signature;
+
+    const nextSignature = await captureLatestSnapshot(signature);
+    if (nextSignature) {
+      setApprovalSupportSignature(nextSignature);
+      return nextSignature;
+    }
+
+    return signature;
+  }
+
   async function submitAction(action, overrides = {}) {
     if (!selectedRecord?.id) {
       setError("Please select an application first.");
@@ -2586,6 +2603,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           }
         : overrides.technicalSite || technicalSite;
       const preparedTechnicalSite = await uploadPendingTechnicalSitePhotos(submitTechnicalSite);
+      const preparedApprovalSupportSignature = await captureApprovalSupportSignatureSnapshot(
+        overrides.approvalSupportSignature || null
+      );
       const body = action.buildPayload(current, {
         decision: actionDecision,
         comment: cleanedComment,
@@ -2594,7 +2614,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
-        approvalSupportSignature: overrides.approvalSupportSignature || null,
+        approvalSupportSignature: preparedApprovalSupportSignature,
         mphlgSupportingDocuments,
         screeningSignature: overrides.screeningSignature || null,
         kuSignature: overrides.kuSignature ?? null,
@@ -3888,6 +3908,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         )}
                         <div className="mt-4">
                           <ApprovalSupportSignatureBox
+                            ref={approvalSupportSignatureBoxRef}
                             t={t}
                             applicationId={selectedRecord.id}
                             value={approvalSupportSignature}
@@ -3967,6 +3988,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         {(requiresPaymentReceiptSignature || requiresIssueLicenseSignature || requiresWorkspaceActionSignature) && (
                           <div className="mt-4">
                             <ApprovalSupportSignatureBox
+                              ref={approvalSupportSignatureBoxRef}
                               t={t}
                               applicationId={selectedRecord.id}
                               value={approvalSupportSignature}
@@ -4088,6 +4110,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                       </div>
                       {showApprovalSupportSignature && (
                         <ApprovalSupportSignatureBox
+                          ref={approvalSupportSignatureBoxRef}
                           t={t}
                           applicationId={selectedRecord.id}
                           value={approvalSupportSignature}
@@ -9357,7 +9380,10 @@ function getSignatureItemSource(item = {}) {
   ).trim();
 }
 
-function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange, onError }) {
+const ApprovalSupportSignatureBox = forwardRef(function ApprovalSupportSignatureBox(
+  { t, applicationId, value, error, onChange, onError },
+  ref
+) {
   const canvasRef = useRef(null);
   const uploadAreaRef = useRef(null);
   const signatureSnapshotRef = useRef(null);
@@ -9653,6 +9679,41 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       return null;
     }
   }
+
+  useImperativeHandle(ref, () => ({
+    async captureLatestSnapshot(signatureOverride = value) {
+      const currentSignature =
+        signatureOverride && typeof signatureOverride === "object"
+          ? signatureOverride
+          : value;
+      if (!applicationId || !hasDigitalSignatureContent(currentSignature)) {
+        return currentSignature || null;
+      }
+
+      const reportSnapshotFile = await tryCaptureSignatureReportSnapshotFile();
+      if (!reportSnapshotFile) return currentSignature;
+
+      const reportSnapshot = await uploadApplicationDocument(
+        applicationId,
+        "Digital Signature Report Snapshot",
+        reportSnapshotFile
+      );
+      const nextSignature = {
+        ...(currentSignature || {}),
+        report_snapshot_document_id:
+          reportSnapshot?.document_id || currentSignature?.report_snapshot_document_id || "",
+        report_snapshot_url:
+          reportSnapshot?.url || currentSignature?.report_snapshot_url || "",
+        report_snapshot_file_url:
+          reportSnapshot?.file_url || currentSignature?.report_snapshot_file_url || "",
+        report_snapshot_file:
+          reportSnapshot?.file || currentSignature?.report_snapshot_file || "",
+        updatedAt: new Date().toISOString(),
+      };
+      onChange(nextSignature);
+      return nextSignature;
+    },
+  }), [applicationId, onChange, value]);
 
   async function getSignatureCanvasFile({ fillBackground = false } = {}) {
     const sourceCanvas = canvasRef.current;
@@ -10450,7 +10511,7 @@ function ApprovalSupportSignatureBox({ t, applicationId, value, error, onChange,
       </div>
     </div>
   );
-}
+});
 
 function FormalMemoRow({ label, value, compact = false }) {
   return (
@@ -21906,6 +21967,7 @@ function FirstReminderTaskPanel({
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("qr");
   const [documentsExpanded, setDocumentsExpanded] = useState(false);
   const [reviewDocument, setReviewDocument] = useState(null);
+  const signatureBoxRef = useRef(null);
   const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
   const documentTitle = t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
@@ -21935,7 +21997,7 @@ function FirstReminderTaskPanel({
         ? t("workspace.action.generateSecondReminderLetter", "Generate 2nd Reminder Letter")
         : t("workspace.action.generateFinalReminderLetter", "Generate Final Reminder Letter");
 
-  function submitReminderLetter() {
+  async function submitReminderLetter() {
     const cleanedRemarks = cleanRemark(remarks);
 
     if (!cleanedRemarks) {
@@ -21948,9 +22010,12 @@ function FirstReminderTaskPanel({
       return;
     }
 
+    const nextSignature =
+      await signatureBoxRef.current?.captureLatestSnapshot?.(signature) || signature;
+
     onGenerate?.(documentHtml, {
       comment: cleanedRemarks,
-      signature,
+      signature: nextSignature,
     });
   }
 
@@ -22246,6 +22311,7 @@ function FirstReminderTaskPanel({
           </div>
 
           <ApprovalSupportSignatureBox
+            ref={signatureBoxRef}
             t={t}
             applicationId={app?.id}
             value={signature}
