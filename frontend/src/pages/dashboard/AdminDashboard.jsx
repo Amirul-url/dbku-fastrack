@@ -1745,7 +1745,7 @@ function CompleteApplicationCard({ row, t, language = "en" }) {
                 {t("applicant.paymentDocumentsTitle", "Documents to Download")}
               </h3>
               <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                {t("applicant.paymentDocumentsDesc", "View the submitted application form and download related documents from ALiS.")}
+                {t("applicant.paymentDocumentsDesc", "Please download the documents below for your record.")}
               </p>
             </div>
             <div className="divide-y divide-slate-200">

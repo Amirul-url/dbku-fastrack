@@ -19061,7 +19061,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
             {t("applicant.paymentDocumentsTitle", "Documents to Download")}
           </h4>
           <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-            {t("applicant.paymentDocumentsDesc", "Download the documents from ALiS before making payment.")}
+            {t("applicant.paymentDocumentsDesc", "Please download the documents below for your record.")}
           </p>
         </div>
         <button
