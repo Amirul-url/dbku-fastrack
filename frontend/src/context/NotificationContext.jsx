@@ -33,6 +33,7 @@ const applicantNotificationStatuses = new Set([
   "invoice_generated",
   "license_issued",
   "license_renewal_released",
+  "license_renewal_issued",
   "license_renewal_payment_rejected",
   "license_cancellation_released",
 ]);

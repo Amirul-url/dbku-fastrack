@@ -2629,6 +2629,14 @@ class LicenseRenewalWorkflowTests(TestCase):
         for delivery in deliveries:
             self.assertNotIn("License ID:", delivery.message)
 
+        client.force_authenticate(user=self.applicant)
+        response = client.get("/api/notifications/")
+        self.assertEqual(response.status_code, 200)
+        data = response.data if isinstance(response.data, list) else response.data["results"]
+        self.assertTrue(
+            any(item["metadata"]["event_status"] == "license_renewal_issued" for item in data)
+        )
+
     def local_time(self, year, month, day, hour, minute):
         return timezone.make_aware(
             datetime(year, month, day, hour, minute),
