@@ -19423,14 +19423,10 @@ function PaymentDetails({
         ...(hasOriginalPaymentReceipt
           ? [
               {
-                label: showRenewalReceiptInDocuments
-                  ? t("applicant.paymentReceiptDetails", "Payment Receipt Details")
-                  : t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+                label: t("applicant.paymentReceiptDetails", "Payment Receipt Details"),
                 file: receiptFile,
                 available: true,
-                detailLabel: showRenewalReceiptInDocuments
-                  ? t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant")
-                  : "",
+                detailLabel: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
                 isDocumentGroup: showRenewalReceiptInDocuments,
                 details: paymentReferenceDetails,
                 relatedDocuments: showRenewalReceiptInDocuments
