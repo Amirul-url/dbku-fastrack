@@ -22087,6 +22087,7 @@ function FirstReminderTaskPanel({
 }) {
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState("qr");
   const [documentsExpanded, setDocumentsExpanded] = useState(false);
+  const [expandedDocumentRows, setExpandedDocumentRows] = useState({});
   const [reviewDocument, setReviewDocument] = useState(null);
   const signatureBoxRef = useRef(null);
   const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
@@ -22197,21 +22198,25 @@ function FirstReminderTaskPanel({
     {
       key: "official_receipt",
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+      detailLabel: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
       file: officialReceiptFile,
       available: Boolean(
         getPaymentDocumentSource(officialReceiptFile) ||
           manualReceipt.document_html ||
           manualReceipt.saved_at
       ),
+      isDocumentGroup: true,
       onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
     },
     ...(receiptSource
       ? [
           {
             key: "original_payment_receipt",
-            label: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+            label: t("applicant.paymentReceiptDetails", "Payment Receipt Details"),
+            detailLabel: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
             file: receiptFile,
             available: true,
+            isDocumentGroup: true,
             details: paymentReferenceDetails,
             onDownload: () =>
               printPaymentReceiptDocument(
@@ -22226,12 +22231,14 @@ function FirstReminderTaskPanel({
     {
       key: "advertisement_license",
       label: t("workspace.license.documentTitle", "Advertisement License"),
+      detailLabel: t("workspace.license.documentTitle", "Advertisement License"),
       file: licenseFile,
       available: Boolean(
         getPaymentDocumentSource(licenseFile) ||
           manualLicense.document_html ||
           manualLicense.saved_at
       ),
+      isDocumentGroup: true,
       onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
     },
     ...releasedRenewalLetters
@@ -22263,10 +22270,13 @@ function FirstReminderTaskPanel({
 
           <div className="min-w-0 space-y-4">
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-              <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-h-8 items-center">
-                  <p className="text-[13px] font-bold leading-5 tracking-wide text-slate-950">
-                    {t("workspace.payment.documents", "List of Document")}
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-950">
+                    {t("applicant.paymentDocumentsTitle", "Documents to Download")}
+                  </h4>
+                  <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                    {t("applicant.paymentDocumentsDesc", "Please download the documents below for your record.")}
                   </p>
                 </div>
                 <button
@@ -22281,71 +22291,133 @@ function FirstReminderTaskPanel({
               </div>
               {documentsExpanded && (
                 <div className="divide-y divide-slate-200">
-                  {documentRows.map((item) => (
-                    <div
-                      key={item.key}
-                      className="px-4 py-3"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-semibold leading-5 tracking-wide text-slate-500">
-                            {item.label}
-                            {item.required && <span className="ml-1 text-red-600">*</span>}
-                          </p>
-                          {item.displayName && (
-                            <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
-                              {item.displayName}
-                            </p>
+                  {documentRows.map((item) => {
+                    const hasDetails = item.details?.length > 0;
+                    const hasRelatedDocuments = item.relatedDocuments?.length > 0;
+                    const isDocumentGroup = item.isDocumentGroup === true;
+                    const isDropdownRow = hasDetails || hasRelatedDocuments || isDocumentGroup;
+                    const detailsOpen = isDropdownRow && expandedDocumentRows[item.key] === true;
+                    const hasDirectDownload =
+                      Boolean(item.onDownload) || Boolean(getPaymentDocumentSource(item.file));
+
+                    return (
+                      <div
+                        key={item.key}
+                        className="px-3 py-2"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            {isDropdownRow ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedDocumentRows((current) => ({
+                                    ...current,
+                                    [item.key]: current[item.key] !== true,
+                                  }))
+                                }
+                                className="inline-flex min-h-8 items-center gap-1 text-left text-sm font-semibold text-slate-500 transition hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1"
+                                aria-expanded={detailsOpen}
+                              >
+                                <Icon name={detailsOpen ? "expand_less" : "expand_more"} className="text-lg text-slate-700" />
+                                <span>
+                                  {item.label}
+                                  {item.required && <span className="ml-1 text-red-600">*</span>}
+                                </span>
+                              </button>
+                            ) : (
+                              <p className="text-sm font-semibold text-slate-500">
+                                {item.label}
+                                {item.required && <span className="ml-1 text-red-600">*</span>}
+                              </p>
+                            )}
+                            {!isDropdownRow && item.displayName && (
+                              <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                                {item.displayName}
+                              </p>
+                            )}
+                          </div>
+
+                          {!isDropdownRow && (
+                            <div className="flex shrink-0 flex-wrap gap-2">
+                              {item.onView && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="visibility"
+                                  className="min-h-9 px-4 py-1.5"
+                                  disabled={saving}
+                                  onClick={item.onView}
+                                >
+                                  {t("common.view", "View")}
+                                </Button>
+                              )}
+                              {item.onDownload && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="download"
+                                  className="min-h-9 px-4 py-1.5"
+                                  disabled={saving}
+                                  onClick={item.onDownload}
+                                >
+                                  {t("common.download", "Download")}
+                                </Button>
+                              )}
+                              {item.onReview && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="edit"
+                                  className="min-h-9 px-4 py-1.5"
+                                  disabled={saving}
+                                  onClick={item.onReview}
+                                >
+                                  {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </div>
-                        <div className="flex shrink-0 flex-wrap gap-2">
-                          {item.onView && (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              icon="visibility"
-                              className="min-h-9 px-4 py-1.5"
-                              disabled={saving}
-                              onClick={item.onView}
-                            >
-                              {t("common.view", "View")}
-                            </Button>
-                          )}
-                          {item.onDownload && (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              icon="download"
-                              className="min-h-9 px-4 py-1.5"
-                              disabled={saving}
-                              onClick={item.onDownload}
-                            >
-                              {t("common.download", "Download")}
-                            </Button>
-                          )}
-                          {item.onReview && (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              icon="edit"
-                              className="min-h-9 px-4 py-1.5"
-                              disabled={saving}
-                              onClick={item.onReview}
-                            >
-                              {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                            </Button>
-                          )}
-                        </div>
+
+                        {detailsOpen && (
+                          <div className="mt-3 border-t border-slate-100 pt-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm font-semibold text-slate-500">
+                                {item.detailLabel || item.label}
+                              </p>
+                              {hasDirectDownload && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  icon="download"
+                                  className="min-h-9 px-4 py-1.5"
+                                  disabled={saving}
+                                  onClick={() => {
+                                    if (item.onDownload) {
+                                      item.onDownload();
+                                      return;
+                                    }
+                                    downloadPaymentDocument(item.file, item.detailLabel || item.label, t);
+                                  }}
+                                >
+                                  {t("common.download", "Download")}
+                                </Button>
+                              )}
+                            </div>
+
+                            {hasDetails && (
+                              <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                                {item.details.map(([detailLabel, value]) => (
+                                  <Info key={detailLabel} label={detailLabel} value={value} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {item.details?.length > 0 && (
-                        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                          {item.details.map(([detailLabel, value]) => (
-                            <Info key={detailLabel} label={detailLabel} value={value} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
