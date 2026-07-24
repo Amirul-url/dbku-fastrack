@@ -2285,6 +2285,12 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
           <h4 className="text-sm font-semibold text-slate-950">
             {t("applicant.paymentDocumentsTitle", "Documents to Download")}
           </h4>
+          <p className="mt-1 text-sm leading-5 text-slate-500">
+            {t(
+              "applicant.paymentDocumentsRecordHint",
+              "Please download the documents below for your record."
+            )}
+          </p>
         </div>
         <button
           type="button"
