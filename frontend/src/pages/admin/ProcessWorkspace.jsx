@@ -19040,6 +19040,10 @@ function PaymentDetails({
                   : t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
                 file: receiptFile,
                 available: true,
+                detailLabel: showRenewalReceiptInDocuments
+                  ? t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant")
+                  : "",
+                isDocumentGroup: showRenewalReceiptInDocuments,
                 details: paymentReferenceDetails,
                 relatedDocuments: showRenewalReceiptInDocuments
                   ? [
@@ -19377,6 +19381,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
             const hasRelatedDocuments = item.relatedDocuments?.length > 0;
             const detailsOpen =
               (hasDetails || hasRelatedDocuments) && expandedDetailRows[item.label] === true;
+            const isDocumentGroup = item.isDocumentGroup === true;
 
             return (
               <div
@@ -19407,46 +19412,76 @@ function IssuedPaymentDocumentList({ t, documents }) {
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {item.type === "application_form" ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        icon="visibility"
-                        className="min-h-9 px-3 py-1 text-xs"
-                        onClick={() => item.onView?.()}
-                      >
-                        {t("common.view", "View")}
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        icon="download"
-                        className="min-h-9 px-3 py-1 text-xs"
-                        onClick={() => {
-                          if (item.onDownload) {
-                            item.onDownload();
-                            return;
-                          }
-                          downloadPaymentDocument(item.file, item.label, t);
-                        }}
-                      >
-                        {t("common.download", "Download")}
-                      </Button>
-                    )}
-                  </div>
+                  {!isDocumentGroup && (
+                    <div className="flex flex-wrap gap-2">
+                      {item.type === "application_form" ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          icon="visibility"
+                          className="min-h-9 px-3 py-1 text-xs"
+                          onClick={() => item.onView?.()}
+                        >
+                          {t("common.view", "View")}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          icon="download"
+                          className="min-h-9 px-3 py-1 text-xs"
+                          onClick={() => {
+                            if (item.onDownload) {
+                              item.onDownload();
+                              return;
+                            }
+                            downloadPaymentDocument(item.file, item.label, t);
+                          }}
+                        >
+                          {t("common.download", "Download")}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {detailsOpen && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
-                    {hasDetails && (
+                    {hasDetails && (isDocumentGroup ? (
+                      <div>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm font-semibold text-slate-500">
+                            {item.detailLabel || item.label}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            icon="download"
+                            className="min-h-9 px-3 py-1 text-xs"
+                            onClick={() => {
+                              if (item.onDownload) {
+                                item.onDownload();
+                                return;
+                              }
+                              downloadPaymentDocument(item.file, item.detailLabel || item.label, t);
+                            }}
+                          >
+                            {t("common.download", "Download")}
+                          </Button>
+                        </div>
+                        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                          {item.details.map(([label, value]) => (
+                            <Info key={label} label={label} value={value} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
                       <div className="grid gap-2 sm:grid-cols-3">
                         {item.details.map(([label, value]) => (
                           <Info key={label} label={label} value={value} />
                         ))}
                       </div>
-                    )}
+                    ))}
                     {hasRelatedDocuments && (
                       <div className={hasDetails ? "mt-3 divide-y divide-slate-100 border-t border-slate-100" : "divide-y divide-slate-100"}>
                         {item.relatedDocuments.map((related) => (
