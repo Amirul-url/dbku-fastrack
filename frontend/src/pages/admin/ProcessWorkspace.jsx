@@ -21401,7 +21401,7 @@ function FirstReminderTaskPanel({
             <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
               <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-h-8 items-center">
-                  <p className="text-[13px] font-bold leading-5 tracking-wide text-slate-500">
+                  <p className="text-[13px] font-bold leading-5 tracking-wide text-slate-950">
                     {t("workspace.payment.documents", "List of Document")}
                   </p>
                 </div>
