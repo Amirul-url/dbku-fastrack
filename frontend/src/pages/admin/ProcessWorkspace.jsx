@@ -18777,6 +18777,10 @@ function PaymentDetails({
     !readOnly &&
     normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
     status === "payment_verified";
+  const showRenewalCompletionDocuments =
+    !readOnly &&
+    normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
+    getLicenseRenewalPaymentStatus(app) === "verified";
   const isIssuedLicenseView = ["license_issued", "license_revoked"].includes(status);
 
   const canShowSavedIssueDocuments =
@@ -19200,27 +19204,49 @@ function PaymentDetails({
   const verificationDocuments = [
     {
       label: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
-      required: showVerificationUploads,
+      required: showVerificationUploads || showRenewalCompletionDocuments,
       displayName: t(
         "workspace.payment.officialReceiptGeneratedWithLicense",
         "Please review the auto-generated Official Receipt before sending it to applicant."
       ),
-      onReview: onEditReceipt,
-      onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
+      onReview: showRenewalCompletionDocuments
+        ? () =>
+            setGeneratedDocumentReview({
+              title: t("workspace.payment.reviewGeneratedDocument", "Review"),
+              reference: getApplicationReference(app),
+              html: getRenewalGeneratedOfficialReceiptDocumentHtml(app, t),
+              scale: 0.95,
+              kind: "receipt",
+            })
+        : onEditReceipt,
+      onDownload: showRenewalCompletionDocuments
+        ? () => printRenewalGeneratedOfficialReceiptDocument(app, t)
+        : () => printGeneratedOfficialReceiptDocument(app, t),
     },
     {
       label: t("workspace.license.documentTitle", "Advertisement License"),
-      required: showVerificationUploads,
+      required: showVerificationUploads || showRenewalCompletionDocuments,
       displayName: t(
         "workspace.license.generatedWithReceipt",
         "Please review the auto-generated Advertisement License before sending it to applicant."
       ),
-      onReview: onEditLicense,
-      onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
+      onReview: showRenewalCompletionDocuments
+        ? () =>
+            setGeneratedDocumentReview({
+              title: t("workspace.payment.reviewGeneratedDocument", "Review"),
+              reference: getApplicationReference(app),
+              html: getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t),
+              scale: 0.9,
+              kind: "advertisement_license",
+            })
+        : onEditLicense,
+      onDownload: showRenewalCompletionDocuments
+        ? () => printRenewalGeneratedAdvertisementLicenseDocument(app, t)
+        : () => printBlankAdvertisementLicenseDocument(app, t),
     },
   ];
 
-  const verificationDocumentSection = showVerificationUploads ? (
+  const verificationDocumentSection = showVerificationUploads || showRenewalCompletionDocuments ? (
     <PaymentVerificationDocumentList
       t={t}
       saving={saving}
@@ -19240,6 +19266,7 @@ function PaymentDetails({
               <div className="space-y-4">
                 {revocationRequestNotice}
                 {issuedDocumentSection}
+                {showRenewalCompletionDocuments && verificationDocumentSection}
                 {renewalReceiptSection}
                 {issuedReceiptSection}
                 {licenseManagementActionSection}
@@ -21028,6 +21055,90 @@ async function printBlankAdvertisementLicenseDocument(app, t) {
     );
   } catch (error) {
     console.error("Failed to print advertisement license:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+function getRenewalCompletionDocumentApp(app = null) {
+  const today = new Date();
+  const payment = getLicenseRenewalPayment(app);
+  const months = getLicenseRenewalPaymentMonths(app);
+  const approvalLetter = app?.form_data?.approval_letter || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const license = app?.form_data?.license || {};
+  const expiryDate = parseDateOrFallback(license.expiry_date, today);
+  const issueDate = addDays(expiryDate, 1);
+  const expiry = addCalendarYears(expiryDate, 1);
+  const licenseId = license.license_id || getLicenseId(app);
+  const officialReceiptNo =
+    payment.official_receipt_no ||
+    `${getGeneratedOfficialReceiptNumber(app)}-R${months}`;
+
+  return {
+    ...app,
+    form_data: {
+      ...(app?.form_data || {}),
+      approval_letter: {
+        ...approvalLetter,
+        manual_receipt: {
+          ...manualReceipt,
+          receipt_no: officialReceiptNo,
+        },
+      },
+      payment: {
+        ...(app?.form_data?.payment || {}),
+        official_receipt_no: officialReceiptNo,
+      },
+      license: {
+        ...license,
+        creation_mode: "generated",
+        license_id: licenseId,
+        status: "Active",
+        issued_by: "PT(IKL)",
+        holder: getApplicantName(app),
+        type: getApplicationType(app),
+        location: getApplicationLocation(app),
+        issue_date: issueDate.toISOString(),
+        expiry_date: expiry.toISOString(),
+        validity_years: 1,
+        verification_url: getLicenseVerificationUrl(licenseId),
+      },
+    },
+  };
+}
+
+function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t) {
+  return buildGeneratedOfficialReceiptDocumentHtml(getRenewalCompletionDocumentApp(app, t));
+}
+
+function getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t) {
+  const documentApp = getRenewalCompletionDocumentApp(app, t);
+  return forceAdvertisementLicensePeriodLine(
+    getGeneratedAdvertisementLicenseDocumentHtml(documentApp, t),
+    documentApp
+  );
+}
+
+async function printRenewalGeneratedOfficialReceiptDocument(app, t) {
+  try {
+    await printHtmlDocument(
+      getRenewalGeneratedOfficialReceiptDocumentHtml(app, t),
+      `${getApplicationReference(app)} ${t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}`
+    );
+  } catch (error) {
+    console.error("Failed to print renewal official receipt:", error);
+    window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
+  }
+}
+
+async function printRenewalGeneratedAdvertisementLicenseDocument(app, t) {
+  try {
+    await printHtmlDocument(
+      getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t),
+      `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
+    );
+  } catch (error) {
+    console.error("Failed to print renewal advertisement license:", error);
     window.alert(t("workspace.payment.documentViewFailed", "Unable to open the document. Please try again."));
   }
 }
