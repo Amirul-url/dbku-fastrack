@@ -1724,6 +1724,63 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (!selectedRecord?.id) return;
 
     const now = new Date().toISOString();
+    const isRenewalCompletionDraft =
+      normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
+      getLicenseRenewalPaymentStatus(selectedRecord) === "verified";
+
+    if (isRenewalCompletionDraft) {
+      const renewal = getLicenseRenewal(selectedRecord);
+      const payment = getLicenseRenewalPayment(selectedRecord);
+      const months = getLicenseRenewalPaymentMonths(selectedRecord);
+      const receiptNo =
+        getEditedOfficialReceiptNumber(documentHtml) ||
+        payment.official_receipt_no ||
+        `${getGeneratedOfficialReceiptNumber(selectedRecord)}-R${months}`;
+      const nextManualReceipt = {
+        ...(payment.official_receipt_draft || payment.official_receipt || {}),
+        template: "dbku_official_receipt_acc_3_88_v1",
+        name: t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
+        receipt_no: receiptNo,
+        document_html:
+          documentHtml ||
+          getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t),
+        status: "Draft",
+        saved_by: userDepartment,
+        saved_at: now,
+      };
+
+      try {
+        setSaving(true);
+        setError("");
+        setSuccess("");
+
+        const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            form_data: mergeFormData(selectedRecord, {
+              license_renewal: {
+                ...renewal,
+                payment: {
+                  ...payment,
+                  official_receipt_no: receiptNo,
+                  official_receipt_draft: nextManualReceipt,
+                },
+              },
+            }),
+          }),
+        });
+
+        applySelectedApplicationUpdate(response?.data || response || selectedRecord);
+        setShowManualReceiptEditor(false);
+        setSuccess(t("workspace.payment.receiptSaved", "Official receipt saved."));
+      } catch (err) {
+        setError(err.message || t("workspace.payment.receiptSaveFailed", "Could not save the official receipt."));
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
     const receiptNo =
       getEditedOfficialReceiptNumber(documentHtml) ||
@@ -1772,6 +1829,62 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (!selectedRecord?.id) return;
 
     const now = new Date().toISOString();
+    const isRenewalCompletionDraft =
+      normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
+      getLicenseRenewalPaymentStatus(selectedRecord) === "verified";
+
+    if (isRenewalCompletionDraft) {
+      const renewal = getLicenseRenewal(selectedRecord);
+      const payment = getLicenseRenewalPayment(selectedRecord);
+      const nextManualLicense = {
+        ...(payment.renewed_license_draft ||
+          payment.manual_advertisement_license_draft ||
+          payment.renewed_license ||
+          payment.manual_advertisement_license ||
+          {}),
+        template: "dbku_advertisement_license_borang_b_v1",
+        name: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+        document_html: normalizeAdvertisementLicenseDocumentSpacing(
+          documentHtml ||
+            getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t)
+        ),
+        status: "Draft",
+        saved_by: userDepartment,
+        saved_at: now,
+      };
+
+      try {
+        setSaving(true);
+        setError("");
+        setSuccess("");
+
+        const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            form_data: mergeFormData(selectedRecord, {
+              license_renewal: {
+                ...renewal,
+                payment: {
+                  ...payment,
+                  renewed_license_draft: nextManualLicense,
+                  manual_advertisement_license_draft: nextManualLicense,
+                },
+              },
+            }),
+          }),
+        });
+
+        applySelectedApplicationUpdate(response?.data || response || selectedRecord);
+        setShowManualAdvertisementLicenseEditor(false);
+        setSuccess(t("workspace.license.saved", "Advertisement license saved."));
+      } catch (err) {
+        setError(err.message || t("workspace.license.saveFailed", "Could not save the advertisement license."));
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const savedLicense = selectedRecord.form_data?.license || {};
     const nextManualLicense = {
       ...(savedLicense.manual_license || {}),
@@ -4205,7 +4318,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           document={{
             title: t("workspace.payment.reviewGeneratedDocument", "Review"),
             reference: getApplicationReference(selectedRecord),
-            html: getGeneratedOfficialReceiptDocumentHtml(selectedRecord),
+            html:
+              normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
+              getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
+                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t)
+                : getGeneratedOfficialReceiptDocumentHtml(selectedRecord),
             scale: 0.95,
             editable: true,
             kind: "receipt",
@@ -4222,7 +4339,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           document={{
             title: t("workspace.payment.reviewGeneratedDocument", "Review"),
             reference: getApplicationReference(selectedRecord),
-            html: getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t),
+            html:
+              normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
+              getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
+                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t)
+                : getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t),
             scale: 0.9,
             editable: true,
             kind: "advertisement_license",
@@ -15293,6 +15414,13 @@ const configs = {
           const savedApprovalLetter = app.form_data?.approval_letter || {};
           const savedManualReceipt = savedApprovalLetter.manual_receipt || {};
           const savedLicense = app.form_data?.license || {};
+          const savedRenewalManualReceipt = payment.official_receipt_draft || payment.official_receipt || {};
+          const savedRenewalManualLicense =
+            payment.renewed_license_draft ||
+            payment.manual_advertisement_license_draft ||
+            payment.renewed_license ||
+            payment.manual_advertisement_license ||
+            {};
           const expiryDate = parseDateOrFallback(savedLicense.expiry_date, today);
           const issueDate = addDays(expiryDate, 1);
           const expiry = addCalendarYears(expiryDate, 1);
@@ -15333,6 +15461,7 @@ const configs = {
                 ...savedApprovalLetter,
                 manual_receipt: {
                   ...savedManualReceipt,
+                  ...savedRenewalManualReceipt,
                   receipt_no: officialReceiptNo,
                 },
               },
@@ -15343,13 +15472,17 @@ const configs = {
               license: nextLicenseBase,
             },
           };
-          const receiptDocumentHtml = buildGeneratedOfficialReceiptDocumentHtml(documentApp);
-          const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
-            getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate),
-            documentApp
-          );
+          const receiptDocumentHtml =
+            savedRenewalManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+          const licenseDocumentHtml =
+            savedRenewalManualLicense.document_html ||
+            forceAdvertisementLicensePeriodLine(
+              getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate),
+              documentApp
+            );
           const nextManualReceipt = {
             ...savedManualReceipt,
+            ...savedRenewalManualReceipt,
             template: "dbku_official_receipt_acc_3_88_v1",
             name: "Renewal Official Receipt",
             receipt_no: officialReceiptNo,
@@ -15361,6 +15494,7 @@ const configs = {
             sent_at: timestamp,
           };
           const nextManualLicense = {
+            ...savedRenewalManualLicense,
             template: "dbku_advertisement_license_borang_b_v1",
             name: translate("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
             document_html: licenseDocumentHtml,
@@ -18795,7 +18929,6 @@ function PaymentDetails({
   const showQrPanel = false;
   const defaultPaymentDocumentTab = getDefaultPaymentDocumentTab(app);
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState(defaultPaymentDocumentTab);
-  const [generatedDocumentReview, setGeneratedDocumentReview] = useState(null);
 
   useEffect(() => {
     setActivePaymentDocumentTab(defaultPaymentDocumentTab);
@@ -19209,16 +19342,7 @@ function PaymentDetails({
         "workspace.payment.officialReceiptGeneratedWithLicense",
         "Please review the auto-generated Official Receipt before sending it to applicant."
       ),
-      onReview: showRenewalCompletionDocuments
-        ? () =>
-            setGeneratedDocumentReview({
-              title: t("workspace.payment.reviewGeneratedDocument", "Review"),
-              reference: getApplicationReference(app),
-              html: getRenewalGeneratedOfficialReceiptDocumentHtml(app, t),
-              scale: 0.95,
-              kind: "receipt",
-            })
-        : onEditReceipt,
+      onReview: onEditReceipt,
       onDownload: showRenewalCompletionDocuments
         ? () => printRenewalGeneratedOfficialReceiptDocument(app, t)
         : () => printGeneratedOfficialReceiptDocument(app, t),
@@ -19230,16 +19354,7 @@ function PaymentDetails({
         "workspace.license.generatedWithReceipt",
         "Please review the auto-generated Advertisement License before sending it to applicant."
       ),
-      onReview: showRenewalCompletionDocuments
-        ? () =>
-            setGeneratedDocumentReview({
-              title: t("workspace.payment.reviewGeneratedDocument", "Review"),
-              reference: getApplicationReference(app),
-              html: getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t),
-              scale: 0.9,
-              kind: "advertisement_license",
-            })
-        : onEditLicense,
+      onReview: onEditLicense,
       onDownload: showRenewalCompletionDocuments
         ? () => printRenewalGeneratedAdvertisementLicenseDocument(app, t)
         : () => printBlankAdvertisementLicenseDocument(app, t),
@@ -19315,14 +19430,6 @@ function PaymentDetails({
         </div>
       </div>
 
-      {generatedDocumentReview && (
-        <GeneratedDocumentReviewModal
-          document={generatedDocumentReview}
-          t={t}
-          saving={saving}
-          onClose={() => setGeneratedDocumentReview(null)}
-        />
-      )}
     </>
   );
 }
@@ -21066,6 +21173,14 @@ function getRenewalCompletionDocumentApp(app = null) {
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
   const license = app?.form_data?.license || {};
+  const manualLicense = license.manual_license || {};
+  const renewalManualReceipt = payment.official_receipt_draft || payment.official_receipt || {};
+  const renewalManualLicense =
+    payment.renewed_license_draft ||
+    payment.manual_advertisement_license_draft ||
+    payment.renewed_license ||
+    payment.manual_advertisement_license ||
+    {};
   const expiryDate = parseDateOrFallback(license.expiry_date, today);
   const issueDate = addDays(expiryDate, 1);
   const expiry = addCalendarYears(expiryDate, 1);
@@ -21082,6 +21197,7 @@ function getRenewalCompletionDocumentApp(app = null) {
         ...approvalLetter,
         manual_receipt: {
           ...manualReceipt,
+          ...renewalManualReceipt,
           receipt_no: officialReceiptNo,
         },
       },
@@ -21092,6 +21208,10 @@ function getRenewalCompletionDocumentApp(app = null) {
       license: {
         ...license,
         creation_mode: "generated",
+        manual_license: {
+          ...manualLicense,
+          ...renewalManualLicense,
+        },
         license_id: licenseId,
         status: "Active",
         issued_by: "PT(IKL)",
@@ -21108,7 +21228,7 @@ function getRenewalCompletionDocumentApp(app = null) {
 }
 
 function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t) {
-  return buildGeneratedOfficialReceiptDocumentHtml(getRenewalCompletionDocumentApp(app, t));
+  return getGeneratedOfficialReceiptDocumentHtml(getRenewalCompletionDocumentApp(app, t));
 }
 
 function getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t) {
