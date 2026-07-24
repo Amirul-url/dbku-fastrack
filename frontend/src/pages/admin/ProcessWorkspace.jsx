@@ -2459,6 +2459,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const shouldShowApplicationRejectedSuccess = shouldShowApplicationRejectedModal(action, body);
       const shouldShowMphlgRejectedSuccess = shouldShowMphlgRejectedModal(action, body);
       const shouldShowReceiptRejectedSuccess = shouldShowReceiptRejectedModal(action, body);
+      const shouldShowRenewalReceiptRejectedSuccess =
+        action.key === "reject_renewal_receipt" || body.action === "reject_early_payment";
       const shouldShowReceiptVerifiedSuccess = shouldShowReceiptVerifiedModal(action, body);
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowFirstReminderGeneratedSuccess =
@@ -2486,6 +2488,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowReceiptVerifiedSuccess ||
         shouldShowApplicationRejectedSuccess ||
         shouldShowReceiptRejectedSuccess ||
+        shouldShowRenewalReceiptRejectedSuccess ||
         shouldShowApplicationAmendmentSuccess ||
         shouldShowApplicationApprovedSuccess ||
         shouldShowDepartmentTechnicalReviewSavedSuccess ||
@@ -2582,7 +2585,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             : "Application {reference} Has Been Rejected And Send To Applicant.",
         });
       }
-      if (shouldShowReceiptRejectedSuccess) {
+      if (shouldShowReceiptRejectedSuccess || shouldShowRenewalReceiptRejectedSuccess) {
         setReceiptVerificationResultModal({
           open: true,
           result: "rejected",
