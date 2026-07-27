@@ -22249,7 +22249,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     .grant strong { font-weight: 700; }
     .license-details { display: grid; grid-template-columns: 42mm 5mm 1fr; column-gap: 3mm; row-gap: 1.4mm; align-items: end; font-size: 11pt; }
     .period-line { display: grid; grid-template-columns: 42mm 5mm 1fr 16mm 1fr; column-gap: 3mm; align-items: end; margin-top: 1.4mm; font-size: 11pt; }
-    .attachment-line { margin-top: 12mm; font-size: 11pt; }
+    .attachment-line { display: grid; grid-template-columns: 1fr 16mm 36mm; column-gap: 3mm; align-items: end; margin-top: 12mm; font-size: 11pt; }
     .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }
     .computer-notice p { margin: 0; }
     .appendix-page { padding: 24mm 16mm 20mm; font-family: Arial, Helvetica, sans-serif; }
@@ -22292,7 +22292,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
 
     ${buildAdvertisementLicensePeriodLine(details)}
 
-    <p class="attachment-line">Tertakluk kepada syarat-syarat dalam Lampiran A.</p>
+    ${buildAdvertisementLicenseAttachmentLine(details)}
 
     ${buildAdvertisementLicenseComputerNoticeHtml()}
   </section>
@@ -22321,6 +22321,10 @@ function normalizeAdvertisementLicenseDocumentSpacing(html) {
     .replace(
       /\.grant\s*\{[^}]*\}/,
       ".grant { margin: 7mm 0 6mm; font-size: 11pt; line-height: 1.38; text-align: justify; }"
+    )
+    .replace(
+      /\.attachment-line\s*\{[^}]*\}/,
+      ".attachment-line { display: grid; grid-template-columns: 1fr 16mm 36mm; column-gap: 3mm; align-items: end; margin-top: 12mm; font-size: 11pt; }"
     )
     .replace(
       /\.computer-notice\s*\{[^}]*\}/,
@@ -22397,6 +22401,10 @@ function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications 
       (block) => buildAdvertisementLicensePeriodLine(details, getAdvertisementLicenseDotValues(block))
     )
     .replace(
+      /<(?:p|div)[^>]*class=["'][^"']*\battachment-line\b[^"']*["'][^>]*>[\s\S]*?<\/(?:p|div)>/i,
+      (block) => buildAdvertisementLicenseAttachmentLine(details, getAdvertisementLicenseDotValues(block))
+    )
+    .replace(
       /(<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Tarikh:\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
       (match, before, currentValue, after) => {
         const currentText = getHtmlPlainText(currentValue);
@@ -22469,6 +22477,7 @@ function getAdvertisementLicenseAutofillDetails(app = null) {
     locationLines,
     periodStart: periodStart || "",
     periodEnd: periodEnd || "",
+    issueDate: getAdvertisementLicenseIssueDateDisplay(app),
   };
 }
 
@@ -22610,6 +22619,16 @@ function buildAdvertisementLicensePeriodLine(details, existingValues = []) {
     <div class="period-line">
       <span>Tempoh Lesen Iklan</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(start)}
       <span>hingga</span>${buildAdvertisementLicenseEditableLine(end)}
+    </div>`;
+}
+
+function buildAdvertisementLicenseAttachmentLine(details, existingValues = []) {
+  const issueDate = getAdvertisementLicenseFilledValue(existingValues[0], details.issueDate);
+
+  return `
+    <div class="attachment-line">
+      <span>Tertakluk kepada syarat-syarat dalam Lampiran A.</span>
+      <span>Tarikh:</span>${buildAdvertisementLicenseEditableLine(issueDate)}
     </div>`;
 }
 

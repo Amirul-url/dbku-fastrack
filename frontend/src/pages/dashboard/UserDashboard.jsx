@@ -4050,20 +4050,26 @@ function getApplicantAdvertisementLicenseDocumentHtml(app, options = {}) {
   const manualLicense = options.renewal
     ? getLicenseRenewalManualAdvertisementLicense(app)
     : app?.form_data?.license?.manual_license || {};
-  return normalizeApplicantAdvertisementLicenseDocumentHtml(manualLicense.document_html).trim();
+  return normalizeApplicantAdvertisementLicenseDocumentHtml(manualLicense.document_html, app).trim();
 }
 
-function normalizeApplicantAdvertisementLicenseDocumentHtml(html = "") {
+function normalizeApplicantAdvertisementLicenseDocumentHtml(html = "", app = null) {
   const currentHtml = removeApplicantAdvertisementLicenseLegacySignatureHtml(String(html || ""));
   if (!currentHtml) return "";
 
-  const withNotice = ensureApplicantAdvertisementLicenseComputerNoticeHtml(currentHtml)
+  const withNotice = ensureApplicantAdvertisementLicenseComputerNoticeHtml(
+    ensureApplicantAdvertisementLicenseAttachmentLineHtml(currentHtml, app)
+  )
     .replace(
       /\.ad-license-page\s*\{([^}]*)\}/,
       (match, body) =>
         /position\s*:/.test(body)
           ? match
           : `.ad-license-page {${body} position: relative; }`
+    )
+    .replace(
+      /\.attachment-line\s*\{[^}]*\}/,
+      ".attachment-line { display: grid; grid-template-columns: 1fr 16mm 36mm; column-gap: 3mm; align-items: end; margin-top: 12mm; font-size: 11pt; }"
     )
     .replace(
       /\.computer-notice\s*\{[^}]*\}/,
@@ -4100,6 +4106,78 @@ function removeApplicantAdvertisementLicenseComputerNoticeHtml(html = "") {
     /\s*<footer[^>]*class=["'][^"']*\bcomputer-notice\b[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi,
     ""
   );
+}
+
+function ensureApplicantAdvertisementLicenseAttachmentLineHtml(html = "", app = null) {
+  const issueDate = getApplicantAdvertisementLicenseIssueDateDisplay(app);
+  return String(html || "").replace(
+    /<(?:p|div)[^>]*class=["'][^"']*\battachment-line\b[^"']*["'][^>]*>[\s\S]*?<\/(?:p|div)>/i,
+    (block) => {
+      const values = getApplicantAdvertisementLicenseDotValues(block);
+      const dateValue = values[0] || issueDate;
+      return `
+    <div class="attachment-line">
+      <span>Tertakluk kepada syarat-syarat dalam Lampiran A.</span>
+      <span>Tarikh:</span><span class="dot-line" contenteditable="true">${escapeHtml(dateValue || "") || "&nbsp;"}</span>
+    </div>`;
+    }
+  );
+}
+
+function getApplicantAdvertisementLicenseIssueDateDisplay(app = null) {
+  const license = app?.form_data?.license || {};
+  const manualLicense = license.manual_license || {};
+  const payment = app?.form_data?.payment || {};
+  const renewalPayment = app?.form_data?.license_renewal?.payment || {};
+  return formatApplicantMalayLetterDate(
+    manualLicense.issue_date ||
+      manualLicense.issued_at ||
+      manualLicense.saved_at ||
+      license.issue_date ||
+      license.issued_at ||
+      payment.official_receipt?.saved_at ||
+      payment.verified_at ||
+      renewalPayment.official_receipt?.saved_at ||
+      renewalPayment.verified_at ||
+      new Date()
+  );
+}
+
+function formatApplicantMalayLetterDate(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const months = [
+    "Januari",
+    "Februari",
+    "Mac",
+    "April",
+    "Mei",
+    "Jun",
+    "Julai",
+    "Ogos",
+    "September",
+    "Oktober",
+    "November",
+    "Disember",
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function getApplicantAdvertisementLicenseDotValues(html = "") {
+  return [...String(html || "").matchAll(/<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi)]
+    .map((match) => getApplicantHtmlPlainText(match[1]).trim());
+}
+
+function getApplicantHtmlPlainText(html = "") {
+  return String(html || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
 }
 
 function ensureApplicantAdvertisementLicenseComputerNoticeHtml(html = "") {
