@@ -19483,7 +19483,7 @@ function PaymentDetails({
   const showQrPanel = false;
   const defaultPaymentDocumentTab = getDefaultPaymentDocumentTab(app);
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState(defaultPaymentDocumentTab);
-  const [documentsExpanded, setDocumentsExpanded] = useState(true);
+  const [documentsExpanded, setDocumentsExpanded] = useState(false);
 
   useEffect(() => {
     setActivePaymentDocumentTab(defaultPaymentDocumentTab);
