@@ -5608,10 +5608,11 @@ function collectOriginalApplicationReceiptNumbers(app = null) {
   const formData = app?.form_data || {};
   const approvalLetter = formData.approval_letter || {};
   const payment = formData.payment || {};
+  const manualReceiptNo = approvalLetter.manual_receipt?.receipt_no;
 
   return [
-    approvalLetter.manual_receipt?.receipt_no,
-    payment.official_receipt_no,
+    manualReceiptNo,
+    manualReceiptNo ? null : payment.official_receipt_no,
     payment.official_receipt?.receipt_no,
   ].filter(Boolean);
 }
