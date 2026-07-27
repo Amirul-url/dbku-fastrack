@@ -778,6 +778,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
 
     if (tableFirstWorkspace && selectedId && !hasSelected) {
+      const isQuerySelectedRecord = String(selectedId) === String(querySelectedId);
+      const hasViewableSelectedDetail =
+        selectedDetail &&
+        String(selectedDetail.id) === String(selectedId) &&
+        canViewWorkspaceRow(config, selectedDetail, userDepartment);
+
+      if (hasViewableSelectedDetail || (fromPersonalTask && isQuerySelectedRecord && !selectedDetail)) {
+        return;
+      }
+
       if (
         selectedDetail &&
         String(selectedDetail.id) === String(selectedId) &&
@@ -794,7 +804,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (!hasSelected) {
       setSelectedId(String(filtered[0].id));
     }
-  }, [config, filtered, selectedDetail, tableFirstWorkspace, selectedId, userDepartment]);
+  }, [
+    config,
+    filtered,
+    fromPersonalTask,
+    querySelectedId,
+    selectedDetail,
+    tableFirstWorkspace,
+    selectedId,
+    userDepartment,
+  ]);
 
   const selected = useMemo(() => {
     const matchingRecord = filtered.find((app) => String(app.id) === String(selectedId));
