@@ -2572,6 +2572,10 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
 }
 
 function getApplicantDetailStatusLabel(app, t) {
+  if (isRenewalEarlyPaymentCompleted(app) && isApprovedApplication(app)) {
+    return translatedStatus(t, "approved");
+  }
+
   if (hasReleasedRenewalReminder(app, 3)) {
     return getPaymentStatusText(app, t);
   }
@@ -3425,6 +3429,10 @@ function getApplicantFilterStatus(app) {
 
   if (isPaymentReceiptRejected(getApplicationPayment(app))) {
     return "rejected";
+  }
+
+  if (isRenewalEarlyPaymentCompleted(app) && isApprovedApplication(app)) {
+    return "approved";
   }
 
   if (hasReleasedRenewalReminder(app, 3)) {
@@ -5243,6 +5251,10 @@ function getPaymentStatusText(app, t) {
   if (status === "payment_verified") return t("applicant.paymentStatusVerified");
   if (status === "license_issued") return t("applicant.paymentStatusCompleted");
   return t("applicant.paymentStatusPending");
+}
+
+function isRenewalEarlyPaymentCompleted(app) {
+  return ["verified", "completed"].includes(getLicenseRenewalPaymentStatus(app));
 }
 
 function getDashboardHeader(activeSection, t, options = {}) {
