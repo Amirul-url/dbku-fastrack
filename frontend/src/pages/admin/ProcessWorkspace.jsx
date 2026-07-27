@@ -1087,6 +1087,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !showApprovalPaymentReadOnly &&
     !showRenewalReminderWorkflowPanel &&
     !showPaymentDocumentDecision &&
+    !showApprovalLicenseManagementDetails &&
     !isIssuedLicenseRecord &&
     (
       isFocusedPersonalWorkspace ||
