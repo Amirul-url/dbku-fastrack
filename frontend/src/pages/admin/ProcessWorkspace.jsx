@@ -4004,7 +4004,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     ) : (
                       <>
                         <Field
-                          className={showPaymentTypedDecision ? "max-w-[56rem]" : ""}
+                          className={
+                            showPaymentTypedDecision || showIssueLicenseDecision || requiresWorkspaceActionSignature
+                              ? "max-w-[56rem]"
+                              : ""
+                          }
                           label={
                             <>
                               {useTypedApprovalDecision
