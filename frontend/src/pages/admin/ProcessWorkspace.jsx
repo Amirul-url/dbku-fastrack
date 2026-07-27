@@ -19555,11 +19555,14 @@ function PaymentDetails({
   );
 
   const documentSection = (
-    <section className="rounded-md border border-slate-200 bg-white">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
+    <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+      <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-[16px] font-bold leading-5 text-slate-950">
-            {t("workspace.payment.documents", "List Of Document")}
+          <h4 className="text-sm font-semibold text-slate-950">
+            {t("applicant.paymentDocumentsTitle", "Documents to Download")}
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+            {t("applicant.paymentDocumentsDesc", "Please download the documents below for your record.")}
           </p>
         </div>
         <Button
@@ -19576,18 +19579,18 @@ function PaymentDetails({
 
       {documentsExpanded && (
         <div className="grid grid-cols-1">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-3 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-[15px] font-bold leading-5 text-slate-900">
+          <div className="flex flex-col gap-3 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-slate-500">
               {t("workspace.payment.applicationFormDetails", "Application Form Details")}
             </p>
             <Button
               type="button"
               variant="secondary"
               icon="visibility"
-              className="min-h-9 px-3 py-1 text-sm"
+              className="min-h-9 px-4 py-1.5"
               onClick={onOpenForm}
             >
-              {t("workspace.openForm", "View Form")}
+              {t("common.view", "View")}
             </Button>
           </div>
         </div>
