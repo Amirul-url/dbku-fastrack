@@ -4067,7 +4067,7 @@ function normalizeApplicantAdvertisementLicenseDocumentHtml(html = "") {
     )
     .replace(
       /\.computer-notice\s*\{[^}]*\}/,
-      ".computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }"
+      ".computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
     )
     .replace(
       /\.computer-notice p\s*\{[^}]*\}/,
@@ -4078,7 +4078,7 @@ function normalizeApplicantAdvertisementLicenseDocumentHtml(html = "") {
 
   return withNotice.replace(
     /<\/style>/i,
-    "    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }\n    .computer-notice p { margin: 0; }\n  </style>"
+    "    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .computer-notice p { margin: 0; }\n  </style>"
   );
 }
 
@@ -4095,22 +4095,25 @@ function removeApplicantAdvertisementLicenseLegacySignatureHtml(html = "") {
     );
 }
 
+function removeApplicantAdvertisementLicenseComputerNoticeHtml(html = "") {
+  return String(html || "").replace(
+    /\s*<footer[^>]*class=["'][^"']*\bcomputer-notice\b[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi,
+    ""
+  );
+}
+
 function ensureApplicantAdvertisementLicenseComputerNoticeHtml(html = "") {
-  const currentHtml = String(html || "");
-  if (/class=["'][^"']*\bcomputer-notice\b/i.test(currentHtml)) return currentHtml;
+  const currentHtml = removeApplicantAdvertisementLicenseComputerNoticeHtml(html);
   const noticeHtml = `
     <footer class="computer-notice">
       <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
       <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
     </footer>
 `;
-  if (/<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b/i.test(currentHtml)) {
-    return currentHtml.replace(
-      /(\s*<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b)/i,
-      `${noticeHtml}$1`
-    );
-  }
-  return currentHtml.replace(/(\s*<\/section>)/i, `${noticeHtml}$1`);
+  return currentHtml.replace(
+    /(<section[^>]*class=["'][^"']*\bad-license-page\b[^"']*["'][^>]*>[\s\S]*?)(\s*<\/section>)/gi,
+    (_match, body, close) => `${body}${noticeHtml}${close}`
+  );
 }
 
 function getLicenseRenewalManualAdvertisementLicense(app) {

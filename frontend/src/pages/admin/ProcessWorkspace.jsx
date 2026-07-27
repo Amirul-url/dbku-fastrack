@@ -22250,7 +22250,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     .license-details { display: grid; grid-template-columns: 42mm 5mm 1fr; column-gap: 3mm; row-gap: 1.4mm; align-items: end; font-size: 11pt; }
     .period-line { display: grid; grid-template-columns: 42mm 5mm 1fr 16mm 1fr; column-gap: 3mm; align-items: end; margin-top: 1.4mm; font-size: 11pt; }
     .attachment-line { margin-top: 12mm; font-size: 11pt; }
-    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }
+    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }
     .computer-notice p { margin: 0; }
     .appendix-page { padding: 24mm 16mm 20mm; font-family: Arial, Helvetica, sans-serif; }
     .appendix-title { margin: 0 0 8mm; font-size: 11pt; line-height: 1.55; font-weight: 700; text-transform: uppercase; }
@@ -22302,6 +22302,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     <ol class="terms">
       ${terms.map((term) => `<li>${formatAdvertisementLicenseTermHtml(term)}</li>`).join("")}
     </ol>
+    ${buildAdvertisementLicenseComputerNoticeHtml()}
   </section>
 </body>
 </html>`;
@@ -22323,7 +22324,7 @@ function normalizeAdvertisementLicenseDocumentSpacing(html) {
     )
     .replace(
       /\.computer-notice\s*\{[^}]*\}/,
-      ".computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }"
+      ".computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
     )
       .replace(
         /\.computer-notice p\s*\{[^}]*\}/,
@@ -22335,7 +22336,7 @@ function normalizeAdvertisementLicenseDocumentSpacing(html) {
 
   return normalizedHtml.replace(
     /<\/style>/i,
-    "    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }\n    .computer-notice p { margin: 0; }\n  </style>"
+    "    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .computer-notice p { margin: 0; }\n  </style>"
   );
 }
 
@@ -22359,17 +22360,20 @@ function removeAdvertisementLicenseLegacySignatureHtml(html = "") {
     );
 }
 
+function removeAdvertisementLicenseComputerNoticeHtml(html = "") {
+  return String(html || "").replace(
+    /\s*<footer[^>]*class=["'][^"']*\bcomputer-notice\b[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi,
+    ""
+  );
+}
+
 function ensureAdvertisementLicenseComputerNoticeHtml(html = "") {
-  const currentHtml = String(html || "");
-  if (/class=["'][^"']*\bcomputer-notice\b/i.test(currentHtml)) return currentHtml;
+  const currentHtml = removeAdvertisementLicenseComputerNoticeHtml(html);
   const noticeHtml = `\n    ${buildAdvertisementLicenseComputerNoticeHtml()}\n`;
-  if (/<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b/i.test(currentHtml)) {
-    return currentHtml.replace(
-      /(\s*<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b)/i,
-      `${noticeHtml}$1`
-    );
-  }
-  return currentHtml.replace(/(\s*<\/section>)/i, `${noticeHtml}$1`);
+  return currentHtml.replace(
+    /(<section[^>]*class=["'][^"']*\bad-license-page\b[^"']*["'][^>]*>[\s\S]*?)(\s*<\/section>)/gi,
+    (_match, body, close) => `${body}${noticeHtml}${close}`
+  );
 }
 
 function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications = []) {
