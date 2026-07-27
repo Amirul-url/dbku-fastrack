@@ -1802,15 +1802,29 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
 
     const savedApprovalLetter = selectedRecord.form_data?.approval_letter || {};
-    const receiptNo =
-      getEditedOfficialReceiptNumber(documentHtml) ||
-      getGeneratedOfficialReceiptNumber(selectedRecord);
+    const editedReceiptNo = getEditedOfficialReceiptNumber(documentHtml);
+    const receiptNo = getOriginalOfficialReceiptNumber(
+      selectedRecord,
+      applications,
+      editedReceiptNo
+    );
+    const canUseEditedDocumentHtml =
+      documentHtml &&
+      editedReceiptNo &&
+      normalizeReceiptNumber(editedReceiptNo) === normalizeReceiptNumber(receiptNo);
+    const documentApp = getOriginalOfficialReceiptDocumentApp(
+      selectedRecord,
+      applications,
+      receiptNo
+    );
     const nextManualReceipt = {
       ...(savedApprovalLetter.manual_receipt || {}),
       template: "dbku_official_receipt_acc_3_88_v1",
       name: t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
       receipt_no: receiptNo,
-      document_html: documentHtml || buildGeneratedOfficialReceiptDocumentHtml(selectedRecord),
+      document_html: canUseEditedDocumentHtml
+        ? documentHtml
+        : buildGeneratedOfficialReceiptDocumentHtml(documentApp),
       status: "Draft",
       saved_by: userDepartment,
       saved_at: now,
@@ -4403,7 +4417,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
                 ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, applications)
-                : getGeneratedOfficialReceiptDocumentHtml(selectedRecord),
+                : getOriginalGeneratedOfficialReceiptDocumentHtml(selectedRecord, applications),
             scale: 0.95,
             editable: true,
             kind: "receipt",
@@ -5618,16 +5632,129 @@ function collectApplicationReceiptNumbers(app = null) {
   ].filter(Boolean);
 }
 
+function getApplicationRecordKey(app = null) {
+  return String(app?.id || app?.reference_no || getApplicationReference(app) || "");
+}
+
+function isSameApplicationRecord(first = null, second = null) {
+  const firstKey = getApplicationRecordKey(first);
+  const secondKey = getApplicationRecordKey(second);
+  return Boolean(firstKey && secondKey && firstKey === secondKey);
+}
+
+function isOfficialReceiptNumberUsedByOtherApplication(receiptNo, applications = [], currentApp = null) {
+  const normalizedReceiptNo = getSixDigitOfficialReceiptNumber(receiptNo);
+  if (!normalizedReceiptNo) return false;
+
+  return (Array.isArray(applications) ? applications : []).some(
+    (application) =>
+      !isSameApplicationRecord(application, currentApp) &&
+      collectApplicationReceiptNumbers(application)
+        .map(getSixDigitOfficialReceiptNumber)
+        .includes(normalizedReceiptNo)
+  );
+}
+
+function getCurrentRenewalReceiptNumbers(app = null) {
+  const payment = getLicenseRenewalPayment(app);
+  return [
+    payment.official_receipt_draft?.receipt_no,
+    payment.official_receipt?.receipt_no,
+    payment.manual_official_receipt?.receipt_no,
+    payment.official_receipt_no,
+  ].filter(Boolean);
+}
+
+function isOfficialReceiptNumberUsedByCurrentRenewal(receiptNo, app = null) {
+  const normalizedReceiptNo = getSixDigitOfficialReceiptNumber(receiptNo);
+  if (!normalizedReceiptNo) return false;
+
+  return getCurrentRenewalReceiptNumbers(app)
+    .map(getSixDigitOfficialReceiptNumber)
+    .includes(normalizedReceiptNo);
+}
+
 function getNextGeneratedOfficialReceiptNumber(applications = [], currentApp = null) {
   const records = Array.isArray(applications) ? applications : [];
-  const highest = [...records, currentApp]
-    .flatMap(collectApplicationReceiptNumbers)
-    .reduce((max, receiptNo) => Math.max(max, getReceiptSequenceValue(receiptNo)), 0);
-
-  if (highest > 0) return String(highest + 1).padStart(6, "0");
+  const usedReceiptNumbers = new Set(
+    [...records, currentApp]
+      .flatMap(collectApplicationReceiptNumbers)
+      .map(getSixDigitOfficialReceiptNumber)
+      .filter(Boolean)
+  );
+  const highest = [...usedReceiptNumbers]
+    .map(getReceiptSequenceValue)
+    .reduce((max, receiptNo) => Math.max(max, receiptNo), 0);
 
   const fallback = getReceiptSequenceValue(getGeneratedOfficialReceiptNumber(currentApp));
-  return String((fallback || 0) + 1).padStart(6, "0");
+  let nextValue = highest > 0 ? highest + 1 : fallback || 1;
+  let nextReceiptNo = String(nextValue).padStart(6, "0");
+  while (usedReceiptNumbers.has(nextReceiptNo)) {
+    nextValue += 1;
+    nextReceiptNo = String(nextValue).padStart(6, "0");
+  }
+
+  return nextReceiptNo;
+}
+
+function getOriginalOfficialReceiptNumber(app = null, applications = [], preferredReceiptNo = "") {
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || {};
+  const payment = formData.payment || {};
+  const candidates = [
+    preferredReceiptNo,
+    approvalLetter.manual_receipt?.receipt_no,
+    payment.official_receipt_no,
+    payment.official_receipt?.receipt_no,
+  ]
+    .map(getSixDigitOfficialReceiptNumber)
+    .filter(Boolean);
+
+  const existing = candidates.find(
+    (receiptNo) =>
+      !isOfficialReceiptNumberUsedByOtherApplication(receiptNo, applications, app) &&
+      !isOfficialReceiptNumberUsedByCurrentRenewal(receiptNo, app)
+  );
+  if (existing) return existing;
+
+  return getNextGeneratedOfficialReceiptNumber(applications, app);
+}
+
+function getOriginalOfficialReceiptDocumentApp(app = null, applications = [], preferredReceiptNo = "") {
+  const receiptNo = getOriginalOfficialReceiptNumber(app, applications, preferredReceiptNo);
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || {};
+  const manualReceipt = approvalLetter.manual_receipt || {};
+  const receiptDocumentHtml = manualReceipt.document_html || "";
+  const canUseReceiptDocumentHtml = isOfficialReceiptDocumentHtmlForNumber(
+    receiptDocumentHtml,
+    receiptNo
+  );
+
+  return {
+    ...app,
+    form_data: {
+      ...formData,
+      approval_letter: {
+        ...approvalLetter,
+        manual_receipt: {
+          ...manualReceipt,
+          receipt_no: receiptNo,
+          document_html: canUseReceiptDocumentHtml ? receiptDocumentHtml : "",
+        },
+      },
+      payment: {
+        ...(formData.payment || {}),
+        official_receipt_no: receiptNo,
+      },
+    },
+  };
+}
+
+function getOriginalGeneratedOfficialReceiptDocumentHtml(app = null, applications = [], preferredReceiptNo = "") {
+  return getGeneratedOfficialReceiptDocumentHtml(
+    getOriginalOfficialReceiptDocumentApp(app, applications, preferredReceiptNo)
+  );
 }
 
 function isStaleRenewalReceiptNumber(app = null, receiptNo = "") {
@@ -5659,7 +5786,11 @@ function getRenewalOfficialReceiptNumber(app = null, applications = [], preferre
   ].filter(Boolean);
   const existing = candidates
     .map(getSixDigitOfficialReceiptNumber)
-    .find((receiptNo) => !isStaleRenewalReceiptNumber(app, receiptNo));
+    .find(
+      (receiptNo) =>
+        !isStaleRenewalReceiptNumber(app, receiptNo) &&
+        !isOfficialReceiptNumberUsedByOtherApplication(receiptNo, applications, app)
+    );
   if (existing) return existing;
 
   return getNextGeneratedOfficialReceiptNumber(applications, app);
@@ -15507,10 +15638,14 @@ const configs = {
           const issueDate = today;
           const expiry = addCalendarYears(issueDate, validityYears);
           const licenseId = savedLicense.license_id || getLicenseId(app);
-          const officialReceiptNo =
+          const savedOriginalReceiptNo =
             app.form_data?.payment?.official_receipt_no ||
-            savedManualReceipt.receipt_no ||
-            getGeneratedOfficialReceiptNumber(app);
+            savedManualReceipt.receipt_no;
+          const officialReceiptNo = getOriginalOfficialReceiptNumber(
+            app,
+            data?.applications,
+            savedOriginalReceiptNo
+          );
           const recommendation = data.decision || "Issue License";
           const remarks = cleanRemark(data.comment);
           const digitalSignature = data.approvalSupportSignature || null;
@@ -15556,8 +15691,13 @@ const configs = {
               license: nextLicenseBase,
             },
           };
+          const canUseSavedReceiptHtml =
+            savedManualReceipt.document_html &&
+            isOfficialReceiptDocumentHtmlForNumber(savedManualReceipt.document_html, officialReceiptNo);
           const receiptDocumentHtml =
-            savedManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+            canUseSavedReceiptHtml
+              ? savedManualReceipt.document_html
+              : buildGeneratedOfficialReceiptDocumentHtml(documentApp);
           const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
             getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate),
             documentApp
@@ -19679,7 +19819,7 @@ function PaymentDetails({
       onReview: onEditReceipt,
       onDownload: showRenewalCompletionDocuments
         ? () => printRenewalGeneratedOfficialReceiptDocument(app, t, applications)
-        : () => printGeneratedOfficialReceiptDocument(app, t),
+        : () => printGeneratedOfficialReceiptDocument(app, t, applications),
     },
     {
       label: t("workspace.license.documentTitle", "Advertisement License"),
@@ -21449,10 +21589,10 @@ function openGeneratedAdvertisementLicenseDocument(app, t) {
   }
 }
 
-async function printGeneratedOfficialReceiptDocument(app, t) {
+async function printGeneratedOfficialReceiptDocument(app, t, applications = []) {
   try {
     await printHtmlDocument(
-      getGeneratedOfficialReceiptDocumentHtml(app),
+      getOriginalGeneratedOfficialReceiptDocumentHtml(app, applications),
       `${getApplicationReference(app)} ${t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}`
     );
   } catch (error) {
