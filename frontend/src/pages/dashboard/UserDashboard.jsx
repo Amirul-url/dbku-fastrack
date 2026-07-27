@@ -4321,10 +4321,10 @@ function ensureApplicantOfficialReceiptComputerNoticeHtml(html = "") {
       <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
     </footer>
 `;
-  return String(html || "").replace(
-    /(<section[^>]*class=["'][^"']*\b(?:receipt-page|receipt)\b[^"']*["'][^>]*>[\s\S]*?)(\s*<\/section>)/i,
-    (_match, body, close) => `${body}${noticeHtml}${close}`
-  );
+  const source = String(html || "");
+  const closeIndex = source.toLowerCase().lastIndexOf("</section>");
+  if (closeIndex < 0) return `${source}${noticeHtml}`;
+  return `${source.slice(0, closeIndex)}${noticeHtml}${source.slice(closeIndex)}`;
 }
 
 function getLicenseRenewal(app) {
