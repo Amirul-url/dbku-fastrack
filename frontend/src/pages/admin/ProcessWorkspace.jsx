@@ -15941,7 +15941,10 @@ const configs = {
                 ...(app.form_data?.payment || {}),
                 official_receipt_no: officialReceiptNo,
               },
-              license: nextLicenseBase,
+              license: {
+                ...nextLicenseBase,
+                manual_license: savedManualLicense,
+              },
             },
           };
           const canUseSavedReceiptHtml =
@@ -22191,10 +22194,13 @@ async function printRenewalGeneratedAdvertisementLicenseDocument(app, t, applica
 export function getGeneratedAdvertisementLicenseDocumentHtml(app, t, applications = []) {
   const manualLicense = app?.form_data?.license?.manual_license || {};
   return normalizeAdvertisementLicenseDocumentSpacing(
-    migrateAdvertisementLicenseDocumentHtml(
-      manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t, applications),
-      app,
-      applications
+    ensureAdvertisementLicenseSignatureHtml(
+      migrateAdvertisementLicenseDocumentHtml(
+        manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t, applications),
+        app,
+        applications
+      ),
+      app
     )
   );
 }
@@ -22247,6 +22253,8 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     .period-line { display: grid; grid-template-columns: 42mm 5mm 1fr 16mm 1fr; column-gap: 3mm; align-items: end; margin-top: 1.4mm; font-size: 11pt; }
     .attachment-line { margin-top: 12mm; font-size: 11pt; }
     .signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }
+    .signature-line { position: relative; height: 16mm; }
+    .ad-license-signature-image { position: absolute; left: 15mm; bottom: 1mm; max-width: 48mm; max-height: 16mm; object-fit: contain; }
     .signature-title { margin-top: 4mm; }
     .date-row { display: grid; grid-template-columns: auto 1fr; gap: 2mm; align-items: end; }
     .appendix-page { padding: 24mm 16mm 20mm; font-family: Arial, Helvetica, sans-serif; }
@@ -22293,7 +22301,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
 
     <div class="signature-row">
       <div>
-        <div class="dot-line">&nbsp;</div>
+        <div class="dot-line signature-line">${buildAdvertisementLicenseSignatureImageHtml(app) || "&nbsp;"}</div>
         <div class="signature-title">b.p.: Dewan Bandaraya Kuching Utara</div>
       </div>
       <div class="date-row"><span>Tarikh:</span><span class="dot-line">${escapeHtml(issueDate)}</span></div>
@@ -22311,11 +22319,44 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
 }
 
 function normalizeAdvertisementLicenseDocumentSpacing(html) {
-  return String(html || "")
+  const normalizedHtml = String(html || "")
     .replace(
       /\.grant\s*\{[^}]*\}/,
       ".grant { margin: 7mm 0 6mm; font-size: 11pt; line-height: 1.38; text-align: justify; }"
+    )
+    .replace(
+      /\.signature-row\s*\{[^}]*\}/,
+      ".signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }"
     );
+
+  if (/\.ad-license-signature-image\b/.test(normalizedHtml)) {
+    return normalizedHtml;
+  }
+
+  return normalizedHtml.replace(
+    /<\/style>/i,
+    "    .signature-line { position: relative; height: 16mm; }\n    .ad-license-signature-image { position: absolute; left: 15mm; bottom: 1mm; max-width: 48mm; max-height: 16mm; object-fit: contain; }\n  </style>"
+  );
+}
+
+function buildAdvertisementLicenseSignatureImageHtml(app = null) {
+  const signatureSource = getDecisionLogSignatureSource(app?.form_data?.license?.digital_signature);
+  if (!signatureSource) return "";
+
+  return `<img class="ad-license-signature-image" data-generated-signature-image="true" src="${escapeHtml(signatureSource)}" alt="Digital signature" />`;
+}
+
+function ensureAdvertisementLicenseSignatureHtml(html, app = null) {
+  const signatureImageHtml = buildAdvertisementLicenseSignatureImageHtml(app);
+  const currentHtml = String(html || "");
+  if (!signatureImageHtml || /data-generated-signature-image=["']true["']|class=["'][^"']*\bad-license-signature-image\b/i.test(currentHtml)) {
+    return currentHtml;
+  }
+
+  return currentHtml.replace(
+    /(<div[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)(?:\s|&nbsp;)*(<\/div>\s*<div[^>]*class=["'][^"']*\bsignature-title\b[^"']*["'][^>]*>\s*b\.p\.:\s*Dewan Bandaraya Kuching Utara\s*<\/div>)/i,
+    `$1${signatureImageHtml}$2`
+  );
 }
 
 function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications = []) {
