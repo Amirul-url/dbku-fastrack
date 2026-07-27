@@ -4225,8 +4225,10 @@ function getApplicantManualPaymentDocumentHtml(app, type, t) {
   }
 
   if (type === "receipt") {
-    if (manualReceipt.document_html) return manualReceipt.document_html;
-    return buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt);
+    const receiptHtml =
+      manualReceipt.document_html ||
+      buildApplicantManualOfficialReceiptHtml(app, t, manualLetter, manualBill, manualReceipt);
+    return normalizeApplicantOfficialReceiptDocumentHtml(receiptHtml);
   }
 
   if (type === "bill" && manualBill.document_html) {
@@ -4252,6 +4254,71 @@ function getSentOfficialReceiptFile(app) {
   }
 
   return null;
+}
+
+function normalizeApplicantOfficialReceiptDocumentHtml(html = "") {
+  const withoutSignature = removeApplicantOfficialReceiptLegacySignatureHtml(String(html || ""));
+  const withNotice = ensureApplicantOfficialReceiptComputerNoticeHtml(withoutSignature)
+    .replace(
+      /\.receipt-page\s*\{([^}]*)\}/,
+      (match, body) =>
+        /position\s*:/.test(body)
+          ? match
+          : `.receipt-page { position: relative;${body} }`
+    )
+    .replace(
+      /\.receipt\s*\{([^}]*)\}/,
+      (match, body) =>
+        /position\s*:/.test(body)
+          ? match
+          : `.receipt { position: relative;${body} }`
+    )
+    .replace(
+      /\.footer\s*\{[^}]*\}/,
+      ".footer { display: grid; grid-template-columns: 30mm minmax(0,1fr); gap: 10mm; align-items: end; margin-top: 8mm; }"
+    )
+    .replace(
+      /\.receipt-computer-notice\s*\{[^}]*\}/,
+      ".receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
+    )
+    .replace(
+      /\.receipt-computer-notice p\s*\{[^}]*\}/,
+      ".receipt-computer-notice p { margin: 0; }"
+    );
+
+  if (/\.receipt-computer-notice\b/.test(withNotice)) return withNotice;
+
+  return withNotice.replace(
+    /<\/style>/i,
+    "    .receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .receipt-computer-notice p { margin: 0; }\n  </style>"
+  );
+}
+
+function removeApplicantOfficialReceiptLegacySignatureHtml(html = "") {
+  return String(html || "")
+    .replace(/\s*\.signature\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.signature\s+\.line\s*\{[^}]*\}/g, "")
+    .replace(
+      /\s*<div[^>]*class=["'][^"']*\bsignature\b[^"']*["'][^>]*>\s*(?:<div[^>]*class=["'][^"']*\bline\b[^"']*["'][^>]*>\s*<\/div>\s*)?[\s\S]*?<\/div>\s*/gi,
+      ""
+    )
+    .replace(
+      /\s*<footer[^>]*class=["'][^"']*\breceipt-computer-notice\b[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi,
+      ""
+    );
+}
+
+function ensureApplicantOfficialReceiptComputerNoticeHtml(html = "") {
+  const noticeHtml = `
+    <footer class="receipt-computer-notice">
+      <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+      <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+    </footer>
+`;
+  return String(html || "").replace(
+    /(<section[^>]*class=["'][^"']*\b(?:receipt-page|receipt)\b[^"']*["'][^>]*>[\s\S]*?)(\s*<\/section>)/i,
+    (_match, body, close) => `${body}${noticeHtml}${close}`
+  );
 }
 
 function getLicenseRenewal(app) {

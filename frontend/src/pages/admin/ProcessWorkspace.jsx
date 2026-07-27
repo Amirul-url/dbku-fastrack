@@ -4496,6 +4496,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 : getOriginalGeneratedOfficialReceiptDocumentHtml(selectedRecord, receiptApplications),
             scale: 0.95,
             editable: true,
+            signatureTools: false,
             kind: "receipt",
           }}
           t={t}
@@ -5500,7 +5501,7 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     @page { size: A4 portrait; margin: 0; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #fff; color: #000; font-family: "Times New Roman", Times, serif; }
-    .receipt-page { width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 10mm 1.5mm; overflow: hidden; }
+    .receipt-page { position: relative; width: 210mm; height: 297mm; margin: 0 auto; background: #fff; padding: 10mm 1.5mm; overflow: hidden; }
     .receipt-content { width: 100%; transform: scale(.94); transform-origin: top center; }
     .receipt-header { position: relative; min-height: 27mm; }
     .crest { position: absolute; left: 0; top: 0; width: 43mm; display: flex; justify-content: center; }
@@ -5538,13 +5539,13 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     .solid-line { border-bottom: 1.25px solid #111; min-height: 5.6mm; line-height: 5mm; padding-left: 1.5mm; font-weight: 400; }
     .blank-line { border-bottom: 1.25px solid #111; height: 6.5mm; }
     [contenteditable="true"] { outline: none; box-shadow: none; }
-    .footer { display: grid; grid-template-columns: 30mm minmax(0,1fr) 51mm; gap: 10mm; align-items: end; margin-top: 8mm; }
+    .footer { display: grid; grid-template-columns: 30mm minmax(0,1fr); gap: 10mm; align-items: end; margin-top: 8mm; }
     .payment-mode { font-size: 11pt; font-weight: 800; line-height: 1.05; }
     .payment-mode .cash { display: inline-block; min-width: 23mm; border-bottom: 1.3px solid #111; text-align: center; }
     .bank-note { text-align: center; font: 700 9pt Arial, sans-serif; line-height: 1.2; transform: translateY(4mm); }
     .bank-note em { font-size: 9pt; }
-    .signature { text-align: center; font-size: 11pt; font-weight: 700; transform: translateY(4mm); }
-    .signature .line { border-bottom: 1.6px dotted #111; height: 6mm; margin-bottom: .5mm; }
+    .receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }
+    .receipt-computer-notice p { margin: 0; }
     .print-actions { position: fixed; right: 18px; top: 18px; }
     .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
     @media print {
@@ -5614,12 +5615,19 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     <footer class="footer">
       <div class="payment-mode"><span class="cash">CASH</span><br />CHEQUE NO.<br /><span style="display:inline-block;transform:translateY(3mm);font-size:6pt;font-weight:700;">PNMB,Kch.</span></div>
       <div class="bank-note">Pembayaran ini hanya dianggap sah setelah cek diperakui oleh bank<br /><em>Payment valid only upon clearance of cheques</em></div>
-      <div class="signature"><div class="line"></div>b.p. Datuk Bandar</div>
     </footer>
     </div>
+    ${buildGeneratedOfficialReceiptComputerNoticeHtml()}
   </section>
 </body>
 </html>`;
+}
+
+function buildGeneratedOfficialReceiptComputerNoticeHtml() {
+  return `<footer class="receipt-computer-notice">
+      <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+      <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+    </footer>`;
 }
 
 function getGeneratedOfficialReceiptDateDisplay(app = null) {
@@ -5650,6 +5658,60 @@ function ensureGeneratedOfficialReceiptDate(html, app = null) {
       const currentText = getHtmlPlainText(currentValue);
       return currentText ? match : `${before}${escapeHtml(dateDisplay)}${after}`;
     }
+  );
+}
+
+function normalizeGeneratedOfficialReceiptDocumentHtml(html, app = null) {
+  const withDate = ensureGeneratedOfficialReceiptDate(html, app);
+  const withoutSignature = removeGeneratedOfficialReceiptLegacySignatureHtml(withDate);
+  const withNotice = ensureGeneratedOfficialReceiptComputerNoticeHtml(withoutSignature)
+    .replace(
+      /\.receipt-page\s*\{([^}]*)\}/,
+      (match, body) =>
+        /position\s*:/.test(body)
+          ? match
+          : `.receipt-page { position: relative;${body} }`
+    )
+    .replace(
+      /\.footer\s*\{[^}]*\}/,
+      ".footer { display: grid; grid-template-columns: 30mm minmax(0,1fr); gap: 10mm; align-items: end; margin-top: 8mm; }"
+    )
+    .replace(
+      /\.receipt-computer-notice\s*\{[^}]*\}/,
+      ".receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
+    )
+    .replace(
+      /\.receipt-computer-notice p\s*\{[^}]*\}/,
+      ".receipt-computer-notice p { margin: 0; }"
+    );
+
+  if (/\.receipt-computer-notice\b/.test(withNotice)) return withNotice;
+
+  return withNotice.replace(
+    /<\/style>/i,
+    "    .receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .receipt-computer-notice p { margin: 0; }\n  </style>"
+  );
+}
+
+function removeGeneratedOfficialReceiptLegacySignatureHtml(html = "") {
+  return String(html || "")
+    .replace(/\s*\.signature\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.signature\s+\.line\s*\{[^}]*\}/g, "")
+    .replace(
+      /\s*<div[^>]*class=["'][^"']*\bsignature\b[^"']*["'][^>]*>\s*(?:<div[^>]*class=["'][^"']*\bline\b[^"']*["'][^>]*>\s*<\/div>\s*)?[\s\S]*?<\/div>\s*/gi,
+      ""
+    )
+    .replace(
+      /\s*<footer[^>]*class=["'][^"']*\breceipt-computer-notice\b[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi,
+      ""
+    );
+}
+
+function ensureGeneratedOfficialReceiptComputerNoticeHtml(html = "") {
+  const noticeHtml = `\n    ${buildGeneratedOfficialReceiptComputerNoticeHtml()}\n`;
+  return String(html || "").replace(
+    /(<section[^>]*class=["'][^"']*\breceipt-page\b[^"']*["'][^>]*>[\s\S]*?)(\s*<\/section>)/i,
+    (_match, body, close) => `${body}${noticeHtml}${close}`
   );
 }
 
@@ -15951,10 +16013,12 @@ const configs = {
           const canUseSavedReceiptHtml =
             savedManualReceipt.document_html &&
             isOfficialReceiptDocumentHtmlForNumber(savedManualReceipt.document_html, officialReceiptNo);
-          const receiptDocumentHtml =
+          const receiptDocumentHtml = normalizeGeneratedOfficialReceiptDocumentHtml(
             canUseSavedReceiptHtml
               ? savedManualReceipt.document_html
-              : buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+              : buildGeneratedOfficialReceiptDocumentHtml(documentApp),
+            documentApp
+          );
           const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
             getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
             documentApp
@@ -16110,10 +16174,12 @@ const configs = {
             savedRenewalManualReceipt.document_html &&
             savedRenewalReceiptNo &&
             normalizeReceiptNumber(savedRenewalReceiptNo) === normalizeReceiptNumber(officialReceiptNo);
-          const receiptDocumentHtml =
+          const receiptDocumentHtml = normalizeGeneratedOfficialReceiptDocumentHtml(
             canUseSavedRenewalReceiptHtml
               ? savedRenewalManualReceipt.document_html
-              : buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+              : buildGeneratedOfficialReceiptDocumentHtml(documentApp),
+            documentApp
+          );
           const licenseDocumentHtml =
             savedRenewalManualLicense.document_html ||
             forceAdvertisementLicensePeriodLine(
@@ -22019,7 +22085,7 @@ function openHtmlPreviewDocument(html, title, t) {
 
 export function getGeneratedOfficialReceiptDocumentHtml(app) {
   const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
-  return ensureGeneratedOfficialReceiptDate(
+  return normalizeGeneratedOfficialReceiptDocumentHtml(
     manualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(app),
     app
   );
