@@ -19554,6 +19554,41 @@ function PaymentDetails({
     />
   );
 
+  const approvalLetterDownloadLabel = t("workspace.payment.approvalLetter", "Approval Letter");
+  const billDownloadLabel = t("workspace.payment.billDocument", "Bill");
+  const canDownloadApprovalLetter = Boolean(getPaymentDocumentSource(letterFile) || hasManualApprovalLetter(app));
+  const canDownloadBill = Boolean(getPaymentDocumentSource(billFile) || hasManualBill(app));
+  const showReleasedApprovalBillInDocuments =
+    !canUploadDocuments &&
+    ["invoice_generated", "payment_submitted"].includes(status) &&
+    (canDownloadApprovalLetter || canDownloadBill);
+  const approvalBillDocumentSection = showReleasedApprovalBillInDocuments ? null : (
+    <div className="grid grid-cols-1 gap-3">
+      <ApprovalLetterDocumentSlot
+        app={app}
+        label={approvalLetterDownloadLabel}
+        file={letterFile}
+        t={t}
+        canUpload={canUploadDocuments}
+        required={canUploadDocuments}
+        saving={saving}
+        onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+        onEditManualLetter={onEditApprovalLetter}
+      />
+      <BillDocumentSlot
+        app={app}
+        label={billDownloadLabel}
+        file={billFile}
+        t={t}
+        canEdit={canUploadDocuments}
+        required={canUploadDocuments}
+        saving={saving}
+        onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+        onEditManualBill={onEditBill}
+      />
+    </div>
+  );
+
   const documentSection = (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
       <div className="flex flex-col gap-2 border-b border-slate-200 px-3 py-2 sm:flex-row sm:items-start sm:justify-between">
@@ -19578,7 +19613,7 @@ function PaymentDetails({
       </div>
 
       {documentsExpanded && (
-        <div className="grid grid-cols-1">
+        <div className="grid grid-cols-1 divide-y divide-slate-200">
           <div className="flex flex-col gap-3 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold text-slate-500">
               {t("workspace.payment.applicationFormDetails", "Application Form Details")}
@@ -19593,36 +19628,53 @@ function PaymentDetails({
               {t("common.view", "View")}
             </Button>
           </div>
+          {showReleasedApprovalBillInDocuments && canDownloadApprovalLetter && (
+            <div className="flex flex-col gap-3 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-slate-500">
+                {approvalLetterDownloadLabel}
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                icon="download"
+                className="min-h-9 px-4 py-1.5"
+                onClick={() => {
+                  if (getPaymentDocumentSource(letterFile)) {
+                    downloadPaymentDocument(letterFile, approvalLetterDownloadLabel, t);
+                    return;
+                  }
+                  printManualApprovalLetterDocument(app, t);
+                }}
+              >
+                {t("common.download", "Download")}
+              </Button>
+            </div>
+          )}
+          {showReleasedApprovalBillInDocuments && canDownloadBill && (
+            <div className="flex flex-col gap-3 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-semibold text-slate-500">
+                {billDownloadLabel}
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                icon="download"
+                className="min-h-9 px-4 py-1.5"
+                onClick={() => {
+                  if (getPaymentDocumentSource(billFile)) {
+                    downloadPaymentDocument(billFile, billDownloadLabel, t);
+                    return;
+                  }
+                  printManualBillDocument(app, t);
+                }}
+              >
+                {t("common.download", "Download")}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </section>
-  );
-
-  const approvalBillDocumentSection = (
-    <div className="grid grid-cols-1 gap-3">
-      <ApprovalLetterDocumentSlot
-        app={app}
-        label={t("workspace.payment.approvalLetter", "Approval Letter")}
-        file={letterFile}
-        t={t}
-        canUpload={canUploadDocuments}
-        required={canUploadDocuments}
-        saving={saving}
-        onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-        onEditManualLetter={onEditApprovalLetter}
-      />
-      <BillDocumentSlot
-        app={app}
-        label={t("workspace.payment.billDocument", "Bill")}
-        file={billFile}
-        t={t}
-        canEdit={canUploadDocuments}
-        required={canUploadDocuments}
-        saving={saving}
-        onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-        onEditManualBill={onEditBill}
-      />
-    </div>
   );
 
   const receiptSection = showReceiptDetails ? (
