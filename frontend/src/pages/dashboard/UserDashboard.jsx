@@ -4050,7 +4050,67 @@ function getApplicantAdvertisementLicenseDocumentHtml(app, options = {}) {
   const manualLicense = options.renewal
     ? getLicenseRenewalManualAdvertisementLicense(app)
     : app?.form_data?.license?.manual_license || {};
-  return String(manualLicense.document_html || "").trim();
+  return normalizeApplicantAdvertisementLicenseDocumentHtml(manualLicense.document_html).trim();
+}
+
+function normalizeApplicantAdvertisementLicenseDocumentHtml(html = "") {
+  const currentHtml = removeApplicantAdvertisementLicenseLegacySignatureHtml(String(html || ""));
+  if (!currentHtml) return "";
+
+  const withNotice = ensureApplicantAdvertisementLicenseComputerNoticeHtml(currentHtml)
+    .replace(
+      /\.ad-license-page\s*\{([^}]*)\}/,
+      (match, body) =>
+        /position\s*:/.test(body)
+          ? match
+          : `.ad-license-page {${body} position: relative; }`
+    )
+    .replace(
+      /\.computer-notice\s*\{[^}]*\}/,
+      ".computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }"
+    )
+    .replace(
+      /\.computer-notice p\s*\{[^}]*\}/,
+      ".computer-notice p { margin: 0; }"
+    );
+
+  if (/\.computer-notice\b/.test(withNotice)) return withNotice;
+
+  return withNotice.replace(
+    /<\/style>/i,
+    "    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }\n    .computer-notice p { margin: 0; }\n  </style>"
+  );
+}
+
+function removeApplicantAdvertisementLicenseLegacySignatureHtml(html = "") {
+  return String(html || "")
+    .replace(/\s*\.signature-row\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.signature-line\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.ad-license-signature-image\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.signature-title\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.date-row\s*\{[^}]*\}/g, "")
+    .replace(
+      /\s*<div[^>]*class=["'][^"']*\bsignature-row\b[^"']*["'][^>]*>[\s\S]*?<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
+      ""
+    );
+}
+
+function ensureApplicantAdvertisementLicenseComputerNoticeHtml(html = "") {
+  const currentHtml = String(html || "");
+  if (/class=["'][^"']*\bcomputer-notice\b/i.test(currentHtml)) return currentHtml;
+  const noticeHtml = `
+    <footer class="computer-notice">
+      <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+      <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+    </footer>
+`;
+  if (/<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b/i.test(currentHtml)) {
+    return currentHtml.replace(
+      /(\s*<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b)/i,
+      `${noticeHtml}$1`
+    );
+  }
+  return currentHtml.replace(/(\s*<\/section>)/i, `${noticeHtml}$1`);
 }
 
 function getLicenseRenewalManualAdvertisementLicense(app) {

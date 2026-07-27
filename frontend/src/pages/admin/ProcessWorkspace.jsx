@@ -4517,6 +4517,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 : getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications),
             scale: 0.9,
             editable: true,
+            signatureTools: false,
             kind: "advertisement_license",
           }}
           t={t}
@@ -22194,13 +22195,10 @@ async function printRenewalGeneratedAdvertisementLicenseDocument(app, t, applica
 export function getGeneratedAdvertisementLicenseDocumentHtml(app, t, applications = []) {
   const manualLicense = app?.form_data?.license?.manual_license || {};
   return normalizeAdvertisementLicenseDocumentSpacing(
-    ensureAdvertisementLicenseSignatureHtml(
-      migrateAdvertisementLicenseDocumentHtml(
-        manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t, applications),
-        app,
-        applications
-      ),
-      app
+    migrateAdvertisementLicenseDocumentHtml(
+      manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t, applications),
+      app,
+      applications
     )
   );
 }
@@ -22212,7 +22210,6 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
   const logoUrl = getPublicAssetUrl("/logo-dbku.png");
   const terms = getAdvertisementLicenseAttachmentTerms(manualLicense.terms);
   const details = getAdvertisementLicenseAutofillDetails(app);
-  const issueDate = getAdvertisementLicenseIssueDateDisplay(app);
 
   return `<!doctype html>
 <html>
@@ -22224,6 +22221,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     * { box-sizing: border-box; }
     body { margin: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
     .ad-license-page {
+      position: relative;
       width: 210mm;
       min-height: 297mm;
       margin: 0 auto 12px;
@@ -22252,11 +22250,8 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     .license-details { display: grid; grid-template-columns: 42mm 5mm 1fr; column-gap: 3mm; row-gap: 1.4mm; align-items: end; font-size: 11pt; }
     .period-line { display: grid; grid-template-columns: 42mm 5mm 1fr 16mm 1fr; column-gap: 3mm; align-items: end; margin-top: 1.4mm; font-size: 11pt; }
     .attachment-line { margin-top: 12mm; font-size: 11pt; }
-    .signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }
-    .signature-line { min-height: 16mm; height: 16mm; display: flex; align-items: flex-end; padding-left: 15mm; }
-    .ad-license-signature-image { display: block; max-width: 48mm; max-height: 16mm; object-fit: contain; }
-    .signature-title { margin-top: 4mm; }
-    .date-row { display: grid; grid-template-columns: auto 1fr; gap: 2mm; align-items: end; }
+    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }
+    .computer-notice p { margin: 0; }
     .appendix-page { padding: 24mm 16mm 20mm; font-family: Arial, Helvetica, sans-serif; }
     .appendix-title { margin: 0 0 8mm; font-size: 11pt; line-height: 1.55; font-weight: 700; text-transform: uppercase; }
     .terms { margin: 0; padding-left: 13mm; font-size: 11pt; line-height: 1.32; }
@@ -22299,13 +22294,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
 
     <p class="attachment-line">Tertakluk kepada syarat-syarat dalam Lampiran A.</p>
 
-    <div class="signature-row">
-      <div>
-        <div class="dot-line signature-line">${buildAdvertisementLicenseSignatureImageHtml(app) || "&nbsp;"}</div>
-        <div class="signature-title">b.p.: Dewan Bandaraya Kuching Utara</div>
-      </div>
-      <div class="date-row"><span>Tarikh:</span><span class="dot-line">${escapeHtml(issueDate)}</span></div>
-    </div>
+    ${buildAdvertisementLicenseComputerNoticeHtml()}
   </section>
 
   <section class="ad-license-page appendix-page">
@@ -22319,95 +22308,68 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
 }
 
 function normalizeAdvertisementLicenseDocumentSpacing(html) {
-  const normalizedHtml = String(html || "")
+  const normalizedHtml = ensureAdvertisementLicenseComputerNoticeHtml(
+    removeAdvertisementLicenseLegacySignatureHtml(String(html || ""))
+      .replace(
+        /\.ad-license-page\s*\{([^}]*)\}/,
+        (match, body) =>
+          /position\s*:/.test(body)
+            ? match
+            : `.ad-license-page {${body} position: relative; }`
+      )
     .replace(
       /\.grant\s*\{[^}]*\}/,
       ".grant { margin: 7mm 0 6mm; font-size: 11pt; line-height: 1.38; text-align: justify; }"
     )
     .replace(
-      /\.signature-row\s*\{[^}]*\}/,
-      ".signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }"
+      /\.computer-notice\s*\{[^}]*\}/,
+      ".computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }"
     )
-    .replace(
-      /\.signature-line\s*\{[^}]*\}/,
-      ".signature-line { min-height: 16mm; height: 16mm; display: flex; align-items: flex-end; padding-left: 15mm; }"
-    )
-    .replace(
-      /\.ad-license-signature-image\s*\{[^}]*\}/,
-      ".ad-license-signature-image { display: block; max-width: 48mm; max-height: 16mm; object-fit: contain; }"
-    );
+      .replace(
+        /\.computer-notice p\s*\{[^}]*\}/,
+        ".computer-notice p { margin: 0; }"
+      )
+  );
 
-  if (/\.ad-license-signature-image\b/.test(normalizedHtml)) {
-    return ensureAdvertisementLicenseSignatureLineClass(normalizedHtml);
-  }
+  if (/\.computer-notice\b/.test(normalizedHtml)) return normalizedHtml;
 
-  return ensureAdvertisementLicenseSignatureLineClass(
-    normalizedHtml.replace(
-      /<\/style>/i,
-      "    .signature-line { min-height: 16mm; height: 16mm; display: flex; align-items: flex-end; padding-left: 15mm; }\n    .ad-license-signature-image { display: block; max-width: 48mm; max-height: 16mm; object-fit: contain; }\n  </style>"
-    )
+  return normalizedHtml.replace(
+    /<\/style>/i,
+    "    .computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt; line-height: 1.35; color: #111; }\n    .computer-notice p { margin: 0; }\n  </style>"
   );
 }
 
-function buildAdvertisementLicenseSignatureImageHtml(app = null) {
-  const signatureSource = getAdvertisementLicenseInlineSignatureSource(app?.form_data?.license?.digital_signature);
-  if (!signatureSource) return "";
-
-  return `<img class="ad-license-signature-image" data-generated-signature-image="true" src="${escapeHtml(signatureSource)}" alt="Digital signature" />`;
+function buildAdvertisementLicenseComputerNoticeHtml() {
+  return `<footer class="computer-notice">
+      <p>Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+      <p>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+    </footer>`;
 }
 
-function getAdvertisementLicenseInlineSignatureSource(signature = null) {
-  if (!signature) return "";
-  if (typeof signature === "string") return signature.trim();
-  if (typeof signature !== "object") return "";
-
-  return String(
-    signature.drawDataUrl ||
-      (signature.mode === "draw" ? signature.dataUrl : "") ||
-      signature.data_url ||
-      getSignatureItemSource(signature.items?.find?.((item) => getSignatureItemSource(item))) ||
-      signature.dataUrl ||
-      signature.source ||
-      signature.file_url ||
-      signature.url ||
-      signature.file ||
-      signature.preview_url ||
+function removeAdvertisementLicenseLegacySignatureHtml(html = "") {
+  return String(html || "")
+    .replace(/\s*\.signature-row\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.signature-line\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.ad-license-signature-image\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.signature-title\s*\{[^}]*\}/g, "")
+    .replace(/\s*\.date-row\s*\{[^}]*\}/g, "")
+    .replace(
+      /\s*<div[^>]*class=["'][^"']*\bsignature-row\b[^"']*["'][^>]*>[\s\S]*?<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
       ""
-  ).trim();
+    );
 }
 
-function ensureAdvertisementLicenseSignatureLineClass(html = "") {
-  return String(html || "").replace(
-    /<div([^>]*class=(["'])(?=[^"']*\bdot-line\b)(?![^"']*\bsignature-line\b)([^"']*)\2[^>]*)>([\s\S]*?\bad-license-signature-image\b[\s\S]*?)<\/div>/i,
-    (match, attributes, quote, classes, content) => {
-      const nextAttributes = attributes.replace(
-        `class=${quote}${classes}${quote}`,
-        `class=${quote}${classes} signature-line${quote}`
-      );
-      return `<div${nextAttributes}>${content}</div>`;
-    }
-  );
-}
-
-function ensureAdvertisementLicenseSignatureHtml(html, app = null) {
-  const signatureImageHtml = buildAdvertisementLicenseSignatureImageHtml(app);
+function ensureAdvertisementLicenseComputerNoticeHtml(html = "") {
   const currentHtml = String(html || "");
-  if (!signatureImageHtml || /data-generated-signature-image=["']true["']|class=["'][^"']*\bad-license-signature-image\b/i.test(currentHtml)) {
-    return ensureAdvertisementLicenseSignatureLineClass(currentHtml);
+  if (/class=["'][^"']*\bcomputer-notice\b/i.test(currentHtml)) return currentHtml;
+  const noticeHtml = `\n    ${buildAdvertisementLicenseComputerNoticeHtml()}\n`;
+  if (/<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b/i.test(currentHtml)) {
+    return currentHtml.replace(
+      /(\s*<\/section>\s*<section[^>]*class=["'][^"']*\bappendix-page\b)/i,
+      `${noticeHtml}$1`
+    );
   }
-
-  return currentHtml.replace(
-    /(<div([^>]*class=(["'])(?=[^"']*\bdot-line\b)([^"']*)\3[^>]*)>)(?:\s|&nbsp;)*(<\/div>\s*<div[^>]*class=["'][^"']*\bsignature-title\b[^"']*["'][^>]*>\s*b\.p\.:\s*Dewan Bandaraya Kuching Utara\s*<\/div>)/i,
-    (match, opener, attributes, quote, classes, after) => {
-      const nextOpener = /\bsignature-line\b/.test(classes)
-        ? opener
-        : opener.replace(
-            `class=${quote}${classes}${quote}`,
-            `class=${quote}${classes} signature-line${quote}`
-          );
-      return `${nextOpener}${signatureImageHtml}${after}`;
-    }
-  );
+  return currentHtml.replace(/(\s*<\/section>)/i, `${noticeHtml}$1`);
 }
 
 function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications = []) {
