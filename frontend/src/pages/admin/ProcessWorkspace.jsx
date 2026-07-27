@@ -771,7 +771,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }
 
   useEffect(() => {
-    if (filtered.length === 0) return;
     const hasSelected = filtered.some((app) => String(app.id) === String(selectedId));
 
     if (tableFirstWorkspace && !selectedId) {
@@ -779,14 +778,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
 
     if (tableFirstWorkspace && selectedId && !hasSelected) {
+      if (
+        selectedDetail &&
+        String(selectedDetail.id) === String(selectedId) &&
+        !canViewWorkspaceRow(config, selectedDetail, userDepartment)
+      ) {
+        setSelectedDetail(null);
+      }
       setSelectedId("");
       return;
     }
 
+    if (filtered.length === 0) return;
+
     if (!hasSelected) {
       setSelectedId(String(filtered[0].id));
     }
-  }, [filtered, tableFirstWorkspace, selectedId]);
+  }, [config, filtered, selectedDetail, tableFirstWorkspace, selectedId, userDepartment]);
 
   const selected = useMemo(() => {
     const matchingRecord = filtered.find((app) => String(app.id) === String(selectedId));
@@ -2793,7 +2801,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           open: true,
           result: "verified",
           redirectTo:
-            isFocusedPersonalWorkspace || fromPersonalTask
+            userDepartment === "FIN" || isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
         });
@@ -2819,7 +2827,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           open: true,
           result: "rejected",
           redirectTo:
-            isFocusedPersonalWorkspace || fromPersonalTask
+            userDepartment === "FIN" || isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
         });
