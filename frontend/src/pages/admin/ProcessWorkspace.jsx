@@ -5757,6 +5757,24 @@ function getOriginalGeneratedOfficialReceiptDocumentHtml(app = null, application
   );
 }
 
+function getAdvertisementLicenseReceiptNumber(app = null) {
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || {};
+  const payment = formData.payment || {};
+  const renewalPayment = formData.license_renewal?.payment || {};
+  const candidates = [
+    renewalPayment.official_receipt_no,
+    renewalPayment.official_receipt?.receipt_no,
+    renewalPayment.official_receipt_draft?.receipt_no,
+    renewalPayment.manual_official_receipt?.receipt_no,
+    approvalLetter.manual_receipt?.receipt_no,
+    payment.official_receipt_no,
+    payment.official_receipt?.receipt_no,
+  ];
+
+  return candidates.map(getSixDigitOfficialReceiptNumber).find(Boolean) || "";
+}
+
 function isStaleRenewalReceiptNumber(app = null, receiptNo = "") {
   const normalizedReceiptNo = getSixDigitOfficialReceiptNumber(receiptNo);
   if (!normalizedReceiptNo) return true;
@@ -21800,10 +21818,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
       <p class="license-form-title">Borang B<br />(Undang-Undang Kecil 7)<br />Lesen Pengiklanan</p>
     </header>
 
-    <div class="top-fields">
-      <span class="label">No. Resit</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-      <span>Rujukan</span><span class="colon">:</span><span class="dot-line">&nbsp;</span>
-    </div>
+    ${buildAdvertisementLicenseTopFields(app)}
 
     ${buildAdvertisementLicenseApplicantLines(details)}
 
@@ -21851,6 +21866,10 @@ function migrateAdvertisementLicenseDocumentHtml(html, app = null) {
 
   return String(html || "")
     .replace(
+      /<div class="top-fields">[\s\S]*?<\/div>/i,
+      () => buildAdvertisementLicenseTopFields(app)
+    )
+    .replace(
       /<div class="form-lines">[\s\S]*?<\/div>/i,
       (block) => buildAdvertisementLicenseApplicantLines(details, getAdvertisementLicenseDotValues(block))
     )
@@ -21862,6 +21881,17 @@ function migrateAdvertisementLicenseDocumentHtml(html, app = null) {
       /<div class="period-line">[\s\S]*?<\/div>/i,
       (block) => buildAdvertisementLicensePeriodLine(details, getAdvertisementLicenseDotValues(block))
     );
+}
+
+function buildAdvertisementLicenseTopFields(app = null) {
+  const receiptNo = getAdvertisementLicenseReceiptNumber(app);
+  const referenceNo = getApplicationReference(app);
+
+  return `
+    <div class="top-fields">
+      <span class="label">No. Resit</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(receiptNo)}
+      <span>Rujukan</span><span class="colon">:</span>${buildAdvertisementLicenseEditableLine(referenceNo)}
+    </div>`;
 }
 
 function forceAdvertisementLicensePeriodLine(html, app = null) {
