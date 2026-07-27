@@ -566,11 +566,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         }),
         fetchApplicationList(),
       ]);
-      const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
-        apiRequest(`/applications/${id}/`)
-      );
+      const [enrichedList, receiptRecords] = await Promise.all([
+        enrichApplicationListApplicantNames(list, (id) => apiRequest(`/applications/${id}/`)),
+        fetchApplicationReceiptRecords(allList, (id) => apiRequest(`/applications/${id}/`)),
+      ]);
       setApplications(enrichedList);
-      setAllApplications(allList);
+      setAllApplications(receiptRecords);
       if (!isTableFirstWorkspace(config) && !selectedId && list.length > 0) {
         setSelectedId(String(list[0].id));
       }
@@ -5735,6 +5736,7 @@ function collectApplicationReceiptNumbers(app = null) {
     payment.official_receipt_no,
     payment.official_receipt?.receipt_no,
     renewalPayment.official_receipt_no,
+    renewalPayment.official_receipt_draft?.receipt_no,
     renewalPayment.official_receipt?.receipt_no,
     renewalPayment.manual_official_receipt?.receipt_no,
   ].filter(Boolean);
@@ -5755,6 +5757,23 @@ function mergeApplicationRecords(...groups) {
     });
   });
   return [...merged.values()];
+}
+
+async function fetchApplicationReceiptRecords(applications = [], fetchDetail) {
+  const records = Array.isArray(applications) ? applications : [];
+  if (typeof fetchDetail !== "function") return records;
+
+  return Promise.all(
+    records.map(async (app) => {
+      if (!app?.id) return app;
+
+      try {
+        return await fetchDetail(app.id);
+      } catch {
+        return app;
+      }
+    })
+  );
 }
 
 function isSameApplicationRecord(first = null, second = null) {
