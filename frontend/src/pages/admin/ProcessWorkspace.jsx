@@ -1047,6 +1047,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showActionPanel &&
     !showApprovalPaymentReadOnly &&
     !showRenewalReminderWorkflowPanel &&
+    !showPaymentDocumentDecision &&
     !isIssuedLicenseRecord &&
     (
       isFocusedPersonalWorkspace ||
@@ -19482,6 +19483,7 @@ function PaymentDetails({
   const showQrPanel = false;
   const defaultPaymentDocumentTab = getDefaultPaymentDocumentTab(app);
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState(defaultPaymentDocumentTab);
+  const [documentsExpanded, setDocumentsExpanded] = useState(true);
 
   useEffect(() => {
     setActivePaymentDocumentTab(defaultPaymentDocumentTab);
@@ -19554,38 +19556,64 @@ function PaymentDetails({
 
   const documentSection = (
     <section className="rounded-md border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-3 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
         <div>
-          <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
-            {t("workspace.payment.documents", "List of Document")}
+          <p className="text-[15px] font-bold leading-5 text-slate-900">
+            {t("workspace.payment.documents", "List Of Document")}
           </p>
         </div>
+        <Button
+          type="button"
+          variant="secondary"
+          icon={documentsExpanded ? "expand_less" : "expand_more"}
+          className="min-h-9 px-3 py-1 text-sm"
+          aria-expanded={documentsExpanded}
+          onClick={() => setDocumentsExpanded((expanded) => !expanded)}
+        >
+          {documentsExpanded ? t("common.hide", "Hide") : t("common.show", "Show")}
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 py-3">
-        <ApprovalLetterDocumentSlot
-          app={app}
-          label={t("workspace.payment.approvalLetter", "Approval Letter")}
-          file={letterFile}
-          t={t}
-          canUpload={canUploadDocuments}
-          required={canUploadDocuments}
-          saving={saving}
-          onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-          onEditManualLetter={onEditApprovalLetter}
-        />
-        <BillDocumentSlot
-          app={app}
-          label={t("workspace.payment.billDocument", "Bill")}
-          file={billFile}
-          t={t}
-          canEdit={canUploadDocuments}
-          required={canUploadDocuments}
-          saving={saving}
-          onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-          onEditManualBill={onEditBill}
-        />
-      </div>
+      {documentsExpanded && (
+        <div className="grid grid-cols-1 gap-3 py-3">
+          <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[15px] font-bold leading-5 text-slate-900">
+              {t("workspace.payment.applicationFormDetails", "Application Form Details")}
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              icon="visibility"
+              className="min-h-9 px-3 py-1 text-sm"
+              onClick={onOpenForm}
+            >
+              {t("workspace.openForm", "View Form")}
+            </Button>
+          </div>
+          <ApprovalLetterDocumentSlot
+            app={app}
+            label={t("workspace.payment.approvalLetter", "Approval Letter")}
+            file={letterFile}
+            t={t}
+            canUpload={canUploadDocuments}
+            required={canUploadDocuments}
+            saving={saving}
+            onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+            onEditManualLetter={onEditApprovalLetter}
+          />
+          <BillDocumentSlot
+            app={app}
+            label={t("workspace.payment.billDocument", "Bill")}
+            file={billFile}
+            t={t}
+            canEdit={canUploadDocuments}
+            required={canUploadDocuments}
+            saving={saving}
+            onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+            onEditManualBill={onEditBill}
+          />
+        </div>
+      )}
     </section>
   );
 
