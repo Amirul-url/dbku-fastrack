@@ -344,6 +344,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const decisionInputRef = useRef(null);
   const commentRef = useRef(null);
   const approvalSupportSignatureBoxRef = useRef(null);
+  const departmentTechnicalSignatureBoxRef = useRef(null);
   const formViewFallbackTimerRef = useRef(null);
   const [technicalSite, setTechnicalSite] = useState({
     application_subtype: "",
@@ -2449,20 +2450,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
   }
 
-  async function captureApprovalSupportSignatureSnapshot(signature) {
+  async function captureSignatureBoxSnapshot(signatureBoxRef, signature, onCaptured) {
     if (!hasDigitalSignatureContent(signature)) return signature || null;
 
     const captureLatestSnapshot =
-      approvalSupportSignatureBoxRef.current?.captureLatestSnapshot;
+      signatureBoxRef.current?.captureLatestSnapshot;
     if (typeof captureLatestSnapshot !== "function") return signature;
 
     const nextSignature = await captureLatestSnapshot(signature);
     if (nextSignature) {
-      setApprovalSupportSignature(nextSignature);
+      onCaptured?.(nextSignature);
       return nextSignature;
     }
 
     return signature;
+  }
+
+  async function captureApprovalSupportSignatureSnapshot(signature) {
+    return captureSignatureBoxSnapshot(
+      approvalSupportSignatureBoxRef,
+      signature,
+      setApprovalSupportSignature
+    );
   }
 
   async function submitAction(action, overrides = {}) {
@@ -2616,10 +2625,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const isDepartmentTechnicalReviewSubmit =
         isDepartmentTechnicalWorkspace &&
         action.buildPayload === buildDepartmentTechnicalReviewPayload;
+      const preparedDepartmentTechnicalSignature = isDepartmentTechnicalReviewSubmit
+        ? await captureSignatureBoxSnapshot(
+            departmentTechnicalSignatureBoxRef,
+            departmentTechnicalSignature,
+            setDepartmentTechnicalSignature
+          )
+        : departmentTechnicalSignature;
       const submitTechnicalSite = isDepartmentTechnicalReviewSubmit
         ? {
             ...technicalSite,
-            digital_signature: departmentTechnicalSignature,
+            digital_signature: preparedDepartmentTechnicalSignature,
           }
         : overrides.technicalSite || technicalSite;
       const preparedTechnicalSite = await uploadPendingTechnicalSitePhotos(submitTechnicalSite);
@@ -3879,6 +3895,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           )}
                         </div>
                         <ApprovalSupportSignatureBox
+                          ref={departmentTechnicalSignatureBoxRef}
                           t={t}
                           applicationId={selectedRecord.id}
                           value={departmentTechnicalSignature}
@@ -16226,10 +16243,13 @@ function IklWorkspaceSections({
   const latestTechnicalSiteRef = useRef(technicalSite);
   const screeningDecisionInputRef = useRef(null);
   const screeningRemarksRef = useRef(null);
+  const screeningSignatureBoxRef = useRef(null);
   const technicalDecisionInputRef = useRef(null);
   const technicalRemarksRef = useRef(null);
+  const technicalFinalSignatureBoxRef = useRef(null);
   const kuDecisionInputRef = useRef(null);
   const kuRemarksRef = useRef(null);
+  const kuSignatureBoxRef = useRef(null);
   const [kuChecks, setKuChecks] = useState(() =>
     createKuTechnicalChecks(selectedRecord.form_data?.technical_ku_review?.checks)
   );
@@ -16499,6 +16519,21 @@ function IklWorkspaceSections({
     }, 600);
   }
 
+  async function captureIklSectionSignatureSnapshot(signatureBoxRef, signature, onCaptured) {
+    if (!hasDigitalSignatureContent(signature)) return signature || null;
+
+    const captureLatestSnapshot = signatureBoxRef.current?.captureLatestSnapshot;
+    if (typeof captureLatestSnapshot !== "function") return signature;
+
+    const nextSignature = await captureLatestSnapshot(signature);
+    if (nextSignature) {
+      onCaptured?.(nextSignature);
+      return nextSignature;
+    }
+
+    return signature;
+  }
+
   async function handleSitePhotoUpload(files) {
     const fileList = Array.from(files || []);
     if (fileList.length === 0) return;
@@ -16528,7 +16563,7 @@ function IklWorkspaceSections({
     }
   }
 
-  function submitKuTechnicalReview() {
+  async function submitKuTechnicalReview() {
     const cleanedRemarks = cleanRemark(kuRemarks);
 
     if (!kuDecision) {
@@ -16555,16 +16590,24 @@ function IklWorkspaceSections({
       return;
     }
 
+    const preparedKuSignature = requiresKuTechnicalSignature
+      ? await captureIklSectionSignatureSnapshot(
+          kuSignatureBoxRef,
+          kuSignature,
+          setKuSignature
+        )
+      : null;
+
     submitAction(config.kuTechnicalReview.action, {
       decision: kuDecision,
       comment: kuRemarks,
-      kuSignature,
+      kuSignature: preparedKuSignature,
       kuChecks,
       checkDecisionRemark: true,
     });
   }
 
-  function submitTechnicalFinalDecision() {
+  async function submitTechnicalFinalDecision() {
     const cleanedRemarks = cleanRemark(technicalSite.site_remarks);
 
     if (!selectedTechnicalAction) {
@@ -16593,12 +16636,20 @@ function IklWorkspaceSections({
       return;
     }
 
+    const preparedTechnicalFinalSignature = requiresTechnicalFinalSignature
+      ? await captureIklSectionSignatureSnapshot(
+          technicalFinalSignatureBoxRef,
+          technicalFinalSignature,
+          setTechnicalFinalSignature
+        )
+      : null;
+
     submitAction(selectedTechnicalAction, {
       comment: technicalSite.site_remarks,
       checkDecisionRemark: true,
       technicalSite: {
         ...technicalSite,
-        digital_signature: requiresTechnicalFinalSignature ? technicalFinalSignature : null,
+        digital_signature: preparedTechnicalFinalSignature,
       },
     });
   }
@@ -16768,6 +16819,7 @@ function IklWorkspaceSections({
 
             {showKuIklScreeningSignature && (
               <ApprovalSupportSignatureBox
+                ref={screeningSignatureBoxRef}
                 t={t}
                 applicationId={selectedRecord.id}
                 value={screeningSignature}
@@ -16784,7 +16836,7 @@ function IklWorkspaceSections({
               <Button
                 icon="fact_check"
                 disabled={saving}
-                onClick={() => {
+                onClick={async () => {
                   const typedDecision = getIklScreeningDecisionFromInput(
                     screeningDecisionInput,
                     screeningDecisionOptions,
@@ -16818,11 +16870,18 @@ function IklWorkspaceSections({
                   }
 
                   setDecision(typedDecision);
+                  const preparedScreeningSignature = requiresScreeningSignature
+                    ? await captureIklSectionSignatureSnapshot(
+                        screeningSignatureBoxRef,
+                        screeningSignature,
+                        setScreeningSignature
+                      )
+                    : null;
                   submitAction(config.screeningAction, {
                     decision: typedDecision,
                     comment: cleanedComment,
                     checkDecisionRemark: false,
-                    screeningSignature: requiresScreeningSignature ? screeningSignature : null,
+                    screeningSignature: preparedScreeningSignature,
                   });
                 }}
                 className="min-h-8 px-2.5 py-1 text-sm sm:w-auto"
@@ -16974,6 +17033,7 @@ function IklWorkspaceSections({
 
               {requiresTechnicalFinalSignature && (
                 <ApprovalSupportSignatureBox
+                  ref={technicalFinalSignatureBoxRef}
                   key={`ikl-technical-final-signature-${selectedRecord.id}`}
                   t={t}
                   applicationId={selectedRecord.id}
@@ -17132,6 +17192,7 @@ function IklWorkspaceSections({
 
               {requiresKuTechnicalSignature && (
                 <ApprovalSupportSignatureBox
+                  ref={kuSignatureBoxRef}
                   t={t}
                   applicationId={selectedRecord.id}
                   value={kuSignature}
