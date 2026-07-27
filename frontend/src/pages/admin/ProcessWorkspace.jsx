@@ -793,12 +793,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if (tableFirstWorkspace && selectedId && !hasSelected) {
       const isQuerySelectedRecord = String(selectedId) === String(querySelectedId);
+      const isReadOnlyQuerySelectedRecord = forceReadOnlyActionPanel && isQuerySelectedRecord;
       const hasViewableSelectedDetail =
         selectedDetail &&
         String(selectedDetail.id) === String(selectedId) &&
         canViewWorkspaceRow(config, selectedDetail, userDepartment);
 
-      if (hasViewableSelectedDetail || (fromPersonalTask && isQuerySelectedRecord && !selectedDetail)) {
+      if (
+        hasViewableSelectedDetail ||
+        ((fromPersonalTask || isReadOnlyQuerySelectedRecord) && isQuerySelectedRecord && !selectedDetail)
+      ) {
         return;
       }
 
@@ -821,6 +825,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   }, [
     config,
     filtered,
+    forceReadOnlyActionPanel,
     fromPersonalTask,
     querySelectedId,
     selectedDetail,
@@ -3132,6 +3137,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     if (config.key === "approval" && location.pathname === "/dashboard/admin") {
       params.set("view", "approval");
+      params.set("readonly", "1");
     }
 
     return `${location.pathname}?${params.toString()}`;

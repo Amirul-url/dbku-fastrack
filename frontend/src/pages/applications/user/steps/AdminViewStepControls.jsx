@@ -51,7 +51,7 @@ function buildReturnPath(applicationId, from, returnTo, approvalWorkflowUser) {
   }
 
   if (from === "approval" || from === "action-panel" || approvalWorkflowUser) {
-    return `/dashboard/admin?view=approval&id=${applicationId}`;
+    return `/dashboard/admin?view=approval&id=${applicationId}&readonly=1`;
   }
 
   return "/admin/applications";

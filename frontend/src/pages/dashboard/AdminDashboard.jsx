@@ -931,7 +931,7 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "", sele
   const returnTo = encodeURIComponent(`/dashboard/admin?${returnParams.toString()}`);
 
   if (stat === "approved") {
-    return `/dashboard/admin?view=approval&id=${applicationId}&from=completed-approvals&returnTo=${returnTo}`;
+    return `/dashboard/admin?view=approval&id=${applicationId}&from=completed-approvals&readonly=1&returnTo=${returnTo}`;
   }
 
   if (stat === "rejected") {
@@ -940,7 +940,7 @@ function getAdminOverviewApplicationViewPath(applicationId, activeKey = "", sele
   }
 
   if (stat === "surrender_revoke") {
-    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&returnTo=${returnTo}`;
+    return `/dashboard/admin?view=approval&id=${applicationId}&from=action-panel&readonly=1&returnTo=${returnTo}`;
   }
 
   const from = "action-panel";
