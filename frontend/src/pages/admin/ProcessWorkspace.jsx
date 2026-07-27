@@ -2801,7 +2801,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           open: true,
           result: "verified",
           redirectTo:
-            userDepartment === "FIN" || isFocusedPersonalWorkspace || fromPersonalTask
+            isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
         });
@@ -2827,7 +2827,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           open: true,
           result: "rejected",
           redirectTo:
-            userDepartment === "FIN" || isFocusedPersonalWorkspace || fromPersonalTask
+            isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
         });
@@ -19571,12 +19571,19 @@ function PaymentDetails({
 
   const approvalLetterDownloadLabel = t("workspace.payment.approvalLetter", "Approval Letter");
   const billDownloadLabel = t("workspace.payment.billDocument", "Bill");
+  const applicantReceiptDownloadLabel = t("workspace.payment.applicantReceipt", "Applicant Receipt");
   const canDownloadApprovalLetter = Boolean(getPaymentDocumentSource(letterFile) || hasManualApprovalLetter(app));
   const canDownloadBill = Boolean(getPaymentDocumentSource(billFile) || hasManualBill(app));
   const showReleasedApprovalBillInDocuments =
     !canUploadDocuments &&
-    ["invoice_generated", "payment_submitted"].includes(status) &&
+    ["invoice_generated", "payment_submitted", "payment_verified"].includes(status) &&
     (canDownloadApprovalLetter || canDownloadBill);
+  const showApplicantReceiptInDocuments = Boolean(
+    showReceiptDetails &&
+      hasOriginalPaymentReceipt &&
+      !isReceiptVerification &&
+      (readOnly || ["payment_verified", "license_issued", "license_revoked"].includes(status))
+  );
   const approvalBillDocumentSection = showReleasedApprovalBillInDocuments ? null : (
     <div className="grid grid-cols-1 gap-3">
       <ApprovalLetterDocumentSlot
@@ -19687,12 +19694,56 @@ function PaymentDetails({
               </Button>
             </div>
           )}
+          {showApplicantReceiptInDocuments && (
+            <div className="px-3 py-2.5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-500">
+                    {applicantReceiptDownloadLabel}
+                  </p>
+                  <p className="mt-1 truncate text-sm font-semibold text-slate-950">
+                    {receiptFile?.name || payment.receipt_reference || applicantReceiptDownloadLabel}
+                  </p>
+                  {payment.verification_result && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {formatReceiptVerificationResult(payment.verification_result)}
+                    </p>
+                  )}
+                </div>
+                {receiptSource && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon="download"
+                    className="min-h-9 px-4 py-1.5"
+                    onClick={() =>
+                      printPaymentReceiptDocument(
+                        receiptFile,
+                        payment.receipt_reference || t("workspace.payment.receiptFileName", "receipt.pdf"),
+                        `${getApplicationReference(app)} ${applicantReceiptDownloadLabel}`,
+                        t
+                      )
+                    }
+                  >
+                    {t("common.download", "Download")}
+                  </Button>
+                )}
+              </div>
+              {paymentReferenceDetails.length > 0 && (
+                <div className="mt-2 grid gap-2 border-t border-slate-100 pt-2 sm:grid-cols-3">
+                  {paymentReferenceDetails.map(([label, value]) => (
+                    <Info key={label} label={label} value={value} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </section>
   );
 
-  const receiptSection = showReceiptDetails ? (
+  const receiptSection = showReceiptDetails && !showApplicantReceiptInDocuments ? (
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-3 py-3">
         <p className="text-[13px] font-semibold uppercase leading-5 tracking-wide text-slate-500">
