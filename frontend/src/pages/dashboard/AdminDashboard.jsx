@@ -903,9 +903,17 @@ function buildAdminOverviewStatRows(applications, key, userDepartment, t) {
       applicantName: getRegisteredApplicantName(app) || "-",
       project: getProjectName(app) || "-",
       remark: getApplicationRemark(app),
-      statusLabel: formatWorkflowStatus(app.status),
+      statusLabel: getAdminOverviewStatStatusLabel(app, validKey, t),
       updatedAt: app.updated_at || app.created_at,
     }));
+}
+
+function getAdminOverviewStatStatusLabel(app, key, t) {
+  if (key === "rejected" && isAdminPaymentReceiptRejected(getAdminApplicationPayment(app))) {
+    return t("workspace.decision.rejectReceipt", "Reject Receipt");
+  }
+
+  return formatWorkflowStatus(app.status);
 }
 
 function filterAdminOverviewStatRowsByDate(rows, dateFilter) {
@@ -1971,7 +1979,7 @@ function RejectedDecisionTemplateModal({ language = "en", log, onClose, referenc
               </span>
               <input
                 type="text"
-                value={t("workspace.decision.reject", "Reject")}
+                value={log.decision || t("workspace.decision.reject", "Reject")}
                 readOnly
                 className="form-input form-input-sm w-full bg-white text-[13px]"
               />
@@ -2942,6 +2950,7 @@ function buildResubmissionDrilldownRows(type, insights, t) {
 
 function buildRejectedDecisionReportRows(row, t) {
   const app = row?.application || {};
+  const paymentReceiptLog = buildAdminPaymentReceiptRejectedReportRow(row, t);
   const rejectedDecisionLogs = buildDecisionLogReportRows(app, t)
     .filter(isRejectedDecisionReportLog);
   const paymentReceiptLogs = rejectedDecisionLogs.filter((log) =>
@@ -2950,15 +2959,17 @@ function buildRejectedDecisionReportRows(row, t) {
   );
   const decisionLogs = (
     isAdminPaymentReceiptRejected(getAdminApplicationPayment(app)) &&
-    paymentReceiptLogs.length > 0
-      ? paymentReceiptLogs
+    (paymentReceiptLog || paymentReceiptLogs.length > 0)
+      ? paymentReceiptLog
+        ? [paymentReceiptLog]
+        : paymentReceiptLogs
       : rejectedDecisionLogs
   )
     .map((log) => ({
       id: `${row.id}-${log.id}`,
       department: log.department,
       date: log.date || row.date,
-      decision: "Reject",
+      decision: log.decision || "Reject",
       remarks: log.remarks || row.remark || getApplicationRemark(app),
     }))
     .filter((log) => log.date || log.remarks);
@@ -2978,6 +2989,26 @@ function buildRejectedDecisionReportRows(row, t) {
   ];
 }
 
+function buildAdminPaymentReceiptRejectedReportRow(row, t) {
+  const app = row?.application || {};
+  const payment = getAdminApplicationPayment(app);
+
+  if (!isAdminPaymentReceiptRejected(payment)) return null;
+
+  const remarks = getAdminPaymentReceiptRejectedRemark(payment) || row?.remark || "";
+  const date = getDecisionLogDate(payment, ["rejected_at", "verified_at", "updated_at"]);
+
+  if (!remarks && !date) return null;
+
+  return {
+    id: "payment-receipt-verification",
+    department: "FIN",
+    decision: t("workspace.decision.rejectReceipt", "Reject Receipt"),
+    remarks,
+    date: date || row?.date || app?.updated_at || app?.created_at || "",
+  };
+}
+
 function isRejectedDecisionReportLog(log = {}) {
   const decision = String(log.decision || "").trim().toLowerCase();
   const department = normalizeDepartmentCode(log.department);
@@ -2985,6 +3016,8 @@ function isRejectedDecisionReportLog(log = {}) {
   return (
     decision === "reject" ||
     decision === "rejected" ||
+    decision.includes("reject receipt") ||
+    decision.includes("receipt rejected") ||
     decision.includes("reject to applicant") ||
     decision.includes("rejected to applicant") ||
     decision.includes("not supported") ||
@@ -4171,9 +4204,12 @@ function getApplicationCompleteDate(application) {
 }
 
 function getApplicationRemark(application) {
+  const formData = application?.form_data || {};
+  const paymentRemark = getAdminPaymentReceiptRejectedRemark(getAdminApplicationPayment(application));
+  if (paymentRemark) return paymentRemark;
+
   if (!isRejectedApplication(application)) return "";
 
-  const formData = application?.form_data || {};
   const technicalReview = formData.technical_review || {};
   return cleanRemark(
     (isTechnicalReviewNotSupported(technicalReview)
@@ -4182,6 +4218,18 @@ function getApplicationRemark(application) {
       formData.correction_request?.remarks ||
       application?.latest_remark ||
       formData.auto_screening?.remarks
+  );
+}
+
+function getAdminPaymentReceiptRejectedRemark(payment = {}) {
+  if (!isAdminPaymentReceiptRejected(payment)) return "";
+
+  return cleanRemark(
+    payment.internal_verification_notes ||
+      payment.verification_notes ||
+      payment.remarks ||
+      payment.comment ||
+      payment.notes
   );
 }
 
