@@ -1745,19 +1745,25 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     if (isRenewalCompletionDraft) {
       const renewal = getLicenseRenewal(selectedRecord);
       const payment = getLicenseRenewalPayment(selectedRecord);
-      const months = getLicenseRenewalPaymentMonths(selectedRecord);
-      const receiptNo =
-        getEditedOfficialReceiptNumber(documentHtml) ||
-        payment.official_receipt_no ||
-        `${getGeneratedOfficialReceiptNumber(selectedRecord)}-R${months}`;
+      const editedReceiptNo = getEditedOfficialReceiptNumber(documentHtml);
+      const receiptNo = getRenewalOfficialReceiptNumber(
+        selectedRecord,
+        applications,
+        editedReceiptNo
+      );
+      const canUseEditedDocumentHtml =
+        documentHtml &&
+        editedReceiptNo &&
+        normalizeReceiptNumber(editedReceiptNo) === normalizeReceiptNumber(receiptNo);
       const nextManualReceipt = {
         ...(payment.official_receipt_draft || payment.official_receipt || {}),
         template: "dbku_official_receipt_acc_3_88_v1",
         name: t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
         receipt_no: receiptNo,
         document_html:
-          documentHtml ||
-          getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t),
+          canUseEditedDocumentHtml
+            ? documentHtml
+            : getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, applications, receiptNo),
         status: "Draft",
         saved_by: userDepartment,
         saved_at: now,
@@ -1860,7 +1866,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         name: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
         document_html: normalizeAdvertisementLicenseDocumentSpacing(
           documentHtml ||
-            getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t)
+            getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, applications)
         ),
         status: "Draft",
         saved_by: userDepartment,
@@ -3510,14 +3516,15 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               )}
 
               {showApprovalPaymentReadOnly && (
-                <PaymentDetails
-                  app={selectedRecord}
-                  t={t}
-                  userDepartment={userDepartment}
-                  saving={saving}
-                  onOpenForm={() => openSelectedFormView(selectedRecord.id)}
-                  readOnly
-                />
+                  <PaymentDetails
+                    app={selectedRecord}
+                    t={t}
+                    userDepartment={userDepartment}
+                    applications={applications}
+                    saving={saving}
+                    onOpenForm={() => openSelectedFormView(selectedRecord.id)}
+                    readOnly
+                  />
               )}
 
               {showApprovalLicenseManagementDetails && (
@@ -3526,6 +3533,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     app={selectedRecord}
                     t={t}
                     userDepartment={userDepartment}
+                    applications={applications}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     onEditReceipt={() => setShowManualReceiptEditor(true)}
@@ -3699,6 +3707,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           canChooseLicenseExpiry={canChooseLicenseExpiry}
                           licenseExpiryYears={licenseExpiryYears}
                           setLicenseExpiryYears={setLicenseExpiryYears}
+                          applications={applications}
                           userDepartment={userDepartment}
                           saving={saving}
                           onPaymentDocumentUpload={uploadPaymentDocument}
@@ -4393,7 +4402,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html:
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
-                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t)
+                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, applications)
                 : getGeneratedOfficialReceiptDocumentHtml(selectedRecord),
             scale: 0.95,
             editable: true,
@@ -4414,7 +4423,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html:
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
-                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t)
+                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, applications)
                 : getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t),
             scale: 0.9,
             editable: true,
@@ -5567,6 +5576,22 @@ function getReceiptSequenceValue(value) {
   return match ? Number.parseInt(match[1], 10) : 0;
 }
 
+function normalizeReceiptNumber(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function collectOriginalApplicationReceiptNumbers(app = null) {
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || {};
+  const payment = formData.payment || {};
+
+  return [
+    approvalLetter.manual_receipt?.receipt_no,
+    payment.official_receipt_no,
+    payment.official_receipt?.receipt_no,
+  ].filter(Boolean);
+}
+
 function collectApplicationReceiptNumbers(app = null) {
   const formData = app?.form_data || {};
   const approvalLetter = formData.approval_letter || {};
@@ -5593,6 +5618,39 @@ function getNextGeneratedOfficialReceiptNumber(applications = [], currentApp = n
 
   const fallback = getReceiptSequenceValue(getGeneratedOfficialReceiptNumber(currentApp));
   return String((fallback || 0) + 1).padStart(6, "0");
+}
+
+function isStaleRenewalReceiptNumber(app = null, receiptNo = "") {
+  const normalizedReceiptNo = normalizeReceiptNumber(receiptNo);
+  if (!normalizedReceiptNo) return true;
+
+  const originalReceiptNumbers = collectOriginalApplicationReceiptNumbers(app);
+  if (originalReceiptNumbers.some((originalNo) => normalizeReceiptNumber(originalNo) === normalizedReceiptNo)) {
+    return true;
+  }
+
+  const receiptSequence = getReceiptSequenceValue(receiptNo);
+  return (
+    receiptSequence > 0 &&
+    originalReceiptNumbers.some(
+      (originalNo) => getReceiptSequenceValue(originalNo) === receiptSequence
+    )
+  );
+}
+
+function getRenewalOfficialReceiptNumber(app = null, applications = [], preferredReceiptNo = "") {
+  const payment = getLicenseRenewalPayment(app);
+  const candidates = [
+    preferredReceiptNo,
+    payment.official_receipt_draft?.receipt_no,
+    payment.official_receipt?.receipt_no,
+    payment.manual_official_receipt?.receipt_no,
+    payment.official_receipt_no,
+  ].filter(Boolean);
+  const existing = candidates.find((receiptNo) => !isStaleRenewalReceiptNumber(app, receiptNo));
+  if (existing) return String(existing);
+
+  return getNextGeneratedOfficialReceiptNumber(applications, app);
 }
 
 function formatManualApprovalLetterDate(value) {
@@ -15585,10 +15643,14 @@ const configs = {
           const issueDate = addDays(expiryDate, 1);
           const expiry = addCalendarYears(expiryDate, 1);
           const licenseId = savedLicense.license_id || getLicenseId(app);
-          const officialReceiptNo =
+          const savedRenewalReceiptNo =
             savedRenewalManualReceipt.receipt_no ||
-            payment.official_receipt_no ||
-            getNextGeneratedOfficialReceiptNumber(data?.applications, app);
+            payment.official_receipt_no;
+          const officialReceiptNo = getRenewalOfficialReceiptNumber(
+            app,
+            data?.applications,
+            savedRenewalReceiptNo
+          );
           const recommendation = data.decision || "Generate Renewal Official Receipt and Advertisement License";
           const remarks = cleanRemark(data.comment);
           const digitalSignature = data.approvalSupportSignature || null;
@@ -15635,8 +15697,14 @@ const configs = {
               license: nextLicenseBase,
             },
           };
+          const canUseSavedRenewalReceiptHtml =
+            savedRenewalManualReceipt.document_html &&
+            savedRenewalReceiptNo &&
+            normalizeReceiptNumber(savedRenewalReceiptNo) === normalizeReceiptNumber(officialReceiptNo);
           const receiptDocumentHtml =
-            savedRenewalManualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(documentApp);
+            canUseSavedRenewalReceiptHtml
+              ? savedRenewalManualReceipt.document_html
+              : buildGeneratedOfficialReceiptDocumentHtml(documentApp);
           const licenseDocumentHtml =
             savedRenewalManualLicense.document_html ||
             forceAdvertisementLicensePeriodLine(
@@ -19005,6 +19073,7 @@ function PaymentDetails({
   app,
   t,
   userDepartment,
+  applications = [],
   saving,
   onPaymentDocumentUpload,
   onPaymentDocumentDelete,
@@ -19310,7 +19379,7 @@ function PaymentDetails({
     onDownload: () =>
       printHtmlDocument(
         renewalOfficialReceiptDocument?.document_html ||
-          getRenewalGeneratedOfficialReceiptDocumentHtml(app, t),
+          getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications),
         `${getApplicationReference(app)} ${t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt")}`
       ),
   };
@@ -19335,7 +19404,7 @@ function PaymentDetails({
     onDownload: () =>
       printHtmlDocument(
         renewalAdvertisementLicenseDocument?.document_html ||
-          getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t),
+          getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t, applications),
         `${getApplicationReference(app)} ${t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License")}`
       ),
   };
@@ -19590,7 +19659,7 @@ function PaymentDetails({
       ),
       onReview: onEditReceipt,
       onDownload: showRenewalCompletionDocuments
-        ? () => printRenewalGeneratedOfficialReceiptDocument(app, t)
+        ? () => printRenewalGeneratedOfficialReceiptDocument(app, t, applications)
         : () => printGeneratedOfficialReceiptDocument(app, t),
     },
     {
@@ -19602,7 +19671,7 @@ function PaymentDetails({
       ),
       onReview: onEditLicense,
       onDownload: showRenewalCompletionDocuments
-        ? () => printRenewalGeneratedAdvertisementLicenseDocument(app, t)
+        ? () => printRenewalGeneratedAdvertisementLicenseDocument(app, t, applications)
         : () => printBlankAdvertisementLicenseDocument(app, t),
     },
   ];
@@ -21379,10 +21448,9 @@ async function printBlankAdvertisementLicenseDocument(app, t) {
   }
 }
 
-function getRenewalCompletionDocumentApp(app = null) {
+function getRenewalCompletionDocumentApp(app = null, applications = [], preferredReceiptNo = "") {
   const today = new Date();
   const payment = getLicenseRenewalPayment(app);
-  const months = getLicenseRenewalPaymentMonths(app);
   const approvalLetter = app?.form_data?.approval_letter || {};
   const manualReceipt = approvalLetter.manual_receipt || {};
   const license = app?.form_data?.license || {};
@@ -21398,9 +21466,7 @@ function getRenewalCompletionDocumentApp(app = null) {
   const issueDate = addDays(expiryDate, 1);
   const expiry = addCalendarYears(expiryDate, 1);
   const licenseId = license.license_id || getLicenseId(app);
-  const officialReceiptNo =
-    payment.official_receipt_no ||
-    `${getGeneratedOfficialReceiptNumber(app)}-R${months}`;
+  const officialReceiptNo = getRenewalOfficialReceiptNumber(app, applications, preferredReceiptNo);
 
   return {
     ...app,
@@ -21440,22 +21506,24 @@ function getRenewalCompletionDocumentApp(app = null) {
   };
 }
 
-function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t) {
-  return getGeneratedOfficialReceiptDocumentHtml(getRenewalCompletionDocumentApp(app, t));
+function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications = [], preferredReceiptNo = "") {
+  return getGeneratedOfficialReceiptDocumentHtml(
+    getRenewalCompletionDocumentApp(app, applications, preferredReceiptNo)
+  );
 }
 
-function getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t) {
-  const documentApp = getRenewalCompletionDocumentApp(app, t);
+function getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t, applications = [], preferredReceiptNo = "") {
+  const documentApp = getRenewalCompletionDocumentApp(app, applications, preferredReceiptNo);
   return forceAdvertisementLicensePeriodLine(
     getGeneratedAdvertisementLicenseDocumentHtml(documentApp, t),
     documentApp
   );
 }
 
-async function printRenewalGeneratedOfficialReceiptDocument(app, t) {
+async function printRenewalGeneratedOfficialReceiptDocument(app, t, applications = []) {
   try {
     await printHtmlDocument(
-      getRenewalGeneratedOfficialReceiptDocumentHtml(app, t),
+      getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications),
       `${getApplicationReference(app)} ${t("workspace.payment.manual.officialReceiptTitle", "Official Receipt")}`
     );
   } catch (error) {
@@ -21464,10 +21532,10 @@ async function printRenewalGeneratedOfficialReceiptDocument(app, t) {
   }
 }
 
-async function printRenewalGeneratedAdvertisementLicenseDocument(app, t) {
+async function printRenewalGeneratedAdvertisementLicenseDocument(app, t, applications = []) {
   try {
     await printHtmlDocument(
-      getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t),
+      getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t, applications),
       `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
     );
   } catch (error) {
