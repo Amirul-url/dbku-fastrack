@@ -5864,6 +5864,7 @@ function getAdvertisementLicenseReceiptNumber(app = null) {
     approvalLetter.manual_receipt?.receipt_no,
     payment.official_receipt_no,
     payment.official_receipt?.receipt_no,
+    getGeneratedOfficialReceiptNumber(app),
   ];
 
   return candidates.map(getSixDigitOfficialReceiptNumber).find(Boolean) || "";
@@ -22130,6 +22131,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
   const logoUrl = getPublicAssetUrl("/logo-dbku.png");
   const terms = getAdvertisementLicenseAttachmentTerms(manualLicense.terms);
   const details = getAdvertisementLicenseAutofillDetails(app);
+  const issueDate = getAdvertisementLicenseIssueDateDisplay(app);
 
   return `<!doctype html>
 <html>
@@ -22219,7 +22221,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
         <div class="dot-line">&nbsp;</div>
         <div class="signature-title">b.p.: Dewan Bandaraya Kuching Utara</div>
       </div>
-      <div class="date-row"><span>Tarikh:</span><span class="dot-line">&nbsp;</span></div>
+      <div class="date-row"><span>Tarikh:</span><span class="dot-line">${escapeHtml(issueDate)}</span></div>
     </div>
   </section>
 
@@ -22260,7 +22262,37 @@ function migrateAdvertisementLicenseDocumentHtml(html, app = null) {
     .replace(
       /<div class="period-line">[\s\S]*?<\/div>/i,
       (block) => buildAdvertisementLicensePeriodLine(details, getAdvertisementLicenseDotValues(block))
+    )
+    .replace(
+      /(<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Tarikh:\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
+      (match, before, currentValue, after) => {
+        const currentText = getHtmlPlainText(currentValue);
+        return currentText
+          ? match
+          : `${before}${escapeHtml(getAdvertisementLicenseIssueDateDisplay(app))}${after}`;
+      }
     );
+}
+
+function getAdvertisementLicenseIssueDateDisplay(app = null) {
+  const license = app?.form_data?.license || {};
+  const manualLicense = license.manual_license || {};
+  const payment = app?.form_data?.payment || {};
+  const renewalPayment = app?.form_data?.license_renewal?.payment || {};
+  return formatMalayLetterDate(
+    firstPresentValue(
+      manualLicense.issue_date,
+      manualLicense.issued_at,
+      manualLicense.saved_at,
+      license.issue_date,
+      license.issued_at,
+      payment.official_receipt?.saved_at,
+      payment.verified_at,
+      renewalPayment.official_receipt?.saved_at,
+      renewalPayment.verified_at,
+      new Date()
+    )
+  );
 }
 
 function buildAdvertisementLicenseTopFields(app = null) {
