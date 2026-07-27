@@ -38,6 +38,7 @@ from config.pagination import ApplicationPagination
 from config.throttles import UploadRateThrottle
 from notifications.services import (
     apply_license_renewal_action,
+    get_pending_technical_departments,
     normalize_department,
     notify_applicant_application_rejected,
     notify_applicant_application_resubmitted,
@@ -211,6 +212,29 @@ def reset_workflow_on_applicant_resubmit(application, old_status, old_form_data=
     application.form_data = form_data
     application.latest_remark = ""
     application.save(update_fields=["form_data", "latest_remark", "updated_at"])
+
+
+def reset_to_technical_review_when_department_review_pending(application):
+    status_key = str(getattr(application, "status", "") or "").strip().lower()
+    if status_key != "technical_site_visit":
+        return application
+
+    if not get_pending_technical_departments(application):
+        return application
+
+    form_data = deepcopy(application.form_data or {})
+    technical_referral = form_data.get("technical_referral")
+    if isinstance(technical_referral, dict):
+        form_data["technical_referral"] = {
+            **technical_referral,
+            "status": "Referred",
+            "completed_at": "",
+        }
+
+    application.status = "technical_review"
+    application.form_data = form_data
+    application.save(update_fields=["status", "form_data", "updated_at"])
+    return application
 
 
 def get_applicant_activity_message(application, request_data, old_status=""):
@@ -466,6 +490,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application = serializer.save()
         if self.request.user.role not in STAFF_ROLES:
             reset_workflow_on_applicant_resubmit(application, old_status, old_form_data)
+        else:
+            application = reset_to_technical_review_when_department_review_pending(application)
         old_status_key = str(old_status or "").strip().lower()
         new_status_key = str(application.status or "").strip().lower()
         remark_changed = str(application.latest_remark or "").strip() != str(old_remark or "").strip()

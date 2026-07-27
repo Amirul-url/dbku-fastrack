@@ -1431,6 +1431,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const departmentsUnchanged =
         existingDepartments.length === departments.length &&
         departments.every((department) => existingDepartments.includes(department));
+      const currentReviews = getTechnicalDepartmentReviews(selectedRecord);
+      const hasPendingDepartmentReviews = departments.some((department) => {
+        const review = currentReviews[department];
+        return !review || !isCurrentTechnicalReviewCycle(selectedRecord, review);
+      });
       const selectedAt = departmentsUnchanged && existingSelection.selected_at
         ? existingSelection.selected_at
         : now;
@@ -1448,7 +1453,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
         method: "PATCH",
         body: JSON.stringify({
-          status: normalizeStatus(selectedRecord.status) || "technical_review",
+          status: hasPendingDepartmentReviews
+            ? "technical_review"
+            : normalizeStatus(selectedRecord.status) || "technical_review",
           form_data: mergeFormData(selectedRecord, {
             step_1: {
               ...step1,
@@ -1474,11 +1481,14 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             },
             technical_referral: {
               ...existingReferral,
-              status: "Referred",
+              status: hasPendingDepartmentReviews
+                ? "Referred"
+                : existingReferral.status || "Referred",
               source: existingReferral.source || "KU(IKL)",
               target: KU_TECHNICAL_MEMO_RECIPIENT,
               participating_departments: departments,
               departments_selected_at: departmentsSelectedAt,
+              completed_at: hasPendingDepartmentReviews ? "" : existingReferral.completed_at,
             },
           }),
         }),

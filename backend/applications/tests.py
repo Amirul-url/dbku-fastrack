@@ -608,6 +608,74 @@ class ApplicantForcedNotificationWorkflowTests(TestCase):
         self.assertIsNone(application.form_data.get("technical_ku_review"))
         self.assertIsNone(application.form_data.get("kb_les_verification"))
 
+    def test_ikl_technical_department_edit_returns_pending_review_to_technical_review(self):
+        ikl_technical = get_user_model().objects.create_user(
+            username="ikl-technical-editor",
+            email="ikl-technical-editor@example.com",
+            password="testpass123",
+            role="admin",
+            department="IKL (TECHNICAL)",
+            is_active=True,
+        )
+        application = Application.objects.create(
+            applicant=self.applicant,
+            title="Technical department route application",
+            status="technical_site_visit",
+            form_data={
+                "technical_review_cycle": 1,
+                "technical_referral": {
+                    "cycle_id": 1,
+                    "status": "Department Reviews Completed",
+                    "participating_departments": ["BLG"],
+                    "completed_at": "2026-07-27T01:00:00Z",
+                },
+                "technical_department_selection": {
+                    "cycle_id": 1,
+                    "departments": ["BLG"],
+                    "selected_by": "IKL (TECHNICAL)",
+                },
+                "technical_department_reviews": {
+                    "BLG": {
+                        "cycle_id": 1,
+                        "department": "BLG",
+                        "remarks": "Supported.",
+                    }
+                },
+            },
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=ikl_technical)
+        response = client.patch(
+            f"/api/applications/{application.id}/",
+            {
+                "status": "technical_site_visit",
+                "form_data": {
+                    "technical_referral": {
+                        "cycle_id": 1,
+                        "status": "Department Reviews Completed",
+                        "participating_departments": ["BLG", "GPM"],
+                        "completed_at": "2026-07-27T01:00:00Z",
+                    },
+                    "technical_department_selection": {
+                        "cycle_id": 1,
+                        "departments": ["BLG", "GPM"],
+                        "selected_by": "IKL (TECHNICAL)",
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, "technical_review")
+        self.assertEqual(
+            application.form_data["technical_referral"]["status"],
+            "Referred",
+        )
+        self.assertEqual(application.form_data["technical_referral"]["completed_at"], "")
+
     def test_mphlg_reject_resubmit_routes_back_to_mphlg(self):
         User = get_user_model()
         mphlg_user = User.objects.create_user(
