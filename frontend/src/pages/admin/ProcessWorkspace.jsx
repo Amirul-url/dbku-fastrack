@@ -19390,7 +19390,14 @@ function PaymentDetails({
       t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
     onDownload: () =>
       printHtmlDocument(
-        renewalOfficialReceiptDocument?.document_html ||
+        (
+          isOfficialReceiptDocumentHtmlForNumber(
+            renewalOfficialReceiptDocument?.document_html,
+            getRenewalOfficialReceiptNumber(app, applications, renewalOfficialReceiptDocument?.receipt_no)
+          )
+            ? renewalOfficialReceiptDocument?.document_html
+            : ""
+        ) ||
           getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications),
         `${getApplicationReference(app)} ${t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt")}`
       ),
@@ -21410,6 +21417,12 @@ function getEditedOfficialReceiptNumber(html) {
   return text || "";
 }
 
+function isOfficialReceiptDocumentHtmlForNumber(html, receiptNo) {
+  const htmlReceiptNo = getSixDigitOfficialReceiptNumber(getEditedOfficialReceiptNumber(html));
+  const expectedReceiptNo = getSixDigitOfficialReceiptNumber(receiptNo);
+  return Boolean(html && htmlReceiptNo && expectedReceiptNo && htmlReceiptNo === expectedReceiptNo);
+}
+
 function openGeneratedOfficialReceiptDocument(app, t) {
   try {
     openHtmlPreviewDocument(
@@ -21479,6 +21492,11 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
   const expiry = addCalendarYears(expiryDate, 1);
   const licenseId = license.license_id || getLicenseId(app);
   const officialReceiptNo = getRenewalOfficialReceiptNumber(app, applications, preferredReceiptNo);
+  const renewalReceiptDocumentHtml = renewalManualReceipt.document_html || "";
+  const canUseRenewalReceiptDocumentHtml = isOfficialReceiptDocumentHtmlForNumber(
+    renewalReceiptDocumentHtml,
+    officialReceiptNo
+  );
 
   return {
     ...app,
@@ -21490,6 +21508,7 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
           ...manualReceipt,
           ...renewalManualReceipt,
           receipt_no: officialReceiptNo,
+          document_html: canUseRenewalReceiptDocumentHtml ? renewalReceiptDocumentHtml : "",
         },
       },
       payment: {
