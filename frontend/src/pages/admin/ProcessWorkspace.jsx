@@ -5472,6 +5472,7 @@ function buildManualBillTemplateBodyHtml(app = null) {
 
 function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
   const receiptNo = getGeneratedOfficialReceiptNumber(app);
+  const receiptDate = getGeneratedOfficialReceiptDateDisplay(app);
   const dbkuLogoUrl = getPublicAssetUrl("/logo-dbku-black_white.png");
 
   return `<!doctype html>
@@ -5560,7 +5561,7 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     <div class="content-grid">
       <div class="meta">
         <div class="dot-line"><span>Station</span><span class="dots">&nbsp;</span></div>
-        <div class="dot-line"><span>Date</span><span class="dots">&nbsp;</span></div>
+        <div class="dot-line"><span>Date</span><span class="dots">${escapeHtml(receiptDate)}</span></div>
       </div>
       <table>
         <thead>
@@ -5603,6 +5604,37 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
   </section>
 </body>
 </html>`;
+}
+
+function getGeneratedOfficialReceiptDateDisplay(app = null) {
+  const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
+  const payment = app?.form_data?.payment || {};
+  const renewalPayment = app?.form_data?.license_renewal?.payment || {};
+  return formatMalayLetterDate(
+    firstPresentValue(
+      manualReceipt.receipt_date,
+      manualReceipt.date,
+      manualReceipt.saved_at,
+      payment.official_receipt?.receipt_date,
+      payment.official_receipt?.saved_at,
+      payment.verified_at,
+      renewalPayment.official_receipt?.receipt_date,
+      renewalPayment.official_receipt?.saved_at,
+      renewalPayment.verified_at,
+      new Date()
+    )
+  );
+}
+
+function ensureGeneratedOfficialReceiptDate(html, app = null) {
+  const dateDisplay = getGeneratedOfficialReceiptDateDisplay(app);
+  return String(html || "").replace(
+    /(<div[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Date\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdots\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
+    (match, before, currentValue, after) => {
+      const currentText = getHtmlPlainText(currentValue);
+      return currentText ? match : `${before}${escapeHtml(dateDisplay)}${after}`;
+    }
+  );
 }
 
 function getGeneratedOfficialReceiptRows(details = {}) {
@@ -21908,7 +21940,10 @@ function openHtmlPreviewDocument(html, title, t) {
 
 export function getGeneratedOfficialReceiptDocumentHtml(app) {
   const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
-  return manualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(app);
+  return ensureGeneratedOfficialReceiptDate(
+    manualReceipt.document_html || buildGeneratedOfficialReceiptDocumentHtml(app),
+    app
+  );
 }
 
 function getEditedOfficialReceiptNumber(html) {
