@@ -9297,6 +9297,186 @@ function DecisionLogSignatureCell({ department, signature, t }) {
   );
 }
 
+function DecisionLogSignatureSnapshotCanvas({
+  signature,
+  signatureSource,
+  t,
+  fullSize = false,
+}) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    async function drawSnapshot() {
+      const signatureDetails = signature && typeof signature === "object" ? signature : {};
+      const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
+      const savedSnapshotSource = !uploadedItems.length && signatureSource ? signatureSource : "";
+      const savedSnapshotUsesFullArea =
+        Boolean(savedSnapshotSource) && signatureDetails.mode === "upload";
+      const drawPreviewDataUrl = savedSnapshotSource
+        ? ""
+        : signatureDetails.drawDataUrl ||
+          (signatureDetails.mode === "draw" ? signatureSource : "");
+      const ratio = Math.max(window.devicePixelRatio || 1, 2);
+      const width = 760;
+      const height = 400;
+      const paddingX = 20;
+      const titleY = 40;
+      const labelX = paddingX + 2;
+      const colonX = 255;
+      const lineX = 285;
+      const lineEndX = 735;
+      const overlay = { x: lineX, y: 82, width: lineEndX - lineX, height: 245 };
+      const rows = [
+        {
+          key: "signatureStamp",
+          label: t("workspace.signature.signatureAndStamp", "Signature & Stamp"),
+          y: 180,
+        },
+        { key: "name", label: t("workspace.signature.name", "Name"), y: 230 },
+        { key: "position", label: t("workspace.signature.position", "Position"), y: 278 },
+        { key: "agency", label: t("workspace.signature.agency", "Agency"), y: 326 },
+        { key: "date", label: t("workspace.signature.date", "Date"), y: 374 },
+      ];
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, width, height);
+      context.strokeStyle = "#cbd5e1";
+      context.lineWidth = 1;
+      context.setLineDash([4, 3]);
+      context.strokeRect(0.5, 0.5, width - 1, height - 1);
+      context.setLineDash([]);
+
+      context.fillStyle = "#0f172a";
+      context.font = "700 13px Arial, sans-serif";
+      context.textBaseline = "alphabetic";
+      context.fillText(t("workspace.signature.confirmationTitle", "CONFIRMATION").toUpperCase(), paddingX + 2, titleY);
+
+      rows.forEach((row) => {
+        context.font = "600 13px Arial, sans-serif";
+        context.fillStyle = "#0f172a";
+        context.fillText(row.label, labelX, row.y - 6);
+        context.fillText(":", colonX, row.y - 6);
+        context.beginPath();
+        context.moveTo(lineX, row.y - 1);
+        context.lineTo(lineEndX, row.y - 1);
+        context.strokeStyle = "#0f172a";
+        context.lineWidth = 1;
+        context.stroke();
+
+        const value = String(signatureDetails[row.key] || "").trim();
+        if (value) {
+          context.font = "600 13px Arial, sans-serif";
+          context.fillText(value.toUpperCase(), lineX + 2, row.y - 7);
+        }
+      });
+
+      async function drawImageSource(source, x, y, drawWidth, drawHeight, stretch = false) {
+        const image = await loadDecisionLogSnapshotImage(source);
+        if (cancelled || !image) return;
+        if (stretch) {
+          context.drawImage(image.element, x, y, drawWidth, drawHeight);
+        } else {
+          const ratio = image.element.naturalWidth && image.element.naturalHeight
+            ? image.element.naturalHeight / image.element.naturalWidth
+            : 0.45;
+          const height = drawHeight || drawWidth * ratio;
+          context.drawImage(image.element, x, y, drawWidth, height);
+        }
+        image.revoke?.();
+      }
+
+      try {
+        if (uploadedItems.length > 0) {
+          for (const item of uploadedItems) {
+            const itemSource = getSignatureItemSource(item) || signatureSource;
+            if (!itemSource) continue;
+            const itemWidth = overlay.width * ((Number(item.width) || 38) / 100);
+            const itemImage = await loadDecisionLogSnapshotImage(itemSource);
+            if (cancelled || !itemImage) {
+              itemImage?.revoke?.();
+              continue;
+            }
+            const itemHeight = itemWidth * (
+              itemImage.element.naturalWidth
+                ? itemImage.element.naturalHeight / itemImage.element.naturalWidth
+                : 0.45
+            );
+            const x = overlay.x + overlay.width * ((Number(item.x) || 50) / 100) - itemWidth / 2;
+            const y = overlay.y + overlay.height * ((Number(item.y) || 50) / 100) - itemHeight / 2;
+            context.drawImage(itemImage.element, x, y, itemWidth, itemHeight);
+            itemImage.revoke?.();
+          }
+        } else if (savedSnapshotUsesFullArea) {
+          await drawImageSource(savedSnapshotSource, overlay.x, overlay.y, overlay.width, overlay.height, true);
+        } else if (savedSnapshotSource || drawPreviewDataUrl) {
+          await drawImageSource(savedSnapshotSource || drawPreviewDataUrl, overlay.x, overlay.y, overlay.width, 144, true);
+        }
+      } catch (err) {
+        console.warn("Failed to render decision log signature snapshot:", err);
+      }
+    }
+
+    drawSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [signature, signatureSource, t]);
+
+  return (
+    <div
+      className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}
+      style={fullSize ? { width: "100%", maxWidth: "56rem" } : undefined}
+    >
+      <canvas
+        ref={canvasRef}
+        className="block select-none"
+        style={fullSize ? { width: "100%", height: "auto" } : { transform: "scale(0.5)", transformOrigin: "top left" }}
+      />
+    </div>
+  );
+}
+
+async function loadDecisionLogSnapshotImage(source) {
+  const normalizedSource = String(source || "").trim();
+  if (!normalizedSource) return null;
+
+  let objectUrl = "";
+  const imageSource =
+    normalizedSource.startsWith("blob:") || normalizedSource.startsWith("data:")
+      ? normalizedSource
+      : await fetchAuthenticatedBlob(normalizeFileUrl(normalizedSource)).then((blob) => {
+          objectUrl = URL.createObjectURL(blob);
+          return objectUrl;
+        });
+
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () =>
+      resolve({
+        element: image,
+        revoke: objectUrl ? () => URL.revokeObjectURL(objectUrl) : null,
+      });
+    image.onerror = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      reject(new Error("Unable to load signature snapshot image."));
+    };
+    image.src = imageSource;
+  });
+}
+
 function AuthenticatedImage({ src, alt, className = "", style, draggable = false }) {
   const [displaySrc, setDisplaySrc] = useState(src || "");
 
@@ -9356,43 +9536,6 @@ function DecisionLogSignatureConfirmation({
   const signatureDetails = signature && typeof signature === "object" ? signature : {};
   const hasReportSnapshot =
     signatureReportSource && signatureReportSource !== signatureSource;
-  const uploadedItems = Array.isArray(signatureDetails.items) ? signatureDetails.items : [];
-  const savedSnapshotSource = !uploadedItems.length && signatureSource ? signatureSource : "";
-  const savedSnapshotUsesFullArea =
-    Boolean(savedSnapshotSource) && signatureDetails.mode === "upload";
-  const drawPreviewDataUrl = savedSnapshotSource
-    ? ""
-    : signatureDetails.drawDataUrl ||
-      (signatureDetails.mode === "draw" ? signatureSource : "");
-  const rows = [
-    {
-      key: "signatureStamp",
-      label: t("workspace.signature.signatureAndStamp", "Signature & Stamp"),
-    },
-    {
-      key: "name",
-      label: t("workspace.signature.name", "Name"),
-    },
-    {
-      key: "position",
-      label: t("workspace.signature.position", "Position"),
-    },
-    {
-      key: "agency",
-      label: t("workspace.signature.agency", "Agency"),
-    },
-    {
-      key: "date",
-      label: t("workspace.signature.date", "Date"),
-    },
-  ];
-  const confirmationGridClass = fullSize
-    ? "relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4"
-    : "relative mt-4 grid grid-cols-[minmax(145px,220px)_14px_minmax(0,1fr)] grid-rows-[9rem_repeat(4,2rem)] gap-x-2 gap-y-4";
-  const getUploadedItemWidth = (item) => {
-    const width = Number(item?.width ?? 38);
-    return Number.isFinite(width) ? width : 38;
-  };
 
   if (hasReportSnapshot) {
     return (
@@ -9412,77 +9555,12 @@ function DecisionLogSignatureConfirmation({
   }
 
   return (
-    <div className={fullSize ? "overflow-hidden" : "h-[200px] w-[380px] overflow-hidden"}>
-      <div
-        className={`${fullSize ? "w-full max-w-[56rem]" : "w-full"} rounded border border-dashed border-slate-300 bg-white px-5 py-6 text-[13px] font-semibold leading-5 text-slate-950`}
-        style={fullSize ? undefined : { width: "760px", transform: "scale(0.5)", transformOrigin: "top left" }}
-      >
-        <p className="text-[13px] font-bold uppercase leading-5">
-          {t("workspace.signature.confirmationTitle", "CONFIRMATION")}
-        </p>
-
-        <div className={confirmationGridClass}>
-          {(uploadedItems.length > 0 || savedSnapshotUsesFullArea) && (
-            <div className="pointer-events-none relative z-20 col-start-3 row-start-1 row-span-5 overflow-hidden">
-              {uploadedItems.length > 0 ? (
-                uploadedItems.map((item, index) => (
-                  <div
-                    key={item.id || `${item.fileName || "signature"}-${index}`}
-                    style={{
-                      position: "absolute",
-                      left: `${item.x ?? 50}%`,
-                      top: `${item.y ?? 50}%`,
-                      width: `${getUploadedItemWidth(item)}%`,
-                      transform: "translate(-50%, -50%)",
-                    }}
-                  >
-                    <img
-                      src={getSignatureItemSource(item) || signatureSource}
-                      alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                      className="block h-auto w-full max-w-none select-none object-contain"
-                      draggable={false}
-                    />
-                  </div>
-                ))
-              ) : (
-                <img
-                  src={savedSnapshotSource}
-                  alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                  className="absolute inset-0 h-full w-full select-none object-fill"
-                  draggable={false}
-                />
-              )}
-            </div>
-          )}
-
-          <div className="relative col-start-3 row-start-1">
-            {!savedSnapshotUsesFullArea && (savedSnapshotSource || drawPreviewDataUrl) && (
-              <img
-                src={savedSnapshotSource || drawPreviewDataUrl}
-                alt={t("workspace.signature.previewAlt", "Digital signature preview")}
-                className="absolute inset-0 z-30 h-full w-full select-none object-fill"
-                draggable={false}
-              />
-            )}
-          </div>
-
-          {rows.map((row, index) => (
-            <Fragment key={row.key}>
-              <div className="col-start-1 flex items-end" style={{ gridRow: index + 1 }}>
-                <p>{row.label}</p>
-              </div>
-              <span className="col-start-2 flex items-end pb-1" style={{ gridRow: index + 1 }}>:</span>
-              <div
-                className="col-start-3 flex min-w-0 items-end border-b border-slate-900 pb-1"
-                style={{ gridRow: index + 1 }}
-              >
-                <span className="min-w-0 truncate uppercase">{signatureDetails[row.key] || ""}</span>
-              </div>
-            </Fragment>
-          ))}
-        </div>
-      </div>
-    </div>
+    <DecisionLogSignatureSnapshotCanvas
+      signature={signatureDetails}
+      signatureSource={signatureSource}
+      t={t}
+      fullSize={fullSize}
+    />
   );
 }
 
