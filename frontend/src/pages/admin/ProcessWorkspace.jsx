@@ -19517,7 +19517,16 @@ function PaymentDetails({
   const showQrPanel = false;
   const defaultPaymentDocumentTab = getDefaultPaymentDocumentTab(app);
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState(defaultPaymentDocumentTab);
-  const [documentsExpanded, setDocumentsExpanded] = useState(false);
+  const defaultDocumentsExpanded = status === "payment_verified";
+  const [documentsDisclosure, setDocumentsDisclosure] = useState(() => ({
+    appId: app?.id,
+    expanded: defaultDocumentsExpanded,
+    status,
+  }));
+  const documentsExpanded =
+    documentsDisclosure.appId === app?.id && documentsDisclosure.status === status
+      ? documentsDisclosure.expanded
+      : defaultDocumentsExpanded;
 
   useEffect(() => {
     setActivePaymentDocumentTab(defaultPaymentDocumentTab);
@@ -19647,7 +19656,13 @@ function PaymentDetails({
           icon={documentsExpanded ? "expand_less" : "expand_more"}
           className="min-h-9 px-3 py-1 text-sm"
           aria-expanded={documentsExpanded}
-          onClick={() => setDocumentsExpanded((expanded) => !expanded)}
+          onClick={() =>
+            setDocumentsDisclosure({
+              appId: app?.id,
+              expanded: !documentsExpanded,
+              status,
+            })
+          }
         >
           {documentsExpanded ? t("common.hide", "Hide") : t("common.show", "Show")}
         </Button>
@@ -20217,6 +20232,7 @@ function PaymentDetails({
             <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
               {documentPreviewSection}
               <div className="space-y-4">
+                {documentSection}
                 {licenseManagementActionSection}
                 {verificationDocumentSection}
                 {renewalReceiptSection}
