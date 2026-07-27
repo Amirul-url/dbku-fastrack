@@ -3976,6 +3976,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     ) : (
                       <>
                         <Field
+                          className={showPaymentTypedDecision ? "max-w-[56rem]" : ""}
                           label={
                             <>
                               {useTypedApprovalDecision
@@ -3993,7 +3994,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         >
                           {showPaymentTypedDecision || showIssueLicenseDecision || requiresWorkspaceActionSignature ? (
                             <div
-                              className={`relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+                              className={
+                                showPaymentTypedDecision
+                                  ? `relative min-h-[390px] bg-white ${commentError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`
+                                  : `relative min-h-[220px] rounded-md border border-slate-300 bg-white ${commentError ? "border-red-300 shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`
+                              }
                               style={{
                                 backgroundImage:
                                   "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
@@ -4006,11 +4011,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                                   setComment(event.target.value);
                                   if (commentError) setCommentError("");
                                 }}
-                                rows="8"
+                                rows={showPaymentTypedDecision ? 12 : 8}
                                 required={workspaceCommentRequired}
                                 aria-required={workspaceCommentRequired}
                                 aria-invalid={Boolean(commentError)}
-                                className="h-full min-h-[220px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                                className={`h-full w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0 ${
+                                  showPaymentTypedDecision ? "min-h-[390px]" : "min-h-[220px]"
+                                }`}
                                 placeholder={t("workspace.comment.approvalPlaceholder", "Add comments")}
                                 style={RULED_TEXTAREA_STYLE}
                               />
