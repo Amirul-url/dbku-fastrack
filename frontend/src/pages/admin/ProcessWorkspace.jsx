@@ -19517,7 +19517,7 @@ function PaymentDetails({
   const showQrPanel = false;
   const defaultPaymentDocumentTab = getDefaultPaymentDocumentTab(app);
   const [activePaymentDocumentTab, setActivePaymentDocumentTab] = useState(defaultPaymentDocumentTab);
-  const defaultDocumentsExpanded = status === "payment_verified";
+  const defaultDocumentsExpanded = false;
   const [documentsDisclosure, setDocumentsDisclosure] = useState(() => ({
     appId: app?.id,
     expanded: defaultDocumentsExpanded,
