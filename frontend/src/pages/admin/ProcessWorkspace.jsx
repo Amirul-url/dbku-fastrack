@@ -12091,7 +12091,7 @@ function getPaymentActionUnavailableMessage(app, department) {
   }
 
   if (department === "PT(IKL)" && status === "payment_verified") {
-    return "Payment is verified. Continue in Advertisement License / QR to issue the license.";
+    return "Payment is verified. Generate the official receipt and advertisement license from this task.";
   }
 
   if (department === "FIN" && status === "payment_verified") {

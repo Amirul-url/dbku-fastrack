@@ -5427,7 +5427,7 @@ function getAdminTaskWorkspacePath(application, unit) {
     }
 
     if (status === "payment_verified") {
-      return "/admin/e-licenses/license";
+      return "/admin/e-licenses/payment";
     }
   }
 
