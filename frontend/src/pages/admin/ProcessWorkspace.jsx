@@ -250,6 +250,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const shouldOpenVerificationReport = searchParams.get("showReport") === "1";
   const queryStatusFilter = searchParams.get("status") || "";
   const [applications, setApplications] = useState([]);
+  const [allApplications, setAllApplications] = useState([]);
   const [selectedId, setSelectedId] = useState(querySelectedId);
   const [keyword, setKeyword] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
@@ -559,13 +560,17 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       if (!silent) setLoading(true);
       setError("");
-      const list = await fetchApplicationList({
-        params: getWorkspaceFetchParams(config, userDepartment, fromCompletedApprovals),
-      });
+      const [list, allList] = await Promise.all([
+        fetchApplicationList({
+          params: getWorkspaceFetchParams(config, userDepartment, fromCompletedApprovals),
+        }),
+        fetchApplicationList(),
+      ]);
       const enrichedList = await enrichApplicationListApplicantNames(list, (id) =>
         apiRequest(`/applications/${id}/`)
       );
       setApplications(enrichedList);
+      setAllApplications(allList);
       if (!isTableFirstWorkspace(config) && !selectedId && list.length > 0) {
         setSelectedId(String(list[0].id));
       }
@@ -586,6 +591,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           ? { ...application, ...nextRecord }
           : application
       )
+    );
+    setAllApplications((currentApplications) =>
+      mergeApplicationRecords(currentApplications, [nextRecord])
     );
   }
 
@@ -650,6 +658,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       : tableFirstWorkspace
       ? "flex justify-end gap-2 pt-1"
       : "grid grid-cols-1 gap-2 pt-1 sm:grid-cols-3";
+
+  const receiptApplications = useMemo(
+    () => mergeApplicationRecords(allApplications, applications, selectedDetail ? [selectedDetail] : []),
+    [allApplications, applications, selectedDetail]
+  );
 
   const statusScopedApplications = useMemo(() => {
     const statusScope = getWorkspaceStatusScope(config, userDepartment);
@@ -1788,7 +1801,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       const editedReceiptNo = getEditedOfficialReceiptNumber(documentHtml);
       const receiptNo = getRenewalOfficialReceiptNumber(
         selectedRecord,
-        applications,
+        receiptApplications,
         editedReceiptNo
       );
       const canUseEditedDocumentHtml =
@@ -1803,7 +1816,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         document_html:
           canUseEditedDocumentHtml
             ? documentHtml
-            : getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, applications, receiptNo),
+            : getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, receiptApplications, receiptNo),
         status: "Draft",
         saved_by: userDepartment,
         saved_at: now,
@@ -1845,7 +1858,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     const editedReceiptNo = getEditedOfficialReceiptNumber(documentHtml);
     const receiptNo = getOriginalOfficialReceiptNumber(
       selectedRecord,
-      applications,
+      receiptApplications,
       editedReceiptNo
     );
     const canUseEditedDocumentHtml =
@@ -1854,7 +1867,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       normalizeReceiptNumber(editedReceiptNo) === normalizeReceiptNumber(receiptNo);
     const documentApp = getOriginalOfficialReceiptDocumentApp(
       selectedRecord,
-      applications,
+      receiptApplications,
       receiptNo
     );
     const nextManualReceipt = {
@@ -1920,7 +1933,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         name: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
         document_html: normalizeAdvertisementLicenseDocumentSpacing(
           documentHtml ||
-            getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, applications)
+            getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications)
         ),
         status: "Draft",
         saved_by: userDepartment,
@@ -1965,7 +1978,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       template: "dbku_advertisement_license_borang_b_v1",
       name: t("workspace.license.documentTitle", "Advertisement License"),
       document_html: normalizeAdvertisementLicenseDocumentSpacing(
-        documentHtml || buildBlankAdvertisementLicenseDocumentHtml(selectedRecord, t)
+        documentHtml || buildBlankAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications)
       ),
       status: "Draft",
       saved_by: userDepartment,
@@ -2686,7 +2699,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         comment: cleanedComment,
         technicalSite: preparedTechnicalSite,
         department: userDepartment,
-        applications,
+        applications: receiptApplications,
         licenseExpiryYears: Number(licenseExpiryYears) || 1,
         memoHtml: overrides.memoHtml || "",
         approvalDecisionHtml: overrides.approvalDecisionHtml || approvalDecisionDraft,
@@ -3538,6 +3551,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 <FirstReminderTaskPanel
                   app={selectedRecord}
                   t={t}
+                  applications={receiptApplications}
                   saving={saving}
                   months={
                     isKbRenewalConfirmationWorkspace
@@ -3589,7 +3603,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     app={selectedRecord}
                     t={t}
                     userDepartment={userDepartment}
-                    applications={applications}
+                    applications={receiptApplications}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     readOnly
@@ -3602,7 +3616,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     app={selectedRecord}
                     t={t}
                     userDepartment={userDepartment}
-                    applications={applications}
+                    applications={receiptApplications}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     onEditReceipt={() => setShowManualReceiptEditor(true)}
@@ -3776,7 +3790,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           canChooseLicenseExpiry={canChooseLicenseExpiry}
                           licenseExpiryYears={licenseExpiryYears}
                           setLicenseExpiryYears={setLicenseExpiryYears}
-                          applications={applications}
+                          applications={receiptApplications}
                           userDepartment={userDepartment}
                           saving={saving}
                           onPaymentDocumentUpload={uploadPaymentDocument}
@@ -4477,8 +4491,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html:
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
-                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, applications)
-                : getOriginalGeneratedOfficialReceiptDocumentHtml(selectedRecord, applications),
+                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, receiptApplications)
+                : getOriginalGeneratedOfficialReceiptDocumentHtml(selectedRecord, receiptApplications),
             scale: 0.95,
             editable: true,
             kind: "receipt",
@@ -4498,8 +4512,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html:
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
-                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, applications)
-                : getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t),
+                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications)
+                : getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications),
             scale: 0.9,
             editable: true,
             kind: "advertisement_license",
@@ -5730,6 +5744,19 @@ function getApplicationRecordKey(app = null) {
   return String(app?.id || app?.reference_no || getApplicationReference(app) || "");
 }
 
+function mergeApplicationRecords(...groups) {
+  const merged = new Map();
+  groups.flat().filter(Boolean).forEach((app) => {
+    const key = getApplicationRecordKey(app);
+    if (!key) return;
+    merged.set(key, {
+      ...(merged.get(key) || {}),
+      ...app,
+    });
+  });
+  return [...merged.values()];
+}
+
 function isSameApplicationRecord(first = null, second = null) {
   const firstKey = getApplicationRecordKey(first);
   const secondKey = getApplicationRecordKey(second);
@@ -5851,23 +5878,39 @@ function getOriginalGeneratedOfficialReceiptDocumentHtml(app = null, application
   );
 }
 
-function getAdvertisementLicenseReceiptNumber(app = null) {
+function getAdvertisementLicenseReceiptNumber(app = null, applications = []) {
   const formData = app?.form_data || {};
   const approvalLetter = formData.approval_letter || {};
   const payment = formData.payment || {};
   const renewalPayment = formData.license_renewal?.payment || {};
-  const candidates = [
+  const renewalReceiptNo = [
     renewalPayment.official_receipt_no,
     renewalPayment.official_receipt?.receipt_no,
     renewalPayment.official_receipt_draft?.receipt_no,
     renewalPayment.manual_official_receipt?.receipt_no,
+  ].map(getSixDigitOfficialReceiptNumber).find(Boolean);
+  const hasRenewalLicenseContext = Boolean(
+    renewalReceiptNo &&
+      (
+        getLicenseRenewalPaymentStatus(app) === "completed" ||
+        app?.form_data?.license?.renewed_at ||
+        renewalPayment.renewed_license ||
+        renewalPayment.manual_advertisement_license ||
+        renewalPayment.renewed_license_draft ||
+        renewalPayment.manual_advertisement_license_draft
+      )
+  );
+  if (hasRenewalLicenseContext) {
+    return getRenewalOfficialReceiptNumber(app, applications, renewalReceiptNo);
+  }
+
+  const originalReceiptNo = [
     approvalLetter.manual_receipt?.receipt_no,
     payment.official_receipt_no,
     payment.official_receipt?.receipt_no,
-    getGeneratedOfficialReceiptNumber(app),
-  ];
+  ].map(getSixDigitOfficialReceiptNumber).find(Boolean);
 
-  return candidates.map(getSixDigitOfficialReceiptNumber).find(Boolean) || "";
+  return getOriginalOfficialReceiptNumber(app, applications, originalReceiptNo);
 }
 
 function isStaleRenewalReceiptNumber(app = null, receiptNo = "") {
@@ -15890,7 +15933,7 @@ const configs = {
               ? savedManualReceipt.document_html
               : buildGeneratedOfficialReceiptDocumentHtml(documentApp);
           const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
-            getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate),
+            getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
             documentApp
           );
 
@@ -16051,7 +16094,7 @@ const configs = {
           const licenseDocumentHtml =
             savedRenewalManualLicense.document_html ||
             forceAdvertisementLicensePeriodLine(
-              getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate),
+              getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
               documentApp
             );
           const nextManualReceipt = {
@@ -19907,7 +19950,7 @@ function PaymentDetails({
         manualReceipt.saved_at
     ),
     displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
-    onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
+    onDownload: () => printGeneratedOfficialReceiptDocument(app, t, applications),
   };
   const renewalOfficialReceiptDocumentRow = {
     label: t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
@@ -19939,7 +19982,7 @@ function PaymentDetails({
         manualLicense.saved_at
     ),
     displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
-    onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
+    onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
   };
   const renewalAdvertisementLicenseDocumentRow = {
     label: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
@@ -20034,7 +20077,7 @@ function PaymentDetails({
             ...(showRenewalOfficialReceiptInDocuments ? [renewalOfficialReceiptDocumentRow] : []),
           ],
           displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
-          onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
+          onDownload: () => printGeneratedOfficialReceiptDocument(app, t, applications),
         },
         ...(hasOriginalPaymentReceipt
           ? [
@@ -20093,7 +20136,7 @@ function PaymentDetails({
             ...(showRenewalAdvertisementLicenseInDocuments ? [renewalAdvertisementLicenseDocumentRow] : []),
           ],
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
-          onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
+          onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
         },
         ...releasedRenewalLetters.map((letter) => ({
           label: `${letter.title} Letter`,
@@ -20219,7 +20262,7 @@ function PaymentDetails({
       onReview: onEditLicense,
       onDownload: showRenewalCompletionDocuments
         ? () => printRenewalGeneratedAdvertisementLicenseDocument(app, t, applications)
-        : () => printBlankAdvertisementLicenseDocument(app, t),
+        : () => printBlankAdvertisementLicenseDocument(app, t, applications),
     },
   ];
 
@@ -22000,10 +22043,10 @@ async function printGeneratedOfficialReceiptDocument(app, t, applications = []) 
   }
 }
 
-async function printBlankAdvertisementLicenseDocument(app, t) {
+async function printBlankAdvertisementLicenseDocument(app, t, applications = []) {
   try {
     await printHtmlDocument(
-      getGeneratedAdvertisementLicenseDocumentHtml(app, t),
+      getGeneratedAdvertisementLicenseDocumentHtml(app, t, applications),
       `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`
     );
   } catch (error) {
@@ -22085,7 +22128,7 @@ function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications = [
 function getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t, applications = [], preferredReceiptNo = "") {
   const documentApp = getRenewalCompletionDocumentApp(app, applications, preferredReceiptNo);
   return forceAdvertisementLicensePeriodLine(
-    getGeneratedAdvertisementLicenseDocumentHtml(documentApp, t),
+    getGeneratedAdvertisementLicenseDocumentHtml(documentApp, t, applications),
     documentApp
   );
 }
@@ -22114,17 +22157,18 @@ async function printRenewalGeneratedAdvertisementLicenseDocument(app, t, applica
   }
 }
 
-export function getGeneratedAdvertisementLicenseDocumentHtml(app, t) {
+export function getGeneratedAdvertisementLicenseDocumentHtml(app, t, applications = []) {
   const manualLicense = app?.form_data?.license?.manual_license || {};
   return normalizeAdvertisementLicenseDocumentSpacing(
     migrateAdvertisementLicenseDocumentHtml(
-      manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t),
-      app
+      manualLicense.document_html || buildBlankAdvertisementLicenseDocumentHtml(app, t, applications),
+      app,
+      applications
     )
   );
 }
 
-function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
+function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
   const title = `${getApplicationReference(app)} ${t("workspace.license.documentTitle", "Advertisement License")}`;
   const license = app?.form_data?.license || {};
   const manualLicense = license.manual_license || {};
@@ -22200,7 +22244,7 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t) {
       <p class="license-form-title">Borang B<br />(Undang-Undang Kecil 7)<br />Lesen Pengiklanan</p>
     </header>
 
-    ${buildAdvertisementLicenseTopFields(app)}
+    ${buildAdvertisementLicenseTopFields(app, applications)}
 
     ${buildAdvertisementLicenseApplicantLines(details)}
 
@@ -22243,13 +22287,13 @@ function normalizeAdvertisementLicenseDocumentSpacing(html) {
     );
 }
 
-function migrateAdvertisementLicenseDocumentHtml(html, app = null) {
+function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications = []) {
   const details = getAdvertisementLicenseAutofillDetails(app);
 
   return String(html || "")
     .replace(
       /<div class="top-fields">[\s\S]*?<\/div>/i,
-      () => buildAdvertisementLicenseTopFields(app)
+      () => buildAdvertisementLicenseTopFields(app, applications)
     )
     .replace(
       /<div class="form-lines">[\s\S]*?<\/div>/i,
@@ -22295,8 +22339,8 @@ function getAdvertisementLicenseIssueDateDisplay(app = null) {
   );
 }
 
-function buildAdvertisementLicenseTopFields(app = null) {
-  const receiptNo = getAdvertisementLicenseReceiptNumber(app);
+function buildAdvertisementLicenseTopFields(app = null, applications = []) {
+  const receiptNo = getAdvertisementLicenseReceiptNumber(app, applications);
   const referenceNo = getApplicationReference(app);
 
   return `
@@ -22750,6 +22794,7 @@ function getSentOfficialReceiptFile(app) {
 function FirstReminderTaskPanel({
   app,
   t,
+  applications = [],
   saving,
   months = 3,
   confirmationMode = false,
@@ -22887,7 +22932,7 @@ function FirstReminderTaskPanel({
           manualReceipt.saved_at
       ),
       isDocumentGroup: true,
-      onDownload: () => printGeneratedOfficialReceiptDocument(app, t),
+      onDownload: () => printGeneratedOfficialReceiptDocument(app, t, applications),
     },
     ...(receiptSource
       ? [
@@ -22920,7 +22965,7 @@ function FirstReminderTaskPanel({
           manualLicense.saved_at
       ),
       isDocumentGroup: true,
-      onDownload: () => printBlankAdvertisementLicenseDocument(app, t),
+      onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
     },
     ...releasedRenewalLetters
       .filter((letter) => Number(letter.months) !== Number(months))
