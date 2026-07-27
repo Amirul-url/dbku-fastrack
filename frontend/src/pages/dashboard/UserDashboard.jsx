@@ -5232,7 +5232,7 @@ function getPaymentStatusText(app, t) {
     if (renewalPaymentStatus === "uploaded" || renewalPaymentStatus === "submitted") {
       return t("applicant.renewalPaymentDetailsRequiredStatus", "Complete renewal payment details");
     }
-    return t("applicant.renewalPaymentRequiredStatus", "Renewal payment required");
+    return t("applicant.renewalPaymentOptionalStatus", "Early renewal payment optional");
   }
 
   if (isPaymentReceiptRejected(payment)) {
