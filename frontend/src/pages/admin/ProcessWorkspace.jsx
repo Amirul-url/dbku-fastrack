@@ -19558,7 +19558,7 @@ function PaymentDetails({
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-3">
         <div>
-          <p className="text-[15px] font-bold leading-5 text-slate-900">
+          <p className="text-[16px] font-bold leading-5 text-slate-950">
             {t("workspace.payment.documents", "List Of Document")}
           </p>
         </div>
@@ -19575,8 +19575,8 @@ function PaymentDetails({
       </div>
 
       {documentsExpanded && (
-        <div className="grid grid-cols-1 gap-3 py-3">
-          <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid grid-cols-1">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-3 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-[15px] font-bold leading-5 text-slate-900">
               {t("workspace.payment.applicationFormDetails", "Application Form Details")}
             </p>
@@ -19590,31 +19590,36 @@ function PaymentDetails({
               {t("workspace.openForm", "View Form")}
             </Button>
           </div>
-          <ApprovalLetterDocumentSlot
-            app={app}
-            label={t("workspace.payment.approvalLetter", "Approval Letter")}
-            file={letterFile}
-            t={t}
-            canUpload={canUploadDocuments}
-            required={canUploadDocuments}
-            saving={saving}
-            onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-            onEditManualLetter={onEditApprovalLetter}
-          />
-          <BillDocumentSlot
-            app={app}
-            label={t("workspace.payment.billDocument", "Bill")}
-            file={billFile}
-            t={t}
-            canEdit={canUploadDocuments}
-            required={canUploadDocuments}
-            saving={saving}
-            onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-            onEditManualBill={onEditBill}
-          />
         </div>
       )}
     </section>
+  );
+
+  const approvalBillDocumentSection = (
+    <div className="grid grid-cols-1 gap-3">
+      <ApprovalLetterDocumentSlot
+        app={app}
+        label={t("workspace.payment.approvalLetter", "Approval Letter")}
+        file={letterFile}
+        t={t}
+        canUpload={canUploadDocuments}
+        required={canUploadDocuments}
+        saving={saving}
+        onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+        onEditManualLetter={onEditApprovalLetter}
+      />
+      <BillDocumentSlot
+        app={app}
+        label={t("workspace.payment.billDocument", "Bill")}
+        file={billFile}
+        t={t}
+        canEdit={canUploadDocuments}
+        required={canUploadDocuments}
+        saving={saving}
+        onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+        onEditManualBill={onEditBill}
+      />
+    </div>
   );
 
   const receiptSection = showReceiptDetails ? (
@@ -20062,6 +20067,7 @@ function PaymentDetails({
               {documentPreviewSection}
               <div className="space-y-4">
                 {documentSection}
+                {approvalBillDocumentSection}
                 {verificationDocumentSection}
                 {renewalReceiptSection}
                 {receiptSection}
@@ -20086,6 +20092,7 @@ function PaymentDetails({
                   {licenseManagementActionSection}
                   {renewalReceiptSection}
                   {documentSection}
+                  {approvalBillDocumentSection}
                   {receiptSection}
                 </div>
               </div>
