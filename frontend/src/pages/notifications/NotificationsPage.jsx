@@ -74,15 +74,19 @@ function getMemoBodyParts(body) {
     return {
       lines: text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
       remark: "",
+      remarkLines: [],
     };
   }
+
+  const remark = remarkMatch[2].trim().replace(/^(?:Remark|Catatan):\s*/i, "");
 
   return {
     lines: remarkMatch[1]
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean),
-    remark: remarkMatch[2].trim().replace(/^(?:Remark|Catatan):\s*/i, ""),
+    remark,
+    remarkLines: remark.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
   };
 }
 
@@ -1003,9 +1007,13 @@ function NotificationBody({ item, bodyParts, t }) {
               <p className="text-xs font-semibold uppercase text-amber-700">
                 {t("notifications.memo.remark", "Remark")}
               </p>
-              <p className="mt-1 text-sm leading-6 text-slate-800">
-                {bodyParts.remark}
-              </p>
+              <div className="mt-1 space-y-1 text-sm leading-6 text-slate-800">
+                {(bodyParts.remarkLines?.length ? bodyParts.remarkLines : [bodyParts.remark]).map((line, index) => (
+                  <p key={`${item.id}:remark:${index}`} className="break-words">
+                    {line}
+                  </p>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -1092,7 +1100,9 @@ function FormalNotificationMemo({ item, copy, bodyParts, memoHtml, language, t }
               {bodyParts.remark && (
                 <div className="border border-slate-400 px-3 py-2">
                   <p className="font-bold">{t("notifications.memo.remark", "Remark")}:</p>
-                  <p>{bodyParts.remark}</p>
+                  {(bodyParts.remarkLines?.length ? bodyParts.remarkLines : [bodyParts.remark]).map((line, index) => (
+                    <p key={`${item.id}:formal-remark:${index}`}>{line}</p>
+                  ))}
                 </div>
               )}
               <p>{copy.closing}</p>
