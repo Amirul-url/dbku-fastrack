@@ -5576,8 +5576,18 @@ function getReceiptSequenceValue(value) {
   return match ? Number.parseInt(match[1], 10) : 0;
 }
 
+const OFFICIAL_RECEIPT_NUMBER_PATTERN = /^\d{6}$/;
+
 function normalizeReceiptNumber(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function getSixDigitOfficialReceiptNumber(value) {
+  const normalized = normalizeReceiptNumber(value);
+  if (OFFICIAL_RECEIPT_NUMBER_PATTERN.test(normalized)) return normalized;
+
+  const prefixed = normalized.match(/^(\d{6})(?:\D.*)?$/);
+  return prefixed ? prefixed[1] : "";
 }
 
 function collectOriginalApplicationReceiptNumbers(app = null) {
@@ -5621,11 +5631,11 @@ function getNextGeneratedOfficialReceiptNumber(applications = [], currentApp = n
 }
 
 function isStaleRenewalReceiptNumber(app = null, receiptNo = "") {
-  const normalizedReceiptNo = normalizeReceiptNumber(receiptNo);
+  const normalizedReceiptNo = getSixDigitOfficialReceiptNumber(receiptNo);
   if (!normalizedReceiptNo) return true;
 
   const originalReceiptNumbers = collectOriginalApplicationReceiptNumbers(app);
-  if (originalReceiptNumbers.some((originalNo) => normalizeReceiptNumber(originalNo) === normalizedReceiptNo)) {
+  if (originalReceiptNumbers.some((originalNo) => getSixDigitOfficialReceiptNumber(originalNo) === normalizedReceiptNo)) {
     return true;
   }
 
@@ -5647,8 +5657,10 @@ function getRenewalOfficialReceiptNumber(app = null, applications = [], preferre
     payment.manual_official_receipt?.receipt_no,
     payment.official_receipt_no,
   ].filter(Boolean);
-  const existing = candidates.find((receiptNo) => !isStaleRenewalReceiptNumber(app, receiptNo));
-  if (existing) return String(existing);
+  const existing = candidates
+    .map(getSixDigitOfficialReceiptNumber)
+    .find((receiptNo) => !isStaleRenewalReceiptNumber(app, receiptNo));
+  if (existing) return existing;
 
   return getNextGeneratedOfficialReceiptNumber(applications, app);
 }
