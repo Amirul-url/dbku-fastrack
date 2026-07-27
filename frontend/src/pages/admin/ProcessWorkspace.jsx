@@ -22253,8 +22253,8 @@ function buildBlankAdvertisementLicenseDocumentHtml(app, t, applications = []) {
     .period-line { display: grid; grid-template-columns: 42mm 5mm 1fr 16mm 1fr; column-gap: 3mm; align-items: end; margin-top: 1.4mm; font-size: 11pt; }
     .attachment-line { margin-top: 12mm; font-size: 11pt; }
     .signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }
-    .signature-line { position: relative; height: 16mm; }
-    .ad-license-signature-image { position: absolute; left: 15mm; bottom: 1mm; max-width: 48mm; max-height: 16mm; object-fit: contain; }
+    .signature-line { min-height: 16mm; height: 16mm; display: flex; align-items: flex-end; padding-left: 15mm; }
+    .ad-license-signature-image { display: block; max-width: 48mm; max-height: 16mm; object-fit: contain; }
     .signature-title { margin-top: 4mm; }
     .date-row { display: grid; grid-template-columns: auto 1fr; gap: 2mm; align-items: end; }
     .appendix-page { padding: 24mm 16mm 20mm; font-family: Arial, Helvetica, sans-serif; }
@@ -22327,35 +22327,86 @@ function normalizeAdvertisementLicenseDocumentSpacing(html) {
     .replace(
       /\.signature-row\s*\{[^}]*\}/,
       ".signature-row { display: grid; grid-template-columns: 1fr 43mm; gap: 27mm; align-items: start; margin-top: 22mm; font-size: 11pt; }"
+    )
+    .replace(
+      /\.signature-line\s*\{[^}]*\}/,
+      ".signature-line { min-height: 16mm; height: 16mm; display: flex; align-items: flex-end; padding-left: 15mm; }"
+    )
+    .replace(
+      /\.ad-license-signature-image\s*\{[^}]*\}/,
+      ".ad-license-signature-image { display: block; max-width: 48mm; max-height: 16mm; object-fit: contain; }"
     );
 
   if (/\.ad-license-signature-image\b/.test(normalizedHtml)) {
-    return normalizedHtml;
+    return ensureAdvertisementLicenseSignatureLineClass(normalizedHtml);
   }
 
-  return normalizedHtml.replace(
-    /<\/style>/i,
-    "    .signature-line { position: relative; height: 16mm; }\n    .ad-license-signature-image { position: absolute; left: 15mm; bottom: 1mm; max-width: 48mm; max-height: 16mm; object-fit: contain; }\n  </style>"
+  return ensureAdvertisementLicenseSignatureLineClass(
+    normalizedHtml.replace(
+      /<\/style>/i,
+      "    .signature-line { min-height: 16mm; height: 16mm; display: flex; align-items: flex-end; padding-left: 15mm; }\n    .ad-license-signature-image { display: block; max-width: 48mm; max-height: 16mm; object-fit: contain; }\n  </style>"
+    )
   );
 }
 
 function buildAdvertisementLicenseSignatureImageHtml(app = null) {
-  const signatureSource = getDecisionLogSignatureSource(app?.form_data?.license?.digital_signature);
+  const signatureSource = getAdvertisementLicenseInlineSignatureSource(app?.form_data?.license?.digital_signature);
   if (!signatureSource) return "";
 
   return `<img class="ad-license-signature-image" data-generated-signature-image="true" src="${escapeHtml(signatureSource)}" alt="Digital signature" />`;
+}
+
+function getAdvertisementLicenseInlineSignatureSource(signature = null) {
+  if (!signature) return "";
+  if (typeof signature === "string") return signature.trim();
+  if (typeof signature !== "object") return "";
+
+  return String(
+    signature.drawDataUrl ||
+      (signature.mode === "draw" ? signature.dataUrl : "") ||
+      signature.data_url ||
+      getSignatureItemSource(signature.items?.find?.((item) => getSignatureItemSource(item))) ||
+      signature.dataUrl ||
+      signature.source ||
+      signature.file_url ||
+      signature.url ||
+      signature.file ||
+      signature.preview_url ||
+      ""
+  ).trim();
+}
+
+function ensureAdvertisementLicenseSignatureLineClass(html = "") {
+  return String(html || "").replace(
+    /<div([^>]*class=(["'])(?=[^"']*\bdot-line\b)(?![^"']*\bsignature-line\b)([^"']*)\2[^>]*)>([\s\S]*?\bad-license-signature-image\b[\s\S]*?)<\/div>/i,
+    (match, attributes, quote, classes, content) => {
+      const nextAttributes = attributes.replace(
+        `class=${quote}${classes}${quote}`,
+        `class=${quote}${classes} signature-line${quote}`
+      );
+      return `<div${nextAttributes}>${content}</div>`;
+    }
+  );
 }
 
 function ensureAdvertisementLicenseSignatureHtml(html, app = null) {
   const signatureImageHtml = buildAdvertisementLicenseSignatureImageHtml(app);
   const currentHtml = String(html || "");
   if (!signatureImageHtml || /data-generated-signature-image=["']true["']|class=["'][^"']*\bad-license-signature-image\b/i.test(currentHtml)) {
-    return currentHtml;
+    return ensureAdvertisementLicenseSignatureLineClass(currentHtml);
   }
 
   return currentHtml.replace(
-    /(<div[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)(?:\s|&nbsp;)*(<\/div>\s*<div[^>]*class=["'][^"']*\bsignature-title\b[^"']*["'][^>]*>\s*b\.p\.:\s*Dewan Bandaraya Kuching Utara\s*<\/div>)/i,
-    `$1${signatureImageHtml}$2`
+    /(<div([^>]*class=(["'])(?=[^"']*\bdot-line\b)([^"']*)\3[^>]*)>)(?:\s|&nbsp;)*(<\/div>\s*<div[^>]*class=["'][^"']*\bsignature-title\b[^"']*["'][^>]*>\s*b\.p\.:\s*Dewan Bandaraya Kuching Utara\s*<\/div>)/i,
+    (match, opener, attributes, quote, classes, after) => {
+      const nextOpener = /\bsignature-line\b/.test(classes)
+        ? opener
+        : opener.replace(
+            `class=${quote}${classes}${quote}`,
+            `class=${quote}${classes} signature-line${quote}`
+          );
+      return `${nextOpener}${signatureImageHtml}${after}`;
+    }
   );
 }
 
