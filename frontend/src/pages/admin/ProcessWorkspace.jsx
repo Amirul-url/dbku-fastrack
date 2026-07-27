@@ -1042,6 +1042,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !fromPersonalTask &&
     !showDecisionLog &&
     !showVerificationReport;
+  const showPaymentReceiptDecision =
+    actionConfig.key === "payment" &&
+    userDepartment === "FIN" &&
+    (
+      normalizeStatus(selectedRecord?.status) === "payment_submitted" ||
+      getLicenseRenewalPaymentStatus(selectedRecord) === "submitted"
+    ) &&
+    workspaceActions.some((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt);
+  const showPaymentDocumentDecision =
+    actionConfig.key === "payment" &&
+    userDepartment === "PT(IKL)" &&
+    workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
   const showViewFormAction =
     Boolean(selectedRecord) &&
     showActionPanel &&
@@ -1057,18 +1069,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     );
   const showApprovalMemoPreviews =
     !showApprovalTechnicalReport || showVerificationReport;
-  const showPaymentReceiptDecision =
-    actionConfig.key === "payment" &&
-    userDepartment === "FIN" &&
-    (
-      normalizeStatus(selectedRecord?.status) === "payment_submitted" ||
-      getLicenseRenewalPaymentStatus(selectedRecord) === "submitted"
-    ) &&
-    workspaceActions.some((action) => action.requiresSubmittedReceipt || action.requiresRenewalReceipt);
-  const showPaymentDocumentDecision =
-    actionConfig.key === "payment" &&
-    userDepartment === "PT(IKL)" &&
-    workspaceActions.some((action) => action.requiresPaymentDocuments && !action.requiresSubmittedReceipt);
   const showPaymentTypedDecision = showPaymentReceiptDecision;
   const showIssueLicenseDecision = isPtIssueLicenseWorkspace;
   const requiresWorkspaceActionSignature =
