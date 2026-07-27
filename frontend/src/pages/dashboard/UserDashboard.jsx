@@ -4299,9 +4299,15 @@ function removeApplicantOfficialReceiptLegacySignatureHtml(html = "") {
     .replace(/\s*\.signature\s*\{[^}]*\}/g, "")
     .replace(/\s*\.signature\s+\.line\s*\{[^}]*\}/g, "")
     .replace(
+      /\s*<div[^>]*class=["'][^"']*\bsignature\b[^"']*["'][^>]*>[\s\S]*?b\.p\.\s*Datuk\s*Bandar\s*<\/div>\s*/gi,
+      ""
+    )
+    .replace(
       /\s*<div[^>]*class=["'][^"']*\bsignature\b[^"']*["'][^>]*>\s*(?:<div[^>]*class=["'][^"']*\bline\b[^"']*["'][^>]*>\s*<\/div>\s*)?[\s\S]*?<\/div>\s*/gi,
       ""
     )
+    .replace(/\s*b\.p\.\s*Datuk\s*Bandar\s*<\/div>\s*/gi, "")
+    .replace(/\s*b\.p\.\s*Datuk\s*Bandar\s*/gi, "")
     .replace(
       /\s*<footer[^>]*class=["'][^"']*\breceipt-computer-notice\b[^"']*["'][^>]*>[\s\S]*?<\/footer>/gi,
       ""
