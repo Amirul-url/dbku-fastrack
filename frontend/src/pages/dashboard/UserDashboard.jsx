@@ -4275,11 +4275,15 @@ function normalizeApplicantOfficialReceiptDocumentHtml(html = "") {
     )
     .replace(
       /\.footer\s*\{[^}]*\}/,
-      ".footer { display: grid; grid-template-columns: 30mm minmax(0,1fr); gap: 10mm; align-items: end; margin-top: 8mm; }"
+      ".footer { display: grid; grid-template-columns: 32mm minmax(0,1fr) 32mm; gap: 6mm; align-items: end; margin-top: 8mm; }"
+    )
+    .replace(
+      /\.bank-note\s*\{[^}]*\}/,
+      ".bank-note { text-align: center; font: 700 9pt Arial, sans-serif; line-height: 1.2; }"
     )
     .replace(
       /\.receipt-computer-notice\s*\{[^}]*\}/,
-      ".receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
+      ".receipt-computer-notice { margin: 18mm auto 0; text-align: center; font-size: 7.5pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
     )
     .replace(
       /\.receipt-computer-notice p\s*\{[^}]*\}/,
@@ -4290,7 +4294,7 @@ function normalizeApplicantOfficialReceiptDocumentHtml(html = "") {
 
   return withNotice.replace(
     /<\/style>/i,
-    "    .receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .receipt-computer-notice p { margin: 0; }\n  </style>"
+    "    .receipt-computer-notice { margin: 18mm auto 0; text-align: center; font-size: 7.5pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .receipt-computer-notice p { margin: 0; }\n  </style>"
   );
 }
 
@@ -4324,7 +4328,9 @@ function ensureApplicantOfficialReceiptComputerNoticeHtml(html = "") {
   const source = String(html || "");
   const closeIndex = source.toLowerCase().lastIndexOf("</section>");
   if (closeIndex < 0) return `${source}${noticeHtml}`;
-  return `${source.slice(0, closeIndex)}${noticeHtml}${source.slice(closeIndex)}`;
+  const contentCloseIndex = source.toLowerCase().lastIndexOf("</div>", closeIndex);
+  const insertIndex = contentCloseIndex >= 0 ? contentCloseIndex : closeIndex;
+  return `${source.slice(0, insertIndex)}${noticeHtml}${source.slice(insertIndex)}`;
 }
 
 function getLicenseRenewal(app) {

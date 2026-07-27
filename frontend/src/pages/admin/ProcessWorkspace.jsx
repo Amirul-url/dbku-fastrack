@@ -5539,12 +5539,12 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
     .solid-line { border-bottom: 1.25px solid #111; min-height: 5.6mm; line-height: 5mm; padding-left: 1.5mm; font-weight: 400; }
     .blank-line { border-bottom: 1.25px solid #111; height: 6.5mm; }
     [contenteditable="true"] { outline: none; box-shadow: none; }
-    .footer { display: grid; grid-template-columns: 30mm minmax(0,1fr); gap: 10mm; align-items: end; margin-top: 8mm; }
+    .footer { display: grid; grid-template-columns: 32mm minmax(0,1fr) 32mm; gap: 6mm; align-items: end; margin-top: 8mm; }
     .payment-mode { font-size: 11pt; font-weight: 800; line-height: 1.05; }
     .payment-mode .cash { display: inline-block; min-width: 23mm; border-bottom: 1.3px solid #111; text-align: center; }
-    .bank-note { text-align: center; font: 700 9pt Arial, sans-serif; line-height: 1.2; transform: translateY(4mm); }
+    .bank-note { text-align: center; font: 700 9pt Arial, sans-serif; line-height: 1.2; }
     .bank-note em { font-size: 9pt; }
-    .receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }
+    .receipt-computer-notice { margin: 18mm auto 0; text-align: center; font-size: 7.5pt !important; font-style: italic; line-height: 1.2; color: #334155; }
     .receipt-computer-notice p { margin: 0; }
     .print-actions { position: fixed; right: 18px; top: 18px; }
     .print-actions button { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 8px 12px; font: 700 13px Arial, sans-serif; cursor: pointer; }
@@ -5616,8 +5616,8 @@ function buildGeneratedOfficialReceiptDocumentHtml(app = null) {
       <div class="payment-mode"><span class="cash">CASH</span><br />CHEQUE NO.<br /><span style="display:inline-block;transform:translateY(3mm);font-size:6pt;font-weight:700;">PNMB,Kch.</span></div>
       <div class="bank-note">Pembayaran ini hanya dianggap sah setelah cek diperakui oleh bank<br /><em>Payment valid only upon clearance of cheques</em></div>
     </footer>
-    </div>
     ${buildGeneratedOfficialReceiptComputerNoticeHtml()}
+    </div>
   </section>
 </body>
 </html>`;
@@ -5674,11 +5674,15 @@ function normalizeGeneratedOfficialReceiptDocumentHtml(html, app = null) {
     )
     .replace(
       /\.footer\s*\{[^}]*\}/,
-      ".footer { display: grid; grid-template-columns: 30mm minmax(0,1fr); gap: 10mm; align-items: end; margin-top: 8mm; }"
+      ".footer { display: grid; grid-template-columns: 32mm minmax(0,1fr) 32mm; gap: 6mm; align-items: end; margin-top: 8mm; }"
+    )
+    .replace(
+      /\.bank-note\s*\{[^}]*\}/,
+      ".bank-note { text-align: center; font: 700 9pt Arial, sans-serif; line-height: 1.2; }"
     )
     .replace(
       /\.receipt-computer-notice\s*\{[^}]*\}/,
-      ".receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
+      ".receipt-computer-notice { margin: 18mm auto 0; text-align: center; font-size: 7.5pt !important; font-style: italic; line-height: 1.2; color: #334155; }"
     )
     .replace(
       /\.receipt-computer-notice p\s*\{[^}]*\}/,
@@ -5689,7 +5693,7 @@ function normalizeGeneratedOfficialReceiptDocumentHtml(html, app = null) {
 
   return withNotice.replace(
     /<\/style>/i,
-    "    .receipt-computer-notice { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; text-align: center; font-size: 8pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .receipt-computer-notice p { margin: 0; }\n  </style>"
+    "    .receipt-computer-notice { margin: 18mm auto 0; text-align: center; font-size: 7.5pt !important; font-style: italic; line-height: 1.2; color: #334155; }\n    .receipt-computer-notice p { margin: 0; }\n  </style>"
   );
 }
 
@@ -5718,7 +5722,9 @@ function ensureGeneratedOfficialReceiptComputerNoticeHtml(html = "") {
   const source = String(html || "");
   const closeIndex = source.toLowerCase().lastIndexOf("</section>");
   if (closeIndex < 0) return `${source}${noticeHtml}`;
-  return `${source.slice(0, closeIndex)}${noticeHtml}${source.slice(closeIndex)}`;
+  const contentCloseIndex = source.toLowerCase().lastIndexOf("</div>", closeIndex);
+  const insertIndex = contentCloseIndex >= 0 ? contentCloseIndex : closeIndex;
+  return `${source.slice(0, insertIndex)}${noticeHtml}${source.slice(insertIndex)}`;
 }
 
 function getGeneratedOfficialReceiptRows(details = {}) {
