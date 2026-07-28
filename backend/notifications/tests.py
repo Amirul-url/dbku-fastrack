@@ -2324,6 +2324,42 @@ class LicenseRenewalWorkflowTests(TestCase):
             ).exists()
         )
 
+    def test_skips_later_reminders_after_early_payment_starts(self):
+        for payment_status in ("submitted", "verified", "completed"):
+            with self.subTest(payment_status=payment_status):
+                self.application.form_data["license_renewal"] = {
+                    "reminders": {
+                        "3": {
+                            "months_before_expiry": 3,
+                            "status": "released_to_applicant",
+                            "detected_at": self.local_time(2027, 2, 21, 8, 30).isoformat(),
+                            "expiry_date": self.application.form_data["license"]["expiry_date"],
+                            "letter": {
+                                "title": "1st Reminder",
+                                "document_html": "<article>First reminder</article>",
+                            },
+                        }
+                    },
+                    "payment": {
+                        "status": payment_status,
+                        "months_before_expiry": 3,
+                    },
+                }
+                self.application.save(update_fields=["form_data"])
+
+                process_license_renewal_reminders(now=self.local_time(2027, 3, 21, 8, 30))
+
+                self.application.refresh_from_db()
+                reminders = self.application.form_data["license_renewal"]["reminders"]
+                self.assertNotIn("2", reminders)
+                self.assertFalse(
+                    NotificationDelivery.objects.filter(
+                        channel="web",
+                        user=self.pt_ikl,
+                        metadata__event_status="license_renewal_2m",
+                    ).exists()
+                )
+
     def test_renewal_letter_template_matches_reminder_sequence(self):
         second_html = build_renewal_letter_document_html(self.application, 2)
         final_html = build_renewal_letter_document_html(self.application, 1)

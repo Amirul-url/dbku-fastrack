@@ -679,6 +679,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         config,
         normalizedUserDepartment
       );
+      if (
+        fromPersonalTask &&
+        config.key === "license" &&
+        normalizedUserDepartment === "PT(IKL)" &&
+        normalizedStatus === "license_issued" &&
+        hasCompletedRenewalPayment(app)
+      ) {
+        return false;
+      }
+
       const isInStatusScope =
         isRenewalPaymentTask ||
         statusScope.length === 0 || statusScope.includes(normalizedStatus);
@@ -12448,6 +12458,14 @@ function getLicenseRenewalPaymentStatus(app) {
   return normalizeStatus(getLicenseRenewalPayment(app).status);
 }
 
+function hasActiveRenewalPayment(app) {
+  return ["submitted", "verified", "completed"].includes(getLicenseRenewalPaymentStatus(app));
+}
+
+function hasCompletedRenewalPayment(app) {
+  return getLicenseRenewalPaymentStatus(app) === "completed";
+}
+
 function getLicenseRenewalPaymentWorkflowStatus(app) {
   const paymentStatus = getLicenseRenewalPaymentStatus(app);
   if (paymentStatus === "submitted") return "renewal_receipt_review";
@@ -12928,16 +12946,22 @@ function getReminderStatus(app, months) {
 }
 
 function getPendingPtRenewalReminderMonth(app) {
+  if (hasActiveRenewalPayment(app)) return undefined;
+
   return [3, 2, 1].find((months) => getReminderStatus(app, months) === "pending_pt_letter");
 }
 
 function getPendingReminderConfirmationMonth(app) {
+  if (hasActiveRenewalPayment(app)) return undefined;
+
   return [3, 2, 1].find(
     (months) => getReminderStatus(app, months) === "pending_supervisor_confirmation"
   );
 }
 
 function getLatestReleasedReminderMonth(app) {
+  if (hasActiveRenewalPayment(app)) return undefined;
+
   return [1, 2, 3].find(
     (months) => getReminderStatus(app, months) === "released_to_applicant"
   );
@@ -13045,6 +13069,7 @@ function canGenerateRenewalReminder(app, department, months) {
   return (
     department === "PT(IKL)" &&
     normalizeStatus(app?.status) === "license_issued" &&
+    !hasActiveRenewalPayment(app) &&
     getReminderStatus(app, months) === "pending_pt_letter"
   );
 }

@@ -434,6 +434,9 @@ def process_license_renewal_reminders(now=None):
             continue
 
         renewal = get_form_data_section(form_data, "license_renewal")
+        if has_active_renewal_payment(renewal):
+            continue
+
         reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
 
         for months in (3, 2, 1):
@@ -3266,7 +3269,29 @@ def has_verified_renewal_payment(renewal):
     if not isinstance(payment, dict):
         return False
 
-    return normalize_status_value(payment.get("status")) in {"payment verified", "verified", "paid"}
+    return normalize_status_value(payment.get("status")) in {
+        "payment verified",
+        "verified",
+        "paid",
+        "completed",
+        "payment completed",
+    }
+
+
+def has_active_renewal_payment(renewal):
+    payment = renewal.get("payment") if isinstance(renewal, dict) else {}
+    if not isinstance(payment, dict):
+        return False
+
+    return normalize_status_value(payment.get("status")) in {
+        "submitted",
+        "payment submitted",
+        "payment verified",
+        "verified",
+        "paid",
+        "completed",
+        "payment completed",
+    }
 
 
 def get_license_id(application):
