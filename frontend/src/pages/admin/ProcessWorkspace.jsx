@@ -3848,14 +3848,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onPaymentDocumentDelete={deletePaymentDocument}
                           onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                           onEditBill={() => setShowManualBillEditor(true)}
-                          onEditReceipt={() => setShowManualReceiptEditor(true)}
-                          onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
+                          onEditReceipt={() => {
+                            setRenewalCompletionDocumentError("");
+                            setShowManualReceiptEditor(true);
+                          }}
+                          onEditLicense={() => {
+                            setRenewalCompletionDocumentError("");
+                            setShowManualAdvertisementLicenseEditor(true);
+                          }}
                           onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                           onLicenseDocumentUpload={uploadLicenseDocument}
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
                           paymentReceiptDecision={decision}
                           enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
+                          renewalCompletionDocumentError={
+                            isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
+                          }
                         />
                       )
                     )
@@ -4320,14 +4329,23 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onPaymentDocumentDelete={deletePaymentDocument}
                         onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
                         onEditBill={() => setShowManualBillEditor(true)}
-                        onEditReceipt={() => setShowManualReceiptEditor(true)}
-                        onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
+                        onEditReceipt={() => {
+                          setRenewalCompletionDocumentError("");
+                          setShowManualReceiptEditor(true);
+                        }}
+                        onEditLicense={() => {
+                          setRenewalCompletionDocumentError("");
+                          setShowManualAdvertisementLicenseEditor(true);
+                        }}
                         onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                         onLicenseDocumentUpload={uploadLicenseDocument}
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
                         paymentReceiptDecision={decision}
                         enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
+                        renewalCompletionDocumentError={
+                          isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
+                        }
                       />
                     )
                   )}
