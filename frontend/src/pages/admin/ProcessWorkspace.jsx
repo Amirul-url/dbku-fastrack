@@ -15678,7 +15678,30 @@ function getWorkspaceStatusFilterFallbackApplications(config, department) {
     ];
   });
 
-  return fallbackApplications;
+  return [
+    ...fallbackApplications,
+    ...getWorkspaceRenewalConfirmationFallbackApplications(config, department),
+  ];
+}
+
+function getWorkspaceRenewalConfirmationFallbackApplications(config, department) {
+  if (config?.key !== "approval" || normalizeDepartmentCode(department) !== "KB(LES)") {
+    return [];
+  }
+
+  return [3, 2, 1].map((months) => ({
+    status: "license_issued",
+    form_data: {
+      license_renewal: {
+        reminders: {
+          [String(months)]: {
+            months_before_expiry: months,
+            status: "pending_supervisor_confirmation",
+          },
+        },
+      },
+    },
+  }));
 }
 
 function getWorkspaceStatusFilterFallbackStatuses(config, department) {
