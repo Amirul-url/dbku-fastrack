@@ -6,14 +6,7 @@ import {
 } from "../../services/api";
 
 const PDF_MIME_TYPE = "application/pdf";
-const A4_WIDTH_MM = 210;
-const A4_HEIGHT_MM = 297;
-const PRINTABLE_PAGE_SELECTORS = [
-  ".ad-license-page",
-  ".receipt",
-  ".bill",
-  ".page",
-];
+const HTML_MIME_TYPE = "text/html;charset=utf-8";
 
 function LicenseVerificationPage() {
   const { licenseId } = useParams();
@@ -34,10 +27,9 @@ function LicenseVerificationPage() {
           throw new Error("Advertisement license document is unavailable.");
         }
 
-        const documentBlob = await fetchLicenseDocumentAsPdfBlob(verification.document_url);
+        const blobUrl = await fetchLicenseDocumentBlobUrl(verification.document_url);
         if (!active) return;
 
-        const blobUrl = URL.createObjectURL(documentBlob);
         window.location.replace(blobUrl);
       } catch (requestError) {
         if (!active) return;
@@ -84,7 +76,7 @@ function LicenseVerificationPage() {
   );
 }
 
-async function fetchLicenseDocumentAsPdfBlob(documentUrl) {
+async function fetchLicenseDocumentBlobUrl(documentUrl) {
   const response = await fetch(getApiUrl(documentUrl), {
     headers: {
       Accept: "application/pdf,text/html;q=0.9,*/*;q=0.8",
@@ -98,92 +90,20 @@ async function fetchLicenseDocumentAsPdfBlob(documentUrl) {
   const contentType = response.headers.get("content-type") || "";
   if (contentType.toLowerCase().includes(PDF_MIME_TYPE)) {
     const pdfBlob = await response.blob();
-    return pdfBlob.type === PDF_MIME_TYPE
+    const normalizedPdfBlob = pdfBlob.type === PDF_MIME_TYPE
       ? pdfBlob
       : new Blob([pdfBlob], { type: PDF_MIME_TYPE });
+    return URL.createObjectURL(normalizedPdfBlob);
   }
 
   const html = await response.text();
-  return buildPdfBlobFromHtmlDocument(html, documentUrl);
-}
-
-async function buildPdfBlobFromHtmlDocument(html, documentUrl) {
-  const [{ jsPDF }, html2canvasModule] = await Promise.all([
-    import("jspdf"),
-    import("html2canvas"),
-  ]);
-  const html2canvas = html2canvasModule.default;
-  const frame = await createPrintableDocumentFrame(html, documentUrl);
-
-  try {
-    const frameDocument = frame.contentDocument;
-    const pages = getPrintablePages(frameDocument);
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-
-    for (const [index, page] of pages.entries()) {
-      if (index > 0) pdf.addPage("a4", "portrait");
-
-      const canvas = await html2canvas(page, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        windowWidth: page.scrollWidth,
-        windowHeight: page.scrollHeight,
-      });
-
-      const imageData = canvas.toDataURL("image/jpeg", 0.96);
-      pdf.addImage(imageData, "JPEG", 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM);
-    }
-
-    return pdf.output("blob");
-  } finally {
-    frame.remove();
-  }
-}
-
-function createPrintableDocumentFrame(html, documentUrl) {
-  return new Promise((resolve, reject) => {
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.position = "fixed";
-    frame.style.left = "-10000px";
-    frame.style.top = "0";
-    frame.style.width = "794px";
-    frame.style.height = "1123px";
-    frame.style.border = "0";
-    frame.style.opacity = "0";
-
-    const timeout = window.setTimeout(() => {
-      frame.remove();
-      reject(new Error("Advertisement license document could not be prepared."));
-    }, 15000);
-
-    frame.onload = async () => {
-      try {
-        window.clearTimeout(timeout);
-        await waitForFrameAssets(frame.contentDocument);
-        resolve(frame);
-      } catch (error) {
-        frame.remove();
-        reject(error);
-      }
-    };
-    frame.onerror = () => {
-      window.clearTimeout(timeout);
-      frame.remove();
-      reject(new Error("Advertisement license document could not be loaded."));
-    };
-
-    document.body.appendChild(frame);
-    frame.srcdoc = preparePrintableHtml(html, documentUrl);
+  const htmlBlob = new Blob([prepareStandaloneHtmlDocument(html, documentUrl)], {
+    type: HTML_MIME_TYPE,
   });
+  return URL.createObjectURL(htmlBlob);
 }
 
-function preparePrintableHtml(html, documentUrl) {
+function prepareStandaloneHtmlDocument(html, documentUrl) {
   const baseHref = getDocumentBaseHref(documentUrl);
   const printableCss = `
     <style>
@@ -204,38 +124,6 @@ function getDocumentBaseHref(documentUrl) {
   } catch {
     return `${window.location.origin}/`;
   }
-}
-
-async function waitForFrameAssets(frameDocument) {
-  await waitForFrameImages(frameDocument);
-  if (frameDocument?.fonts?.ready) {
-    await frameDocument.fonts.ready;
-  }
-  await new Promise((resolve) => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
-  });
-}
-
-function waitForFrameImages(frameDocument) {
-  const images = Array.from(frameDocument?.images || []);
-  return Promise.all(
-    images.map((image) => {
-      if (image.complete) return Promise.resolve();
-      return new Promise((resolve) => {
-        image.onload = resolve;
-        image.onerror = resolve;
-      });
-    })
-  );
-}
-
-function getPrintablePages(frameDocument) {
-  const pages = PRINTABLE_PAGE_SELECTORS.flatMap((selector) =>
-    Array.from(frameDocument.querySelectorAll(selector))
-  );
-  const uniquePages = Array.from(new Set(pages));
-
-  return uniquePages.length > 0 ? uniquePages : [frameDocument.body];
 }
 
 function escapeHtmlAttribute(value) {
