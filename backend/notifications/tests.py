@@ -2247,14 +2247,14 @@ class LicenseRenewalWorkflowTests(TestCase):
             user=self.pt_ikl,
             metadata__event_status="license_renewal_3m",
         )
-        kb_delivery = NotificationDelivery.objects.get(
-            channel="web",
-            user=self.supervisor,
-            metadata__event_status="license_renewal_3m",
-        )
         self.assertIn("PT(IKL) must generate", pt_delivery.metadata["message"])
-        self.assertIn("KB(LES) will receive a confirmation task", kb_delivery.metadata["message"])
-        self.assertNotIn("supervisor must confirm", kb_delivery.metadata["message"])
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.supervisor,
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
         self.assertFalse(
             NotificationDelivery.objects.filter(
                 channel="web",

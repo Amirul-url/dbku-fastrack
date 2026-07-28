@@ -63,9 +63,6 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                         "management_review",
                         "approved",
                         "license_cancellation_kb_support",
-                        "license_renewal_3m",
-                        "license_renewal_2m",
-                        "license_renewal_1m",
                         "license_renewal_supervisor_confirmation",
                         "license_cancellation_supervisor_confirmation",
                     }
@@ -82,9 +79,6 @@ class NotificationDeliveryViewSet(viewsets.ReadOnlyModelViewSet):
                 allowed_event_statuses = set()
             if self.request.user.role == "supervisor":
                 allowed_event_statuses = set(allowed_event_statuses) | {
-                    "license_renewal_3m",
-                    "license_renewal_2m",
-                    "license_renewal_1m",
                     "license_renewal_supervisor_confirmation",
                     "license_cancellation_supervisor_confirmation",
                 }
