@@ -2228,6 +2228,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     manual: manualReceipt,
     type: "receipt",
     available: showOfficialReceipt,
+    timestamp: getDocumentTimestampLabel(manualReceipt, officialReceiptFile, payment),
     onDownload: () =>
       officialReceiptFile
         ? downloadApplicantPaymentDocument(
@@ -2243,6 +2244,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     manual: renewalManualReceipt,
     type: "renewal_official_receipt",
     available: showRenewalOfficialReceipt,
+    timestamp: getDocumentTimestampLabel(renewalManualReceipt, renewalPayment),
     onDownload: () =>
       downloadApplicantHtmlOrFileDocument(
         renewalManualReceipt,
@@ -2257,6 +2259,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     manual: manualLicense,
     type: "advertisement_license",
     available: showAdvertisementLicense,
+    timestamp: getDocumentTimestampLabel(manualLicense, license.license_file, license),
     onDownload: () =>
       license.license_file
         ? downloadApplicantPaymentDocument(
@@ -2272,6 +2275,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     manual: renewalManualLicense,
     type: "renewal_advertisement_license",
     available: showRenewalAdvertisementLicense,
+    timestamp: getDocumentTimestampLabel(renewalManualLicense, renewalLicenseFile, renewalPayment),
     onDownload: () =>
       renewalLicenseFile
         ? downloadApplicantPaymentDocument(
@@ -2286,6 +2290,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     file: originalPaymentReceiptFile,
     type: "original_payment_receipt",
     available: Boolean(originalPaymentReceiptFile),
+    timestamp: getDocumentTimestampLabel(originalPaymentReceiptFile, payment),
     details: originalPaymentReceiptDetails,
     onDownload: () =>
       downloadApplicantReceiptPrintFlow(
@@ -2299,6 +2304,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     file: renewalReceiptDocument,
     type: "renewal_early_payment_receipt",
     available: Boolean(renewalReceiptDocument),
+    timestamp: getDocumentTimestampLabel(renewalReceiptDocument, renewalPayment),
     details: renewalPaymentReceiptDetails,
     onDownload: () =>
       downloadApplicantReceiptPrintFlow(
@@ -2337,6 +2343,13 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
               ...(showOfficialReceipt ? [originalOfficialReceiptRow] : []),
               ...(showRenewalOfficialReceipt ? [renewalOfficialReceiptRow] : []),
             ],
+            timestamp: getLatestDocumentTimestampLabel([
+              manualReceipt,
+              officialReceiptFile,
+              renewalManualReceipt,
+              payment,
+              renewalPayment,
+            ]),
             available: showOfficialReceipt || showRenewalOfficialReceipt,
           },
         ]
@@ -2353,6 +2366,12 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
               originalPaymentReceiptRow,
               ...(showRenewalReceiptInDocuments ? [renewalEarlyPaymentReceiptRow] : []),
             ],
+            timestamp: getLatestDocumentTimestampLabel([
+              originalPaymentReceiptFile,
+              renewalReceiptDocument,
+              payment,
+              renewalPayment,
+            ]),
             available: true,
           },
         ]
@@ -2372,6 +2391,14 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
               ...(showAdvertisementLicense ? [originalAdvertisementLicenseRow] : []),
               ...(showRenewalAdvertisementLicense ? [renewalAdvertisementLicenseRow] : []),
             ],
+            timestamp: getLatestDocumentTimestampLabel([
+              manualLicense,
+              license.license_file,
+              renewalManualLicense,
+              renewalLicenseFile,
+              license,
+              renewalPayment,
+            ]),
             available: showAdvertisementLicense || showRenewalAdvertisementLicense,
           },
         ]
@@ -2379,17 +2406,29 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     ...(!showAdvertisementLicense && showRenewalAdvertisementLicense
       ? [renewalAdvertisementLicenseRow]
       : []),
-    ...releasedRenewalLetters.map((letter) => {
-      const letterLabel = getLocalizedRenewalReminderLetterLabel(letter.months, t);
-      return {
-        label: letterLabel,
-        name: letterLabel,
-        available: true,
-        type: "renewal_reminder",
-        hideFileName: true,
-        onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letterLabel}`),
-      };
-    }),
+    ...(releasedRenewalLetters.length > 0
+      ? [
+          {
+            label: t("workspace.license.reminder", "Reminder"),
+            available: true,
+            type: "renewal_reminders",
+            isDocumentGroup: true,
+            timestamp: getLatestDocumentTimestampLabel(releasedRenewalLetters),
+            relatedDocuments: releasedRenewalLetters.map((letter) => {
+              const letterLabel = getLocalizedRenewalReminderLetterLabel(letter.months, t);
+              return {
+                label: letterLabel,
+                name: letterLabel,
+                available: true,
+                type: "renewal_reminder",
+                timestamp: letter.timestamp,
+                hideFileName: true,
+                onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letterLabel}`),
+              };
+            }),
+          },
+        ]
+      : []),
   ];
   const hasAnyDocument = documents.some((item) =>
     item.available ||
@@ -2485,6 +2524,11 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                       {item.label}
                     </p>
                   )}
+                  {item.timestamp && (
+                    <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                      {item.timestamp}
+                    </p>
+                  )}
                 </div>
                 {isDocumentAvailable(item) && !item.isDocumentGroup && (
                   <div className="flex flex-wrap gap-2">
@@ -2529,9 +2573,16 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                     .map((related) => (
                       <div key={related.label} className="py-2">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="text-sm font-semibold text-slate-500">
-                            {related.label}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-500">
+                              {related.label}
+                            </p>
+                            {related.timestamp && (
+                              <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                                {related.timestamp}
+                              </p>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => downloadDocumentItem(related)}
@@ -4386,10 +4437,57 @@ function getGeneratedRenewalLetters(app) {
         title: letter.title || getRenewalReminderTaskLabel(months),
         html: letter.document_html,
         generatedAt: letter.generated_at || "",
+        timestamp: getDocumentTimestampLabel(letter, reminder),
         reference: getApplicationReference(app),
       };
     })
     .filter(Boolean);
+}
+
+function getDocumentTimestampLabel(...sources) {
+  const timestamp = getDocumentTimestampValue(...sources);
+  return timestamp ? formatCompactDateTime(timestamp) : "";
+}
+
+function getLatestDocumentTimestampLabel(sources = []) {
+  const timestamps = sources
+    .map((source) => getDocumentTimestampValue(source))
+    .filter(Boolean);
+  if (!timestamps.length) return "";
+
+  const latestTimestamp =
+    timestamps
+      .map((timestamp) => ({ timestamp, time: new Date(timestamp).getTime() }))
+      .filter(({ time }) => !Number.isNaN(time))
+      .sort((a, b) => b.time - a.time)[0]?.timestamp || timestamps[0];
+
+  return formatCompactDateTime(latestTimestamp);
+}
+
+function getDocumentTimestampValue(...sources) {
+  const keys = [
+    "sent_at",
+    "saved_at",
+    "generated_at",
+    "uploaded_at",
+    "submitted_at",
+    "verified_at",
+    "completed_at",
+    "created_at",
+    "updated_at",
+  ];
+
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source === "string") return source;
+    if (typeof source !== "object") continue;
+
+    for (const key of keys) {
+      if (source[key]) return source[key];
+    }
+  }
+
+  return "";
 }
 
 function getReleasedRenewalLetters(app) {

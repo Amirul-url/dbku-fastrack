@@ -407,7 +407,7 @@ export function ApplicationSummary({
 export function Info({ label, value, uniformText = false }) {
   return (
     <div>
-      <p className={`${uniformText ? "text-sm leading-5" : "text-[11px] leading-4"} font-semibold uppercase tracking-wide text-slate-500`}>
+      <p className={`${uniformText ? "text-sm leading-5" : "text-[11px] leading-4"} font-semibold text-slate-500`}>
         {label}
       </p>
       <p className={`mt-1 font-medium leading-5 text-slate-800 ${uniformText ? "text-sm" : "text-[13px]"}`}>

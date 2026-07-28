@@ -12516,10 +12516,57 @@ function getGeneratedRenewalLetters(app) {
         title: letter.title || getRenewalReminderTaskLabel(months),
         html: letter.document_html,
         generatedAt: letter.generated_at || "",
+        timestamp: getDocumentTimestampLabel(letter, reminder),
         reference: getApplicationReference(app),
       };
     })
     .filter(Boolean);
+}
+
+function getDocumentTimestampLabel(...sources) {
+  const timestamp = getDocumentTimestampValue(...sources);
+  return timestamp ? formatCompactDateTime(timestamp) : "";
+}
+
+function getLatestDocumentTimestampLabel(sources = []) {
+  const timestamps = sources
+    .map((source) => getDocumentTimestampValue(source))
+    .filter(Boolean);
+  if (!timestamps.length) return "";
+
+  const latestTimestamp =
+    timestamps
+      .map((timestamp) => ({ timestamp, time: new Date(timestamp).getTime() }))
+      .filter(({ time }) => !Number.isNaN(time))
+      .sort((a, b) => b.time - a.time)[0]?.timestamp || timestamps[0];
+
+  return formatCompactDateTime(latestTimestamp);
+}
+
+function getDocumentTimestampValue(...sources) {
+  const keys = [
+    "sent_at",
+    "saved_at",
+    "generated_at",
+    "uploaded_at",
+    "submitted_at",
+    "verified_at",
+    "completed_at",
+    "created_at",
+    "updated_at",
+  ];
+
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source === "string") return source;
+    if (typeof source !== "object") continue;
+
+    for (const key of keys) {
+      if (source[key]) return source[key];
+    }
+  }
+
+  return "";
 }
 
 function getReleasedRenewalLetters(app) {
@@ -20084,6 +20131,7 @@ function PaymentDetails({
         manualReceipt.saved_at
     ),
     displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
+    timestamp: getDocumentTimestampLabel(manualReceipt, officialReceiptFile, payment),
     onDownload: () => printGeneratedOfficialReceiptDocument(app, t, applications),
   };
   const renewalOfficialReceiptDocumentRow = {
@@ -20093,6 +20141,7 @@ function PaymentDetails({
     displayName:
       renewalOfficialReceiptDocument?.name ||
       t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
+    timestamp: getDocumentTimestampLabel(renewalOfficialReceiptDocument, renewalPayment),
     onDownload: () =>
       printHtmlDocument(
         (
@@ -20116,6 +20165,7 @@ function PaymentDetails({
         manualLicense.saved_at
     ),
     displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
+    timestamp: getDocumentTimestampLabel(manualLicense, licenseFile, license),
     onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
   };
   const renewalAdvertisementLicenseDocumentRow = {
@@ -20125,6 +20175,7 @@ function PaymentDetails({
     displayName:
       renewalAdvertisementLicenseDocument?.name ||
       t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+    timestamp: getDocumentTimestampLabel(renewalAdvertisementLicenseDocument, renewalPayment),
     onDownload: () =>
       printHtmlDocument(
         renewalAdvertisementLicenseDocument?.document_html ||
@@ -20210,6 +20261,13 @@ function PaymentDetails({
             ...(originalOfficialReceiptDocument.available ? [originalOfficialReceiptDocument] : []),
             ...(showRenewalOfficialReceiptInDocuments ? [renewalOfficialReceiptDocumentRow] : []),
           ],
+          timestamp: getLatestDocumentTimestampLabel([
+            manualReceipt,
+            officialReceiptFile,
+            renewalOfficialReceiptDocument,
+            payment,
+            renewalPayment,
+          ]),
           displayName: manualReceipt.name || t("workspace.payment.manual.officialReceiptTitle", "Official Receipt"),
           onDownload: () => printGeneratedOfficialReceiptDocument(app, t, applications),
         },
@@ -20222,12 +20280,19 @@ function PaymentDetails({
                 detailLabel: t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
                 isDocumentGroup: true,
                 details: paymentReferenceDetails,
+                timestamp: getLatestDocumentTimestampLabel([
+                  receiptFile,
+                  renewalReceiptDocument,
+                  payment,
+                  renewalPayment,
+                ]),
                 relatedDocuments: showRenewalReceiptInDocuments
                   ? [
                       {
                         label: t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
                         file: renewalReceiptDocument,
                         details: renewalPaymentReferenceDetails,
+                        timestamp: getDocumentTimestampLabel(renewalReceiptDocument, renewalPayment),
                         displayName:
                           renewalReceiptDocument.name ||
                           t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
@@ -20269,15 +20334,33 @@ function PaymentDetails({
             ...(originalAdvertisementLicenseDocument.available ? [originalAdvertisementLicenseDocument] : []),
             ...(showRenewalAdvertisementLicenseInDocuments ? [renewalAdvertisementLicenseDocumentRow] : []),
           ],
+          timestamp: getLatestDocumentTimestampLabel([
+            manualLicense,
+            licenseFile,
+            renewalAdvertisementLicenseDocument,
+            license,
+            renewalPayment,
+          ]),
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
           onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
         },
-        ...releasedRenewalLetters.map((letter) => ({
-          label: `${letter.title} Letter`,
-          available: true,
-          displayName: `${letter.title} Letter`,
-          onDownload: () => printHtmlDocument(letter.html, `${letter.title} Letter`),
-        })),
+        ...(releasedRenewalLetters.length > 0
+          ? [
+              {
+                label: t("workspace.license.reminder", "Reminder"),
+                available: true,
+                isDocumentGroup: true,
+                timestamp: getLatestDocumentTimestampLabel(releasedRenewalLetters),
+                relatedDocuments: releasedRenewalLetters.map((letter) => ({
+                  label: `${letter.title} Letter`,
+                  available: true,
+                  timestamp: letter.timestamp,
+                  displayName: `${letter.title} Letter`,
+                  onDownload: () => printHtmlDocument(letter.html, `${letter.title} Letter`),
+                })),
+              },
+            ]
+          : []),
       ]}
     />
   ) : null;
@@ -20599,6 +20682,11 @@ function IssuedPaymentDocumentList({ t, documents }) {
                         {item.label}
                       </p>
                     )}
+                    {item.timestamp && (
+                      <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                        {item.timestamp}
+                      </p>
+                    )}
                   </div>
 
                   {!isDropdownRow && (
@@ -20639,9 +20727,16 @@ function IssuedPaymentDocumentList({ t, documents }) {
                     {hasPrimaryDocumentDetail && (isDocumentGroup || hasDirectDownload ? (
                       <div className="border-b border-slate-200 pb-3">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <p className="text-sm font-semibold text-slate-500">
-                            {item.detailLabel || item.label}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-500">
+                              {item.detailLabel || item.label}
+                            </p>
+                            {item.timestamp && (
+                              <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                                {item.timestamp}
+                              </p>
+                            )}
+                          </div>
                           {hasDirectDownload && (
                             <Button
                               type="button"
@@ -20680,9 +20775,16 @@ function IssuedPaymentDocumentList({ t, documents }) {
                         {item.relatedDocuments.map((related) => (
                           <div key={related.label} className="border-b border-slate-200 py-3 last:border-b-0 last:pb-0">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="text-sm font-semibold text-slate-500">
-                                {related.label}
-                              </p>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-slate-500">
+                                  {related.label}
+                                </p>
+                                {related.timestamp && (
+                                  <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                                    {related.timestamp}
+                                  </p>
+                                )}
+                              </div>
                               <Button
                                 type="button"
                                 variant="secondary"
@@ -23220,6 +23322,7 @@ function FirstReminderTaskPanel({
           manualReceipt.saved_at
       ),
       isDocumentGroup: true,
+      timestamp: getDocumentTimestampLabel(manualReceipt, officialReceiptFile, payment),
       onDownload: () => printGeneratedOfficialReceiptDocument(app, t, applications),
     },
     ...(receiptSource
@@ -23231,6 +23334,7 @@ function FirstReminderTaskPanel({
             file: receiptFile,
             available: true,
             isDocumentGroup: true,
+            timestamp: getLatestDocumentTimestampLabel([receiptFile, payment]),
             details: paymentReferenceDetails,
             onDownload: () =>
               printPaymentReceiptDocument(
@@ -23253,16 +23357,36 @@ function FirstReminderTaskPanel({
           manualLicense.saved_at
       ),
       isDocumentGroup: true,
+      timestamp: getDocumentTimestampLabel(manualLicense, licenseFile, license),
       onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
     },
-    ...releasedRenewalLetters
-      .filter((letter) => Number(letter.months) !== Number(months))
-      .map((letter) => ({
-        key: `released-renewal-${letter.months}`,
-        label: `${letter.title} Letter`,
-        available: true,
-        onDownload: () => printRenewalReminderDocument(letter.html, `${getApplicationReference(app)} ${letter.title} Letter`, t),
-      })),
+    ...(releasedRenewalLetters.filter((letter) => Number(letter.months) !== Number(months)).length > 0
+      ? [
+          {
+            key: "released_renewal_reminders",
+            label: t("workspace.license.reminder", "Reminder"),
+            available: true,
+            isDocumentGroup: true,
+            timestamp: getLatestDocumentTimestampLabel(
+              releasedRenewalLetters.filter((letter) => Number(letter.months) !== Number(months))
+            ),
+            relatedDocuments: releasedRenewalLetters
+              .filter((letter) => Number(letter.months) !== Number(months))
+              .map((letter) => ({
+                key: `released-renewal-${letter.months}`,
+                label: `${letter.title} Letter`,
+                available: true,
+                timestamp: letter.timestamp,
+                onDownload: () =>
+                  printRenewalReminderDocument(
+                    letter.html,
+                    `${getApplicationReference(app)} ${letter.title} Letter`,
+                    t
+                  ),
+              })),
+          },
+        ]
+      : []),
   ].filter((item) =>
     item.available ||
     item.onView ||
@@ -23350,6 +23474,11 @@ function FirstReminderTaskPanel({
                                 {item.displayName}
                               </p>
                             )}
+                            {item.timestamp && (
+                              <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                                {item.timestamp}
+                              </p>
+                            )}
                           </div>
 
                           {!isDropdownRow && (
@@ -23396,10 +23525,18 @@ function FirstReminderTaskPanel({
 
                         {detailsOpen && (
                           <div className="mt-3 border-t border-slate-100 pt-3">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="text-sm font-semibold text-slate-500">
-                                {item.detailLabel || item.label}
-                              </p>
+                            {(item.detailLabel || hasDetails || hasDirectDownload) && (
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-slate-500">
+                                    {item.detailLabel || item.label}
+                                  </p>
+                                  {item.timestamp && (
+                                    <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                                      {item.timestamp}
+                                    </p>
+                                  )}
+                                </div>
                               {hasDirectDownload && (
                                 <Button
                                   type="button"
@@ -23418,12 +23555,56 @@ function FirstReminderTaskPanel({
                                   {t("common.download", "Download")}
                                 </Button>
                               )}
-                            </div>
+                              </div>
+                            )}
 
                             {hasDetails && (
                               <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
                                 {item.details.map(([detailLabel, value]) => (
                                   <Info key={detailLabel} label={detailLabel} value={value} />
+                                ))}
+                              </div>
+                            )}
+                            {hasRelatedDocuments && (
+                              <div className="mt-2 divide-y divide-slate-100">
+                                {item.relatedDocuments.map((related) => (
+                                  <div key={related.key || related.label} className="py-2">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-slate-500">
+                                          {related.label}
+                                        </p>
+                                        {related.timestamp && (
+                                          <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                                            {related.timestamp}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        icon="download"
+                                        className="min-h-9 px-4 py-1.5"
+                                        disabled={saving}
+                                        onClick={() => {
+                                          if (related.onDownload) {
+                                            related.onDownload();
+                                            return;
+                                          }
+                                          downloadPaymentDocument(related.file, related.label, t);
+                                        }}
+                                      >
+                                        {t("common.download", "Download")}
+                                      </Button>
+                                    </div>
+                                    {related.details?.length > 0 && (
+                                      <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+                                        {related.details.map(([detailLabel, value]) => (
+                                          <Info key={detailLabel} label={detailLabel} value={value} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             )}
