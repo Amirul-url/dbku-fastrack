@@ -6074,12 +6074,7 @@ function getAdvertisementLicenseReceiptNumber(app = null, applications = []) {
   const approvalLetter = formData.approval_letter || {};
   const payment = formData.payment || {};
   const renewalPayment = formData.license_renewal?.payment || {};
-  const renewalReceiptNo = [
-    renewalPayment.official_receipt_no,
-    renewalPayment.official_receipt?.receipt_no,
-    renewalPayment.official_receipt_draft?.receipt_no,
-    renewalPayment.manual_official_receipt?.receipt_no,
-  ].map(getSixDigitOfficialReceiptNumber).find(Boolean);
+  const renewalReceiptNo = getRenewalOfficialReceiptSourceNumber(app);
   const hasRenewalLicenseContext = Boolean(
     renewalReceiptNo &&
       (
@@ -6093,7 +6088,7 @@ function getAdvertisementLicenseReceiptNumber(app = null, applications = []) {
       )
   );
   if (hasRenewalLicenseContext) {
-    return getRenewalOfficialReceiptNumber(app, applications, renewalReceiptNo);
+    return renewalReceiptNo;
   }
 
   const originalReceiptNo = [
@@ -6103,6 +6098,21 @@ function getAdvertisementLicenseReceiptNumber(app = null, applications = []) {
   ].map(getSixDigitOfficialReceiptNumber).find(Boolean);
 
   return getOriginalOfficialReceiptNumber(app, applications, originalReceiptNo);
+}
+
+function getRenewalOfficialReceiptSourceNumber(app = null) {
+  const payment = getLicenseRenewalPayment(app);
+  return [
+    getEditedOfficialReceiptNumber(payment.official_receipt?.document_html),
+    getEditedOfficialReceiptNumber(payment.official_receipt_draft?.document_html),
+    getEditedOfficialReceiptNumber(payment.manual_official_receipt?.document_html),
+    payment.official_receipt?.receipt_no,
+    payment.official_receipt_draft?.receipt_no,
+    payment.manual_official_receipt?.receipt_no,
+    payment.official_receipt_no,
+  ]
+    .map(getSixDigitOfficialReceiptNumber)
+    .find(Boolean);
 }
 
 function isStaleRenewalReceiptNumber(app = null, receiptNo = "") {
@@ -16318,6 +16328,18 @@ const configs = {
                 ...(app.form_data?.payment || {}),
                 official_receipt_no: officialReceiptNo,
               },
+              license_renewal: {
+                ...renewal,
+                payment: {
+                  ...payment,
+                  official_receipt_no: officialReceiptNo,
+                  official_receipt_draft: {
+                    ...savedRenewalManualReceipt,
+                    receipt_no: officialReceiptNo,
+                    receipt_date: timestamp,
+                  },
+                },
+              },
               license: nextLicenseBase,
             },
           };
@@ -16335,17 +16357,20 @@ const configs = {
               dateValue: timestamp,
             }
           );
-          const licenseDocumentHtml = ensureAdvertisementLicenseIssueDate(
-            savedRenewalManualLicense.document_html ||
-              forceAdvertisementLicensePeriodLine(
-                getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
-                documentApp
-              ),
-            documentApp,
-            {
-              forceIssueDate: true,
-              issueDateValue: timestamp,
-            }
+          const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
+            normalizeAdvertisementLicenseDocumentSpacing(
+              migrateAdvertisementLicenseDocumentHtml(
+                savedRenewalManualLicense.document_html ||
+                  getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
+                documentApp,
+                data?.applications,
+                {
+                  forceIssueDate: true,
+                  issueDateValue: timestamp,
+                }
+              )
+            ),
+            documentApp
           );
           const nextManualReceipt = {
             ...savedManualReceipt,
@@ -22401,7 +22426,10 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
   const issueDate = addDays(expiryDate, 1);
   const expiry = addCalendarYears(expiryDate, 1);
   const licenseId = license.license_id || getLicenseId(app);
-  const officialReceiptNo = getRenewalOfficialReceiptNumber(app, applications, preferredReceiptNo);
+  const officialReceiptNo =
+    getSixDigitOfficialReceiptNumber(preferredReceiptNo) ||
+    getRenewalOfficialReceiptSourceNumber(app) ||
+    getRenewalOfficialReceiptNumber(app, applications, preferredReceiptNo);
   const renewalReceiptDocumentHtml = renewalManualReceipt.document_html || "";
   const canUseRenewalReceiptDocumentHtml = isOfficialReceiptDocumentHtmlForNumber(
     renewalReceiptDocumentHtml,
