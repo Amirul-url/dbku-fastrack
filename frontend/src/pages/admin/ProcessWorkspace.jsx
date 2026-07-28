@@ -12790,7 +12790,7 @@ function buildFirstReminderLetterDocumentHtml(app, months = 3) {
 
   <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u class="date-nowrap" data-renewal-editable="true">${escapeHtml(context.expiryDate)}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
 
-  <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u>EMPAT BELAS (14) HARI BEKERJA</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
+  <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u data-renewal-editable="true">${escapeHtml(context.reminderPeriod)}</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
 
   <table>
     <thead>
@@ -12831,6 +12831,8 @@ function buildFirstReminderLetterDocumentHtml(app, months = 3) {
 function getFirstReminderLetterContext(app, months = 3) {
   const license = app?.form_data?.license || {};
   const expiryDate = parseDateOrFallback(license.expiry_date, null);
+  const letterDate = new Date();
+  const daysUntilExpiry = getCalendarDayDifference(letterDate, expiryDate);
   const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
   const renewalEnd = expiryDate ? addCalendarYears(expiryDate, 1) : null;
   const location = getApplicationLocation(app);
@@ -12840,12 +12842,13 @@ function getFirstReminderLetterContext(app, months = 3) {
 
   return {
     yourRef: "",
-    ourRef: `DBKU/LES/IKL/${new Date().getFullYear().toString().slice(-2)}/1(b)/ (   )`,
-    letterDate: formatMalayLetterDate(new Date()),
+    ourRef: `DBKU/LES/IKL/${letterDate.getFullYear().toString().slice(-2)}/1(b)/ (   )`,
+    letterDate: formatMalayLetterDate(letterDate),
     applicantName: getFirstReminderCompanyName(app),
     addressLines: getLetterAddressLines(app),
     subject: `PERINGATAN ${getMalayRenewalReminderOrdinal(months)} - BAYARAN LESEN IKLAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
     expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
+    reminderPeriod: formatMalayDayPeriod(daysUntilExpiry),
     renewalPeriod:
       renewalStart && renewalEnd
         ? `${formatDotDate(renewalStart)} hingga ${formatDotDate(renewalEnd)}`
@@ -12857,6 +12860,64 @@ function getFirstReminderLetterContext(app, months = 3) {
 function cleanFirstReminderLetterValue(value) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return text && text !== "-" ? text.toUpperCase() : "";
+}
+
+function getCalendarDayDifference(startValue, endValue) {
+  const start = parseDateOrFallback(startValue, null);
+  const end = parseDateOrFallback(endValue, null);
+  if (!start || !end) return 0;
+
+  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const endUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.max(0, Math.round((endUtc - startUtc) / 86400000));
+}
+
+function formatMalayDayPeriod(days) {
+  const normalizedDays = Math.max(0, Number(days || 0));
+  return `${spellMalayNumber(normalizedDays)} (${normalizedDays}) HARI`;
+}
+
+function spellMalayNumber(value) {
+  const number = Math.max(0, Math.floor(Number(value || 0)));
+  const ones = [
+    "SIFAR",
+    "SATU",
+    "DUA",
+    "TIGA",
+    "EMPAT",
+    "LIMA",
+    "ENAM",
+    "TUJUH",
+    "LAPAN",
+    "SEMBILAN",
+  ];
+
+  if (number < 10) return ones[number];
+  if (number === 10) return "SEPULUH";
+  if (number === 11) return "SEBELAS";
+  if (number < 20) return `${ones[number - 10]} BELAS`;
+  if (number < 100) {
+    const tens = Math.floor(number / 10);
+    const remainder = number % 10;
+    return `${ones[tens]} PULUH${remainder ? ` ${spellMalayNumber(remainder)}` : ""}`;
+  }
+  if (number < 200) {
+    const remainder = number - 100;
+    return `SERATUS${remainder ? ` ${spellMalayNumber(remainder)}` : ""}`;
+  }
+  if (number < 1000) {
+    const hundreds = Math.floor(number / 100);
+    const remainder = number % 100;
+    return `${ones[hundreds]} RATUS${remainder ? ` ${spellMalayNumber(remainder)}` : ""}`;
+  }
+  if (number < 2000) {
+    const remainder = number - 1000;
+    return `SERIBU${remainder ? ` ${spellMalayNumber(remainder)}` : ""}`;
+  }
+
+  const thousands = Math.floor(number / 1000);
+  const remainder = number % 1000;
+  return `${spellMalayNumber(thousands)} RIBU${remainder ? ` ${spellMalayNumber(remainder)}` : ""}`;
 }
 
 function getFirstReminderCompanyName(app) {

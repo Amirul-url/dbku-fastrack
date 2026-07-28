@@ -3397,7 +3397,7 @@ def build_renewal_letter_document_html(application, months):
 
   <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u class="date-nowrap">{escape_html(data["expiry_date"])}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
 
-  <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u>EMPAT BELAS (14) HARI BEKERJA</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
+  <p class="para"><span>3.</span><span>Justeru, tuan dikehendaki untuk membuat pembaharuan Lesen Iklan dalam tempoh <strong><u>{escape_html(data["reminder_period"])}</u></strong> daripada tarikh surat ini diterima seperti di bawah:-</span></p>
 
   <table>
     <thead>
@@ -3463,6 +3463,7 @@ def get_renewal_letter_context(application, months):
         "address_lines": address_lines[:4],
         "subject": build_renewal_letter_subject_for_month(application, location, months),
         "expiry_date": format_malay_date(expiry_date) if expiry_date else "-",
+        "reminder_period": format_renewal_day_period(days_between_dates(today, expiry_date)),
         "renewal_period": build_renewal_period(expiry_date),
         "amount": "",
     }
@@ -3686,6 +3687,57 @@ def format_malay_date(date_value):
         "Disember",
     )
     return f"{date_value.day} {months[date_value.month - 1]} {date_value.year}"
+
+
+def days_between_dates(start_date, end_date):
+    if not start_date or not end_date:
+        return 0
+    return max(0, (end_date - start_date).days)
+
+
+def format_renewal_day_period(days):
+    normalized_days = max(0, int(days or 0))
+    return f"{spell_malay_number(normalized_days)} ({normalized_days}) HARI"
+
+
+def spell_malay_number(value):
+    number = max(0, int(value or 0))
+    ones = (
+        "SIFAR",
+        "SATU",
+        "DUA",
+        "TIGA",
+        "EMPAT",
+        "LIMA",
+        "ENAM",
+        "TUJUH",
+        "LAPAN",
+        "SEMBILAN",
+    )
+
+    if number < 10:
+        return ones[number]
+    if number == 10:
+        return "SEPULUH"
+    if number == 11:
+        return "SEBELAS"
+    if number < 20:
+        return f"{ones[number - 10]} BELAS"
+    if number < 100:
+        tens, remainder = divmod(number, 10)
+        return f"{ones[tens]} PULUH{f' {spell_malay_number(remainder)}' if remainder else ''}"
+    if number < 200:
+        remainder = number - 100
+        return f"SERATUS{f' {spell_malay_number(remainder)}' if remainder else ''}"
+    if number < 1000:
+        hundreds, remainder = divmod(number, 100)
+        return f"{ones[hundreds]} RATUS{f' {spell_malay_number(remainder)}' if remainder else ''}"
+    if number < 2000:
+        remainder = number - 1000
+        return f"SERIBU{f' {spell_malay_number(remainder)}' if remainder else ''}"
+
+    thousands, remainder = divmod(number, 1000)
+    return f"{spell_malay_number(thousands)} RIBU{f' {spell_malay_number(remainder)}' if remainder else ''}"
 
 
 def build_cancellation_notice_text(application):

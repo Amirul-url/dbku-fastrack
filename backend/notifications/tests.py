@@ -20,6 +20,7 @@ from .services import (
     notify_license_renewal_payment_submitted,
     notify_license_revocation_request,
     build_renewal_letter_document_html,
+    format_renewal_day_period,
     process_license_renewal_reminders,
 )
 from .channels import send_brevo_email, send_smtp_email, send_webhook_whatsapp
@@ -2368,6 +2369,13 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.assertNotIn("PERINGATAN PERTAMA", second_html)
         self.assertIn("PERINGATAN KETIGA", final_html)
         self.assertNotIn("PERINGATAN PERTAMA", final_html)
+        self.assertNotIn("HARI BEKERJA", second_html)
+        self.assertNotIn("HARI BEKERJA", final_html)
+
+    def test_renewal_letter_day_period_uses_calendar_days(self):
+        self.assertEqual(format_renewal_day_period(92), "SEMBILAN PULUH DUA (92) HARI")
+        self.assertEqual(format_renewal_day_period(61), "ENAM PULUH SATU (61) HARI")
+        self.assertEqual(format_renewal_day_period(31), "TIGA PULUH SATU (31) HARI")
 
     @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False, NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
     def test_kb_confirmation_web_notification_is_created_when_side_effects_disabled(self):
