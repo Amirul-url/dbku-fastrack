@@ -1,5 +1,3 @@
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
@@ -13,54 +11,97 @@ function LicenseVerificationPage() {
   const { licenseId } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const printRequestRef = useRef(0);
+  const [documentHtml, setDocumentHtml] = useState("");
+  const [documentUrl, setDocumentUrl] = useState("");
+  const [documentTitle, setDocumentTitle] = useState("Advertisement License");
+  const previewUrlRef = useRef("");
+  const requestRef = useRef(0);
 
   useEffect(() => {
     let active = true;
-    const requestId = printRequestRef.current + 1;
-    printRequestRef.current = requestId;
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
 
-    async function openSourceLicensePdfViewer() {
+    async function loadSourceLicenseDocument() {
       try {
         setLoading(true);
         setError("");
+        setDocumentHtml("");
+        setDocumentUrl("");
+
         const verification = await fetchPublicLicenseVerification(licenseId);
-        if (!active || requestId !== printRequestRef.current) return;
+        if (!active || requestId !== requestRef.current) return;
 
         if (!verification?.document_url) {
           throw new Error("Advertisement license document is unavailable.");
         }
 
         const title = getLicensePrintTitle(verification);
-        const pdfUrl = await getSourceLicensePdfViewerUrl(verification.document_url, title);
-        if (!active || requestId !== printRequestRef.current) return;
-        window.location.replace(pdfUrl);
+        const preview = await getSourceLicensePreview(verification.document_url);
+        if (!active || requestId !== requestRef.current) return;
+
+        if (previewUrlRef.current) {
+          URL.revokeObjectURL(previewUrlRef.current);
+        }
+        previewUrlRef.current = preview.objectUrl || "";
+
+        setDocumentTitle(title);
+        setDocumentHtml(preview.html || "");
+        setDocumentUrl(preview.url || "");
+        setLoading(false);
       } catch (requestError) {
-        if (!active || requestId !== printRequestRef.current) return;
+        if (!active || requestId !== requestRef.current) return;
         console.error("Failed to verify license:", requestError);
         setError(requestError.message || "The scanned license could not be opened.");
         setLoading(false);
       }
     }
 
-    openSourceLicensePdfViewer();
+    loadSourceLicenseDocument();
     return () => {
       active = false;
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = "";
+      }
     };
   }, [licenseId]);
 
+  async function handlePrintLicense() {
+    try {
+      setError("");
+      if (documentHtml) {
+        await printHtmlDocument(documentHtml, documentTitle);
+      } else if (documentUrl) {
+        await printUrlDocument(documentUrl, documentTitle);
+      }
+    } catch (printError) {
+      console.error("Failed to print license:", printError);
+      setError(printError.message || "The advertisement license could not be printed.");
+    }
+  }
+
+  const canPrint = !loading && !error && (documentHtml || documentUrl);
+
   return (
-    <div className="min-h-screen bg-[#f5f7f6] px-4 py-8 text-[#1a1c1c]">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-6 border-l-4 border-[#006d32] pl-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#006d32]">
-            ALiS License Verification
-          </p>
-          <h1 className="text-2xl font-bold">Digital License Details</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Verification result for scanned advertisement license QR.
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#eef3f7] px-4 py-5 text-[#1a1c1c]">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-4 flex items-center justify-between gap-4 border border-slate-200 border-l-[#006d32] border-l-4 bg-white px-5 py-4 shadow-sm">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#006d32]">
+              ALiS License Verification
+            </p>
+            <h1 className="text-2xl font-bold">Digital License Details</h1>
+          </div>
+          <button
+            type="button"
+            onClick={handlePrintLicense}
+            disabled={!canPrint}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-[#006d32] px-5 text-sm font-bold text-white shadow-sm hover:bg-[#005224] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Print License
+          </button>
+        </header>
 
         {loading ? (
           <Panel>
@@ -75,21 +116,24 @@ function LicenseVerificationPage() {
             />
           </Panel>
         ) : (
-          <Panel title="Advertisement License">
-            <p className="text-sm text-slate-500">
-              The advertisement license PDF viewer has been opened from the source license document.
-            </p>
-          </Panel>
+          <section className="overflow-hidden border border-slate-300 bg-white shadow-sm">
+            <iframe
+              title={documentTitle}
+              src={documentUrl || undefined}
+              srcDoc={documentHtml || undefined}
+              className="h-[calc(100vh-9.75rem)] min-h-[620px] w-full border-0 bg-white"
+            />
+          </section>
         )}
       </div>
     </div>
   );
 }
 
-async function getSourceLicensePdfViewerUrl(documentUrl, title) {
+async function getSourceLicensePreview(documentUrl) {
   const response = await fetch(getApiUrl(documentUrl), {
     headers: {
-      Accept: "application/pdf,text/html;q=0.9,*/*;q=0.8",
+      Accept: "text/html,application/pdf;q=0.9,*/*;q=0.8",
     },
   });
 
@@ -104,27 +148,27 @@ async function getSourceLicensePdfViewerUrl(documentUrl, title) {
       pdfBlob.type === PDF_MIME_TYPE
         ? pdfBlob
         : new Blob([pdfBlob], { type: PDF_MIME_TYPE });
-    return URL.createObjectURL(normalizedPdfBlob);
+    const objectUrl = URL.createObjectURL(normalizedPdfBlob);
+    return { url: objectUrl, objectUrl };
   }
 
   const html = await response.text();
-  const pdfBlob = await renderHtmlLicenseToPdfBlob(
-    prepareStandaloneHtmlDocument(html, documentUrl),
-    title
-  );
-  return URL.createObjectURL(pdfBlob);
+  return {
+    html: prepareStandaloneHtmlDocument(html, documentUrl),
+    objectUrl: "",
+  };
 }
 
-async function renderHtmlLicenseToPdfBlob(html, title) {
+async function printHtmlDocument(html, title) {
+  const originalTitle = document.title;
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
   iframe.style.bottom = "0";
-  iframe.style.width = "210mm";
-  iframe.style.height = "297mm";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
   iframe.style.border = "0";
   iframe.style.opacity = "0";
-  iframe.style.pointerEvents = "none";
   iframe.setAttribute("aria-hidden", "true");
   document.body.appendChild(iframe);
 
@@ -136,9 +180,10 @@ async function renderHtmlLicenseToPdfBlob(html, title) {
   }
 
   frameDocument.open();
-  frameDocument.write(prepareHtmlForPdfCapture(html));
+  frameDocument.write(html);
   frameDocument.close();
   frameDocument.title = title;
+  document.title = title;
 
   await waitForDocumentImages(frameDocument);
   if (frameDocument?.fonts?.ready) {
@@ -146,36 +191,59 @@ async function renderHtmlLicenseToPdfBlob(html, title) {
   }
   await new Promise((resolve) => setTimeout(resolve, 250));
 
-  try {
-    const pages = Array.from(frameDocument.querySelectorAll(".ad-license-page"));
-    const pdf = new jsPDF("p", "mm", "a4");
-    pdf.setProperties({ title });
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
 
-    const printablePages = pages.length > 0 ? pages : [frameDocument.body];
-    for (const [index, page] of printablePages.entries()) {
-      if (index > 0) pdf.addPage();
+  frameWindow.focus();
+  frameWindow.print();
+}
 
-      const canvas = await html2canvas(page, {
-        backgroundColor: "#ffffff",
-        logging: false,
-        scale: 2,
-        useCORS: true,
-        windowWidth: page.scrollWidth,
-        windowHeight: page.scrollHeight,
-      });
-      const imageData = canvas.toDataURL("image/png");
-      pdf.addImage(imageData, "PNG", 0, 0, 210, 297, undefined, "FAST");
-    }
+async function printUrlDocument(url, title) {
+  const originalTitle = document.title;
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
 
-    return pdf.output("blob");
-  } finally {
-    iframe.remove();
+  const cleanup = () => {
+    document.title = originalTitle;
+    setTimeout(() => iframe.remove(), 500);
+  };
+
+  document.body.appendChild(iframe);
+  document.title = title;
+
+  await new Promise((resolve, reject) => {
+    iframe.onload = resolve;
+    iframe.onerror = reject;
+    iframe.src = url;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const frameWindow = iframe.contentWindow;
+  if (!frameWindow) {
+    cleanup();
+    throw new Error("Unable to prepare print document.");
   }
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 120000);
+  frameWindow.focus();
+  frameWindow.print();
 }
 
 function prepareStandaloneHtmlDocument(html, documentUrl) {
   const baseHref = getDocumentBaseHref(documentUrl);
-  const printableCss = `
+  const previewCss = `
     <style>
       .print-actions { display: none !important; }
       html, body { background: #ffffff !important; }
@@ -184,42 +252,7 @@ function prepareStandaloneHtmlDocument(html, documentUrl) {
 
   return String(html || "")
     .replace(/<head([^>]*)>/i, `<head$1><base href="${escapeHtmlAttribute(baseHref)}" />`)
-    .replace(/<\/head>/i, `${printableCss}</head>`);
-}
-
-function prepareHtmlForPdfCapture(html) {
-  const pdfCss = `
-    <style data-license-pdf-capture="true">
-      html, body {
-        width: 210mm !important;
-        min-height: 297mm !important;
-        margin: 0 !important;
-        background: #ffffff !important;
-        overflow: visible !important;
-      }
-      .print-actions { display: none !important; }
-      .ad-license-page {
-        width: 210mm !important;
-        min-height: 297mm !important;
-        margin: 0 !important;
-        box-shadow: none !important;
-        overflow: hidden !important;
-      }
-      .dot-line {
-        border-bottom: 0 !important;
-        background-image: linear-gradient(to right, #111 44%, transparent 0) !important;
-        background-position: left calc(100% - 0.6mm) !important;
-        background-repeat: repeat-x !important;
-        background-size: 1.35mm 1px !important;
-        line-height: 5.2mm !important;
-        min-height: 5.8mm !important;
-        padding-bottom: 0.5mm !important;
-      }
-      [contenteditable="true"] { outline: none !important; box-shadow: none !important; }
-    </style>
-  `;
-
-  return String(html || "").replace(/<\/head>/i, `${pdfCss}</head>`);
+    .replace(/<\/head>/i, `${previewCss}</head>`);
 }
 
 function getDocumentBaseHref(documentUrl) {
@@ -260,14 +293,9 @@ function escapeHtmlAttribute(value) {
     .replace(/>/g, "&gt;");
 }
 
-function Panel({ title, children }) {
+function Panel({ children }) {
   return (
     <section className="mb-6 overflow-hidden rounded-md border border-slate-200 bg-white">
-      {title && (
-        <div className="border-b border-slate-200 border-t-4 border-[#006d32] px-5 py-4">
-          <h2 className="text-base font-bold">{title}</h2>
-        </div>
-      )}
       <div className="p-5">{children}</div>
     </section>
   );
@@ -275,11 +303,9 @@ function Panel({ title, children }) {
 
 function StatusNotice({ type, title, description }) {
   const styles =
-    type === "success"
-      ? "border-green-200 bg-green-50 text-green-800"
-      : type === "error"
-        ? "border-red-200 bg-red-50 text-red-800"
-        : "border-yellow-200 bg-yellow-50 text-yellow-800";
+    type === "error"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : "border-yellow-200 bg-yellow-50 text-yellow-800";
 
   return (
     <div className={`mb-6 rounded-md border px-5 py-4 ${styles}`}>
