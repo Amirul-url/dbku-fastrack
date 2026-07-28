@@ -4533,16 +4533,7 @@ function getLicenseVerificationUrl(licenseId) {
       ? window.location.origin
       : "";
   const configuredOrigin = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
-  let origin = runtimeOrigin;
-
-  try {
-    const runtimeHost = new URL(runtimeOrigin).hostname.toLowerCase();
-    if (["localhost", "127.0.0.1", "0.0.0.0"].includes(runtimeHost)) {
-      origin = configuredOrigin || runtimeOrigin;
-    }
-  } catch {
-    origin = configuredOrigin || runtimeOrigin;
-  }
+  const origin = runtimeOrigin || configuredOrigin;
 
   return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
 }

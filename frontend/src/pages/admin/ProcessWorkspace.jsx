@@ -11563,16 +11563,7 @@ function escapeHtml(value) {
 function getPublicOrigin() {
   const runtimeOrigin = getRuntimeOrigin();
 
-  try {
-    const runtimeHost = new URL(runtimeOrigin).hostname.toLowerCase();
-    if (!["localhost", "127.0.0.1", "0.0.0.0"].includes(runtimeHost)) {
-      return runtimeOrigin;
-    }
-  } catch {
-    // Use the configured public frontend URL below.
-  }
-
-  return PUBLIC_FRONTEND_URL || runtimeOrigin;
+  return runtimeOrigin || PUBLIC_FRONTEND_URL;
 }
 
 function getRuntimeOrigin() {
