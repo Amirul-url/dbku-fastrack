@@ -2332,16 +2332,11 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             file: officialReceiptFile,
             manual: manualReceipt,
             type: "receipt",
-            isDocumentGroup: showRenewalOfficialReceipt,
-            relatedDocuments: showRenewalOfficialReceipt
-              ? [
-                  ...(showOfficialReceipt ? [originalOfficialReceiptRow] : []),
-                  renewalOfficialReceiptRow,
-                ]
-              : [],
-            onDownload: showOfficialReceipt
-              ? originalOfficialReceiptRow.onDownload
-              : renewalOfficialReceiptRow.onDownload,
+            isDocumentGroup: true,
+            relatedDocuments: [
+              ...(showOfficialReceipt ? [originalOfficialReceiptRow] : []),
+              ...(showRenewalOfficialReceipt ? [renewalOfficialReceiptRow] : []),
+            ],
             available: showOfficialReceipt || showRenewalOfficialReceipt,
           },
         ]
@@ -2349,18 +2344,16 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     ...(originalPaymentReceiptFile
       ? [
           {
-            label: showRenewalReceiptInDocuments
-              ? t("applicant.paymentReceiptDetails", "Payment Receipt Details")
-              : t("applicant.originalPaymentReceipt", "Original Payment Receipt Applicant"),
+            label: t("applicant.paymentReceiptDetails", "Payment Receipt Details"),
             file: originalPaymentReceiptFile,
             type: "original_payment_receipt",
             hideFileName: true,
-            details: showRenewalReceiptInDocuments ? [] : originalPaymentReceiptDetails,
-            isDocumentGroup: showRenewalReceiptInDocuments,
-            relatedDocuments: showRenewalReceiptInDocuments
-              ? [originalPaymentReceiptRow, renewalEarlyPaymentReceiptRow]
-              : [],
-            onDownload: originalPaymentReceiptRow.onDownload,
+            isDocumentGroup: true,
+            relatedDocuments: [
+              originalPaymentReceiptRow,
+              ...(showRenewalReceiptInDocuments ? [renewalEarlyPaymentReceiptRow] : []),
+            ],
+            available: true,
           },
         ]
       : []),
@@ -2374,14 +2367,12 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
             file: license.license_file,
             manual: manualLicense,
             type: "advertisement_license",
-            isDocumentGroup: showRenewalAdvertisementLicense,
-            relatedDocuments: showRenewalAdvertisementLicense
-              ? [
-                  ...(showAdvertisementLicense ? [originalAdvertisementLicenseRow] : []),
-                  renewalAdvertisementLicenseRow,
-                ]
-              : [],
-            onDownload: originalAdvertisementLicenseRow.onDownload,
+            isDocumentGroup: true,
+            relatedDocuments: [
+              ...(showAdvertisementLicense ? [originalAdvertisementLicenseRow] : []),
+              ...(showRenewalAdvertisementLicense ? [renewalAdvertisementLicenseRow] : []),
+            ],
+            available: showAdvertisementLicense || showRenewalAdvertisementLicense,
           },
         ]
       : []),
