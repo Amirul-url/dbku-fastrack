@@ -1953,9 +1953,20 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           {}),
         template: "dbku_advertisement_license_borang_b_v1",
         name: t("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+        issue_date: now,
         document_html: normalizeAdvertisementLicenseDocumentSpacing(
-          documentHtml ||
-            getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications)
+          ensureAdvertisementLicenseIssueDate(
+            documentHtml ||
+              getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications, "", {
+                forceIssueDate: true,
+                issueDateValue: now,
+              }),
+            selectedRecord,
+            {
+              forceIssueDate: true,
+              issueDateValue: now,
+            }
+          )
         ),
         status: "Draft",
         saved_by: userDepartment,
@@ -4571,7 +4582,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html:
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
-                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, receiptApplications)
+                ? getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, receiptApplications, "", {
+                    forceDate: true,
+                    dateValue: new Date().toISOString(),
+                  })
                 : getOriginalGeneratedOfficialReceiptDocumentHtml(selectedRecord, receiptApplications),
             scale: 0.95,
             editable: true,
@@ -4593,7 +4607,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             html:
               normalizeDepartmentCode(userDepartment) === "PT(IKL)" &&
               getLicenseRenewalPaymentStatus(selectedRecord) === "verified"
-                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications)
+                ? getRenewalGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications, "", {
+                    forceIssueDate: true,
+                    issueDateValue: new Date().toISOString(),
+                  })
                 : getGeneratedAdvertisementLicenseDocumentHtml(selectedRecord, t, receiptApplications),
             scale: 0.9,
             editable: true,
@@ -16317,12 +16334,18 @@ const configs = {
               dateValue: timestamp,
             }
           );
-          const licenseDocumentHtml =
+          const licenseDocumentHtml = ensureAdvertisementLicenseIssueDate(
             savedRenewalManualLicense.document_html ||
-            forceAdvertisementLicensePeriodLine(
-              getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
-              documentApp
-            );
+              forceAdvertisementLicensePeriodLine(
+                getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
+                documentApp
+              ),
+            documentApp,
+            {
+              forceIssueDate: true,
+              issueDateValue: timestamp,
+            }
+          );
           const nextManualReceipt = {
             ...savedManualReceipt,
             ...savedRenewalManualReceipt,
@@ -16342,6 +16365,7 @@ const configs = {
             ...savedRenewalManualLicense,
             template: "dbku_advertisement_license_borang_b_v1",
             name: translate("workspace.license.renewalDocumentTitle", "Renewal Advertisement License"),
+            issue_date: timestamp,
             document_html: licenseDocumentHtml,
             status: "Sent to Applicant",
             digital_signature: digitalSignature,
@@ -22427,16 +22451,32 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
   };
 }
 
-function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications = [], preferredReceiptNo = "") {
-  return getGeneratedOfficialReceiptDocumentHtml(
-    getRenewalCompletionDocumentApp(app, applications, preferredReceiptNo)
+function getRenewalGeneratedOfficialReceiptDocumentHtml(app, t, applications = [], preferredReceiptNo = "", options = {}) {
+  const documentApp = getRenewalCompletionDocumentApp(app, applications, preferredReceiptNo);
+  return normalizeGeneratedOfficialReceiptDocumentHtml(
+    getGeneratedOfficialReceiptDocumentHtml(documentApp),
+    documentApp,
+    options
   );
 }
 
-function getRenewalGeneratedAdvertisementLicenseDocumentHtml(app, t, applications = [], preferredReceiptNo = "") {
+function getRenewalGeneratedAdvertisementLicenseDocumentHtml(
+  app,
+  t,
+  applications = [],
+  preferredReceiptNo = "",
+  options = {}
+) {
   const documentApp = getRenewalCompletionDocumentApp(app, applications, preferredReceiptNo);
   return forceAdvertisementLicensePeriodLine(
-    getGeneratedAdvertisementLicenseDocumentHtml(documentApp, t, applications),
+    normalizeAdvertisementLicenseDocumentSpacing(
+      migrateAdvertisementLicenseDocumentHtml(
+        getGeneratedAdvertisementLicenseDocumentHtml(documentApp, t, applications),
+        documentApp,
+        applications,
+        options
+      )
+    ),
     documentApp
   );
 }
@@ -22653,10 +22693,10 @@ function ensureAdvertisementLicenseComputerNoticeHtml(html = "") {
   );
 }
 
-function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications = []) {
+function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications = [], options = {}) {
   const details = getAdvertisementLicenseAutofillDetails(app);
 
-  return String(html || "")
+  const migratedHtml = String(html || "")
     .replace(
       /<div class="top-fields">[\s\S]*?<\/div>/i,
       () => buildAdvertisementLicenseTopFields(app, applications)
@@ -22676,25 +22716,31 @@ function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications 
     .replace(
       /<(?:p|div)[^>]*class=["'][^"']*\battachment-line\b[^"']*["'][^>]*>[\s\S]*?<\/(?:p|div)>/i,
       (block) => buildAdvertisementLicenseAttachmentLine(details, getAdvertisementLicenseDotValues(block))
-    )
-    .replace(
-      /(<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Tarikh:\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
-      (match, before, currentValue, after) => {
-        const currentText = getHtmlPlainText(currentValue);
-        return currentText
-          ? match
-          : `${before}${escapeHtml(getAdvertisementLicenseIssueDateDisplay(app))}${after}`;
-      }
     );
+
+  return ensureAdvertisementLicenseIssueDate(migratedHtml, app, options);
 }
 
-function getAdvertisementLicenseIssueDateDisplay(app = null) {
+function ensureAdvertisementLicenseIssueDate(html, app = null, options = {}) {
+  return String(html || "").replace(
+    /(<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Tarikh:\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
+    (match, before, currentValue, after) => {
+      const currentText = getHtmlPlainText(currentValue);
+      return currentText && !options.forceIssueDate
+        ? match
+        : `${before}${escapeHtml(getAdvertisementLicenseIssueDateDisplay(app, options))}${after}`;
+    }
+  );
+}
+
+function getAdvertisementLicenseIssueDateDisplay(app = null, options = {}) {
   const license = app?.form_data?.license || {};
   const manualLicense = license.manual_license || {};
   const payment = app?.form_data?.payment || {};
   const renewalPayment = app?.form_data?.license_renewal?.payment || {};
   return formatMalayLetterDate(
     firstPresentValue(
+      options.issueDateValue,
       manualLicense.issue_date,
       manualLicense.issued_at,
       manualLicense.saved_at,
