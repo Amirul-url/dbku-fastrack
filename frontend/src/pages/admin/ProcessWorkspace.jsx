@@ -2604,6 +2604,34 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     }
 
     if (
+      action.key === "issue_license" &&
+      (
+        !hasSavedOriginalOfficialReceiptDocument(selectedRecord, receiptApplications) ||
+        !hasSavedAdvertisementLicenseDocument(selectedRecord)
+      )
+    ) {
+      setError(t(
+        "workspace.license.savedReceiptLicenseRequired",
+        "Please review and save the official receipt and advertisement license before issuing."
+      ));
+      return;
+    }
+
+    if (
+      action.key === "complete_renewal_payment" &&
+      (
+        !hasSavedRenewalOfficialReceiptDocument(selectedRecord, receiptApplications) ||
+        !hasSavedRenewalAdvertisementLicenseDocument(selectedRecord)
+      )
+    ) {
+      setError(t(
+        "workspace.license.savedRenewalReceiptLicenseRequired",
+        "Please review and save the renewal official receipt and advertisement license before submitting."
+      ));
+      return;
+    }
+
+    if (
       action.requiresLicenseDocument &&
       !getPaymentDocumentSource(selectedRecord.form_data?.license?.license_file)
     ) {
@@ -16028,10 +16056,12 @@ const configs = {
               : buildGeneratedOfficialReceiptDocumentHtml(documentApp),
             documentApp
           );
-          const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
-            getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
-            documentApp
-          );
+          const licenseDocumentHtml =
+            savedManualLicense.document_html ||
+            forceAdvertisementLicensePeriodLine(
+              getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
+              documentApp
+            );
 
           return {
             status: "license_issued",
@@ -22867,24 +22897,77 @@ function hasPaymentDocuments(app) {
 }
 
 function hasUploadedPaymentDocuments(app) {
-  const hasApprovalLetter =
-    getPaymentDocumentSource(getStoredPaymentDocument(app, "letter")) ||
-    hasManualApprovalLetter(app);
-  const hasBill =
-    getPaymentDocumentSource(getStoredPaymentDocument(app, "bill")) ||
-    hasManualBill(app);
+  return Boolean(hasManualApprovalLetter(app) && hasManualBill(app));
+}
 
-  return Boolean(hasApprovalLetter && hasBill);
+function hasSavedGeneratedDocument(document) {
+  return Boolean(String(document?.document_html || "").trim());
 }
 
 function hasManualApprovalLetter(app) {
   const manualLetter = app?.form_data?.approval_letter?.manual_letter || {};
-  return Boolean(manualLetter.document_html || manualLetter.editable_body_html || manualLetter.saved_at);
+  return hasSavedGeneratedDocument(manualLetter);
 }
 
 function hasManualBill(app) {
   const manualBill = app?.form_data?.approval_letter?.manual_bill || {};
-  return Boolean(manualBill.document_html || manualBill.editable_body_html || manualBill.saved_at);
+  return hasSavedGeneratedDocument(manualBill);
+}
+
+function hasSavedOriginalOfficialReceiptDocument(app, applications = []) {
+  const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
+  if (!hasSavedGeneratedDocument(manualReceipt)) return false;
+
+  const expectedReceiptNo = getOriginalOfficialReceiptNumber(
+    app,
+    applications,
+    manualReceipt.receipt_no
+  );
+  if (!expectedReceiptNo) return true;
+  if (isOfficialReceiptDocumentHtmlForNumber(manualReceipt.document_html, expectedReceiptNo)) {
+    return true;
+  }
+
+  return Boolean(
+    manualReceipt.receipt_no &&
+      normalizeReceiptNumber(manualReceipt.receipt_no) === normalizeReceiptNumber(expectedReceiptNo)
+  );
+}
+
+function hasSavedAdvertisementLicenseDocument(app) {
+  return hasSavedGeneratedDocument(app?.form_data?.license?.manual_license || {});
+}
+
+function hasSavedRenewalOfficialReceiptDocument(app, applications = []) {
+  const payment = getLicenseRenewalPayment(app);
+  const receipt = payment.official_receipt_draft || payment.official_receipt || {};
+  if (!hasSavedGeneratedDocument(receipt)) return false;
+
+  const expectedReceiptNo = getRenewalOfficialReceiptNumber(
+    app,
+    applications,
+    receipt.receipt_no || payment.official_receipt_no
+  );
+  if (!expectedReceiptNo) return true;
+  if (isOfficialReceiptDocumentHtmlForNumber(receipt.document_html, expectedReceiptNo)) {
+    return true;
+  }
+
+  return Boolean(
+    receipt.receipt_no &&
+      normalizeReceiptNumber(receipt.receipt_no) === normalizeReceiptNumber(expectedReceiptNo)
+  );
+}
+
+function hasSavedRenewalAdvertisementLicenseDocument(app) {
+  const payment = getLicenseRenewalPayment(app);
+  return hasSavedGeneratedDocument(
+    payment.renewed_license_draft ||
+      payment.manual_advertisement_license_draft ||
+      payment.renewed_license ||
+      payment.manual_advertisement_license ||
+      {}
+  );
 }
 
 export function getManualApprovalLetterDocumentHtml(app) {
