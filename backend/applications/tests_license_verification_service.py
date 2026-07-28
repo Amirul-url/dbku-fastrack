@@ -94,6 +94,68 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
         self.assertEqual(document.html, self.generated_license_html)
         self.assertEqual(document.name, "Advertisement License")
 
+    def test_prefers_completed_renewal_license_document(self):
+        old_license_html = "<html><body>Old Advertisement License</body></html>"
+        renewed_license_html = "<html><body>Renewed Advertisement License</body></html>"
+        self.application.form_data = {
+            "license": {
+                "license_id": "ALIS202600006",
+                "status": "Active",
+                "license_file": None,
+                "manual_license": {
+                    "name": "Advertisement License",
+                    "document_html": old_license_html,
+                },
+            },
+            "license_renewal": {
+                "payment": {
+                    "status": "completed",
+                    "manual_advertisement_license": {
+                        "name": "Renewal Advertisement License",
+                        "document_html": renewed_license_html,
+                    },
+                },
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        _application, document = get_public_license_document("alis202600006")
+
+        self.assertTrue(document.is_generated)
+        self.assertEqual(document.html, renewed_license_html)
+        self.assertEqual(document.name, "Renewal Advertisement License")
+
+    def test_ignores_uncompleted_renewal_license_document(self):
+        old_license_html = "<html><body>Old Advertisement License</body></html>"
+        renewed_license_html = "<html><body>Draft Renewal Advertisement License</body></html>"
+        self.application.form_data = {
+            "license": {
+                "license_id": "ALIS202600007",
+                "status": "Active",
+                "license_file": None,
+                "manual_license": {
+                    "name": "Advertisement License",
+                    "document_html": old_license_html,
+                },
+            },
+            "license_renewal": {
+                "payment": {
+                    "status": "verified",
+                    "manual_advertisement_license": {
+                        "name": "Draft Renewal Advertisement License",
+                        "document_html": renewed_license_html,
+                    },
+                },
+            },
+        }
+        self.application.save(update_fields=["form_data"])
+
+        _application, document = get_public_license_document("alis202600007")
+
+        self.assertTrue(document.is_generated)
+        self.assertEqual(document.html, old_license_html)
+        self.assertEqual(document.name, "Advertisement License")
+
     def test_raises_404_when_license_is_missing(self):
         with self.assertRaisesMessage(Http404, "Advertisement license not found."):
             get_public_license_document("UNKNOWN")
