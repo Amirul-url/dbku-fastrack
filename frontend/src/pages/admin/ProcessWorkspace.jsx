@@ -273,6 +273,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [firstReminderGeneratedModal, setFirstReminderGeneratedModal] = useState({
     open: false,
     reference: "",
+    months: 3,
     redirectTo: "",
   });
   const [reminderLetterConfirmedModal, setReminderLetterConfirmedModal] = useState({
@@ -2691,7 +2692,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         messageKey: "workspace.license.issueSuccessMessage",
         defaultMessage: "License Has Been Issued!",
       });
-      setFirstReminderGeneratedModal({ open: false, reference: "", redirectTo: "" });
+      setFirstReminderGeneratedModal({ open: false, reference: "", months: 3, redirectTo: "" });
       setReminderLetterConfirmedModal({ open: false, reference: "", redirectTo: "" });
       setReceiptVerificationResultModal({ open: false, result: "", redirectTo: "" });
       setApplicationRejectedModal({
@@ -2798,7 +2799,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         action.key === "approve_renewal_receipt" || body.action === "verify_early_payment";
       const shouldShowApplicationApprovedSuccess = shouldShowApplicationApprovedModal(action, body);
       const shouldShowFirstReminderGeneratedSuccess =
-        action.key === "generate_1st_reminder_letter";
+        action.endpoint === "license-renewal-action" &&
+        action.key !== "confirm_reminder_letter" &&
+        Boolean(action.reminderMonths);
       const shouldShowReminderLetterConfirmedSuccess =
         action.key === "confirm_reminder_letter";
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
@@ -2886,6 +2889,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         setFirstReminderGeneratedModal({
           open: true,
           reference: getApplicationReference(selectedRecord),
+          months: action.reminderMonths || 3,
           redirectTo:
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
@@ -3146,7 +3150,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function closeFirstReminderGeneratedModal() {
     const redirectTo = firstReminderGeneratedModal.redirectTo;
-    setFirstReminderGeneratedModal({ open: false, reference: "", redirectTo: "" });
+    setFirstReminderGeneratedModal({ open: false, reference: "", months: 3, redirectTo: "" });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -4646,6 +4650,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       {firstReminderGeneratedModal.open && (
         <FirstReminderGeneratedSuccessModal
           reference={firstReminderGeneratedModal.reference}
+          months={firstReminderGeneratedModal.months}
           t={t}
           onClose={closeFirstReminderGeneratedModal}
         />
@@ -5178,12 +5183,15 @@ function LicenseIssuedSuccessModal({
   );
 }
 
-function FirstReminderGeneratedSuccessModal({ reference, t, onClose }) {
+function FirstReminderGeneratedSuccessModal({ reference, months = 3, t, onClose }) {
   const displayReference = reference || "Application";
+  const label = getLocalizedRenewalReminderTaskLabel(months, t) || getRenewalReminderTaskLabel(months);
   const message = t(
-    "workspace.license.firstReminderGeneratedSuccessMessage",
-    "1st Reminder Letter For Application {reference} Has Been Generated."
-  ).replace("{reference}", displayReference);
+    "workspace.license.reminderGeneratedSuccessMessage",
+    "{label} Letter For Application {reference} Has Been Generated."
+  )
+    .replace("{label}", label)
+    .replace("{reference}", displayReference);
 
   return (
     <div
@@ -23418,15 +23426,16 @@ function FirstReminderTaskPanel({
   );
   const reminderLetterDownloadHtml = reviewedReminderLetterHtml ? draftHtml : savedReminderLetterHtml;
   const documentTitle = t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
+  const letterLabel = `${label.toLowerCase()} letter`;
   const documentDescription = confirmationMode
     ? t(
-        "workspace.license.firstReminderConfirmDesc",
-        "Please check the generated 1st reminder letter before confirming it for applicant release."
-      )
+        "workspace.license.reminderConfirmDesc",
+        "Please check the generated {letterLabel} before confirming it for applicant release."
+      ).replace("{letterLabel}", letterLabel)
     : t(
-        "workspace.license.firstReminderReviewDesc",
-        "Please review the auto-generated 1st reminder letter before sending it for KB(LES) confirmation."
-      );
+        "workspace.license.reminderReviewDesc",
+        "Please review the auto-generated {letterLabel} before sending it for KB(LES) confirmation."
+      ).replace("{letterLabel}", letterLabel);
   const remarksPlaceholder = confirmationMode
     ? t(
         "workspace.license.firstReminderKbRemarksPlaceholder",
