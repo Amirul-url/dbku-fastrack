@@ -23081,6 +23081,7 @@ function FirstReminderTaskPanel({
   const [documentsExpanded, setDocumentsExpanded] = useState(false);
   const [expandedDocumentRows, setExpandedDocumentRows] = useState({});
   const [reviewDocument, setReviewDocument] = useState(null);
+  const [documentError, setDocumentError] = useState("");
   const signatureBoxRef = useRef(null);
   const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
@@ -23120,6 +23121,14 @@ function FirstReminderTaskPanel({
   async function submitReminderLetter() {
     const cleanedRemarks = cleanRemark(remarks);
 
+    if (!hasReviewSavedReminderLetter) {
+      setDocumentError(t(
+        "workspace.license.reminderLetterReviewSaveRequired",
+        "Please review and save the reminder letter before submitting."
+      ));
+      return;
+    }
+
     if (!cleanedRemarks) {
       onRemarksError?.(t("workspace.validation.remarksRequired", "Remarks are required."));
       return;
@@ -23133,13 +23142,14 @@ function FirstReminderTaskPanel({
     const nextSignature =
       await signatureBoxRef.current?.captureLatestSnapshot?.(signature) || signature;
 
-    onGenerate?.(documentHtml, {
+    onGenerate?.(reminderLetterDownloadHtml, {
       comment: cleanedRemarks,
       signature: nextSignature,
     });
   }
 
   function openReview() {
+    setDocumentError("");
     setReviewDocument({
       title: documentTitle,
       reference: getApplicationReference(app),
@@ -23464,6 +23474,11 @@ function FirstReminderTaskPanel({
                 </div>
               </div>
             </section>
+            {documentError && (
+              <p className="text-[13px] font-medium leading-5 text-red-600">
+                {documentError}
+              </p>
+            )}
           </div>
         </div>
 
@@ -23535,6 +23550,7 @@ function FirstReminderTaskPanel({
           saving={saving}
           onClose={() => setReviewDocument(null)}
           onSave={(nextHtml) => {
+            setDocumentError("");
             onDraftHtmlChange?.(nextHtml);
             setReviewDocument(null);
           }}
