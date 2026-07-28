@@ -2521,9 +2521,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                     </button>
                   ) : (
                     <div className="inline-flex min-h-8 items-center gap-2 text-sm font-semibold text-slate-500">
-                      <span className="material-symbols-outlined invisible text-[18px] text-slate-800">
-                        expand_more
-                      </span>
+                      <span aria-hidden="true" className="h-[18px] w-[18px] shrink-0" />
                       <span>{item.label}</span>
                     </div>
                   )}
