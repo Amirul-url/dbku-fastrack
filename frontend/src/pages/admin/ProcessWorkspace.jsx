@@ -6083,6 +6083,7 @@ function getAdvertisementLicenseReceiptNumber(app = null, applications = []) {
   const hasRenewalLicenseContext = Boolean(
     renewalReceiptNo &&
       (
+        getLicenseRenewalPaymentStatus(app) === "verified" ||
         getLicenseRenewalPaymentStatus(app) === "completed" ||
         app?.form_data?.license?.renewed_at ||
         renewalPayment.renewed_license ||
@@ -22429,6 +22430,22 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
         ...(app?.form_data?.payment || {}),
         official_receipt_no: officialReceiptNo,
       },
+      license_renewal: {
+        ...(app?.form_data?.license_renewal || {}),
+        payment: {
+          ...payment,
+          official_receipt_no: officialReceiptNo,
+          official_receipt_draft: {
+            ...renewalManualReceipt,
+            receipt_no: officialReceiptNo,
+            receipt_date:
+              renewalManualReceipt.receipt_date ||
+              renewalManualReceipt.saved_at ||
+              renewalManualReceipt.generated_at ||
+              new Date().toISOString(),
+          },
+        },
+      },
       license: {
         ...license,
         creation_mode: "generated",
@@ -22722,13 +22739,23 @@ function migrateAdvertisementLicenseDocumentHtml(html, app = null, applications 
 }
 
 function ensureAdvertisementLicenseIssueDate(html, app = null, options = {}) {
-  return String(html || "").replace(
+  const dateDisplay = getAdvertisementLicenseIssueDateDisplay(app, options);
+  const withDateRow = String(html || "").replace(
     /(<div[^>]*class=["'][^"']*\bdate-row\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Tarikh:\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
     (match, before, currentValue, after) => {
       const currentText = getHtmlPlainText(currentValue);
       return currentText && !options.forceIssueDate
         ? match
-        : `${before}${escapeHtml(getAdvertisementLicenseIssueDateDisplay(app, options))}${after}`;
+        : `${before}${escapeHtml(dateDisplay)}${after}`;
+    }
+  );
+  return withDateRow.replace(
+    /(<div[^>]*class=["'][^"']*\battachment-line\b[^"']*["'][^>]*>[\s\S]*?<span[^>]*>\s*Tarikh:\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
+    (match, before, currentValue, after) => {
+      const currentText = getHtmlPlainText(currentValue);
+      return currentText && !options.forceIssueDate
+        ? match
+        : `${before}${escapeHtml(dateDisplay)}${after}`;
     }
   );
 }
