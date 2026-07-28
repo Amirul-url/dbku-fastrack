@@ -12536,11 +12536,11 @@ function getRenewalLetterForMonth(app, months) {
 
 function getRenewalReminderDocumentHtml(app, months, draftHtml = "") {
   const savedHtml = getRenewalLetterForMonth(app, months).document_html || "";
-  return draftHtml || savedHtml || buildFirstReminderLetterDocumentHtml(app);
+  return draftHtml || savedHtml || buildFirstReminderLetterDocumentHtml(app, months);
 }
 
-function buildFirstReminderLetterDocumentHtml(app) {
-  const context = getFirstReminderLetterContext(app);
+function buildFirstReminderLetterDocumentHtml(app, months = 3) {
+  const context = getFirstReminderLetterContext(app, months);
   const addressLines = context.addressLines
     .map((line) => `<p data-renewal-editable="true">${escapeHtml(line)}</p>`)
     .join("");
@@ -12665,7 +12665,7 @@ function buildFirstReminderLetterDocumentHtml(app) {
 </article>`.trim();
 }
 
-function getFirstReminderLetterContext(app) {
+function getFirstReminderLetterContext(app, months = 3) {
   const license = app?.form_data?.license || {};
   const expiryDate = parseDateOrFallback(license.expiry_date, null);
   const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
@@ -12681,7 +12681,7 @@ function getFirstReminderLetterContext(app) {
     letterDate: formatMalayLetterDate(new Date()),
     applicantName: getFirstReminderCompanyName(app),
     addressLines: getLetterAddressLines(app),
-    subject: `PERINGATAN PERTAMA - BAYARAN LESEN IKLAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
+    subject: `PERINGATAN ${getMalayRenewalReminderOrdinal(months)} - BAYARAN LESEN IKLAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
     expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
     renewalPeriod:
       renewalStart && renewalEnd
@@ -12809,14 +12809,14 @@ function getLatestReleasedReminderMonth(app) {
 function getRenewalReminderTaskLabel(months) {
   if (months === 3) return "1st Reminder";
   if (months === 2) return "2nd Reminder";
-  if (months === 1) return "Final Reminder";
+  if (months === 1) return "3rd Reminder";
   return "";
 }
 
 function getLocalizedRenewalReminderTaskLabel(months, t) {
   if (months === 3) return t("workspace.license.firstReminder", "1st Reminder");
   if (months === 2) return t("workspace.license.secondReminder", "2nd Reminder");
-  if (months === 1) return t("workspace.license.finalReminder", "Final Reminder");
+  if (months === 1) return t("workspace.license.finalReminder", "3rd Reminder");
   return "";
 }
 
@@ -16120,7 +16120,7 @@ const configs = {
           months: 3,
           note: data.comment,
           digital_signature: data.approvalSupportSignature || null,
-          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
+          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app, 3),
         }),
       },
       {
@@ -16295,17 +16295,17 @@ const configs = {
           months: 2,
           note: data.comment,
           digital_signature: data.approvalSupportSignature || null,
-          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
+          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app, 2),
         }),
       },
       {
         key: "generate_final_reminder_letter",
-        label: "Generate Final Reminder Letter",
+        label: "Generate 3rd Reminder Letter",
         labelKey: "workspace.action.generateFinalReminderLetter",
         icon: "description",
         endpoint: "license-renewal-action",
         reminderMonths: 1,
-        success: "Final renewal reminder letter generated for KB(LES) confirmation.",
+        success: "3rd renewal reminder letter generated for KB(LES) confirmation.",
         successKey: "workspace.message.finalReminderGenerated",
         isAvailable: (app, department) => canGenerateRenewalReminder(app, department, 1),
         buildPayload: (app, data) => ({
@@ -16313,7 +16313,7 @@ const configs = {
           months: 1,
           note: data.comment,
           digital_signature: data.approvalSupportSignature || null,
-          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app),
+          document_html: data.documentHtml || buildFirstReminderLetterDocumentHtml(app, 1),
         }),
       },
       {
@@ -22586,6 +22586,12 @@ function getAdvertisementLicenseAutofillDetails(app = null) {
   };
 }
 
+function getMalayRenewalReminderOrdinal(months) {
+  if (Number(months) === 2) return "KEDUA";
+  if (Number(months) === 1) return "KETIGA";
+  return "PERTAMA";
+}
+
 function buildAdvertisementLicenseApplicantLines(details, existingValues = []) {
   const defaultAddressLines = splitAdvertisementLicenseAddressLines(details.addressLines);
   const existingAddressLines = existingValues.slice(1).filter(Boolean);
@@ -23116,7 +23122,7 @@ function FirstReminderTaskPanel({
       ? t("workspace.action.generateFirstReminderLetter", "Generate 1st Reminder Letter")
       : months === 2
         ? t("workspace.action.generateSecondReminderLetter", "Generate 2nd Reminder Letter")
-        : t("workspace.action.generateFinalReminderLetter", "Generate Final Reminder Letter");
+        : t("workspace.action.generateFinalReminderLetter", "Generate 3rd Reminder Letter");
 
   async function submitReminderLetter() {
     const cleanedRemarks = cleanRemark(remarks);

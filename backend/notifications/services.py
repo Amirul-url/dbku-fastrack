@@ -562,7 +562,7 @@ def apply_license_reminder_action(
         reminder["status"] = "pending_supervisor_confirmation"
         reminder["letter"] = {
             "type": "renewal_reminder",
-            "template": "dbku_license_renewal_first_reminder_v1",
+            "template": f"dbku_license_renewal_{months}m_reminder_v1",
             "months_before_expiry": months,
             "title": get_renewal_reminder_title(months),
             "generated_at": timezone.now().isoformat(),
@@ -3436,7 +3436,7 @@ def get_renewal_letter_context(application, months):
         "letter_date": format_malay_date(today),
         "applicant_name": applicant_name,
         "address_lines": address_lines[:4],
-        "subject": build_renewal_letter_subject(application, location),
+        "subject": build_renewal_letter_subject_for_month(application, location, months),
         "expiry_date": format_malay_date(expiry_date) if expiry_date else "-",
         "renewal_period": build_renewal_period(expiry_date),
         "amount": "",
@@ -3504,7 +3504,7 @@ def get_renewal_reminder_title(months):
         return "1st Reminder"
     if months == 2:
         return "2nd Reminder"
-    return "Final Reminder"
+    return "3rd Reminder"
 
 
 def get_renewal_application_applicant_name(application):
@@ -3578,9 +3578,21 @@ def build_renewal_letter_reference(date_value):
 
 
 def build_renewal_letter_subject(application, location):
+    return build_renewal_letter_subject_for_month(application, location, 3)
+
+
+def build_renewal_letter_subject_for_month(application, location, months):
     ad_name = get_advertisement_name(application)
     location_text = str(location or "ALAMAT LOKASI PROJEK IKLAN").strip()
-    return f'PERINGATAN PERTAMA - BAYARAN LESEN IKLAN "{ad_name}" DI {location_text}'
+    return f'PERINGATAN {get_malay_renewal_reminder_ordinal(months)} - BAYARAN LESEN IKLAN "{ad_name}" DI {location_text}'
+
+
+def get_malay_renewal_reminder_ordinal(months):
+    if months == 2:
+        return "KEDUA"
+    if months == 1:
+        return "KETIGA"
+    return "PERTAMA"
 
 
 def get_advertisement_name(application):

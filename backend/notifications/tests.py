@@ -19,6 +19,7 @@ from .services import (
     notify_license_renewal_kb_confirmation_task,
     notify_license_renewal_payment_submitted,
     notify_license_revocation_request,
+    build_renewal_letter_document_html,
     process_license_renewal_reminders,
 )
 from .channels import send_brevo_email, send_smtp_email, send_webhook_whatsapp
@@ -2262,6 +2263,75 @@ class LicenseRenewalWorkflowTests(TestCase):
                 metadata__event_status="license_renewal_3m",
             ).exists()
         )
+
+    def test_detects_second_and_final_reminders_when_previous_letters_are_ignored(self):
+        self.application.form_data["license_renewal"] = {
+            "reminders": {
+                "3": {
+                    "months_before_expiry": 3,
+                    "status": "released_to_applicant",
+                    "detected_at": self.local_time(2027, 2, 21, 8, 30).isoformat(),
+                    "expiry_date": self.application.form_data["license"]["expiry_date"],
+                    "letter": {
+                        "title": "1st Reminder",
+                        "document_html": "<article>First reminder</article>",
+                    },
+                }
+            }
+        }
+        self.application.save(update_fields=["form_data"])
+
+        process_license_renewal_reminders(now=self.local_time(2027, 3, 21, 8, 30))
+        self.application.refresh_from_db()
+        reminders = self.application.form_data["license_renewal"]["reminders"]
+        self.assertEqual(reminders["2"]["status"], "pending_pt_letter")
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.supervisor,
+                metadata__event_status="license_renewal_2m",
+            ).exists()
+        )
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.pt_ikl,
+                metadata__event_status="license_renewal_2m",
+            ).exists()
+        )
+
+        reminders["2"].update(
+            {
+                "status": "released_to_applicant",
+                "letter": {
+                    "title": "2nd Reminder",
+                    "document_html": "<article>Second reminder</article>",
+                },
+            }
+        )
+        self.application.form_data["license_renewal"]["reminders"] = reminders
+        self.application.save(update_fields=["form_data"])
+
+        process_license_renewal_reminders(now=self.local_time(2027, 4, 21, 8, 30))
+        self.application.refresh_from_db()
+        reminders = self.application.form_data["license_renewal"]["reminders"]
+        self.assertEqual(reminders["1"]["status"], "pending_pt_letter")
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.pt_ikl,
+                metadata__event_status="license_renewal_1m",
+            ).exists()
+        )
+
+    def test_renewal_letter_template_matches_reminder_sequence(self):
+        second_html = build_renewal_letter_document_html(self.application, 2)
+        final_html = build_renewal_letter_document_html(self.application, 1)
+
+        self.assertIn("PERINGATAN KEDUA", second_html)
+        self.assertNotIn("PERINGATAN PERTAMA", second_html)
+        self.assertIn("PERINGATAN KETIGA", final_html)
+        self.assertNotIn("PERINGATAN PERTAMA", final_html)
 
     @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False, NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
     def test_kb_confirmation_web_notification_is_created_when_side_effects_disabled(self):

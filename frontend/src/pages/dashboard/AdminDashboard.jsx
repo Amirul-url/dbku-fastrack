@@ -5487,7 +5487,7 @@ function getPendingKbRenewalConfirmationMonth(application) {
 function getRenewalReminderTaskLabel(months) {
   if (months === 3) return "1st Reminder";
   if (months === 2) return "2nd Reminder";
-  if (months === 1) return "Final Reminder";
+  if (months === 1) return "3rd Reminder";
   return "";
 }
 

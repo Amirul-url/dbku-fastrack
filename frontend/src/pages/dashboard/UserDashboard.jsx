@@ -4354,21 +4354,21 @@ function getLicenseRenewalReminders(app) {
 function getRenewalReminderTaskLabel(months) {
   if (Number(months) === 3) return "1st Reminder";
   if (Number(months) === 2) return "2nd Reminder";
-  if (Number(months) === 1) return "Final Reminder";
+  if (Number(months) === 1) return "3rd Reminder";
   return `${months}-Month Reminder`;
 }
 
 function getLocalizedRenewalReminderTaskLabel(months, t) {
   if (Number(months) === 3) return t("applicant.firstReminder", "1st Reminder");
   if (Number(months) === 2) return t("applicant.secondReminder", "2nd Reminder");
-  if (Number(months) === 1) return t("applicant.finalReminder", "Final Reminder");
+  if (Number(months) === 1) return t("applicant.finalReminder", "3rd Reminder");
   return t("applicant.monthReminder", "{months}-Month Reminder", { months });
 }
 
 function getLocalizedRenewalReminderLetterLabel(months, t) {
   if (Number(months) === 3) return t("applicant.firstReminderLetter", "1st Reminder Letter");
   if (Number(months) === 2) return t("applicant.secondReminderLetter", "2nd Reminder Letter");
-  if (Number(months) === 1) return t("applicant.finalReminderLetter", "Final Reminder Letter");
+  if (Number(months) === 1) return t("applicant.finalReminderLetter", "3rd Reminder Letter");
   return t("applicant.monthReminderLetter", "{months}-Month Reminder Letter", { months });
 }
 
