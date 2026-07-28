@@ -11,10 +11,6 @@ function LicenseVerificationPage() {
   const { licenseId } = useParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [documentHtml, setDocumentHtml] = useState("");
-  const [documentUrl, setDocumentUrl] = useState("");
-  const [documentTitle, setDocumentTitle] = useState("Advertisement License");
-  const previewUrlRef = useRef("");
   const requestRef = useRef(0);
 
   useEffect(() => {
@@ -26,8 +22,6 @@ function LicenseVerificationPage() {
       try {
         setLoading(true);
         setError("");
-        setDocumentHtml("");
-        setDocumentUrl("");
 
         const verification = await fetchPublicLicenseVerification(licenseId);
         if (!active || requestId !== requestRef.current) return;
@@ -37,18 +31,10 @@ function LicenseVerificationPage() {
         }
 
         const title = getLicensePrintTitle(verification);
-        const preview = await getSourceLicensePreview(verification.document_url);
+        const blobUrl = await getSourceLicenseBlobUrl(verification.document_url, title);
         if (!active || requestId !== requestRef.current) return;
 
-        if (previewUrlRef.current) {
-          URL.revokeObjectURL(previewUrlRef.current);
-        }
-        previewUrlRef.current = preview.objectUrl || "";
-
-        setDocumentTitle(title);
-        setDocumentHtml(preview.html || "");
-        setDocumentUrl(preview.url || "");
-        setLoading(false);
+        window.location.replace(blobUrl);
       } catch (requestError) {
         if (!active || requestId !== requestRef.current) return;
         console.error("Failed to verify license:", requestError);
@@ -60,28 +46,8 @@ function LicenseVerificationPage() {
     loadSourceLicenseDocument();
     return () => {
       active = false;
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = "";
-      }
     };
   }, [licenseId]);
-
-  async function handlePrintLicense() {
-    try {
-      setError("");
-      if (documentHtml) {
-        await printHtmlDocument(documentHtml, documentTitle);
-      } else if (documentUrl) {
-        await printUrlDocument(documentUrl, documentTitle);
-      }
-    } catch (printError) {
-      console.error("Failed to print license:", printError);
-      setError(printError.message || "The advertisement license could not be printed.");
-    }
-  }
-
-  const canPrint = !loading && !error && (documentHtml || documentUrl);
 
   return (
     <div className="min-h-screen bg-[#eef3f7] px-4 py-5 text-[#1a1c1c]">
@@ -93,12 +59,7 @@ function LicenseVerificationPage() {
             </p>
             <h1 className="text-2xl font-bold">Digital License Details</h1>
           </div>
-          <button
-            type="button"
-            onClick={handlePrintLicense}
-            disabled={!canPrint}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-[#006d32] px-5 text-sm font-bold text-white shadow-sm hover:bg-[#005224] disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <button className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-[#006d32] px-5 text-sm font-bold text-white shadow-sm opacity-50">
             Print License
           </button>
         </header>
@@ -115,21 +76,13 @@ function LicenseVerificationPage() {
               description={error || "The scanned license ID does not match an available license document."}
             />
           </Panel>
-        ) : (
-          <section className="overflow-hidden border border-slate-300 bg-white shadow-sm">
-            <iframe
-              title={documentTitle}
-              src={documentUrl || undefined}
-              className="h-[calc(100vh-9.75rem)] min-h-[620px] w-full border-0 bg-[#d7dde3]"
-            />
-          </section>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
-async function getSourceLicensePreview(documentUrl) {
+async function getSourceLicenseBlobUrl(documentUrl, title) {
   const response = await fetch(getApiUrl(documentUrl), {
     headers: {
       Accept: "text/html,application/pdf;q=0.9,*/*;q=0.8",
@@ -147,102 +100,16 @@ async function getSourceLicensePreview(documentUrl) {
       pdfBlob.type === PDF_MIME_TYPE
         ? pdfBlob
         : new Blob([pdfBlob], { type: PDF_MIME_TYPE });
-    const objectUrl = URL.createObjectURL(normalizedPdfBlob);
-    return { url: objectUrl, objectUrl };
+    return URL.createObjectURL(normalizedPdfBlob);
   }
 
   const html = await response.text();
   const standaloneHtml = prepareStandaloneHtmlDocument(html, documentUrl);
-  const objectUrl = URL.createObjectURL(
-    new Blob([standaloneHtml], { type: "text/html;charset=utf-8" })
+  return URL.createObjectURL(
+    new Blob([buildBlobVerificationPageHtml(standaloneHtml, title)], {
+      type: "text/html;charset=utf-8",
+    })
   );
-  return {
-    html: standaloneHtml,
-    url: objectUrl,
-    objectUrl,
-  };
-}
-
-async function printHtmlDocument(html, title) {
-  const originalTitle = document.title;
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-  iframe.setAttribute("aria-hidden", "true");
-  document.body.appendChild(iframe);
-
-  const frameDocument = iframe.contentDocument;
-  const frameWindow = iframe.contentWindow;
-  if (!frameDocument || !frameWindow) {
-    iframe.remove();
-    throw new Error("Unable to prepare print document.");
-  }
-
-  frameDocument.open();
-  frameDocument.write(html);
-  frameDocument.close();
-  frameDocument.title = title;
-  document.title = title;
-
-  await waitForDocumentImages(frameDocument);
-  if (frameDocument?.fonts?.ready) {
-    await frameDocument.fonts.ready;
-  }
-  await new Promise((resolve) => setTimeout(resolve, 250));
-
-  const cleanup = () => {
-    document.title = originalTitle;
-    setTimeout(() => iframe.remove(), 500);
-  };
-  frameWindow.addEventListener("afterprint", cleanup, { once: true });
-  setTimeout(cleanup, 120000);
-
-  frameWindow.focus();
-  frameWindow.print();
-}
-
-async function printUrlDocument(url, title) {
-  const originalTitle = document.title;
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-  iframe.setAttribute("aria-hidden", "true");
-
-  const cleanup = () => {
-    document.title = originalTitle;
-    setTimeout(() => iframe.remove(), 500);
-  };
-
-  document.body.appendChild(iframe);
-  document.title = title;
-
-  await new Promise((resolve, reject) => {
-    iframe.onload = resolve;
-    iframe.onerror = reject;
-    iframe.src = url;
-  });
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const frameWindow = iframe.contentWindow;
-  if (!frameWindow) {
-    cleanup();
-    throw new Error("Unable to prepare print document.");
-  }
-
-  frameWindow.addEventListener("afterprint", cleanup, { once: true });
-  setTimeout(cleanup, 120000);
-  frameWindow.focus();
-  frameWindow.print();
 }
 
 function prepareStandaloneHtmlDocument(html, documentUrl) {
@@ -296,19 +163,103 @@ function getDocumentBaseHref(documentUrl) {
   }
 }
 
-function waitForDocumentImages(frameDocument) {
-  const images = Array.from(frameDocument.images || []);
-  if (images.length === 0) return Promise.resolve();
+function buildBlobVerificationPageHtml(documentHtml, title) {
+  const safeTitle = escapeHtmlAttribute(title);
+  const documentJson = JSON.stringify(documentHtml || "").replace(/</g, "\\u003c");
 
-  return Promise.all(
-    images.map((image) => {
-      if (image.complete) return Promise.resolve();
-      return new Promise((resolve) => {
-        image.onload = resolve;
-        image.onerror = resolve;
-      });
-    })
-  );
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef3f7;
+      color: #1a1c1c;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .verification-shell {
+      width: min(100% - 32px, 1280px);
+      margin: 20px auto;
+    }
+    .verification-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #006d32;
+      background: #fff;
+      padding: 18px 22px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      color: #006d32;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.2;
+    }
+    button {
+      min-height: 48px;
+      border: 0;
+      border-radius: 6px;
+      background: #006d32;
+      color: #fff;
+      padding: 0 24px;
+      font: 700 14px Arial, Helvetica, sans-serif;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, .18);
+    }
+    button:hover { background: #005224; }
+    .viewer-frame {
+      display: block;
+      width: 100%;
+      height: calc(100vh - 156px);
+      min-height: 620px;
+      border: 1px solid #cbd5e1;
+      background: #d7dde3;
+    }
+    @media print {
+      body { background: #fff; }
+      .verification-header { display: none; }
+      .verification-shell { width: 100%; margin: 0; }
+      .viewer-frame { height: 100vh; border: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="verification-shell">
+    <header class="verification-header">
+      <div>
+        <p class="eyebrow">ALiS License Verification</p>
+        <h1>Digital License Details</h1>
+      </div>
+      <button type="button" id="printLicense">Print License</button>
+    </header>
+    <iframe id="licenseFrame" class="viewer-frame" title="${safeTitle}"></iframe>
+  </main>
+  <script type="application/json" id="licenseDocument">${documentJson}</script>
+  <script>
+    const frame = document.getElementById("licenseFrame");
+    const documentHtml = JSON.parse(document.getElementById("licenseDocument").textContent || '""');
+    frame.srcdoc = documentHtml;
+    document.getElementById("printLicense").addEventListener("click", () => {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    });
+  </script>
+</body>
+</html>`;
 }
 
 function getLicensePrintTitle(verification = {}) {
