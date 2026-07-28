@@ -6092,12 +6092,28 @@ function getAdvertisementLicenseReceiptNumber(app = null, applications = []) {
   }
 
   const originalReceiptNo = [
+    getOriginalOfficialReceiptSourceNumber(app),
     approvalLetter.manual_receipt?.receipt_no,
     payment.official_receipt_no,
     payment.official_receipt?.receipt_no,
   ].map(getSixDigitOfficialReceiptNumber).find(Boolean);
 
-  return getOriginalOfficialReceiptNumber(app, applications, originalReceiptNo);
+  return originalReceiptNo || getOriginalOfficialReceiptNumber(app, applications, originalReceiptNo);
+}
+
+function getOriginalOfficialReceiptSourceNumber(app = null) {
+  const formData = app?.form_data || {};
+  const approvalLetter = formData.approval_letter || {};
+  const payment = formData.payment || {};
+  return [
+    getEditedOfficialReceiptNumber(approvalLetter.manual_receipt?.document_html),
+    getEditedOfficialReceiptNumber(payment.official_receipt?.document_html),
+    approvalLetter.manual_receipt?.receipt_no,
+    payment.official_receipt_no,
+    payment.official_receipt?.receipt_no,
+  ]
+    .map(getSixDigitOfficialReceiptNumber)
+    .find(Boolean);
 }
 
 function getRenewalOfficialReceiptSourceNumber(app = null) {
@@ -16113,6 +16129,7 @@ const configs = {
           const expiry = addCalendarYears(issueDate, validityYears);
           const licenseId = savedLicense.license_id || getLicenseId(app);
           const savedOriginalReceiptNo =
+            getOriginalOfficialReceiptSourceNumber(app) ||
             app.form_data?.payment?.official_receipt_no ||
             savedManualReceipt.receipt_no;
           const officialReceiptNo = getOriginalOfficialReceiptNumber(
@@ -16177,12 +16194,21 @@ const configs = {
               : buildGeneratedOfficialReceiptDocumentHtml(documentApp),
             documentApp
           );
-          const licenseDocumentHtml =
-            savedManualLicense.document_html ||
-            forceAdvertisementLicensePeriodLine(
-              getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
-              documentApp
-            );
+          const licenseDocumentHtml = forceAdvertisementLicensePeriodLine(
+            normalizeAdvertisementLicenseDocumentSpacing(
+              migrateAdvertisementLicenseDocumentHtml(
+                savedManualLicense.document_html ||
+                  getGeneratedAdvertisementLicenseDocumentHtml(documentApp, translate, data?.applications),
+                documentApp,
+                data?.applications,
+                {
+                  forceIssueDate: true,
+                  issueDateValue: timestamp,
+                }
+              )
+            ),
+            documentApp
+          );
 
           return {
             status: "license_issued",
