@@ -20679,7 +20679,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
                       </button>
                     ) : (
                       <div className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-slate-500">
-                        <span aria-hidden="true" className="h-[18px] w-[18px] shrink-0" />
+                        <span aria-hidden="true" className="h-6 w-6 shrink-0" />
                         <span>{item.label}</span>
                       </div>
                     )}
@@ -23466,7 +23466,7 @@ function FirstReminderTaskPanel({
                               </button>
                             ) : (
                               <div className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-slate-500">
-                                <span aria-hidden="true" className="h-[18px] w-[18px] shrink-0" />
+                                <span aria-hidden="true" className="h-6 w-6 shrink-0" />
                                 <span>
                                   {item.label}
                                   {item.required && <span className="ml-1 text-red-600">*</span>}
