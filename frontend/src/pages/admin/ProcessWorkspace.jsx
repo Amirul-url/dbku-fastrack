@@ -1824,10 +1824,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         template: "dbku_official_receipt_acc_3_88_v1",
         name: t("workspace.payment.renewalOfficialReceiptTitle", "Renewal Official Receipt"),
         receipt_no: receiptNo,
+        receipt_date: now,
         document_html:
           canUseEditedDocumentHtml
-            ? documentHtml
-            : getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, receiptApplications, receiptNo),
+            ? normalizeGeneratedOfficialReceiptDocumentHtml(documentHtml, selectedRecord, {
+                forceDate: true,
+                dateValue: now,
+              })
+            : normalizeGeneratedOfficialReceiptDocumentHtml(
+                getRenewalGeneratedOfficialReceiptDocumentHtml(selectedRecord, t, receiptApplications, receiptNo),
+                selectedRecord,
+                {
+                  forceDate: true,
+                  dateValue: now,
+                }
+              ),
         status: "Draft",
         saved_by: userDepartment,
         saved_at: now,
@@ -5698,12 +5709,13 @@ function buildGeneratedOfficialReceiptComputerNoticeHtml() {
     </footer>`;
 }
 
-function getGeneratedOfficialReceiptDateDisplay(app = null) {
+function getGeneratedOfficialReceiptDateDisplay(app = null, options = {}) {
   const manualReceipt = app?.form_data?.approval_letter?.manual_receipt || {};
   const payment = app?.form_data?.payment || {};
   const renewalPayment = app?.form_data?.license_renewal?.payment || {};
   return formatMalayLetterDate(
     firstPresentValue(
+      options.dateValue,
       manualReceipt.receipt_date,
       manualReceipt.date,
       manualReceipt.saved_at,
@@ -5718,19 +5730,19 @@ function getGeneratedOfficialReceiptDateDisplay(app = null) {
   );
 }
 
-function ensureGeneratedOfficialReceiptDate(html, app = null) {
-  const dateDisplay = getGeneratedOfficialReceiptDateDisplay(app);
+function ensureGeneratedOfficialReceiptDate(html, app = null, options = {}) {
+  const dateDisplay = getGeneratedOfficialReceiptDateDisplay(app, options);
   return String(html || "").replace(
     /(<div[^>]*class=["'][^"']*\bdot-line\b[^"']*["'][^>]*>\s*<span[^>]*>\s*Date\s*<\/span>\s*<span[^>]*class=["'][^"']*\bdots\b[^"']*["'][^>]*>)([\s\S]*?)(<\/span>\s*<\/div>)/i,
     (match, before, currentValue, after) => {
       const currentText = getHtmlPlainText(currentValue);
-      return currentText ? match : `${before}${escapeHtml(dateDisplay)}${after}`;
+      return currentText && !options.forceDate ? match : `${before}${escapeHtml(dateDisplay)}${after}`;
     }
   );
 }
 
-function normalizeGeneratedOfficialReceiptDocumentHtml(html, app = null) {
-  const withDate = ensureGeneratedOfficialReceiptDate(html, app);
+function normalizeGeneratedOfficialReceiptDocumentHtml(html, app = null, options = {}) {
+  const withDate = ensureGeneratedOfficialReceiptDate(html, app, options);
   const withoutSignature = removeGeneratedOfficialReceiptLegacySignatureHtml(withDate);
   const withNotice = ensureGeneratedOfficialReceiptComputerNoticeHtml(withoutSignature)
     .replace(
@@ -16281,6 +16293,7 @@ const configs = {
                   ...savedManualReceipt,
                   ...savedRenewalManualReceipt,
                   receipt_no: officialReceiptNo,
+                  receipt_date: timestamp,
                 },
               },
               payment: {
@@ -16298,7 +16311,11 @@ const configs = {
             canUseSavedRenewalReceiptHtml
               ? savedRenewalManualReceipt.document_html
               : buildGeneratedOfficialReceiptDocumentHtml(documentApp),
-            documentApp
+            documentApp,
+            {
+              forceDate: true,
+              dateValue: timestamp,
+            }
           );
           const licenseDocumentHtml =
             savedRenewalManualLicense.document_html ||
@@ -16312,6 +16329,7 @@ const configs = {
             template: "dbku_official_receipt_acc_3_88_v1",
             name: "Renewal Official Receipt",
             receipt_no: officialReceiptNo,
+            receipt_date: timestamp,
             document_html: receiptDocumentHtml,
             status: "Sent to Applicant",
             digital_signature: digitalSignature,
@@ -22375,6 +22393,11 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
           ...manualReceipt,
           ...renewalManualReceipt,
           receipt_no: officialReceiptNo,
+          receipt_date:
+            renewalManualReceipt.receipt_date ||
+            renewalManualReceipt.saved_at ||
+            renewalManualReceipt.generated_at ||
+            new Date().toISOString(),
           document_html: canUseRenewalReceiptDocumentHtml ? renewalReceiptDocumentHtml : "",
         },
       },
