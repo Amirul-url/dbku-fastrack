@@ -262,6 +262,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [renewalCompletionDocumentError, setRenewalCompletionDocumentError] = useState("");
   const [success, setSuccess] = useState("");
   const [licenseIssuedSuccessModal, setLicenseIssuedSuccessModal] = useState({
     open: false,
@@ -1281,6 +1282,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     setMphlgSupportingDocuments(getMphlgSupportingDocuments(selectedRecord));
     setMphlgSupportingDocumentError("");
   }, [selectedRecord?.id, selectedRecord?.updated_at]);
+
+  useEffect(() => {
+    setRenewalCompletionDocumentError("");
+  }, [selectedRecord?.id]);
 
   useEffect(() => {
     if (useApprovalSignatureTemplate) {
@@ -2624,7 +2629,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         !hasSavedRenewalAdvertisementLicenseDocument(selectedRecord)
       )
     ) {
-      setError(t(
+      setError("");
+      setRenewalCompletionDocumentError(t(
         "workspace.license.savedRenewalReceiptLicenseRequired",
         "Please review and save the renewal official receipt and advertisement license before submitting."
       ));
@@ -2645,6 +2651,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setRenewalCompletionDocumentError("");
       setSuccess("");
       setLicenseIssuedSuccessModal({
         open: false,
@@ -3654,9 +3661,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     applications={receiptApplications}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
-                    onEditReceipt={() => setShowManualReceiptEditor(true)}
-                    onEditLicense={() => setShowManualAdvertisementLicenseEditor(true)}
+                    onEditReceipt={() => {
+                      setRenewalCompletionDocumentError("");
+                      setShowManualReceiptEditor(true);
+                    }}
+                    onEditLicense={() => {
+                      setRenewalCompletionDocumentError("");
+                      setShowManualAdvertisementLicenseEditor(true);
+                    }}
                     enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
+                    renewalCompletionDocumentError={
+                      isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
+                    }
                     licenseManagementActions={
                       isPtIssueLicenseWorkspace || fromPersonalTask ? [] : workspaceActions
                     }
@@ -19692,6 +19708,7 @@ function PaymentDetails({
   paymentReceiptDecision = "",
   readOnly = false,
   enableRenewalCompletionDocuments = false,
+  renewalCompletionDocumentError = "",
   licenseManagementActions = [],
   onLicenseManagementAction = null,
 }) {
@@ -20486,11 +20503,18 @@ function PaymentDetails({
   ];
 
   const verificationDocumentSection = showVerificationUploads || showRenewalCompletionDocuments ? (
-    <PaymentVerificationDocumentList
-      t={t}
-      saving={saving}
-      documents={verificationDocuments}
-    />
+    <div className="space-y-2">
+      <PaymentVerificationDocumentList
+        t={t}
+        saving={saving}
+        documents={verificationDocuments}
+      />
+      {renewalCompletionDocumentError && (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium leading-5 text-red-700">
+          {renewalCompletionDocumentError}
+        </p>
+      )}
+    </div>
   ) : null;
 
   return (
