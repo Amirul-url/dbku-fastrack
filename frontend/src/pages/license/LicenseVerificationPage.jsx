@@ -1,3 +1,5 @@
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
@@ -18,7 +20,7 @@ function LicenseVerificationPage() {
     const requestId = printRequestRef.current + 1;
     printRequestRef.current = requestId;
 
-    async function openSourceLicensePrintPreview() {
+    async function openSourceLicensePdfViewer() {
       try {
         setLoading(true);
         setError("");
@@ -30,9 +32,9 @@ function LicenseVerificationPage() {
         }
 
         const title = getLicensePrintTitle(verification);
-        await printSourceLicenseDocument(verification.document_url, title);
+        const pdfUrl = await getSourceLicensePdfViewerUrl(verification.document_url, title);
         if (!active || requestId !== printRequestRef.current) return;
-        setLoading(false);
+        window.location.replace(pdfUrl);
       } catch (requestError) {
         if (!active || requestId !== printRequestRef.current) return;
         console.error("Failed to verify license:", requestError);
@@ -41,7 +43,7 @@ function LicenseVerificationPage() {
       }
     }
 
-    openSourceLicensePrintPreview();
+    openSourceLicensePdfViewer();
     return () => {
       active = false;
     };
@@ -75,7 +77,7 @@ function LicenseVerificationPage() {
         ) : (
           <Panel title="Advertisement License">
             <p className="text-sm text-slate-500">
-              The advertisement license print preview has been opened from the source license document.
+              The advertisement license PDF viewer has been opened from the source license document.
             </p>
           </Panel>
         )}
@@ -84,7 +86,7 @@ function LicenseVerificationPage() {
   );
 }
 
-async function printSourceLicenseDocument(documentUrl, title) {
+async function getSourceLicensePdfViewerUrl(documentUrl, title) {
   const response = await fetch(getApiUrl(documentUrl), {
     headers: {
       Accept: "application/pdf,text/html;q=0.9,*/*;q=0.8",
@@ -102,30 +104,27 @@ async function printSourceLicenseDocument(documentUrl, title) {
       pdfBlob.type === PDF_MIME_TYPE
         ? pdfBlob
         : new Blob([pdfBlob], { type: PDF_MIME_TYPE });
-    const pdfUrl = URL.createObjectURL(normalizedPdfBlob);
-
-    try {
-      await printUrlDocument(pdfUrl, title);
-    } finally {
-      setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
-    }
-    return;
+    return URL.createObjectURL(normalizedPdfBlob);
   }
 
   const html = await response.text();
-  await printHtmlDocument(prepareStandaloneHtmlDocument(html, documentUrl), title);
+  const pdfBlob = await renderHtmlLicenseToPdfBlob(
+    prepareStandaloneHtmlDocument(html, documentUrl),
+    title
+  );
+  return URL.createObjectURL(pdfBlob);
 }
 
-async function printHtmlDocument(html, title) {
-  const originalTitle = document.title;
+async function renderHtmlLicenseToPdfBlob(html, title) {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
   iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
+  iframe.style.width = "210mm";
+  iframe.style.height = "297mm";
   iframe.style.border = "0";
   iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
   iframe.setAttribute("aria-hidden", "true");
   document.body.appendChild(iframe);
 
@@ -137,10 +136,9 @@ async function printHtmlDocument(html, title) {
   }
 
   frameDocument.open();
-  frameDocument.write(html);
+  frameDocument.write(prepareHtmlForPdfCapture(html));
   frameDocument.close();
   frameDocument.title = title;
-  document.title = title;
 
   await waitForDocumentImages(frameDocument);
   if (frameDocument?.fonts?.ready) {
@@ -148,54 +146,31 @@ async function printHtmlDocument(html, title) {
   }
   await new Promise((resolve) => setTimeout(resolve, 250));
 
-  const cleanup = () => {
-    document.title = originalTitle;
-    setTimeout(() => iframe.remove(), 500);
-  };
-  frameWindow.addEventListener("afterprint", cleanup, { once: true });
-  setTimeout(cleanup, 120000);
+  try {
+    const pages = Array.from(frameDocument.querySelectorAll(".ad-license-page"));
+    const pdf = new jsPDF("p", "mm", "a4");
+    pdf.setProperties({ title });
 
-  frameWindow.focus();
-  frameWindow.print();
-}
+    const printablePages = pages.length > 0 ? pages : [frameDocument.body];
+    for (const [index, page] of printablePages.entries()) {
+      if (index > 0) pdf.addPage();
 
-async function printUrlDocument(url, title) {
-  const originalTitle = document.title;
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-  iframe.setAttribute("aria-hidden", "true");
+      const canvas = await html2canvas(page, {
+        backgroundColor: "#ffffff",
+        logging: false,
+        scale: 2,
+        useCORS: true,
+        windowWidth: page.scrollWidth,
+        windowHeight: page.scrollHeight,
+      });
+      const imageData = canvas.toDataURL("image/png");
+      pdf.addImage(imageData, "PNG", 0, 0, 210, 297, undefined, "FAST");
+    }
 
-  const cleanup = () => {
-    document.title = originalTitle;
-    setTimeout(() => iframe.remove(), 500);
-  };
-
-  document.body.appendChild(iframe);
-  document.title = title;
-
-  await new Promise((resolve, reject) => {
-    iframe.onload = resolve;
-    iframe.onerror = reject;
-    iframe.src = url;
-  });
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  const frameWindow = iframe.contentWindow;
-  if (!frameWindow) {
-    cleanup();
-    throw new Error("Unable to prepare print document.");
+    return pdf.output("blob");
+  } finally {
+    iframe.remove();
   }
-
-  frameWindow.addEventListener("afterprint", cleanup, { once: true });
-  setTimeout(cleanup, 120000);
-  frameWindow.focus();
-  frameWindow.print();
 }
 
 function prepareStandaloneHtmlDocument(html, documentUrl) {
@@ -210,6 +185,41 @@ function prepareStandaloneHtmlDocument(html, documentUrl) {
   return String(html || "")
     .replace(/<head([^>]*)>/i, `<head$1><base href="${escapeHtmlAttribute(baseHref)}" />`)
     .replace(/<\/head>/i, `${printableCss}</head>`);
+}
+
+function prepareHtmlForPdfCapture(html) {
+  const pdfCss = `
+    <style data-license-pdf-capture="true">
+      html, body {
+        width: 210mm !important;
+        min-height: 297mm !important;
+        margin: 0 !important;
+        background: #ffffff !important;
+        overflow: visible !important;
+      }
+      .print-actions { display: none !important; }
+      .ad-license-page {
+        width: 210mm !important;
+        min-height: 297mm !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+      }
+      .dot-line {
+        border-bottom: 0 !important;
+        background-image: linear-gradient(to right, #111 44%, transparent 0) !important;
+        background-position: left calc(100% - 0.6mm) !important;
+        background-repeat: repeat-x !important;
+        background-size: 1.35mm 1px !important;
+        line-height: 5.2mm !important;
+        min-height: 5.8mm !important;
+        padding-bottom: 0.5mm !important;
+      }
+      [contenteditable="true"] { outline: none !important; box-shadow: none !important; }
+    </style>
+  `;
+
+  return String(html || "").replace(/<\/head>/i, `${pdfCss}</head>`);
 }
 
 function getDocumentBaseHref(documentUrl) {
