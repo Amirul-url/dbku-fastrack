@@ -55,12 +55,12 @@ function LicenseVerificationPage() {
         <header className="mb-4 flex items-center justify-between gap-4 border border-slate-200 border-l-[#006d32] border-l-4 bg-white px-5 py-4 shadow-sm">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#006d32]">
-              ALiS License Verification
+              ALiS Advertisement Licensing System
             </p>
-            <h1 className="text-2xl font-bold">Digital License Details</h1>
+            <h1 className="text-2xl font-bold">Advertisement License Verification</h1>
           </div>
           <button className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-[#006d32] px-5 text-sm font-bold text-white shadow-sm opacity-50">
-            Print License
+            Print Advertisement License
           </button>
         </header>
 
@@ -241,10 +241,10 @@ function buildBlobVerificationPageHtml(documentHtml, title) {
   <main class="verification-shell">
     <header class="verification-header">
       <div>
-        <p class="eyebrow">ALiS License Verification</p>
-        <h1>Digital License Details</h1>
+        <p class="eyebrow">ALiS Advertisement Licensing System</p>
+        <h1>Advertisement License Verification</h1>
       </div>
-      <button type="button" id="printLicense">Print License</button>
+      <button type="button" id="printLicense">Print Advertisement License</button>
     </header>
     <iframe id="licenseFrame" class="viewer-frame" title="${safeTitle}"></iframe>
   </main>
