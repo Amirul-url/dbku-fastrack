@@ -2377,6 +2377,41 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.assertEqual(format_renewal_day_period(61), "ENAM PULUH SATU (61) HARI")
         self.assertEqual(format_renewal_day_period(31), "TIGA PULUH SATU (31) HARI")
 
+    def test_second_renewal_letter_references_first_letter(self):
+        self.application.form_data["license_renewal"] = {
+            "reminders": {
+                "3": {
+                    "months_before_expiry": 3,
+                    "status": "released_to_applicant",
+                    "detected_at": self.local_time(2027, 2, 21, 8, 30).isoformat(),
+                    "expiry_date": self.application.form_data["license"]["expiry_date"],
+                    "letter": {
+                        "title": "1st Reminder",
+                        "letter_date": "21 Februari 2027",
+                        "our_ref": "DBKU/LES/IKL/27/1(b)/ ( )",
+                        "document_html": "<article>First reminder</article>",
+                    },
+                },
+                "2": {
+                    "months_before_expiry": 2,
+                    "status": "pending_pt_letter",
+                    "detected_at": self.local_time(2027, 3, 21, 8, 30).isoformat(),
+                    "expiry_date": self.application.form_data["license"]["expiry_date"],
+                },
+            }
+        }
+        self.application.save(update_fields=["form_data"])
+
+        second_html = build_renewal_letter_document_html(self.application, 2)
+
+        self.assertIn(
+            "Dengan segala hormatnya surat kami rujukan DBKU/LES/IKL/27/1(b)/ ( ) "
+            "bertarikh 21 Februari 2027 mengenai perkara di atas dirujuk.",
+            second_html,
+        )
+        self.assertIn("ENAM PULUH SATU (61) HARI", second_html)
+        self.assertNotIn("SEMBILAN PULUH DUA (92) HARI", second_html)
+
     @override_settings(NOTIFICATION_SIDE_EFFECTS_ENABLED=False, NOTIFICATION_EMAIL_ENABLED=False, WHATSAPP_ENABLED=False)
     def test_kb_confirmation_web_notification_is_created_when_side_effects_disabled(self):
         notify_license_renewal_kb_confirmation_task(self.application, 3)

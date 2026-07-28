@@ -561,6 +561,7 @@ def apply_license_reminder_action(
         if not has_digital_signature_content(digital_signature):
             raise ValueError("Digital signature is required.")
 
+        letter_context = get_renewal_letter_context(application, months)
         letter_html = clean_document_html(document_html) or build_renewal_letter_document_html(application, months)
         reminder["status"] = "pending_supervisor_confirmation"
         reminder["letter"] = {
@@ -568,6 +569,9 @@ def apply_license_reminder_action(
             "template": f"dbku_license_renewal_{months}m_reminder_v1",
             "months_before_expiry": months,
             "title": get_renewal_reminder_title(months),
+            "letter_date": letter_context["letter_date"],
+            "our_ref": letter_context["our_ref"],
+            "reminder_period": letter_context["reminder_period"],
             "generated_at": timezone.now().isoformat(),
             "generated_by": get_web_recipient(user),
             "note": clean_note,
@@ -3393,7 +3397,7 @@ def build_renewal_letter_document_html(application, months):
     <span>{escape_html(data["subject"])}</span>
   </div>
 
-  <p class="intro">Dengan segala hormatnya perkara di atas dirujuk.</p>
+  <p class="intro">{escape_html(data["intro_text"])}</p>
 
   <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u class="date-nowrap">{escape_html(data["expiry_date"])}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
 
@@ -3442,7 +3446,7 @@ def get_renewal_letter_context(application, months):
     expiry = parse_license_datetime(license_data.get("expiry_date"))
     local_expiry = timezone.localtime(expiry) if expiry else None
     expiry_date = local_expiry.date() if local_expiry else None
-    today = timezone.localdate()
+    letter_date = get_renewal_reminder_letter_date(application, months) or timezone.localdate()
     applicant_name = get_renewal_company_name(application) or "NAMA SYARIKAT"
     location = get_renewal_project_location(form_data) or str(getattr(application, "project_location", "") or "")
     address_lines = get_renewal_company_address_lines(application)
@@ -3457,16 +3461,91 @@ def get_renewal_letter_context(application, months):
     return {
         "months": months,
         "your_ref": "",
-        "our_ref": build_renewal_letter_reference(today),
-        "letter_date": format_malay_date(today),
+        "our_ref": build_renewal_letter_reference(letter_date),
+        "letter_date": format_malay_date(letter_date),
         "applicant_name": applicant_name,
         "address_lines": address_lines[:4],
         "subject": build_renewal_letter_subject_for_month(application, location, months),
+        "intro_text": build_renewal_letter_intro_text(application, months),
         "expiry_date": format_malay_date(expiry_date) if expiry_date else "-",
-        "reminder_period": format_renewal_day_period(days_between_dates(today, expiry_date)),
+        "reminder_period": format_renewal_day_period(days_between_dates(letter_date, expiry_date)),
         "renewal_period": build_renewal_period(expiry_date),
         "amount": "",
     }
+
+
+def get_renewal_reminder_letter_date(application, months):
+    form_data = getattr(application, "form_data", None) or {}
+    renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+    reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+    reminder = reminders.get(str(months)) if isinstance(reminders.get(str(months)), dict) else {}
+    letter = reminder.get("letter") if isinstance(reminder.get("letter"), dict) else {}
+    date_value = parse_license_datetime(
+        reminder.get("detected_at") or reminder.get("generated_at") or letter.get("generated_at")
+    )
+    if not date_value:
+        return None
+    return timezone.localtime(date_value).date()
+
+
+def build_renewal_letter_intro_text(application, months):
+    previous_letter = get_previous_renewal_letter_details(application, months)
+    if not previous_letter:
+        return "Dengan segala hormatnya perkara di atas dirujuk."
+
+    return (
+        f"Dengan segala hormatnya surat kami rujukan {previous_letter['our_ref']} "
+        f"bertarikh {previous_letter['letter_date']} mengenai perkara di atas dirujuk."
+    )
+
+
+def get_previous_renewal_letter_details(application, months):
+    previous_months = int(months or 0) + 1
+    if previous_months > 3:
+        return None
+
+    form_data = getattr(application, "form_data", None) or {}
+    renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+    reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+    reminder = reminders.get(str(previous_months)) if isinstance(reminders.get(str(previous_months)), dict) else {}
+    letter = reminder.get("letter") if isinstance(reminder.get("letter"), dict) else {}
+    document_html = letter.get("document_html")
+    letter_date_source = (
+        letter.get("letter_date")
+        or extract_renewal_letter_date(document_html)
+        or format_malay_date(get_renewal_reminder_letter_date(application, previous_months))
+    )
+    our_ref = (
+        letter.get("our_ref")
+        or extract_renewal_letter_reference(document_html)
+        or build_renewal_letter_reference(get_renewal_reminder_letter_date(application, previous_months))
+    )
+    our_ref = normalize_renewal_reference(our_ref)
+    letter_date = normalize_renewal_reference(letter_date_source)
+
+    if not our_ref or not letter_date or letter_date == "-":
+        return None
+
+    return {
+        "our_ref": our_ref,
+        "letter_date": letter_date,
+    }
+
+
+def normalize_renewal_reference(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def extract_renewal_letter_reference(document_html):
+    text = html_to_text(document_html)
+    match = re.search(r"Kami:\s*(DBKU/LES/IKL/\d{2}/1\(b\)/\s*\(\s*\))", text, flags=re.IGNORECASE)
+    return match.group(1) if match else ""
+
+
+def extract_renewal_letter_date(document_html):
+    text = html_to_text(document_html)
+    match = re.search(r"Tarikh:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})", text, flags=re.IGNORECASE)
+    return match.group(1) if match else ""
 
 
 def clean_renewal_letter_value(value):
@@ -3600,6 +3679,8 @@ def get_renewal_project_location(form_data):
 
 
 def build_renewal_letter_reference(date_value):
+    if not date_value:
+        date_value = timezone.localdate()
     return f"DBKU/LES/IKL/{date_value:%y}/1(b)/ (   )"
 
 

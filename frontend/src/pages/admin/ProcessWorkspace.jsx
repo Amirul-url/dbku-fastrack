@@ -12786,7 +12786,7 @@ function buildFirstReminderLetterDocumentHtml(app, months = 3) {
     <span data-renewal-editable="true">${escapeHtml(context.subject)}</span>
   </div>
 
-  <p class="intro">Dengan segala hormatnya perkara di atas dirujuk.</p>
+  <p class="intro" data-renewal-editable="true">${escapeHtml(context.introText)}</p>
 
   <p class="para"><span>2.</span><span>Berdasarkan rekod kami, didapati tempoh Lesen Iklan tuan akan tamat pada <strong><u class="date-nowrap" data-renewal-editable="true">${escapeHtml(context.expiryDate)}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
 
@@ -12831,7 +12831,7 @@ function buildFirstReminderLetterDocumentHtml(app, months = 3) {
 function getFirstReminderLetterContext(app, months = 3) {
   const license = app?.form_data?.license || {};
   const expiryDate = parseDateOrFallback(license.expiry_date, null);
-  const letterDate = new Date();
+  const letterDate = getRenewalReminderLetterDate(app, months) || new Date();
   const daysUntilExpiry = getCalendarDayDifference(letterDate, expiryDate);
   const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
   const renewalEnd = expiryDate ? addCalendarYears(expiryDate, 1) : null;
@@ -12847,6 +12847,7 @@ function getFirstReminderLetterContext(app, months = 3) {
     applicantName: getFirstReminderCompanyName(app),
     addressLines: getLetterAddressLines(app),
     subject: `PERINGATAN ${getMalayRenewalReminderOrdinal(months)} - BAYARAN LESEN IKLAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
+    introText: getRenewalReminderIntroText(app, months),
     expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
     reminderPeriod: formatMalayDayPeriod(daysUntilExpiry),
     renewalPeriod:
@@ -12855,6 +12856,74 @@ function getFirstReminderLetterContext(app, months = 3) {
         : "-",
     amount: "",
   };
+}
+
+function getRenewalReminderLetterDate(app, months) {
+  const reminder = getLicenseRenewalReminders(app)?.[String(months)] || {};
+  return parseDateOrFallback(
+    reminder.detected_at || reminder.generated_at || reminder.letter?.generated_at,
+    null
+  );
+}
+
+function getRenewalReminderIntroText(app, months) {
+  const previousLetter = getPreviousRenewalReminderLetterDetails(app, months);
+  if (previousLetter) {
+    return `Dengan segala hormatnya surat kami rujukan ${previousLetter.ourRef} bertarikh ${previousLetter.letterDate} mengenai perkara di atas dirujuk.`;
+  }
+
+  return "Dengan segala hormatnya perkara di atas dirujuk.";
+}
+
+function getPreviousRenewalReminderLetterDetails(app, months) {
+  const previousMonths = Number(months) + 1;
+  if (!Number.isFinite(previousMonths) || previousMonths > 3) return null;
+
+  const reminders = getLicenseRenewalReminders(app) || {};
+  const previousReminder = reminders[String(previousMonths)] || {};
+  const letter = previousReminder.letter || {};
+  const ourRef =
+    normalizeRenewalLetterReference(letter.our_ref) ||
+    normalizeRenewalLetterReference(extractRenewalLetterReference(letter.document_html)) ||
+    normalizeRenewalLetterReference(
+      buildRenewalLetterReferenceFromDate(
+        parseDateOrFallback(previousReminder.detected_at || letter.generated_at, null)
+      )
+    );
+  const letterDate =
+    cleanRenewalLetterDate(letter.letter_date) ||
+    cleanRenewalLetterDate(extractRenewalLetterDate(letter.document_html)) ||
+    formatMalayLetterDate(parseDateOrFallback(previousReminder.detected_at || letter.generated_at, null));
+
+  if (!ourRef || !letterDate || letterDate === "-") return null;
+  return { ourRef, letterDate };
+}
+
+function buildRenewalLetterReferenceFromDate(value) {
+  const date = parseDateOrFallback(value, null);
+  if (!date) return "";
+  return `DBKU/LES/IKL/${date.getFullYear().toString().slice(-2)}/1(b)/ ( )`;
+}
+
+function normalizeRenewalLetterReference(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function cleanRenewalLetterDate(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text || "";
+}
+
+function extractRenewalLetterReference(documentHtml) {
+  const text = htmlToPlainText(documentHtml);
+  const match = text.match(/Kami:\s*(DBKU\/LES\/IKL\/\d{2}\/1\(b\)\/\s*\(\s*\))/i);
+  return match ? match[1] : "";
+}
+
+function extractRenewalLetterDate(documentHtml) {
+  const text = htmlToPlainText(documentHtml);
+  const match = text.match(/Tarikh:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
+  return match ? match[1] : "";
 }
 
 function cleanFirstReminderLetterValue(value) {
