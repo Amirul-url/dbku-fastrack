@@ -59,6 +59,8 @@ const APPLICANT_STATUS_FILTER_OPTIONS = [
   "under_review",
   "approved",
   "license_renewal_1st_reminder",
+  "license_renewal_2nd_reminder",
+  "license_renewal_3rd_reminder",
   "rejected",
   "surrender_revoke",
 ];
@@ -335,7 +337,8 @@ function UserDashboard() {
     if (tab === "all") {
       const nextStatusMap = markApplicantRecordSeen("status", app);
       const nextLicenseMap = markApplicantRecordSeen("license", app);
-      const nextRenewalReminderMap = markApplicantRenewalReminderSeen(app, 3);
+      const latestReminderMonth = getLatestReleasedRenewalReminderMonth(app) || 3;
+      const nextRenewalReminderMap = markApplicantRenewalReminderSeen(app, latestReminderMonth);
 
       setRecordSeen((current) => ({
         ...current,
@@ -973,7 +976,7 @@ function UserDashboard() {
             onYearChange={setStatusFilterYear}
             isReferenceNew={(app) =>
               isRenewalPaymentRejectedNew(app, recordSeen) ||
-              isReleasedRenewalReminderNew(app, 3, recordSeen) ||
+              isAnyReleasedRenewalReminderNew(app, recordSeen) ||
               isApplicantRecordNew(app, "status", recordSeen) ||
               (isELicenseApplication(app) && isApplicantRecordNew(app, "license", recordSeen))
             }
@@ -2619,7 +2622,7 @@ function getApplicantDetailStatusLabel(app, t) {
     return translatedStatus(t, "approved");
   }
 
-  if (hasReleasedRenewalReminder(app, 3)) {
+  if (hasAnyReleasedRenewalReminder(app)) {
     return getPaymentStatusText(app, t);
   }
 
@@ -3129,6 +3132,14 @@ function translatedStatus(t, status) {
       "applicant.statusFirstReminder",
       "1st Reminder"
     ),
+    license_renewal_2nd_reminder: t(
+      "applicant.statusSecondReminder",
+      "2nd Reminder"
+    ),
+    license_renewal_3rd_reminder: t(
+      "applicant.statusFinalReminder",
+      "3rd Reminder"
+    ),
   };
 
   if (applicantStatusLabels[normalized]) {
@@ -3478,8 +3489,9 @@ function getApplicantFilterStatus(app) {
     return "approved";
   }
 
-  if (hasReleasedRenewalReminder(app, 3)) {
-    return "license_renewal_1st_reminder";
+  const latestReleasedReminderMonth = getLatestReleasedRenewalReminderMonth(app);
+  if (latestReleasedReminderMonth) {
+    return getRenewalReminderApplicantStatus(latestReleasedReminderMonth);
   }
 
   if (isApprovedApplication(app)) {
@@ -4502,6 +4514,25 @@ function hasReleasedRenewalReminder(app, months) {
   return normalizeStatus(reminder.status) === "released_to_applicant";
 }
 
+function getLatestReleasedRenewalReminderMonth(app) {
+  return [1, 2, 3].find((months) => hasReleasedRenewalReminder(app, months));
+}
+
+function hasAnyReleasedRenewalReminder(app) {
+  return Boolean(getLatestReleasedRenewalReminderMonth(app));
+}
+
+function isAnyReleasedRenewalReminderNew(app, seen = {}) {
+  const latestMonth = getLatestReleasedRenewalReminderMonth(app);
+  return latestMonth ? isReleasedRenewalReminderNew(app, latestMonth, seen) : false;
+}
+
+function getRenewalReminderApplicantStatus(months) {
+  if (Number(months) === 2) return "license_renewal_2nd_reminder";
+  if (Number(months) === 1) return "license_renewal_3rd_reminder";
+  return "license_renewal_1st_reminder";
+}
+
 function normalizeRenewalEarlyPaymentReceipt(receipt) {
   if (!receipt || typeof receipt !== "object") return null;
 
@@ -5519,7 +5550,7 @@ function getPaymentStatusText(app, t) {
   const status = normalizeStatus(app?.status);
   const payment = getApplicationPayment(app);
 
-  if (hasReleasedRenewalReminder(app, 3)) {
+  if (hasAnyReleasedRenewalReminder(app)) {
     const renewalPaymentStatus = getLicenseRenewalPaymentStatus(app);
     const renewalReferenceDetails = getPaymentReferenceDetails(getLicenseRenewalPayment(app), { trim: true });
     const hasRenewalReferenceDetails = Object.values(renewalReferenceDetails).every(Boolean);
