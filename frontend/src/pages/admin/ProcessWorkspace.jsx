@@ -12867,17 +12867,39 @@ function getRenewalReminderLetterDate(app, months) {
 }
 
 function getRenewalReminderIntroText(app, months) {
-  const previousLetter = getPreviousRenewalReminderLetterDetails(app, months);
-  if (previousLetter) {
+  const previousLetters = getPreviousRenewalReminderLettersDetails(app, months);
+  if (previousLetters.length > 1) {
+    const references = previousLetters
+      .map((letter) => `${letter.ourRef} bertarikh ${letter.letterDate}`)
+      .join(" dan ");
+    return `Dengan segala hormatnya surat kami rujukan ${references} mengenai perkara di atas dirujuk.`;
+  }
+
+  if (previousLetters.length === 1) {
+    const [previousLetter] = previousLetters;
     return `Dengan segala hormatnya surat kami rujukan ${previousLetter.ourRef} bertarikh ${previousLetter.letterDate} mengenai perkara di atas dirujuk.`;
   }
 
   return "Dengan segala hormatnya perkara di atas dirujuk.";
 }
 
+function getPreviousRenewalReminderLettersDetails(app, months) {
+  const currentMonths = Number(months);
+  if (!Number.isFinite(currentMonths) || currentMonths >= 3) return [];
+
+  const previousMonthsList =
+    currentMonths === 1
+      ? [3, 2]
+      : [currentMonths + 1];
+
+  return previousMonthsList
+    .map((previousMonths) => getPreviousRenewalReminderLetterDetails(app, previousMonths))
+    .filter(Boolean);
+}
+
 function getPreviousRenewalReminderLetterDetails(app, months) {
-  const previousMonths = Number(months) + 1;
-  if (!Number.isFinite(previousMonths) || previousMonths > 3) return null;
+  const previousMonths = Number(months);
+  if (!Number.isFinite(previousMonths) || previousMonths < 1 || previousMonths > 3) return null;
 
   const reminders = getLicenseRenewalReminders(app) || {};
   const previousReminder = reminders[String(previousMonths)] || {};
