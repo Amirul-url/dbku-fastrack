@@ -55,7 +55,7 @@ function LicenseVerificationPage() {
         <header className="mb-4 flex items-center justify-between gap-4 border border-slate-200 border-l-[#006d32] border-l-4 bg-white px-5 py-4 shadow-sm">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#006d32]">
-              ALiS Advertisement Licensing System
+              ALiS
             </p>
             <h1 className="text-2xl font-bold">Advertisement License Verification</h1>
           </div>
@@ -241,7 +241,7 @@ function buildBlobVerificationPageHtml(documentHtml, title) {
   <main class="verification-shell">
     <header class="verification-header">
       <div>
-        <p class="eyebrow">ALiS Advertisement Licensing System</p>
+        <p class="eyebrow">ALiS</p>
         <h1>Advertisement License Verification</h1>
       </div>
       <button type="button" id="printLicense">Print Advertisement License</button>
