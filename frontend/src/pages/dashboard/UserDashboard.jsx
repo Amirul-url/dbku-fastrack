@@ -2520,12 +2520,15 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
                       {item.label}
                     </button>
                   ) : (
-                    <p className="text-sm font-semibold text-slate-500">
-                      {item.label}
-                    </p>
+                    <div className="inline-flex min-h-8 items-center gap-2 text-sm font-semibold text-slate-500">
+                      <span className="material-symbols-outlined invisible text-[18px] text-slate-800">
+                        expand_more
+                      </span>
+                      <span>{item.label}</span>
+                    </div>
                   )}
                   {!item.isDocumentGroup && item.timestamp && (
-                    <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                    <p className="ml-7 mt-1 text-xs font-medium leading-4 text-slate-500">
                       {item.timestamp}
                     </p>
                   )}

@@ -20678,12 +20678,13 @@ function IssuedPaymentDocumentList({ t, documents }) {
                         <span>{item.label}</span>
                       </button>
                     ) : (
-                      <p className="text-sm font-semibold text-slate-500">
-                        {item.label}
-                      </p>
+                      <div className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-slate-500">
+                        <Icon name="expand_more" className="invisible text-lg text-slate-700" />
+                        <span>{item.label}</span>
+                      </div>
                     )}
                     {!isDropdownRow && item.timestamp && (
-                      <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                      <p className="ml-6 mt-1 text-xs font-medium leading-4 text-slate-500">
                         {item.timestamp}
                       </p>
                     )}
@@ -23464,18 +23465,21 @@ function FirstReminderTaskPanel({
                                 </span>
                               </button>
                             ) : (
-                              <p className="text-sm font-semibold text-slate-500">
-                                {item.label}
-                                {item.required && <span className="ml-1 text-red-600">*</span>}
-                              </p>
+                              <div className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-slate-500">
+                                <Icon name="expand_more" className="invisible text-lg text-slate-700" />
+                                <span>
+                                  {item.label}
+                                  {item.required && <span className="ml-1 text-red-600">*</span>}
+                                </span>
+                              </div>
                             )}
                             {!isDropdownRow && item.displayName && (
-                              <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                              <p className="ml-6 mt-1 text-sm font-semibold leading-5 text-slate-950">
                                 {item.displayName}
                               </p>
                             )}
                             {!isDropdownRow && item.timestamp && (
-                              <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
+                              <p className="ml-6 mt-1 text-xs font-medium leading-4 text-slate-500">
                                 {item.timestamp}
                               </p>
                             )}
