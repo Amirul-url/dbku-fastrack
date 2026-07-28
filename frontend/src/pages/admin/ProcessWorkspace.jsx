@@ -20682,7 +20682,7 @@ function IssuedPaymentDocumentList({ t, documents }) {
                         {item.label}
                       </p>
                     )}
-                    {item.timestamp && (
+                    {!isDropdownRow && item.timestamp && (
                       <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
                         {item.timestamp}
                       </p>
@@ -23474,7 +23474,7 @@ function FirstReminderTaskPanel({
                                 {item.displayName}
                               </p>
                             )}
-                            {item.timestamp && (
+                            {!isDropdownRow && item.timestamp && (
                               <p className="mt-1 text-xs font-medium leading-4 text-slate-500">
                                 {item.timestamp}
                               </p>
