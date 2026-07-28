@@ -120,8 +120,7 @@ function LicenseVerificationPage() {
             <iframe
               title={documentTitle}
               src={documentUrl || undefined}
-              srcDoc={documentHtml || undefined}
-              className="h-[calc(100vh-9.75rem)] min-h-[620px] w-full border-0 bg-white"
+              className="h-[calc(100vh-9.75rem)] min-h-[620px] w-full border-0 bg-[#d7dde3]"
             />
           </section>
         )}
@@ -153,9 +152,14 @@ async function getSourceLicensePreview(documentUrl) {
   }
 
   const html = await response.text();
+  const standaloneHtml = prepareStandaloneHtmlDocument(html, documentUrl);
+  const objectUrl = URL.createObjectURL(
+    new Blob([standaloneHtml], { type: "text/html;charset=utf-8" })
+  );
   return {
-    html: prepareStandaloneHtmlDocument(html, documentUrl),
-    objectUrl: "",
+    html: standaloneHtml,
+    url: objectUrl,
+    objectUrl,
   };
 }
 
@@ -246,7 +250,35 @@ function prepareStandaloneHtmlDocument(html, documentUrl) {
   const previewCss = `
     <style>
       .print-actions { display: none !important; }
-      html, body { background: #ffffff !important; }
+      @media screen {
+        html {
+          background: #d7dde3 !important;
+        }
+        body {
+          margin: 0 !important;
+          background: #d7dde3 !important;
+          overflow: auto !important;
+        }
+        .ad-license-page {
+          width: 210mm !important;
+          min-height: 297mm !important;
+          margin: 16px auto 24px !important;
+          background: #ffffff !important;
+          box-shadow: 0 1px 6px rgba(15, 23, 42, 0.22) !important;
+        }
+        .ad-license-page:last-of-type {
+          margin-bottom: 16px !important;
+        }
+      }
+      @media print {
+        html, body {
+          background: #ffffff !important;
+        }
+        .ad-license-page {
+          margin: 0 !important;
+          box-shadow: none !important;
+        }
+      }
     </style>
   `;
 
