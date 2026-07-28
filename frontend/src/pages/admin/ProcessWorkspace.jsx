@@ -23001,6 +23001,12 @@ function FirstReminderTaskPanel({
   const signatureBoxRef = useRef(null);
   const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
   const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
+  const reviewedReminderLetterHtml = String(draftHtml || "").trim();
+  const savedReminderLetterHtml = getRenewalLetterForMonth(app, months).document_html || "";
+  const hasReviewSavedReminderLetter = Boolean(
+    reviewedReminderLetterHtml || String(savedReminderLetterHtml).trim()
+  );
+  const reminderLetterDownloadHtml = reviewedReminderLetterHtml ? draftHtml : savedReminderLetterHtml;
   const documentTitle = t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
   const documentDescription = confirmationMode
     ? t(
@@ -23342,22 +23348,24 @@ function FirstReminderTaskPanel({
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    icon="download"
-                    className="min-h-9 px-4 py-1.5"
-                    disabled={saving}
-                    onClick={() =>
-                      printRenewalReminderDocument(
-                        documentHtml,
-                        `${getApplicationReference(app)} ${documentTitle}`,
-                        t
-                      )
-                    }
-                  >
-                    {t("common.download", "Download")}
-                  </Button>
+                  {hasReviewSavedReminderLetter && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      icon="download"
+                      className="min-h-9 px-4 py-1.5"
+                      disabled={saving}
+                      onClick={() =>
+                        printRenewalReminderDocument(
+                          reminderLetterDownloadHtml,
+                          `${getApplicationReference(app)} ${documentTitle}`,
+                          t
+                        )
+                      }
+                    >
+                      {t("common.download", "Download")}
+                    </Button>
+                  )}
                   {!confirmationMode && (
                     <Button
                       type="button"
