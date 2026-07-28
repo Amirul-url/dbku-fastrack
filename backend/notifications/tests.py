@@ -2249,13 +2249,19 @@ class LicenseRenewalWorkflowTests(TestCase):
             metadata__event_status="license_renewal_3m",
         )
         self.assertIn("PT(IKL) must generate", pt_delivery.metadata["message"])
-        self.assertFalse(
+        self.assertTrue(
             NotificationDelivery.objects.filter(
                 channel="web",
                 user=self.supervisor,
                 metadata__event_status="license_renewal_3m",
             ).exists()
         )
+        kb_delivery = NotificationDelivery.objects.get(
+            channel="web",
+            user=self.supervisor,
+            metadata__event_status="license_renewal_3m",
+        )
+        self.assertIn("KB(LES) will receive", kb_delivery.metadata["message"])
         self.assertFalse(
             NotificationDelivery.objects.filter(
                 channel="web",
@@ -2285,7 +2291,7 @@ class LicenseRenewalWorkflowTests(TestCase):
         self.application.refresh_from_db()
         reminders = self.application.form_data["license_renewal"]["reminders"]
         self.assertEqual(reminders["2"]["status"], "pending_pt_letter")
-        self.assertFalse(
+        self.assertTrue(
             NotificationDelivery.objects.filter(
                 channel="web",
                 user=self.supervisor,
@@ -2320,6 +2326,13 @@ class LicenseRenewalWorkflowTests(TestCase):
             NotificationDelivery.objects.filter(
                 channel="web",
                 user=self.pt_ikl,
+                metadata__event_status="license_renewal_1m",
+            ).exists()
+        )
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="web",
+                user=self.supervisor,
                 metadata__event_status="license_renewal_1m",
             ).exists()
         )

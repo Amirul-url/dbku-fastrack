@@ -1152,6 +1152,24 @@ def notify_license_renewal_detected(application, months, expiry):
         recipients=get_pt_ikl_recipients(),
         recipient_role="admin",
         action_url=f"/admin/e-licenses/license?id={application.id}",
+        force_web=True,
+    )
+
+    kb_title = notify_messages.KB_LES_RENEWAL_DETECTED_TITLE_TEMPLATE.format(months=months)
+    kb_body = {
+        "web": notify_messages.KB_LES_RENEWAL_DETECTED_WEB_BODY_TEMPLATE.format(**context),
+        "email": notify_messages.KB_LES_RENEWAL_DETECTED_EMAIL_BODY_TEMPLATE.format(**context),
+        "whatsapp": notify_messages.KB_LES_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE.format(**context),
+    }
+    send_license_workflow_notification(
+        application=application,
+        event_status=event_status,
+        title=kb_title,
+        body=kb_body,
+        recipients=get_kb_les_recipients(),
+        recipient_role="supervisor",
+        action_url=f"/admin/e-licenses/license?id={application.id}",
+        force_web=True,
     )
 
 
