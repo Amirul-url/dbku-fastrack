@@ -907,14 +907,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   );
   const isKbLesSupportWorkspace =
     isApprovalWorkspace && userDepartment === "KB(LES)" && approvalStageKey === "kb_support";
-  const hasPtLicenseRenewalTaskRecord = hasPtLicenseRenewalOrCancellationTask(
-    selectedRecord,
-    normalizedUserDepartment
-  );
   const hasApprovalLicenseManagementRecord =
     isApprovalWorkspace &&
     normalizedUserDepartment === "PT(IKL)" &&
-    !hasPtLicenseRenewalTaskRecord &&
     (
       ["license_issued", "license_revoked"].includes(normalizeStatus(selectedRecord?.status)) ||
       hasPendingLicenseRevocationRequest(selectedRecord)
@@ -1138,14 +1133,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace && Boolean(savedApprovalDecisionHtml) && !isApprovalSupportWorkspace;
   const showApprovalSupportReadOnly =
     isReadOnlyActionPanel && (isApprovalSupportStage || Boolean(savedApprovalDecisionHtml));
-  const showApprovalLicenseRenewalReadOnlyDetails =
-    isApprovalWorkspace && !fromPersonalTask && hasPtLicenseRenewalTaskRecord;
   const showApprovalPaymentReadOnly =
     isApprovalWorkspace &&
     isPostApprovalPaymentRecord(selectedRecord) &&
     !isPtIssueLicenseWorkspace &&
     !isApprovalLicenseManagement &&
-    !showApprovalLicenseRenewalReadOnlyDetails &&
     !isKbRenewalConfirmationWorkspace &&
     !isCancellationNoticeWorkflowWorkspace;
   const WorkspaceDetailsComponent =
@@ -1156,8 +1148,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       : config.details;
   const showApprovalLicenseManagementDetails =
     isApprovalLicenseManagement ||
-    isPtIssueLicenseWorkspace ||
-    showApprovalLicenseRenewalReadOnlyDetails;
+    isPtIssueLicenseWorkspace;
   const showReadOnlyGuideBanner =
     isReadOnlyActionPanel &&
     !fromPersonalTask &&
@@ -12224,10 +12215,6 @@ function getWorkspaceActions(config, app, department) {
       hasPendingLicenseRevocationRequest(app)
     )
   ) {
-    if (hasPtLicenseRenewalOrCancellationTask(app, normalizedDepartment)) {
-      return [];
-    }
-
     return getWorkspaceActions(configs.payment, app, normalizedDepartment);
   }
 
@@ -13725,17 +13712,6 @@ function canConfirmRenewalReminder(app, department) {
     normalizeStatus(app?.status) === "license_issued" &&
     !getCancellationStatus(app) &&
     Boolean(getPendingReminderConfirmationMonth(app))
-  );
-}
-
-function hasPtLicenseRenewalOrCancellationTask(app, department) {
-  return (
-    normalizeDepartmentCode(department) === "PT(IKL)" &&
-    normalizeStatus(app?.status) === "license_issued" &&
-    (
-      Boolean(getPendingPtRenewalReminderMonth(app)) ||
-      getCancellationStatus(app) === "pending_pt_notice"
-    )
   );
 }
 
