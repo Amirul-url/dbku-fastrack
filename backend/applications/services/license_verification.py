@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 
 from applications.models import Application, SupportingDocument
 
@@ -26,12 +28,12 @@ def is_public_license_active(application, license_data):
         return False
 
     license_status = str(license_data.get("status") or "").strip().lower()
-    return license_status in {"", "active"}
+    return license_status in {"", "active"} and not is_license_expired(license_data)
 
 
 def get_public_license_unavailable_message(license_data):
     license_status = str(license_data.get("status") or "").strip().lower()
-    if license_status == "expired":
+    if license_status == "expired" or is_license_expired(license_data):
         return "Advertisement license has expired."
 
     return "Advertisement license is not active."
@@ -39,6 +41,43 @@ def get_public_license_unavailable_message(license_data):
 
 def get_dict(value):
     return value if isinstance(value, dict) else {}
+
+
+def parse_license_expiry(value):
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return None
+
+    parsed_datetime = parse_datetime(raw_value)
+    if parsed_datetime:
+        if timezone.is_naive(parsed_datetime):
+            parsed_datetime = timezone.make_aware(parsed_datetime, timezone.get_current_timezone())
+        return parsed_datetime
+
+    parsed_date = parse_date(raw_value)
+    if parsed_date:
+        return parsed_date
+
+    return None
+
+
+def is_expiry_in_past(value):
+    parsed_expiry = parse_license_expiry(value)
+    if not parsed_expiry:
+        return False
+
+    now = timezone.localtime(timezone.now())
+    if hasattr(parsed_expiry, "date"):
+        parsed_expiry = timezone.localtime(parsed_expiry)
+        return parsed_expiry <= now
+
+    return parsed_expiry < now.date()
+
+
+def is_license_expired(license_data):
+    return is_expiry_in_past(license_data.get("expiry_date")) or is_expiry_in_past(
+        license_data.get("expired_at")
+    )
 
 
 def get_document_from_file(application, license_file):
