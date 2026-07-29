@@ -206,6 +206,17 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
         with self.assertRaisesMessage(Http404, "Advertisement license has expired."):
             get_public_license_document("ALIS202600001")
 
+    def test_reactivated_license_ignores_stale_expired_at(self):
+        self.application.form_data["license"]["status"] = "Active"
+        self.application.form_data["license"]["expiry_date"] = "2099-01-01T00:00:00+00:00"
+        self.application.form_data["license"]["expired_at"] = "2000-01-01T00:00:00+00:00"
+        self.application.save(update_fields=["form_data"])
+
+        _application, document = get_public_license_document("ALIS202600001")
+
+        self.assertTrue(document.is_generated)
+        self.assertEqual(document.html, self.generated_license_html)
+
     def test_raises_404_when_matching_license_has_no_document(self):
         self.application.form_data = {
             "license": {

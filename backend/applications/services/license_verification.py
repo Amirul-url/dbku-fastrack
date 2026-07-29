@@ -107,9 +107,12 @@ def is_expiry_in_past(value):
 
 
 def is_license_expired(license_data):
-    return is_expiry_in_past(license_data.get("expiry_date")) or is_expiry_in_past(
-        license_data.get("expired_at")
-    )
+    license_status = str(license_data.get("status") or "").strip().lower()
+    expiry_date_has_passed = is_expiry_in_past(license_data.get("expiry_date"))
+    if license_status == "active":
+        return expiry_date_has_passed
+
+    return expiry_date_has_passed or is_expiry_in_past(license_data.get("expired_at"))
 
 
 def get_document_from_file(application, license_file):

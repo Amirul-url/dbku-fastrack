@@ -16970,6 +16970,9 @@ const configs = {
             location: getApplicationLocation(app),
             issue_date: issueDate.toISOString(),
             expiry_date: expiry.toISOString(),
+            expired_at: "",
+            revoked_at: "",
+            revocation_reason: "",
             validity_years: validityYears,
             verification_url: getLicenseVerificationUrl(licenseId),
             issued_at: timestamp,
@@ -17142,6 +17145,9 @@ const configs = {
             location: getApplicationLocation(app),
             issue_date: issueDate.toISOString(),
             expiry_date: expiry.toISOString(),
+            expired_at: "",
+            revoked_at: "",
+            revocation_reason: "",
             validity_years: 1,
             verification_url: getLicenseVerificationUrl(licenseId),
             renewed_at: timestamp,
@@ -17249,6 +17255,10 @@ const configs = {
                 ...(app.form_data?.payment || {}),
                 official_receipt_no: officialReceiptNo,
                 status: "Payment Verified",
+              },
+              license: {
+                ...nextLicenseBase,
+                manual_license: nextManualLicense,
               },
               license_renewal: {
                 ...renewal,
@@ -23345,6 +23355,9 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
         location: getApplicationLocation(app),
         issue_date: issueDate.toISOString(),
         expiry_date: expiry.toISOString(),
+        expired_at: "",
+        revoked_at: "",
+        revocation_reason: "",
         validity_years: 1,
         verification_url: getLicenseVerificationUrl(licenseId),
       },
@@ -25181,10 +25194,29 @@ function addCalendarYears(value, years) {
   return next;
 }
 
+function getCompactLicenseVerificationId(licenseId) {
+  const normalized = String(licenseId || "").trim();
+  const match = normalized.match(/ALIS[.\s-]*(\d{4})[.\s-]*(\d+)$/i);
+  if (match) {
+    const [, year, sequence] = match;
+    return `ALIS${year}${String(Number(sequence) || sequence).padStart(5, "0")}`;
+  }
+
+  const compact = normalized.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  const compactMatch = compact.match(/^ALIS(\d{4})(\d+)$/i);
+  if (compactMatch) {
+    const [, year, sequence] = compactMatch;
+    return `ALIS${year}${String(Number(sequence) || sequence).padStart(5, "0")}`;
+  }
+
+  return compact || normalized;
+}
+
 function getLicenseVerificationUrl(licenseId) {
   const origin = getPublicOrigin();
+  const verificationId = getCompactLicenseVerificationId(licenseId);
 
-  return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
+  return `${origin}/license/verify/${encodeURIComponent(verificationId)}`;
 }
 
 function LicenseUrlInfo({ label, value }) {

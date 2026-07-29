@@ -4779,6 +4779,24 @@ function getLicenseRenewalRejectedRemark(app) {
   );
 }
 
+function getCompactLicenseVerificationId(licenseId) {
+  const normalized = String(licenseId || "").trim();
+  const match = normalized.match(/ALIS[.\s-]*(\d{4})[.\s-]*(\d+)$/i);
+  if (match) {
+    const [, year, sequence] = match;
+    return `ALIS${year}${String(Number(sequence) || sequence).padStart(5, "0")}`;
+  }
+
+  const compact = normalized.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  const compactMatch = compact.match(/^ALIS(\d{4})(\d+)$/i);
+  if (compactMatch) {
+    const [, year, sequence] = compactMatch;
+    return `ALIS${year}${String(Number(sequence) || sequence).padStart(5, "0")}`;
+  }
+
+  return compact || normalized;
+}
+
 function getLicenseVerificationUrl(licenseId) {
   const runtimeOrigin =
     typeof window !== "undefined" && window.location?.origin
@@ -4786,8 +4804,9 @@ function getLicenseVerificationUrl(licenseId) {
       : "";
   const configuredOrigin = String(import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
   const origin = runtimeOrigin || configuredOrigin;
+  const verificationId = getCompactLicenseVerificationId(licenseId);
 
-  return `${origin}/license/verify/${encodeURIComponent(licenseId)}`;
+  return `${origin}/license/verify/${encodeURIComponent(verificationId)}`;
 }
 
 async function printHtmlDocument(html, title) {
