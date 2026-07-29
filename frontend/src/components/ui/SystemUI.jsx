@@ -240,11 +240,13 @@ export function StatusPill({ value, size = "md" }) {
     normalized.includes("reject") ||
     normalized.includes("failed") ||
     normalized.includes("revoked") ||
+    normalized.includes("expired") ||
     normalized.includes("invalid") ||
     normalized.includes("tidak disokong") ||
     normalized.includes("ditolak") ||
     normalized.includes("gagal") ||
     normalized.includes("dibatalkan") ||
+    normalized.includes("tamat tempoh") ||
     normalized.includes("tidak sah")
   ) {
     className = "border-red-200 bg-red-50 text-red-700";
