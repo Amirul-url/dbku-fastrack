@@ -504,7 +504,16 @@ def apply_license_renewal_action(
         "confirm_cancellation_notice",
         "support_cancellation_notice",
     }:
-        result = apply_license_cancellation_action(application, form_data, renewal, action, user, note)
+        result = apply_license_cancellation_action(
+            application,
+            form_data,
+            renewal,
+            action,
+            user,
+            note,
+            document_html=document_html,
+            digital_signature=digital_signature,
+        )
     elif action in {
         "verify_early_payment",
         "reject_early_payment",
@@ -781,19 +790,53 @@ def apply_license_renewal_payment_action(
     raise ValueError("Unsupported renewal payment action.")
 
 
-def apply_license_cancellation_action(application, form_data, renewal, action, user, note):
+def apply_license_cancellation_action(
+    application,
+    form_data,
+    renewal,
+    action,
+    user,
+    note,
+    document_html="",
+    digital_signature=None,
+):
     cancellation = renewal.get("cancellation") if isinstance(renewal.get("cancellation"), dict) else {}
 
     if action == "generate_cancellation_notice":
         if not is_pt_ikl_user(user):
             raise PermissionError("Only PT(IKL) can generate cancellation notices.")
 
+        clean_note = clean_remark(note)
+        if not clean_note:
+            raise ValueError("Remarks are required.")
+
+        if not has_digital_signature_content(digital_signature):
+            raise ValueError("Digital signature is required.")
+
+        now = timezone.now().isoformat()
+        notice_html = clean_document_html(document_html)
+        notice_content = html_to_text(notice_html) if notice_html else build_cancellation_notice_text(application)
         cancellation.update({
             "status": "pending_supervisor_confirmation",
-            "generated_at": timezone.now().isoformat(),
+            "generated_at": now,
             "generated_by": get_web_recipient(user),
-            "note": clean_remark(note),
-            "content": build_cancellation_notice_text(application),
+            "note": clean_note,
+            "remarks": clean_note,
+            "digital_signature": digital_signature,
+            "content": notice_content,
+            "document_html": notice_html,
+            "notice": {
+                "type": "cancellation_notice",
+                "template": "dbku_license_cancellation_notice_v1",
+                "title": "Cancellation Notice Letter",
+                "generated_at": now,
+                "generated_by": get_web_recipient(user),
+                "note": clean_note,
+                "remarks": clean_note,
+                "digital_signature": digital_signature,
+                "content": notice_content,
+                "document_html": notice_html,
+            },
         })
         renewal["cancellation"] = cancellation
         notify_license_cancellation_task(application, "license_cancellation_supervisor_confirmation")
@@ -806,11 +849,30 @@ def apply_license_cancellation_action(application, form_data, renewal, action, u
         if cancellation.get("status") != "pending_supervisor_confirmation":
             raise ValueError("The cancellation notice is not waiting for supervisor confirmation.")
 
+        clean_note = clean_remark(note)
+        if not clean_note:
+            raise ValueError("Remarks are required.")
+
+        if not has_digital_signature_content(digital_signature):
+            raise ValueError("Digital signature is required.")
+
+        notice = cancellation.get("notice") if isinstance(cancellation.get("notice"), dict) else {}
+        notice.update({
+            "status": "pending_kb_les_support",
+            "confirmed_at": timezone.now().isoformat(),
+            "confirmed_by": get_web_recipient(user),
+            "confirmation_note": clean_note,
+            "confirmation_remarks": clean_note,
+            "confirmation_digital_signature": digital_signature,
+        })
         cancellation.update({
             "status": "pending_kb_les_support",
             "confirmed_at": timezone.now().isoformat(),
             "confirmed_by": get_web_recipient(user),
-            "confirmation_note": clean_remark(note),
+            "confirmation_note": clean_note,
+            "confirmation_remarks": clean_note,
+            "confirmation_digital_signature": digital_signature,
+            "notice": notice,
         })
         renewal["cancellation"] = cancellation
         notify_license_cancellation_task(application, "license_cancellation_kb_support")
@@ -823,11 +885,32 @@ def apply_license_cancellation_action(application, form_data, renewal, action, u
         if cancellation.get("status") != "pending_kb_les_support":
             raise ValueError("The cancellation notice is not waiting for KB(LES) support.")
 
+        clean_note = clean_remark(note)
+        if not clean_note:
+            raise ValueError("Remarks are required.")
+
+        if not has_digital_signature_content(digital_signature):
+            raise ValueError("Digital signature is required.")
+
+        supported_at = timezone.now().isoformat()
+        notice = cancellation.get("notice") if isinstance(cancellation.get("notice"), dict) else {}
+        notice.update({
+            "status": "released_to_applicant",
+            "supported_at": supported_at,
+            "supported_by": get_web_recipient(user),
+            "support_note": clean_note,
+            "support_remarks": clean_note,
+            "support_digital_signature": digital_signature,
+            "released_at": supported_at,
+        })
         cancellation.update({
             "status": "released_to_applicant",
-            "supported_at": timezone.now().isoformat(),
+            "supported_at": supported_at,
             "supported_by": get_web_recipient(user),
-            "support_note": clean_remark(note),
+            "support_note": clean_note,
+            "support_remarks": clean_note,
+            "support_digital_signature": digital_signature,
+            "notice": notice,
         })
         renewal["cancellation"] = cancellation
         license_data = get_form_data_section(form_data, "license")

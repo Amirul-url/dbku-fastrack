@@ -5469,10 +5469,7 @@ function getLicenseRenewalCancellationStatus(application) {
 }
 
 function isPendingPtCancellationNotice(application) {
-  return (
-    normalizeStatus(application?.status) === "license_issued" &&
-    getLicenseRenewalCancellationStatus(application) === "pending_pt_notice"
-  );
+  return getLicenseRenewalCancellationStatus(application) === "pending_pt_notice";
 }
 
 function getTechnicalDepartmentReviews(app) {

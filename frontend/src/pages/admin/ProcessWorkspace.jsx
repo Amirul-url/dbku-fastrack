@@ -338,6 +338,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [showManualReceiptEditor, setShowManualReceiptEditor] = useState(false);
   const [showManualAdvertisementLicenseEditor, setShowManualAdvertisementLicenseEditor] = useState(false);
   const [renewalReminderDraftHtml, setRenewalReminderDraftHtml] = useState("");
+  const [cancellationNoticeDraftHtml, setCancellationNoticeDraftHtml] = useState("");
   const [technicalApplicationTypeSelection, setTechnicalApplicationTypeSelection] = useState([]);
   const technicalSiteDraftSaveIdRef = useRef(0);
   const manualLicenseDraftSaveIdRef = useRef(0);
@@ -917,17 +918,28 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     normalizedUserDepartment === "KB(LES)" &&
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
   const isPtCancellationNoticeWorkspace =
-    fromPersonalTask &&
     isApprovalWorkspace &&
     normalizedUserDepartment === "PT(IKL)" &&
     canGenerateCancellationNotice(selectedRecord, normalizedUserDepartment);
+  const isCancellationNoticeConfirmationWorkspace =
+    isApprovalWorkspace &&
+    canConfirmCancellationNotice(selectedRecord, normalizedUserDepartment);
+  const isCancellationNoticeSupportWorkspace =
+    isApprovalWorkspace &&
+    canSupportCancellationNotice(selectedRecord, normalizedUserDepartment);
+  const isCancellationNoticeWorkflowWorkspace =
+    isPtCancellationNoticeWorkspace ||
+    isCancellationNoticeConfirmationWorkspace ||
+    isCancellationNoticeSupportWorkspace;
   const isKbRenewalConfirmationOutsidePersonalTask =
     !fromPersonalTask &&
     isApprovalWorkspace &&
     normalizedUserDepartment === "KB(LES)" &&
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
   const actionConfig =
-    isPtPaymentVerifiedPersonalTask || isKbRenewalConfirmationWorkspace || isPtCancellationNoticeWorkspace
+    isPtPaymentVerifiedPersonalTask ||
+    isKbRenewalConfirmationWorkspace ||
+    isCancellationNoticeWorkflowWorkspace
       ? configs.license
       : config;
   const workspaceActions =
@@ -936,7 +948,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     !hasApprovalLicenseManagementRecord &&
     !isPtPaymentVerifiedPersonalTask &&
     !isKbRenewalConfirmationWorkspace &&
-    !isPtCancellationNoticeWorkspace
+    !isCancellationNoticeWorkflowWorkspace
       ? []
       : getWorkspaceActions(actionConfig, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction =
@@ -945,7 +957,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       hasApprovalLicenseManagementRecord ||
       isPtPaymentVerifiedPersonalTask ||
       isKbRenewalConfirmationWorkspace ||
-      isPtCancellationNoticeWorkspace
+      isCancellationNoticeWorkflowWorkspace
     ) &&
     (isIklWorkspace || workspaceActions.length > 0);
   const canViewSelectedWorkspace =
@@ -1019,7 +1031,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     normalizedUserDepartment === "PT(IKL)" &&
     workspaceActions.some((action) => action.key === "complete_renewal_payment");
   const isApprovalLicenseManagement =
-    hasApprovalLicenseManagementRecord && !isPtIssueLicenseWorkspace;
+    hasApprovalLicenseManagementRecord && !isPtIssueLicenseWorkspace && !isCancellationNoticeWorkflowWorkspace;
   const isIssuedLicenseRecord = ["license_issued", "license_revoked"].includes(
     normalizeStatus(selectedRecord?.status)
   );
@@ -1038,10 +1050,25 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           : action.reminderMonths === pendingPtRenewalReminderMonth
       )
     : null;
+  const selectedCancellationNoticeAction = isCancellationNoticeWorkflowWorkspace
+    ? workspaceActions.find((action) =>
+        isPtCancellationNoticeWorkspace
+          ? action.key === "generate_cancellation_notice"
+          : isCancellationNoticeConfirmationWorkspace
+            ? action.key === "confirm_cancellation_notice"
+            : action.key === "support_cancellation_notice"
+      )
+    : null;
 
   useEffect(() => {
     setRenewalReminderDraftHtml("");
   }, [selectedRecord?.id, pendingPtRenewalReminderMonth, pendingKbRenewalConfirmationMonth]);
+
+  const cancellationWorkflowStatus = getCancellationStatus(selectedRecord);
+
+  useEffect(() => {
+    setCancellationNoticeDraftHtml("");
+  }, [selectedRecord?.id, cancellationWorkflowStatus]);
 
   const isApprovalSupportStage = isApprovalWorkspace && approvalStageKey === "support";
   const isFinalApprovalSupportWorkspace =
@@ -1099,7 +1126,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isPostApprovalPaymentRecord(selectedRecord) &&
     !isPtIssueLicenseWorkspace &&
     !isApprovalLicenseManagement &&
-    !isKbRenewalConfirmationWorkspace;
+    !isKbRenewalConfirmationWorkspace &&
+    !isCancellationNoticeWorkflowWorkspace;
   const WorkspaceDetailsComponent =
     actionConfig.key === "license" &&
     normalizedUserDepartment === "PT(IKL)" &&
@@ -1131,6 +1159,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showActionPanel &&
     !showApprovalPaymentReadOnly &&
     !showRenewalReminderWorkflowPanel &&
+    !isCancellationNoticeWorkflowWorkspace &&
     !showPaymentDocumentDecision &&
     !showApprovalLicenseManagementDetails &&
     !isIssuedLicenseRecord &&
@@ -1150,6 +1179,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     canSubmitWorkspaceAction &&
     !showRenewalReminderWorkflowPanel &&
+    !isCancellationNoticeWorkflowWorkspace &&
     !isApprovalLicenseManagement &&
     !showIssueLicenseDecision &&
     !useApprovalSignatureTemplate &&
@@ -1163,6 +1193,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     showIssueLicenseDecision;
   const showWorkspaceCommentField =
     !showRenewalReminderWorkflowPanel &&
+    !isCancellationNoticeWorkflowWorkspace &&
     !isApprovalLicenseManagement &&
     (actionConfig.showComment || showIssueLicenseDecision || requiresWorkspaceActionSignature) &&
     canSubmitWorkspaceAction &&
@@ -3680,6 +3711,42 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                 />
               )}
 
+              {isCancellationNoticeWorkflowWorkspace && (
+                <CancellationNoticeTaskPanel
+                  app={selectedRecord}
+                  t={t}
+                  saving={saving}
+                  draftHtml={isPtCancellationNoticeWorkspace ? cancellationNoticeDraftHtml : ""}
+                  generationMode={isPtCancellationNoticeWorkspace}
+                  confirmationMode={isCancellationNoticeConfirmationWorkspace}
+                  supportMode={isCancellationNoticeSupportWorkspace}
+                  remarks={comment}
+                  remarksError={commentError}
+                  signature={approvalSupportSignature}
+                  signatureError={approvalSupportSignatureError}
+                  onDraftHtmlChange={setCancellationNoticeDraftHtml}
+                  onRemarksChange={(value) => {
+                    setComment(value);
+                    if (commentError) setCommentError("");
+                  }}
+                  onRemarksError={setCommentError}
+                  onSignatureChange={(value) => {
+                    setApprovalSupportSignature(value);
+                    if (approvalSupportSignatureError) setApprovalSupportSignatureError("");
+                  }}
+                  onSignatureError={setApprovalSupportSignatureError}
+                  onGenerate={(documentHtml, submitData = {}) => {
+                    if (!selectedCancellationNoticeAction) return;
+                    submitAction(selectedCancellationNoticeAction, {
+                      documentHtml,
+                      comment: submitData.comment,
+                      approvalSupportSignature: submitData.signature,
+                      checkDecisionRemark: false,
+                    });
+                  }}
+                />
+              )}
+
               {(showApprovalTechnicalReport || showELicenseVerificationReport) && showVerificationReport && (
                 <ApprovalTechnicalReviewSummary
                   t={t}
@@ -3818,6 +3885,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   {config.showDecision &&
                     canSubmitWorkspaceAction &&
                     !showRenewalReminderWorkflowPanel &&
+                    !isCancellationNoticeWorkflowWorkspace &&
                     !isApprovalLicenseManagement &&
                     !useApprovalSignatureTemplate &&
                     !showApprovalDecisionButtons &&
@@ -4530,7 +4598,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                             {saving ? t("workspace.saving") : t("workspace.decision.approve", "Approve")}
                           </Button>
                         </>
-                      ) : canSubmitWorkspaceAction && !showRenewalReminderWorkflowPanel ? (
+                      ) : canSubmitWorkspaceAction && !showRenewalReminderWorkflowPanel && !isCancellationNoticeWorkflowWorkspace ? (
                         workspaceActions.map((action) => (
                           <Button
                             key={action.label}
@@ -11923,6 +11991,13 @@ function getWorkspaceActionDescription(config, t, userDepartment, selectedRecord
       );
     }
 
+    if (canGenerateCancellationNotice(selectedRecord, userDepartment)) {
+      return t(
+        "workspace.license.generateCancellationNoticeAction",
+        "Review and generate the cancellation notice letter for KB(LES) confirmation."
+      );
+    }
+
     const renewalTaskLabel = getLicenseRenewalTaskStatusLabel(selectedRecord, userDepartment, t);
     if (renewalTaskLabel) {
       return t(
@@ -12027,6 +12102,14 @@ function getWorkspaceActions(config, app, department) {
   }
 
   if (
+    canGenerateCancellationNotice(app, normalizedDepartment) ||
+    canConfirmCancellationNotice(app, normalizedDepartment) ||
+    canSupportCancellationNotice(app, normalizedDepartment)
+  ) {
+    return getWorkspaceActions(configs.license, app, normalizedDepartment);
+  }
+
+  if (
     normalizedDepartment === "PT(IKL)" &&
     (
       ["license_issued", "license_revoked"].includes(normalizeStatus(app?.status)) ||
@@ -12037,10 +12120,6 @@ function getWorkspaceActions(config, app, department) {
   }
 
   if (canConfirmRenewalReminder(app, normalizedDepartment)) {
-    return getWorkspaceActions(configs.license, app, normalizedDepartment);
-  }
-
-  if (canConfirmCancellationNotice(app, normalizedDepartment) || canSupportCancellationNotice(app, normalizedDepartment)) {
     return getWorkspaceActions(configs.license, app, normalizedDepartment);
   }
 
@@ -12720,6 +12799,155 @@ function getRenewalReminderDocumentHtml(app, months, draftHtml = "") {
   return draftHtml || savedHtml || buildFirstReminderLetterDocumentHtml(app, months);
 }
 
+function getCancellationNoticeDocumentHtml(app, draftHtml = "") {
+  const savedHtml = getSavedCancellationNoticeDocumentHtml(app);
+  return draftHtml || savedHtml || buildCancellationNoticeDocumentHtml(app);
+}
+
+function getSavedCancellationNoticeDocumentHtml(app) {
+  const cancellation = getLicenseRenewal(app).cancellation || {};
+  const notice = cancellation.notice || {};
+  return notice.document_html || cancellation.document_html || "";
+}
+
+function buildCancellationNoticeDocumentHtml(app) {
+  const context = getCancellationNoticeContext(app);
+  const addressLines = context.addressLines
+    .map((line) => `<p data-renewal-editable="true">${escapeHtml(line)}</p>`)
+    .join("");
+
+  return `
+<article class="dbku-renewal-letter">
+  <style>
+    html, body { margin: 0; background: #f8fafc; }
+    @page { size: A4; margin: 0; }
+    .dbku-renewal-letter {
+      width: 210mm;
+      height: 297mm;
+      box-sizing: border-box;
+      margin: 0 auto;
+      padding: 34mm 26mm 24mm;
+      background: #fff;
+      color: #111827;
+      font-family: Calibri, Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.25;
+      overflow: hidden;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .dbku-renewal-letter, .dbku-renewal-letter * {
+      font-family: Calibri, Arial, Helvetica, sans-serif !important;
+      font-size: 11pt !important;
+      line-height: 1.25 !important;
+      letter-spacing: 0 !important;
+    }
+    .dbku-renewal-letter p { margin: 0 0 9pt; }
+    .dbku-renewal-letter .topline { display: grid; grid-template-columns: 1fr auto; gap: 14mm; align-items: start; }
+    .dbku-renewal-letter .top-field { display: grid; grid-template-columns: 18mm minmax(42mm, 1fr); gap: 4mm; }
+    .dbku-renewal-letter .date-line { justify-self: end; min-width: 52mm; text-align: right; }
+    .dbku-renewal-letter .editable-blank { display: inline-block; min-width: 42mm; min-height: 1em; }
+    .dbku-renewal-letter .recipient { margin: 10pt 0 14pt 22mm; }
+    .dbku-renewal-letter .recipient p { margin: 0; }
+    .dbku-renewal-letter .subject { margin: 0 0 12pt 22mm; font-weight: 800; text-align: justify; text-transform: uppercase; }
+    .dbku-renewal-letter .subject span { display: block; text-align: justify; text-align-last: left; }
+    .dbku-renewal-letter .intro { margin: 0 0 10pt 22mm; text-align: justify; }
+    .dbku-renewal-letter .para { display: block; margin: 0 0 12pt 22mm; text-align: justify; text-align-last: left; }
+    .dbku-renewal-letter .para > span:first-child { display: inline-block; width: 14mm; margin-right: 4mm; vertical-align: top; }
+    .dbku-renewal-letter .para > span:last-child { display: inline; }
+    .dbku-renewal-letter .date-nowrap { white-space: nowrap; }
+    .dbku-renewal-letter .closing { margin: 0 0 12pt 22mm; }
+    .dbku-renewal-letter .motto { margin: 0 0 12pt 22mm; font-weight: 800; font-style: italic; }
+    .dbku-renewal-letter .director { margin-left: 22mm; font-weight: 800; }
+    .dbku-renewal-letter .note { margin-top: 34pt; text-align: center; font-size: 7pt !important; font-style: italic; }
+    .dbku-renewal-letter .note * { font-size: 7pt !important; font-style: italic; }
+    [data-renewal-editable="true"]:focus { outline: 2px solid rgba(16, 185, 129, .35); outline-offset: 2px; }
+    @media print {
+      html, body { width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
+      .dbku-renewal-letter { margin: 0; box-shadow: none; }
+    }
+  </style>
+  <div class="topline">
+    <div>
+      <p class="top-field"><span>Tuan:</span><span class="editable-blank" data-renewal-editable="true">&nbsp;</span></p>
+      <div class="top-field"><strong>Kami:</strong><span data-renewal-editable="true">${escapeHtml(context.ourRef)}</span></div>
+    </div>
+    <p class="date-line">Tarikh: <span data-renewal-editable="true">${escapeHtml(context.letterDate)}</span></p>
+  </div>
+
+  <div class="recipient">
+    <p data-renewal-editable="true">${escapeHtml(context.applicantName)}</p>
+    ${addressLines}
+  </div>
+
+  <p style="margin-left:22mm;">Tuan</p>
+
+  <div class="subject">
+    <span data-renewal-editable="true">${escapeHtml(context.subject)}</span>
+  </div>
+
+  <p class="intro" data-renewal-editable="true">${escapeHtml(context.introText)}</p>
+
+  <p class="para"><span>2.</span><span>Berdasarkan rekod kami, tempoh Lesen Iklan tuan telah tamat pada <strong><u class="date-nowrap" data-renewal-editable="true">${escapeHtml(context.expiryDate)}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
+
+  <p class="para"><span>3.</span><span>Sehubungan itu, lesen iklan tersebut adalah tertakluk kepada pembatalan dan tindakan penguatkuasaan mengikut undang-undang kecil yang berkuat kuasa.</span></p>
+
+  <p class="para"><span>4.</span><span>Sekiranya pihak tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955.</span></p>
+
+  <p class="closing">Sekian. Terima kasih.</p>
+
+  <div class="motto">
+    <p>"AN HONOUR TO SERVE"<br>"TOGETHER WE CARE"</p>
+  </div>
+
+  <p class="director">Pengarah DBKU</p>
+
+  <p class="note">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+</article>`.trim();
+}
+
+function getCancellationNoticeContext(app) {
+  const license = app?.form_data?.license || {};
+  const expiryDate = parseDateOrFallback(license.expiry_date, null);
+  const cancellation = getLicenseRenewal(app).cancellation || {};
+  const letterDate =
+    parseDateOrFallback(cancellation.detected_at || cancellation.generated_at, null) || new Date();
+  const location = getApplicationLocation(app);
+  const projectName = String(getProjectName(app) || getLicenseId(app) || "NAMA IKLAN")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    ourRef: `DBKU/LES/IKL/${letterDate.getFullYear().toString().slice(-2)}/1(b)/ (   )`,
+    letterDate: formatMalayLetterDate(letterDate),
+    applicantName: getFirstReminderCompanyName(app),
+    addressLines: getLetterAddressLines(app),
+    subject: `MAKLUMAN PEMBATALAN LESEN IKLAN DAN TINDAKAN PENGUATKUASAAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
+    introText: getCancellationNoticeIntroText(app),
+    expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
+  };
+}
+
+function getCancellationNoticeIntroText(app) {
+  const previousLetters = [3, 2, 1]
+    .map((months) => getPreviousRenewalReminderLetterDetails(app, months))
+    .filter(Boolean);
+
+  if (previousLetters.length > 1) {
+    const references = previousLetters
+      .map((letter) => `${letter.ourRef} bertarikh ${letter.letterDate}`)
+      .join(" dan ");
+    return `Dengan segala hormatnya surat kami rujukan ${references} mengenai perkara di atas dirujuk.`;
+  }
+
+  if (previousLetters.length === 1) {
+    const [previousLetter] = previousLetters;
+    return `Dengan segala hormatnya surat kami rujukan ${previousLetter.ourRef} bertarikh ${previousLetter.letterDate} mengenai perkara di atas dirujuk.`;
+  }
+
+  return "Dengan segala hormatnya perkara di atas dirujuk.";
+}
+
 function buildFirstReminderLetterDocumentHtml(app, months = 3) {
   const context = getFirstReminderLetterContext(app, months);
   const addressLines = context.addressLines
@@ -13294,7 +13522,6 @@ function canConfirmRenewalReminder(app, department) {
 function canGenerateCancellationNotice(app, department) {
   return (
     department === "PT(IKL)" &&
-    normalizeStatus(app?.status) === "license_issued" &&
     getCancellationStatus(app) === "pending_pt_notice"
   );
 }
@@ -13302,7 +13529,6 @@ function canGenerateCancellationNotice(app, department) {
 function canConfirmCancellationNotice(app, department) {
   return (
     isSupervisorWorkflowDepartment(department) &&
-    normalizeStatus(app?.status) === "license_issued" &&
     getCancellationStatus(app) === "pending_supervisor_confirmation"
   );
 }
@@ -13310,7 +13536,6 @@ function canConfirmCancellationNotice(app, department) {
 function canSupportCancellationNotice(app, department) {
   return (
     department === "KB(LES)" &&
-    normalizeStatus(app?.status) === "license_issued" &&
     getCancellationStatus(app) === "pending_kb_les_support"
   );
 }
@@ -16787,6 +17012,7 @@ const configs = {
         }),
       },
       {
+        key: "generate_cancellation_notice",
         label: "Generate Cancellation Notice",
         labelKey: "workspace.action.generateCancellationNotice",
         icon: "gavel",
@@ -16798,9 +17024,12 @@ const configs = {
         buildPayload: (app, data) => ({
           action: "generate_cancellation_notice",
           note: data.comment,
+          document_html: data.documentHtml || buildCancellationNoticeDocumentHtml(app),
+          digital_signature: data.approvalSupportSignature || null,
         }),
       },
       {
+        key: "confirm_cancellation_notice",
         label: "Confirm Cancellation Notice",
         labelKey: "workspace.action.confirmCancellationNotice",
         icon: "fact_check",
@@ -16812,9 +17041,11 @@ const configs = {
         buildPayload: (app, data) => ({
           action: "confirm_cancellation_notice",
           note: data.comment,
+          digital_signature: data.approvalSupportSignature || null,
         }),
       },
       {
+        key: "support_cancellation_notice",
         label: "Support Cancellation Notice",
         labelKey: "workspace.action.supportCancellationNotice",
         icon: "verified_user",
@@ -16826,6 +17057,7 @@ const configs = {
         buildPayload: (app, data) => ({
           action: "support_cancellation_notice",
           note: data.comment,
+          digital_signature: data.approvalSupportSignature || null,
         }),
       },
     ],
@@ -24200,6 +24432,243 @@ function FirstReminderTaskPanel({
             className="min-w-56"
             disabled={saving}
             onClick={submitReminderLetter}
+          >
+            {saving ? t("workspace.saving", "Saving...") : submitLabel}
+          </Button>
+        </div>
+      </div>
+
+      {reviewDocument && (
+        <GeneratedDocumentReviewModal
+          document={reviewDocument}
+          t={t}
+          saving={saving}
+          onClose={() => setReviewDocument(null)}
+          onSave={(nextHtml) => {
+            setDocumentError("");
+            onDraftHtmlChange?.(nextHtml);
+            setReviewDocument(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function CancellationNoticeTaskPanel({
+  app,
+  t,
+  saving,
+  draftHtml = "",
+  generationMode = false,
+  confirmationMode = false,
+  supportMode = false,
+  remarks = "",
+  remarksError = "",
+  signature = null,
+  signatureError = "",
+  onDraftHtmlChange,
+  onRemarksChange,
+  onRemarksError,
+  onSignatureChange,
+  onSignatureError,
+  onGenerate,
+}) {
+  const [reviewDocument, setReviewDocument] = useState(null);
+  const [documentError, setDocumentError] = useState("");
+  const signatureBoxRef = useRef(null);
+  const savedNoticeHtml = getSavedCancellationNoticeDocumentHtml(app);
+  const documentHtml = getCancellationNoticeDocumentHtml(app, draftHtml);
+  const reviewedNoticeHtml = String(draftHtml || "").trim();
+  const hasReviewSavedNotice = Boolean(reviewedNoticeHtml || String(savedNoticeHtml).trim());
+  const noticeDownloadHtml = reviewedNoticeHtml || savedNoticeHtml || documentHtml;
+  const documentTitle = t("workspace.license.cancellationNoticeLetter", "Cancellation Notice Letter");
+  const documentDescription = generationMode
+    ? t(
+        "workspace.license.cancellationNoticeReviewDesc",
+        "Please review the auto-generated cancellation notice letter before sending it for KB(LES) confirmation."
+      )
+    : confirmationMode
+      ? t(
+          "workspace.license.cancellationNoticeConfirmDesc",
+          "Please check the cancellation notice letter before confirming it for the next approval step."
+        )
+      : t(
+          "workspace.license.cancellationNoticeSupportDesc",
+          "Please check the cancellation notice letter before releasing it to the applicant."
+        );
+  const remarksPlaceholder = generationMode
+    ? t(
+        "workspace.license.cancellationNoticePtRemarksPlaceholder",
+        "Enter PT(IKL) remarks before sending this cancellation notice letter to KB(LES)."
+      )
+    : confirmationMode
+      ? t(
+          "workspace.license.cancellationNoticeConfirmationRemarksPlaceholder",
+          "Enter confirmation remarks for this cancellation notice letter."
+        )
+      : t(
+          "workspace.license.cancellationNoticeSupportRemarksPlaceholder",
+          "Enter KB(LES) support remarks for this cancellation notice letter."
+        );
+  const submitLabel = generationMode
+    ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice")
+    : confirmationMode
+      ? t("workspace.action.confirmCancellationNotice", "Confirm Cancellation Notice")
+      : t("workspace.action.supportCancellationNotice", "Support Cancellation Notice");
+
+  async function submitCancellationNotice() {
+    const cleanedRemarks = cleanRemark(remarks);
+
+    if (generationMode && !hasReviewSavedNotice) {
+      setDocumentError(t(
+        "workspace.license.cancellationNoticeReviewSaveRequired",
+        "Please review and save the cancellation notice letter before submitting."
+      ));
+      return;
+    }
+
+    if (!cleanedRemarks) {
+      onRemarksError?.(t("workspace.validation.remarksRequired", "Remarks are required."));
+      return;
+    }
+
+    if (!hasDigitalSignatureContent(signature)) {
+      onSignatureError?.(t("workspace.signature.required", "Digital signature is required."));
+      return;
+    }
+
+    const nextSignature =
+      await signatureBoxRef.current?.captureLatestSnapshot?.(signature) || signature;
+
+    onGenerate?.(noticeDownloadHtml, {
+      comment: cleanedRemarks,
+      signature: nextSignature,
+    });
+  }
+
+  function openReview() {
+    setDocumentError("");
+    setReviewDocument({
+      title: documentTitle,
+      reference: getApplicationReference(app),
+      html: documentHtml,
+      editable: true,
+      signatureTools: false,
+      kind: "cancellation_notice",
+      scale: 1.08,
+      allowHorizontalScroll: false,
+    });
+  }
+
+  return (
+    <>
+      <div className="space-y-5 text-sm">
+        <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold uppercase leading-5 tracking-wide text-slate-500">
+                {documentTitle} <span className="text-red-600">*</span>
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
+                {documentDescription}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {hasReviewSavedNotice && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="download"
+                  className="min-h-9 px-4 py-1.5"
+                  disabled={saving}
+                  onClick={() =>
+                    printRenewalReminderDocument(
+                      noticeDownloadHtml,
+                      `${getApplicationReference(app)} ${documentTitle}`,
+                      t
+                    )
+                  }
+                >
+                  {t("common.download", "Download")}
+                </Button>
+              )}
+              {generationMode && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  icon="edit"
+                  className="min-h-9 px-4 py-1.5"
+                  disabled={saving}
+                  onClick={openReview}
+                >
+                  {t("workspace.payment.reviewGeneratedDocument", "Review")}
+                </Button>
+              )}
+            </div>
+          </div>
+        </section>
+        {documentError && (
+          <p className="text-[13px] font-medium leading-5 text-red-600">
+            {documentError}
+          </p>
+        )}
+
+        <div className="space-y-4">
+          <div className="max-w-[56rem]">
+            <label
+              htmlFor="cancellation-notice-remarks"
+              className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
+            >
+              {t("workspace.comment.remarks", "Remarks")}
+              <span className="ml-1 text-red-600">*</span>
+            </label>
+            <div
+              className={`relative min-h-[390px] bg-white ${remarksError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
+              }}
+            >
+              <textarea
+                id="cancellation-notice-remarks"
+                value={remarks}
+                onChange={(event) => onRemarksChange?.(event.target.value)}
+                rows="12"
+                required
+                aria-required="true"
+                aria-invalid={Boolean(remarksError)}
+                className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
+                placeholder={remarksPlaceholder}
+                style={RULED_TEXTAREA_STYLE}
+              />
+            </div>
+            {remarksError && (
+              <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
+                {remarksError}
+              </p>
+            )}
+          </div>
+
+          <ApprovalSupportSignatureBox
+            ref={signatureBoxRef}
+            t={t}
+            applicationId={app?.id}
+            value={signature}
+            error={signatureError}
+            onChange={onSignatureChange}
+            onError={onSignatureError}
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant={supportMode || confirmationMode ? "primary" : "danger"}
+            icon={generationMode ? "gavel" : "verified"}
+            className="min-w-56"
+            disabled={saving}
+            onClick={submitCancellationNotice}
           >
             {saving ? t("workspace.saving", "Saving...") : submitLabel}
           </Button>

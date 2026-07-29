@@ -1044,10 +1044,7 @@ function getLicenseRenewalCancellationStatus(application) {
 }
 
 function isPendingPtCancellationNotice(application) {
-  return (
-    normalizeWorkflowStatus(application?.status) === "license_issued" &&
-    getLicenseRenewalCancellationStatus(application) === "pending_pt_notice"
-  );
+  return getLicenseRenewalCancellationStatus(application) === "pending_pt_notice";
 }
 
 function isPersonalTaskForDepartment(application, department) {
