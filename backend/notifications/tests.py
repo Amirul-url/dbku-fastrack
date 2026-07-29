@@ -2943,6 +2943,12 @@ class LicenseRenewalWorkflowTests(TestCase):
         )
         self.assertEqual(set(deliveries.values_list("channel", flat=True)), {"web", "email", "whatsapp"})
         self.assertEqual(deliveries.filter(channel="web").count(), 1)
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                user=self.applicant,
+                metadata__event_status="license_issued",
+            ).exists()
+        )
 
         response = client.patch(
             f"/api/applications/{self.application.id}/",

@@ -132,6 +132,18 @@ def maybe_notify_completed_license_renewal(application, old_form_data):
     )
 
 
+def is_completed_license_renewal_transition(application, old_form_data):
+    if str(application.status or "").strip().lower() != "license_issued":
+        return False
+
+    old_payment = get_license_renewal_payment(old_form_data)
+    new_payment = get_license_renewal_payment(application.form_data or {})
+    old_status = str(old_payment.get("status") or "").strip().lower()
+    new_status = str(new_payment.get("status") or "").strip().lower()
+
+    return old_status != "completed" and new_status == "completed"
+
+
 def maybe_append_completed_license_renewal_activity(application, actor, old_form_data):
     if getattr(actor, "role", "") not in STAFF_ROLES:
         return application
@@ -575,17 +587,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 activity_description,
                 category="workflow",
             )
-        notify_application_status_change(
-            application,
-            old_status,
-            old_remark,
-            old_form_data=old_form_data,
-            force=(
-                self.request.user.role in STAFF_ROLES
-                or (old_status_key == "draft" and new_status_key == "submitted")
-                or applicant_payment_submitted
-            ),
-        )
+        if not is_completed_license_renewal_transition(application, old_form_data):
+            notify_application_status_change(
+                application,
+                old_status,
+                old_remark,
+                old_form_data=old_form_data,
+                force=(
+                    self.request.user.role in STAFF_ROLES
+                    or (old_status_key == "draft" and new_status_key == "submitted")
+                    or applicant_payment_submitted
+                ),
+            )
         application = maybe_append_completed_license_renewal_activity(
             application,
             self.request.user,
