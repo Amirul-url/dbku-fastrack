@@ -12936,9 +12936,9 @@ function buildCancellationNoticeDocumentHtml(app) {
     .dbku-renewal-letter th { text-align: center; font-weight: 800; }
     .dbku-renewal-letter .no-col { width: 11mm; }
     .dbku-renewal-letter .center { text-align: center; }
-    .dbku-renewal-letter .period-col { width: 58mm; text-align: center; white-space: nowrap; }
-    .dbku-renewal-letter .amount-col { width: 38mm; text-align: right; }
-    .dbku-renewal-letter th.amount-col { text-align: center; white-space: nowrap; }
+    .dbku-renewal-letter .period-col { width: 72mm; text-align: center; white-space: nowrap; }
+    .dbku-renewal-letter .amount-col { width: 34mm; text-align: right; }
+    .dbku-renewal-letter th.amount-col { text-align: center; white-space: normal; }
     .dbku-renewal-letter .amount-cell { text-align: right; }
     .dbku-renewal-letter .total-label { text-align: right; font-weight: 800; }
     .dbku-renewal-letter .closing { margin: 24pt 0 10pt; }
@@ -12979,7 +12979,7 @@ function buildCancellationNoticeDocumentHtml(app) {
         <th class="no-col" data-renewal-editable="true">NO.</th>
         <th data-renewal-editable="true">JENIS LESEN</th>
         <th class="period-col" data-renewal-editable="true">TEMPOH LESEN</th>
-        <th class="amount-col" data-renewal-editable="true">JUMLAH BAYARAN(RM)</th>
+        <th class="amount-col" data-renewal-editable="true">JUMLAH BAYARAN<br>(RM)</th>
       </tr>
     </thead>
     <tbody>
@@ -12990,8 +12990,7 @@ function buildCancellationNoticeDocumentHtml(app) {
         <td class="amount-col" data-renewal-editable="true">${amountCell}</td>
       </tr>
       <tr>
-        <td data-renewal-editable="true">&nbsp;</td>
-        <td colspan="2" class="total-label" data-renewal-editable="true">JUMLAH BAYARAN TERTUNGGAK(RM):</td>
+        <td colspan="3" class="total-label" data-renewal-editable="true">JUMLAH BAYARAN TERTUNGGAK(RM):</td>
         <td class="amount-col" data-renewal-editable="true">${amountCell}</td>
       </tr>
     </tbody>
@@ -13021,7 +13020,6 @@ function getCancellationNoticeContext(app) {
     parseDateOrFallback(cancellation.detected_at || cancellation.generated_at, null) || new Date();
   const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
   const renewalEnd = expiryDate ? addCalendarYears(expiryDate, 1) : null;
-  const billAmount = getBillAmount(app);
 
   return {
     ourRef: `DBKU/LES/IKL/${letterDate.getFullYear().toString().slice(-2)}/1(b)/ (   )`,
@@ -13040,17 +13038,8 @@ function getCancellationNoticeContext(app) {
       renewalStart && renewalEnd
         ? `${formatDotDate(renewalStart)} hingga ${formatDotDate(renewalEnd)}`
         : "-",
-    amount: formatCancellationNoticeAmount(billAmount),
+    amount: "0.00",
   };
-}
-
-function formatCancellationNoticeAmount(value) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount) || amount <= 0) return "0.00";
-  return amount.toLocaleString("en-MY", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 function getCancellationNoticeIntroText(app) {
