@@ -5306,6 +5306,10 @@ function isUnitActionableApplication(application, unit, activeDepartment = "") {
     return isAssignedDepartment;
   }
 
+  if (unit.department === "PT(IKL)" && isPendingPtCancellationNotice(application)) {
+    return isAssignedDepartment;
+  }
+
   if (unit.department === "PT(IKL)" && isVerifiedRenewalPayment(application)) {
     return isAssignedDepartment;
   }
@@ -5413,6 +5417,10 @@ function getAdminTaskWorkspacePath(application, unit) {
       return "/admin/e-licenses/license";
     }
 
+    if (isPendingPtCancellationNotice(application)) {
+      return "/admin/e-licenses/license";
+    }
+
     if (["approved", "bill_pending_ku"].includes(status)) {
       return "/admin/e-licenses/payment";
     }
@@ -5452,6 +5460,19 @@ function isSubmittedRenewalPayment(application) {
 
 function isVerifiedRenewalPayment(application) {
   return getLicenseRenewalPaymentStatus(application) === "verified";
+}
+
+function getLicenseRenewalCancellationStatus(application) {
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const cancellation = renewal?.cancellation || {};
+  return normalizeStatus(cancellation.status);
+}
+
+function isPendingPtCancellationNotice(application) {
+  return (
+    normalizeStatus(application?.status) === "license_issued" &&
+    getLicenseRenewalCancellationStatus(application) === "pending_pt_notice"
+  );
 }
 
 function getTechnicalDepartmentReviews(app) {
@@ -5574,6 +5595,10 @@ function getDashboardTaskStatusLabel(application, unit, t) {
   if (department === "PT(IKL)") {
     const renewalMonth = getPendingPtRenewalReminderMonth(application);
     if (renewalMonth) return getRenewalReminderTaskLabel(renewalMonth);
+
+    if (isPendingPtCancellationNotice(application)) {
+      return t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice");
+    }
   }
 
   if (department === "KB(LES)") {

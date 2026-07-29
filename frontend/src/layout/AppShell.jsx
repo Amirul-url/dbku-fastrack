@@ -990,6 +990,7 @@ function isELicenseLicenseTask(application) {
   return (
     normalizeWorkflowStatus(application?.status) === "payment_verified" ||
     isPendingPtLicenseRenewalReminder(application) ||
+    isPendingPtCancellationNotice(application) ||
     isVerifiedRenewalPaymentForPt(application) ||
     hasPendingLicenseRevocationRequest(application)
   );
@@ -1036,6 +1037,19 @@ function isVerifiedRenewalPaymentForPt(application) {
   return getLicenseRenewalPaymentStatus(application) === "verified";
 }
 
+function getLicenseRenewalCancellationStatus(application) {
+  const renewal = application?.form_data?.license_renewal || application?.license_renewal || {};
+  const cancellation = renewal?.cancellation || {};
+  return normalizeWorkflowStatus(cancellation.status);
+}
+
+function isPendingPtCancellationNotice(application) {
+  return (
+    normalizeWorkflowStatus(application?.status) === "license_issued" &&
+    getLicenseRenewalCancellationStatus(application) === "pending_pt_notice"
+  );
+}
+
 function isPersonalTaskForDepartment(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
@@ -1043,6 +1057,7 @@ function isPersonalTaskForDepartment(application, department) {
     return (
       PT_IKL_TASK_STATUSES.has(status) ||
       isPendingPtLicenseRenewalReminder(application) ||
+      isPendingPtCancellationNotice(application) ||
       isVerifiedRenewalPaymentForPt(application)
     );
   }
