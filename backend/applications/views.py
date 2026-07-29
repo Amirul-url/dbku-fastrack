@@ -674,6 +674,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
         reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
         reminder = reminders.get(str(months)) if isinstance(reminders.get(str(months)), dict) else {}
+        cancellation = renewal.get("cancellation") if isinstance(renewal.get("cancellation"), dict) else {}
+        cancellation_notice = cancellation.get("notice") if isinstance(cancellation.get("notice"), dict) else {}
+        is_reactivation_payment = str(
+            cancellation_notice.get("status") or cancellation.get("status") or ""
+        ).strip().lower() == "released_to_applicant"
 
         if str(reminder.get("status") or "").strip().lower() != "released_to_applicant":
             return Response(
@@ -695,7 +700,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        title = f"{months}-Month Renewal Early Payment Receipt"
+        title = "License Reactivation Payment Receipt" if is_reactivation_payment else f"{months}-Month Renewal Early Payment Receipt"
         document = create_application_document(application, title, uploaded_file)
         serializer = SupportingDocumentSerializer(
             document,
@@ -755,8 +760,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         append_application_activity(
             application,
             request.user,
-            "Renewal early payment receipt uploaded",
-            f"{uploaded_file.name} uploaded for {months}-month renewal reminder.",
+            (
+                "License reactivation payment receipt uploaded"
+                if is_reactivation_payment
+                else "Renewal early payment receipt uploaded"
+            ),
+            (
+                f"{uploaded_file.name} uploaded for license reactivation."
+                if is_reactivation_payment
+                else f"{uploaded_file.name} uploaded for {months}-month renewal reminder."
+            ),
         )
 
         return Response(
@@ -786,6 +799,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
         payment = renewal.get("payment") if isinstance(renewal.get("payment"), dict) else {}
         payment_status = str(payment.get("status") or "").strip().lower()
+        cancellation = renewal.get("cancellation") if isinstance(renewal.get("cancellation"), dict) else {}
+        cancellation_notice = cancellation.get("notice") if isinstance(cancellation.get("notice"), dict) else {}
+        is_reactivation_payment = str(
+            cancellation_notice.get("status") or cancellation.get("status") or ""
+        ).strip().lower() == "released_to_applicant"
 
         has_reference_details = all(
             str(payment.get(key) or "").strip()
@@ -909,8 +927,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         append_application_activity(
             application,
             request.user,
-            "Renewal early payment receipt submitted",
-            f"Renewal payment reference submitted for {months}-month reminder.",
+            (
+                "License reactivation payment receipt submitted"
+                if is_reactivation_payment
+                else "Renewal early payment receipt submitted"
+            ),
+            (
+                "License reactivation payment reference submitted."
+                if is_reactivation_payment
+                else f"Renewal payment reference submitted for {months}-month reminder."
+            ),
         )
 
         return Response(

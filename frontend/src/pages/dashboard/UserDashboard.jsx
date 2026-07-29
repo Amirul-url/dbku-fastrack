@@ -663,6 +663,7 @@ function UserDashboard() {
     try {
       setRenewalReceiptUploading(true);
       setMessage({ type: "", text: "" });
+      const reactivationPayment = isLicenseReactivationPayment(activeApplication);
 
       const result = await uploadLicenseRenewalEarlyPaymentReceipt(
         activeApplication.id,
@@ -684,8 +685,12 @@ function UserDashboard() {
       setMessage({
         type: "success",
         text: t(
-          "applicant.renewalEarlyPaymentReceiptUploaded",
-          "Renewal early payment receipt uploaded."
+          reactivationPayment
+            ? "applicant.licenseReactivationPaymentReceiptUploaded"
+            : "applicant.renewalEarlyPaymentReceiptUploaded",
+          reactivationPayment
+            ? "License reactivation payment receipt uploaded."
+            : "Renewal early payment receipt uploaded."
         ),
       });
     } catch (err) {
@@ -695,8 +700,12 @@ function UserDashboard() {
         text:
           err.message ||
           t(
-            "applicant.renewalEarlyPaymentReceiptUploadFailed",
-            "Unable to upload the renewal early payment receipt."
+            isLicenseReactivationPayment(activeApplication)
+              ? "applicant.licenseReactivationPaymentReceiptUploadFailed"
+              : "applicant.renewalEarlyPaymentReceiptUploadFailed",
+            isLicenseReactivationPayment(activeApplication)
+              ? "Unable to upload the license reactivation payment receipt."
+              : "Unable to upload the renewal early payment receipt."
           ),
       });
     } finally {
@@ -719,6 +728,7 @@ function UserDashboard() {
     try {
       setRenewalReceiptUploading(true);
       setMessage({ type: "", text: "" });
+      const reactivationPayment = isLicenseReactivationPayment(activeApplication);
 
       const updatedApplication =
         (await deleteLicenseRenewalEarlyPaymentReceipt(activeApplication.id, receiptId)) ||
@@ -735,8 +745,12 @@ function UserDashboard() {
       setMessage({
         type: "success",
         text: t(
-          "applicant.renewalEarlyPaymentReceiptRemoved",
-          "Renewal early payment receipt removed."
+          reactivationPayment
+            ? "applicant.licenseReactivationPaymentReceiptRemoved"
+            : "applicant.renewalEarlyPaymentReceiptRemoved",
+          reactivationPayment
+            ? "License reactivation payment receipt removed."
+            : "Renewal early payment receipt removed."
         ),
       });
     } catch (err) {
@@ -746,8 +760,12 @@ function UserDashboard() {
         text:
           err.message ||
           t(
-            "applicant.renewalEarlyPaymentReceiptRemoveFailed",
-            "Unable to remove the renewal early payment receipt."
+            isLicenseReactivationPayment(activeApplication)
+              ? "applicant.licenseReactivationPaymentReceiptRemoveFailed"
+              : "applicant.renewalEarlyPaymentReceiptRemoveFailed",
+            isLicenseReactivationPayment(activeApplication)
+              ? "Unable to remove the license reactivation payment receipt."
+              : "Unable to remove the renewal early payment receipt."
           ),
       });
     } finally {
@@ -803,11 +821,16 @@ function UserDashboard() {
     const referenceDetails = getPaymentReferenceDetails(renewalPaymentReferenceDetails, { trim: true });
 
     if (!receipt) {
+      const reactivationPayment = isLicenseReactivationPayment(activeApplication);
       setMessage({
         type: "error",
         text: t(
-          "applicant.renewalEarlyPaymentReceiptRequired",
-          "Please upload the renewal payment receipt first."
+          reactivationPayment
+            ? "applicant.licenseReactivationPaymentReceiptRequired"
+            : "applicant.renewalEarlyPaymentReceiptRequired",
+          reactivationPayment
+            ? "Please upload the license reactivation payment receipt first."
+            : "Please upload the renewal payment receipt first."
         ),
       });
       return;
@@ -847,8 +870,12 @@ function UserDashboard() {
         text:
           err.message ||
           t(
-            "applicant.renewalEarlyPaymentReceiptSubmitFailed",
-            "Unable to submit the renewal payment receipt."
+            isLicenseReactivationPayment(activeApplication)
+              ? "applicant.licenseReactivationPaymentReceiptSubmitFailed"
+              : "applicant.renewalEarlyPaymentReceiptSubmitFailed",
+            isLicenseReactivationPayment(activeApplication)
+              ? "Unable to submit the license reactivation payment receipt."
+              : "Unable to submit the renewal payment receipt."
           ),
       });
     } finally {
@@ -1005,8 +1032,12 @@ function UserDashboard() {
       {renewalReceiptSuccessOpen && (
         <ReceiptSubmittedModal
           message={t(
-            "applicant.renewalReceiptSubmittedModalMessage",
-            "Receipt submitted for verification."
+            isLicenseReactivationPayment(selectedApplication || activeApplication)
+              ? "applicant.licenseReactivationReceiptSubmittedModalMessage"
+              : "applicant.renewalReceiptSubmittedModalMessage",
+            isLicenseReactivationPayment(selectedApplication || activeApplication)
+              ? "License reactivation payment receipt submitted for verification."
+              : "Receipt submitted for verification."
           )}
           t={t}
           onClose={() => setRenewalReceiptSuccessOpen(false)}
@@ -1744,6 +1775,13 @@ function RenewalEarlyPaymentReceiptSection({
   const submitted = renewalPaymentStatus === "submitted" && hasReferenceDetails;
   const verified = ["verified", "completed"].includes(renewalPaymentStatus);
   const locked = submitted || verified;
+  const reactivationPayment = isLicenseReactivationPayment(app);
+  const receiptTitle = reactivationPayment
+    ? t("applicant.licenseReactivationPaymentReceiptTitle", "License Reactivation Payment Receipt")
+    : t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt");
+  const emptyReceiptText = reactivationPayment
+    ? t("applicant.noLicenseReactivationPaymentReceipt", "No license reactivation payment receipt uploaded.")
+    : t("applicant.noRenewalEarlyPaymentReceipt", "No renewal early payment receipt uploaded.");
   const canSubmit = Boolean(selectedReceipt) &&
     !uploading &&
     !saving &&
@@ -1769,7 +1807,7 @@ function RenewalEarlyPaymentReceiptSection({
           </span>
           <div className="min-w-0">
             <h4 className="text-sm font-semibold text-slate-950">
-              {t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt")}
+              {receiptTitle}
             </h4>
           </div>
         </div>
@@ -1830,7 +1868,7 @@ function RenewalEarlyPaymentReceiptSection({
                       onClick={() =>
                         downloadApplicantReceiptPrintFlow(
                           receipt,
-                          t("applicant.renewalEarlyPaymentReceiptTitle", "Renewal Early Payment Receipt"),
+                          receiptTitle,
                           t
                         )
                       }
@@ -1860,10 +1898,7 @@ function RenewalEarlyPaymentReceiptSection({
         ) : (
           <div className="flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
             <p className="text-xs font-semibold text-slate-500">
-              {t(
-                "applicant.noRenewalEarlyPaymentReceipt",
-                "No renewal early payment receipt uploaded."
-              )}
+              {emptyReceiptText}
             </p>
           </div>
         )}
@@ -2212,6 +2247,10 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     renewalReceiptDocument &&
       ["verified", "completed"].includes(getLicenseRenewalPaymentStatus(app))
   );
+  const reactivationPayment = isLicenseReactivationPayment(app);
+  const renewalPaymentReceiptLabel = reactivationPayment
+    ? t("workspace.license.licenseReactivationPaymentReceipt", "License Reactivation Payment Receipt")
+    : t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt");
   const showOfficialReceipt = Boolean(
     officialReceiptFile ||
     manualReceipt.document_html ||
@@ -2319,7 +2358,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
       ),
   };
   const renewalEarlyPaymentReceiptRow = {
-    label: t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+    label: renewalPaymentReceiptLabel,
     file: renewalReceiptDocument,
     type: "renewal_early_payment_receipt",
     available: Boolean(renewalReceiptDocument),
@@ -2328,7 +2367,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     onDownload: () =>
       downloadApplicantReceiptPrintFlow(
         renewalReceiptDocument,
-        t("workspace.license.renewalEarlyPaymentReceipt", "Renewal Early Payment Receipt"),
+        renewalPaymentReceiptLabel,
         t
       ),
   };
@@ -4443,6 +4482,20 @@ function getLicenseRenewalReminders(app) {
 function getLicenseRenewalCancellation(app) {
   const cancellation = getLicenseRenewal(app).cancellation || {};
   return cancellation && typeof cancellation === "object" ? cancellation : {};
+}
+
+function isLicenseReactivationPayment(app) {
+  const cancellation = getLicenseRenewalCancellation(app);
+  const notice = cancellation.notice && typeof cancellation.notice === "object" ? cancellation.notice : {};
+  const cancellationStatus = normalizeStatus(cancellation.status || notice.status || "");
+  const appStatus = normalizeStatus(app?.status || "");
+  const licenseStatus = normalizeStatus(app?.form_data?.license?.status || app?.license?.status || "");
+
+  return (
+    cancellationStatus === "released_to_applicant" ||
+    appStatus === "license_revoked" ||
+    licenseStatus === "revoked"
+  );
 }
 
 function isApplicantLicenseExpired(app) {
