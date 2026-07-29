@@ -704,6 +704,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           normalizedUserDepartment === "KB(LES)" &&
           canConfirmRenewalReminder(app, userDepartment)
         ) ||
+        canConfirmCancellationNotice(app, userDepartment) ||
+        canSupportCancellationNotice(app, userDepartment) ||
         isApprovalTrackingRecordForDepartment(app, userDepartment);
 
       return isInStatusScope && isInDepartmentScope && isInApprovalScope;
@@ -12026,6 +12028,10 @@ function getWorkspaceActions(config, app, department) {
     return getWorkspaceActions(configs.license, app, normalizedDepartment);
   }
 
+  if (canConfirmCancellationNotice(app, normalizedDepartment) || canSupportCancellationNotice(app, normalizedDepartment)) {
+    return getWorkspaceActions(configs.license, app, normalizedDepartment);
+  }
+
   const stage = getApprovalStageKey(app);
   if (!isApprovalActionableRecord(app)) {
     return [];
@@ -13150,6 +13156,23 @@ function getLicenseRenewalTaskStatusLabel(app, department, t = null) {
   if (normalizeStatus(app?.status) !== "license_issued") return "";
 
   const normalizedDepartment = normalizeDepartmentCode(department);
+  const cancellationStatus = getCancellationStatus(app);
+  if (normalizedDepartment === "PT(IKL)" && cancellationStatus === "pending_pt_notice") {
+    return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
+  }
+
+  if (isSupervisorWorkflowDepartment(normalizedDepartment) && cancellationStatus === "pending_supervisor_confirmation") {
+    return t
+      ? t("workspace.action.confirmCancellationNotice", "Confirm Cancellation Notice")
+      : "Cancellation Notice Confirmation";
+  }
+
+  if (normalizedDepartment === "KB(LES)" && cancellationStatus === "pending_kb_les_support") {
+    return t
+      ? t("workspace.action.supportCancellationNotice", "Support Cancellation Notice")
+      : "Cancellation Notice Support";
+  }
+
   if (normalizedDepartment === "PT(IKL)") {
     const pendingMonth = getPendingPtRenewalReminderMonth(app);
     if (pendingMonth) {
@@ -13169,15 +13192,28 @@ function getLicenseRenewalTaskStatusLabel(app, department, t = null) {
       : `${label} Confirmation`;
   }
 
-  if (normalizedDepartment === "PT(IKL)" && getCancellationStatus(app) === "pending_pt_notice") {
-    return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
-  }
-
   return "";
 }
 
 function getLicenseRenewalCurrentStatusLabel(app, t = null) {
   if (normalizeStatus(app?.status) !== "license_issued") return "";
+
+  const cancellationStatus = getCancellationStatus(app);
+  if (cancellationStatus === "pending_pt_notice") {
+    return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
+  }
+
+  if (cancellationStatus === "pending_supervisor_confirmation") {
+    return t
+      ? t("workspace.action.confirmCancellationNotice", "Confirm Cancellation Notice")
+      : "Cancellation Notice Confirmation";
+  }
+
+  if (cancellationStatus === "pending_kb_les_support") {
+    return t
+      ? t("workspace.action.supportCancellationNotice", "Support Cancellation Notice")
+      : "Cancellation Notice Support";
+  }
 
   const pendingPtMonth = getPendingPtRenewalReminderMonth(app);
   if (pendingPtMonth) {
@@ -13238,6 +13274,7 @@ function canConfirmRenewalReminder(app, department) {
   return (
     normalizeDepartmentCode(department) === "KB(LES)" &&
     normalizeStatus(app?.status) === "license_issued" &&
+    !getCancellationStatus(app) &&
     Boolean(getPendingReminderConfirmationMonth(app))
   );
 }
