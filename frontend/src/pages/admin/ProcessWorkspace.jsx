@@ -12980,9 +12980,9 @@ function buildCancellationNoticeDocumentHtml(app) {
   <p class="subject" data-renewal-editable="true">${escapeHtml(context.subject)}</p>
   <p class="body-text" data-renewal-editable="true">Dengan segala hormatnya perkara di atas dirujuk.</p>
 
-  <p class="body-text" data-renewal-editable="true">Mengikut pemantauan kami, tuan/puan masih belum memperbaharui lesen iklan dan adalah menjadi satu kesalahan di bawah undang-undang untuk mempamer iklan tanpa lesen yang sah.</p>
+  <p class="body-text" data-renewal-editable="true">Mengikut pemantauan kami, tuan/puan masih belum memperbaharui lesen dan adalah menjadi satu kesalahan di bawah undang-undang untuk berniaga tanpa lesen yang sah.</p>
 
-  <p class="body-text" data-renewal-editable="true">Justeru, tuan/puan diberi tempoh selama <strong>14 hari bekerja</strong> untuk memperbaharui lesen iklan berikut:-</p>
+  <p class="body-text" data-renewal-editable="true">Justeru, tuan/puan diberi tempoh selama <strong>14 hari bekerja</strong> untuk memperbaharui lesen perniagaan seperti berikut:-</p>
 
   <table>
     <thead>
