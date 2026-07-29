@@ -21045,12 +21045,15 @@ function PaymentDetails({
     ...(releasedCancellationNoticeLetter ? [releasedCancellationNoticeLetter] : []),
   ];
   const canManageLicenseRevocation = normalizeDepartmentCode(userDepartment) === "PT(IKL)";
+  const visibleLicenseManagementActions = canManageLicenseRevocation
+    ? licenseManagementActions
+    : [];
   const showRevocationRequestNotice =
     canManageLicenseRevocation && normalizeStatus(revocationRequest.status) === "pending";
   const showLicenseManagementActions =
     !readOnly &&
-    Array.isArray(licenseManagementActions) &&
-    licenseManagementActions.length > 0 &&
+    Array.isArray(visibleLicenseManagementActions) &&
+    visibleLicenseManagementActions.length > 0 &&
     typeof onLicenseManagementAction === "function";
   const renewalReceiptDocument = renewalReceipts[0] || null;
   const showRenewalReceiptInDocuments = Boolean(
@@ -21159,7 +21162,7 @@ function PaymentDetails({
       </p>
       {showLicenseManagementActions && (
         <div className="mt-3 flex flex-wrap justify-end gap-2">
-          {licenseManagementActions.map((action) => (
+          {visibleLicenseManagementActions.map((action) => (
             <Button
               key={action.label}
               onClick={() => onLicenseManagementAction(action)}
@@ -21178,7 +21181,7 @@ function PaymentDetails({
   const licenseManagementActionSection =
     !showRevocationRequestNotice && showLicenseManagementActions ? (
       <div className="flex flex-wrap justify-end gap-2">
-        {licenseManagementActions.map((action) => (
+        {visibleLicenseManagementActions.map((action) => (
           <Button
             key={action.label}
             onClick={() => onLicenseManagementAction(action)}
