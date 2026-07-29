@@ -12934,10 +12934,11 @@ function buildCancellationNoticeDocumentHtml(app) {
       vertical-align: top;
     }
     .dbku-renewal-letter th { text-align: center; font-weight: 800; }
-    .dbku-renewal-letter .no-col { width: 11mm; }
+    .dbku-renewal-letter .no-col { width: 8mm; }
+    .dbku-renewal-letter .license-col { width: 34mm; }
     .dbku-renewal-letter .center { text-align: center; }
-    .dbku-renewal-letter .period-col { width: 42mm; text-align: center; white-space: normal; }
-    .dbku-renewal-letter .amount-col { width: 42mm; text-align: right; }
+    .dbku-renewal-letter .period-col { width: 68mm; text-align: center; white-space: nowrap; }
+    .dbku-renewal-letter .amount-col { width: 36mm; text-align: right; }
     .dbku-renewal-letter th.amount-col { text-align: center; white-space: normal; }
     .dbku-renewal-letter .amount-heading { white-space: nowrap; }
     .dbku-renewal-letter .amount-cell { text-align: right; }
@@ -12978,7 +12979,7 @@ function buildCancellationNoticeDocumentHtml(app) {
     <thead>
       <tr>
         <th class="no-col" data-renewal-editable="true">NO.</th>
-        <th data-renewal-editable="true">JENIS LESEN</th>
+        <th class="license-col" data-renewal-editable="true">JENIS LESEN</th>
         <th class="period-col" data-renewal-editable="true">TEMPOH LESEN</th>
         <th class="amount-col" data-renewal-editable="true"><span class="amount-heading">JUMLAH BAYARAN</span><br>(RM)</th>
       </tr>
@@ -12986,7 +12987,7 @@ function buildCancellationNoticeDocumentHtml(app) {
     <tbody>
       <tr>
         <td class="no-col" data-renewal-editable="true">1</td>
-        <td data-renewal-editable="true">${escapeHtml(context.licenseType)}</td>
+        <td class="license-col" data-renewal-editable="true">${escapeHtml(context.licenseType)}</td>
         <td class="period-col" data-renewal-editable="true">${escapeHtml(context.licensePeriod)}</td>
         <td class="amount-col" data-renewal-editable="true">${amountCell}</td>
       </tr>
