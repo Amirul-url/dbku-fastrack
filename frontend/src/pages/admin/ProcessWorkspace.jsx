@@ -21295,12 +21295,20 @@ function PaymentDetails({
           : []),
         {
           label: t("workspace.license.documentTitle", "Advertisement License"),
-          file: licenseFile,
-          available: originalAdvertisementLicenseDocument.available || showRenewalAdvertisementLicenseInDocuments,
-          isDocumentGroup:
-            originalAdvertisementLicenseDocument.available || showRenewalAdvertisementLicenseInDocuments,
+          available: originalAdvertisementLicenseDocument.available || showRenewalAdvertisementLicenseInDocuments || Boolean(originalAdvertisementLicenseDocument.onDownload),
+          isDocumentGroup: true,
           relatedDocuments: [
-            ...(originalAdvertisementLicenseDocument.available ? [originalAdvertisementLicenseDocument] : []),
+            ...(
+              originalAdvertisementLicenseDocument.available
+                ? [originalAdvertisementLicenseDocument]
+                : [
+                    {
+                      ...originalAdvertisementLicenseDocument,
+                      label: t("workspace.license.documentTitle", "Advertisement License"),
+                      available: true,
+                    },
+                  ]
+            ),
             ...(showRenewalAdvertisementLicenseInDocuments ? [renewalAdvertisementLicenseDocumentRow] : []),
           ],
           timestamp: getLatestDocumentTimestampLabel([
@@ -21311,7 +21319,6 @@ function PaymentDetails({
             renewalPayment,
           ]),
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
-          onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
         },
         ...(releasedReminderDocuments.length > 0
           ? [
