@@ -2209,7 +2209,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         file
       );
       const savedLicense = selectedRecord.form_data?.license || {};
-      const licenseId = savedLicense.license_id || getLicenseId(selectedRecord);
+      const licenseId = getLicenseId(selectedRecord);
       const nextLicense = {
         ...savedLicense,
         creation_mode: "upload",
@@ -16904,7 +16904,7 @@ const configs = {
             savedLicense || {};
           const issueDate = today;
           const expiry = addCalendarYears(issueDate, validityYears);
-          const licenseId = savedLicense.license_id || getLicenseId(app);
+          const licenseId = getLicenseId(app);
           const savedOriginalReceiptNo =
             getOriginalOfficialReceiptSourceNumber(app) ||
             app.form_data?.payment?.official_receipt_no ||
@@ -17078,7 +17078,7 @@ const configs = {
           const expiryDate = parseDateOrFallback(savedLicense.expiry_date, today);
           const issueDate = addDays(expiryDate, 1);
           const expiry = addCalendarYears(expiryDate, 1);
-          const licenseId = savedLicense.license_id || getLicenseId(app);
+          const licenseId = getLicenseId(app);
           const savedRenewalReceiptNo =
             savedRenewalManualReceipt.receipt_no ||
             payment.official_receipt_no;
@@ -21485,7 +21485,7 @@ function PaymentQrPanel({ app, t }) {
   const license = app?.form_data?.license || {};
   const licenseFileUrl = getPaymentDocumentSource(license.license_file);
   const licenseReady = Boolean(licenseFileUrl) || (normalizeStatus(app?.status) === "license_issued" && license.status === "Active");
-  const licenseId = license.license_id || getLicenseId(app);
+  const licenseId = getLicenseId(app);
   const displayReference = getApplicationReference(app);
   const verificationUrl = getLicenseVerificationUrl(licenseId);
   const qrContainerRef = useRef(null);
@@ -22456,7 +22456,7 @@ function PaymentApprovalDocumentTabs({
 }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
-  const licenseId = license.license_id || getLicenseId(app);
+  const licenseId = getLicenseId(app);
   const displayReference = getApplicationReference(app);
   const verificationUrl = getLicenseVerificationUrl(licenseId);
   const qrContainerRef = useRef(null);
@@ -23235,7 +23235,7 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
   const expiryDate = parseDateOrFallback(license.expiry_date, today);
   const issueDate = addDays(expiryDate, 1);
   const expiry = addCalendarYears(expiryDate, 1);
-  const licenseId = license.license_id || getLicenseId(app);
+  const licenseId = getLicenseId(app);
   const officialReceiptNo =
     getSixDigitOfficialReceiptNumber(preferredReceiptNo) ||
     getRenewalOfficialReceiptSourceNumber(app) ||

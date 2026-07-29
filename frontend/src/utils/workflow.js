@@ -639,18 +639,15 @@ export function getInvoiceNo(app) {
 }
 
 export function getLicenseId(app) {
+  if (app?.reference_no) {
+    return app.reference_no;
+  }
+
   if (app?.form_data?.license?.license_id) {
     return app.form_data.license.license_id;
   }
 
-  const referenceDigits = String(app?.reference_no || "")
-    .match(/(\d+)$/)?.[1];
-
-  if (referenceDigits) {
-    return `ALIS${new Date().getFullYear()}${String(Number(referenceDigits) || referenceDigits).padStart(5, "0")}`;
-  }
-
-  return `ALIS${new Date().getFullYear()}${String(app?.id || 0).padStart(5, "0")}`;
+  return `ALiS.${new Date().getFullYear()}-${String(app?.id || 0).padStart(4, "0")}`;
 }
 
 export function formatCurrency(value) {

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import re
 
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -21,6 +22,37 @@ class PublicLicenseDocument:
 
 def normalize_license_id(value):
     return str(value or "").strip().upper()
+
+
+def canonical_license_id(value):
+    return "".join(
+        character for character in normalize_license_id(value) if character.isalnum()
+    )
+
+
+def legacy_compact_license_id(value):
+    match = re.search(r"ALIS\.(\d{4})-(\d+)$", normalize_license_id(value))
+    if not match:
+        return ""
+
+    year, sequence = match.groups()
+    return f"ALIS{year}{int(sequence):05d}"
+
+
+def license_identifier_set(*values):
+    identifiers = set()
+    for value in values:
+        normalized = normalize_license_id(value)
+        canonical = canonical_license_id(value)
+        compact = legacy_compact_license_id(value)
+        if normalized:
+            identifiers.add(normalized)
+        if canonical:
+            identifiers.add(canonical)
+        if compact:
+            identifiers.add(compact)
+
+    return identifiers
 
 
 def is_public_license_active(application, license_data):
@@ -139,7 +171,7 @@ def get_latest_renewal_license_document(application, form_data):
 
 
 def get_public_license_document(license_id):
-    normalized_id = normalize_license_id(license_id)
+    requested_identifiers = license_identifier_set(license_id)
 
     for application in Application.objects.exclude(form_data={}):
         form_data = application.form_data or {}
@@ -147,8 +179,11 @@ def get_public_license_document(license_id):
         if not license_data:
             continue
 
-        stored_license_id = normalize_license_id(license_data.get("license_id"))
-        if stored_license_id != normalized_id:
+        stored_identifiers = license_identifier_set(
+            license_data.get("license_id"),
+            application.reference_no,
+        )
+        if requested_identifiers.isdisjoint(stored_identifiers):
             continue
 
         if not is_public_license_active(application, license_data):

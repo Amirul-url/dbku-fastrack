@@ -4,6 +4,7 @@ from django.test import TestCase
 from accounts.models import User
 from applications.models import Application, SupportingDocument
 from applications.services.license_verification import (
+    canonical_license_id,
     get_public_license_document,
     normalize_license_id,
 )
@@ -30,12 +31,13 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
         )
         self.application = Application.objects.create(
             applicant=self.applicant,
+            reference_no="ALiS.2026-0001",
             title="Verified license",
             status="license_issued",
         )
         self.application.form_data = {
             "license": {
-                "license_id": "alis202600001",
+                "license_id": "ALiS.2026-0001",
                 "license_file": None,
                 "manual_license": {
                     "name": "Advertisement License",
@@ -46,15 +48,29 @@ class ApplicationLicenseVerificationServiceTests(TestCase):
         self.application.save(update_fields=["form_data"])
 
     def test_normalizes_license_id(self):
-        self.assertEqual(normalize_license_id(" alis202600001 "), "ALIS202600001")
+        self.assertEqual(normalize_license_id(" ALiS.2026-0001 "), "ALIS.2026-0001")
+        self.assertEqual(canonical_license_id(" ALiS.2026-0001 "), "ALIS20260001")
 
     def test_finds_generated_license_document_case_insensitively(self):
-        application, document = get_public_license_document(" ALIS202600001 ")
+        application, document = get_public_license_document(" ALiS.2026-0001 ")
 
         self.assertEqual(application, self.application)
         self.assertTrue(document.is_generated)
         self.assertEqual(document.html, self.generated_license_html)
         self.assertEqual(document.name, "Advertisement License")
+
+    def test_finds_generated_license_document_by_legacy_compact_id(self):
+        application, document = get_public_license_document(" ALIS202600001 ")
+
+        self.assertEqual(application, self.application)
+        self.assertTrue(document.is_generated)
+        self.assertEqual(document.html, self.generated_license_html)
+
+    def test_public_license_verification_route_accepts_reference_with_dots(self):
+        response = self.client.get("/api/applications/license-verification/ALiS.2026-0001/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["license_id"], "ALiS.2026-0001")
 
     def test_supports_legacy_license_file_id_key(self):
         stored_document = SupportingDocument.objects.create(

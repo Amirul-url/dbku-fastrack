@@ -448,7 +448,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=["get"],
-        url_path=r"license-verification/(?P<license_id>[^/.]+)",
+        url_path=r"license-verification/(?P<license_id>[^/]+)",
         permission_classes=[permissions.AllowAny],
         authentication_classes=[],
     )
@@ -471,7 +471,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=["get"],
-        url_path=r"license-verification/(?P<license_id>[^/.]+)/document",
+        url_path=r"license-verification/(?P<license_id>[^/]+)/document",
         permission_classes=[permissions.AllowAny],
         authentication_classes=[],
     )

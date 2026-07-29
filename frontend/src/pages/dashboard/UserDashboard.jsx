@@ -2025,7 +2025,7 @@ function ApplicationSelectionSummary({ app, t }) {
 function LicenseQrPanel({ app, t, activeTab = "bank", onTabChange }) {
   const license = app?.form_data?.license || {};
   const licenseReady = canViewLicense(app);
-  const licenseId = license.license_id || getLicenseId(app);
+  const licenseId = getLicenseId(app);
   const displayReference = getApplicationReference(app);
   const verificationUrl = getLicenseVerificationUrl(licenseId);
   const qrContainerRef = useRef(null);
