@@ -1943,14 +1943,24 @@ function RenewalEarlyPaymentReceiptSection({
             </div>
           </div>
           {locked ? (
-            <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
-              <span className="material-symbols-outlined text-[16px]">
-                check_circle
+            <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
+              <span className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 sm:w-auto">
+                <span className="material-symbols-outlined text-[16px]">
+                  check_circle
+                </span>
+                {verified
+                  ? t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified")
+                  : t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted")}
               </span>
-              {verified
-                ? t("applicant.renewalPaymentVerifiedStatus", "Renewal payment verified")
-                : t("applicant.renewalPaymentSubmittedStatus", "Renewal payment submitted")}
-            </span>
+              {!verified && (
+                <p className="text-center text-xs font-medium text-slate-500 sm:text-right">
+                  {t(
+                    "applicant.renewalPaymentWaitingVerification",
+                    "Your renewal payment receipt has been submitted and is waiting for verification."
+                  )}
+                </p>
+              )}
+            </div>
           ) : (
             <button
               type="button"
