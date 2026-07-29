@@ -926,6 +926,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
   const isLicenseOrApprovalWorkspace = isApprovalWorkspace || config.key === "license";
   const isPtCancellationNoticeWorkspace =
+    fromPersonalTask &&
     isLicenseOrApprovalWorkspace &&
     normalizedUserDepartment === "PT(IKL)" &&
     canGenerateCancellationNotice(selectedRecord, normalizedUserDepartment);
@@ -1048,6 +1049,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const pendingPtRenewalReminderMonth = getPendingPtRenewalReminderMonth(selectedRecord);
   const pendingKbRenewalConfirmationMonth = getPendingReminderConfirmationMonth(selectedRecord);
   const isPtRenewalReminderWorkspace =
+    fromPersonalTask &&
     actionConfig.key === "license" &&
     normalizedUserDepartment === "PT(IKL)" &&
     Boolean(pendingPtRenewalReminderMonth);
@@ -3870,6 +3872,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     applications={receiptApplications}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
+                    readOnly={isReadOnlyActionPanel}
                     onEditReceipt={() => {
                       setRenewalCompletionDocumentError("");
                       setShowManualReceiptEditor(true);
