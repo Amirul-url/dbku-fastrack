@@ -12883,7 +12883,7 @@ function buildCancellationNoticeDocumentHtml(app) {
       height: 297mm;
       box-sizing: border-box;
       margin: 0 auto;
-      padding: 42mm 14mm 18mm;
+      padding: 28mm 14mm 18mm;
       background: #fff;
       color: #000;
       font-family: "Times New Roman", Times, serif;
@@ -12966,6 +12966,7 @@ function buildCancellationNoticeDocumentHtml(app) {
     <div>
       <p class="reference" data-renewal-editable="true">${escapeHtml(context.ourRef)}</p>
       <div class="recipient">
+        <p data-renewal-editable="true">${escapeHtml(context.recipientName)}</p>
         <p data-renewal-editable="true">${escapeHtml(context.applicantName)}</p>
         ${addressLines}
       </div>
@@ -13035,9 +13036,10 @@ function getCancellationNoticeContext(app) {
   return {
     ourRef: `DBKU/LES/IKL/${letterDate.getFullYear().toString().slice(-2)}/1(b)/ (   )`,
     letterDate: formatMalayLetterDate(letterDate),
+    recipientName: cleanFirstReminderLetterValue(getApplicantName(app)) || getFirstReminderCompanyName(app),
     applicantName: getFirstReminderCompanyName(app),
     addressLines: getLetterAddressLines(app),
-    subject: "NOTIS PERINGATAN - MEMPAMER IKLAN TANPA LESEN YANG SAH",
+    subject: "NOTIS PERINGATAN - BERNIAGA TANPA LESEN YANG SAH",
     introText: getCancellationNoticeIntroText(app),
     expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
     licenseType: "LESEN IKLAN",
