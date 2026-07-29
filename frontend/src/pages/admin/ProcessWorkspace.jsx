@@ -22278,7 +22278,7 @@ function stripReviewDocumentCss(html) {
 function prepareEditableGeneratedDocument(frameDocument, kind = "") {
   frameDocument.designMode = "off";
   const editableSelector =
-    kind === "renewal_reminder"
+    ["renewal_reminder", "cancellation_notice"].includes(kind)
       ? ".dbku-renewal-letter"
       : kind === "advertisement_license"
       ? ".ad-license-page .dot-line"
@@ -22295,7 +22295,7 @@ function prepareEditableGeneratedDocument(frameDocument, kind = "") {
     field.setAttribute("contenteditable", "true");
     field.setAttribute("spellcheck", "false");
     field.setAttribute("data-receipt-editable", "true");
-    if (!["advertisement_license", "renewal_reminder"].includes(kind) && !field.matches(".number span")) {
+    if (!["advertisement_license", "renewal_reminder", "cancellation_notice"].includes(kind) && !field.matches(".number span")) {
       field.style.fontFamily = "Calibri, Arial, sans-serif";
     }
     field.addEventListener("paste", handleEditableDocumentPaste);
