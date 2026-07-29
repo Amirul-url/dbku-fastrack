@@ -12985,15 +12985,15 @@ function buildCancellationNoticeDocumentHtml(app) {
   <table>
     <thead>
       <tr>
-        <th class="no-col">NO.</th>
-        <th>JENIS LESEN</th>
-        <th class="period-col">TEMPOH LESEN</th>
-        <th class="amount-col">JUMLAH BAYARAN(RM)</th>
+        <th class="no-col" data-renewal-editable="true">NO.</th>
+        <th data-renewal-editable="true">JENIS LESEN</th>
+        <th class="period-col" data-renewal-editable="true">TEMPOH LESEN</th>
+        <th class="amount-col" data-renewal-editable="true">JUMLAH BAYARAN(RM)</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td class="no-col">1</td>
+        <td class="no-col" data-renewal-editable="true">1</td>
         <td data-renewal-editable="true">${escapeHtml(context.licenseType)}</td>
         <td class="period-col" data-renewal-editable="true">${escapeHtml(context.licensePeriod)}</td>
         <td class="amount-col" data-renewal-editable="true">${amountCell}</td>
@@ -13002,7 +13002,7 @@ function buildCancellationNoticeDocumentHtml(app) {
   </table>
 
   <div class="total-line">
-    <span class="total-label">JUMLAH BAYARAN TERTUNGGAK(RM):</span>
+    <span class="total-label" data-renewal-editable="true">JUMLAH BAYARAN TERTUNGGAK(RM):</span>
     <span class="total-amount" data-renewal-editable="true">${amountCell}</span>
   </div>
 
@@ -13010,15 +13010,15 @@ function buildCancellationNoticeDocumentHtml(app) {
 
   <p class="body-text" data-renewal-editable="true">Sekiranya tuan/puan memerlukan keterangan lanjut, sila hubungi Unit Pengurusan Lesen di talian 082-512955.</p>
 
-  <p class="closing">Sekian. Terima kasih.</p>
+  <p class="closing" data-renewal-editable="true">Sekian. Terima kasih.</p>
 
   <div class="motto">
-    <p>"AN HONOUR TO SERVE"<br>"TOGETHER WE CARE"</p>
+    <p data-renewal-editable="true">"AN HONOUR TO SERVE"<br>"TOGETHER WE CARE"</p>
   </div>
 
-  <p class="director">Pengarah DBKU</p>
+  <p class="director" data-renewal-editable="true">Pengarah DBKU</p>
 
-  <p class="note">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.<br>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
+  <p class="note" data-renewal-editable="true">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.<br>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
 </article>`.trim();
 }
 
