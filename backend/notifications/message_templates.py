@@ -215,17 +215,35 @@ APPLICANT_RENEWAL_PAYMENT_RECEIPT_REJECTED_WHATSAPP_BODY_TEMPLATE = (
 APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE = (
     "License cancellation notice released"
 )
+APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE_MS = (
+    "Makluman pembatalan lesen dihantar"
+)
 APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} has been cancelled and "
     "enforcement action may proceed because renewal payment was not completed after expiry."
+)
+APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE_MS = (
+    "Lesen iklan anda bagi permohonan {reference} telah dibatalkan dan tindakan "
+    "penguatkuasaan boleh diteruskan kerana bayaran pembaharuan tidak diselesaikan "
+    "selepas tamat tempoh."
 )
 APPLICANT_LICENSE_CANCELLATION_RELEASED_EMAIL_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} has been cancelled and "
     "enforcement action may proceed because renewal payment was not completed after expiry."
 )
+APPLICANT_LICENSE_CANCELLATION_RELEASED_EMAIL_BODY_TEMPLATE_MS = (
+    "Lesen iklan anda bagi permohonan {reference} telah dibatalkan dan tindakan "
+    "penguatkuasaan boleh diteruskan kerana bayaran pembaharuan tidak diselesaikan "
+    "selepas tamat tempoh."
+)
 APPLICANT_LICENSE_CANCELLATION_RELEASED_WHATSAPP_BODY_TEMPLATE = (
     "Your advertisement license for application {reference} has been cancelled and "
     "enforcement action may proceed because renewal payment was not completed after expiry."
+)
+APPLICANT_LICENSE_CANCELLATION_RELEASED_WHATSAPP_BODY_TEMPLATE_MS = (
+    "Lesen iklan anda bagi permohonan {reference} telah dibatalkan dan tindakan "
+    "penguatkuasaan boleh diteruskan kerana bayaran pembaharuan tidak diselesaikan "
+    "selepas tamat tempoh."
 )
 
 # Password reset OTP

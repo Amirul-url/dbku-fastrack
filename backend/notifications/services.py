@@ -1621,6 +1621,9 @@ def notify_license_cancellation_task(application, event_status):
 def notify_license_cancellation_released(application):
     title = notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE
     occurrence = timezone.now().isoformat()
+    message_ms = notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE_MS.format(
+        reference=application.reference_no
+    )
     body = {
         "web": notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE.format(
             reference=application.reference_no
@@ -1640,7 +1643,11 @@ def notify_license_cancellation_released(application):
         recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
         recipient_role="applicant",
         action_url="/user/dashboard?tab=status",
-        extra_metadata={"occurrence": occurrence},
+        extra_metadata={
+            "occurrence": occurrence,
+            "title_ms": notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE_MS,
+            "message_ms": message_ms,
+        },
         include_external=True,
         force_web=True,
         force_external=True,

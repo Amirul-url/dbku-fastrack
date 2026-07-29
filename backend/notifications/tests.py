@@ -260,6 +260,19 @@ class NotificationRoutingTests(TestCase):
             ).values_list("channel", flat=True)
         )
         self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
+        applicant_web_delivery = NotificationDelivery.objects.get(
+            recipient_role="applicant",
+            channel="web",
+            metadata__event_status="license_cancellation_released",
+        )
+        self.assertEqual(
+            applicant_web_delivery.metadata["title_ms"],
+            "Makluman pembatalan lesen dihantar",
+        )
+        self.assertIn(
+            "Lesen iklan anda",
+            applicant_web_delivery.metadata["message_ms"],
+        )
 
     def test_submitted_does_not_use_official_superadmin_contact_as_recipient_fallback(self):
         self.notify_status("submitted")
