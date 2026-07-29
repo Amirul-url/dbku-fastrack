@@ -12905,6 +12905,23 @@ function getReleasedCancellationNoticeLetter(app) {
   };
 }
 
+function getReleasedReminderDocumentTitle(letter, t) {
+  if (letter?.key === "released-cancellation-notice") {
+    return t("workspace.license.cancellationNoticeLetter", "License Cancellation Notice Letter");
+  }
+
+  const months = Number(letter?.months);
+  if ([1, 2, 3].includes(months)) {
+    const label =
+      getLocalizedRenewalReminderTaskLabel(months, t) ||
+      getRenewalReminderTaskLabel(months);
+
+    return t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
+  }
+
+  return `${letter?.title || "Reminder"} Letter`;
+}
+
 function getRenewalLetterForMonth(app, months) {
   const reminder = getLicenseRenewalReminders(app)?.[String(months)] || {};
   const letter = reminder.letter || {};
@@ -21290,13 +21307,16 @@ function PaymentDetails({
                 available: true,
                 isDocumentGroup: true,
                 timestamp: getLatestDocumentTimestampLabel(releasedReminderDocuments),
-                relatedDocuments: releasedReminderDocuments.map((letter) => ({
-                  label: `${letter.title} Letter`,
-                  available: true,
-                  timestamp: letter.timestamp,
-                  displayName: `${letter.title} Letter`,
-                  onDownload: () => printHtmlDocument(letter.html, `${letter.title} Letter`),
-                })),
+                relatedDocuments: releasedReminderDocuments.map((letter) => {
+                  const title = getReleasedReminderDocumentTitle(letter, t);
+                  return {
+                    label: title,
+                    available: true,
+                    timestamp: letter.timestamp,
+                    displayName: title,
+                    onDownload: () => printHtmlDocument(letter.html, title),
+                  };
+                }),
               },
             ]
           : []),
@@ -24401,19 +24421,21 @@ function FirstReminderTaskPanel({
             available: true,
             isDocumentGroup: true,
             timestamp: getLatestDocumentTimestampLabel(releasedReminderDocuments),
-            relatedDocuments: releasedReminderDocuments
-              .map((letter) => ({
+            relatedDocuments: releasedReminderDocuments.map((letter) => {
+              const title = getReleasedReminderDocumentTitle(letter, t);
+              return {
                 key: letter.key || `released-renewal-${letter.months}`,
-                label: `${letter.title} Letter`,
+                label: title,
                 available: true,
                 timestamp: letter.timestamp,
                 onDownload: () =>
                   printRenewalReminderDocument(
                     letter.html,
-                    `${getApplicationReference(app)} ${letter.title} Letter`,
+                    `${getApplicationReference(app)} ${title}`,
                     t
                   ),
-              })),
+              };
+            }),
           },
         ]
       : []),
