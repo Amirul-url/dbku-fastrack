@@ -917,15 +917,16 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     normalizedUserDepartment === "KB(LES)" &&
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
+  const isLicenseOrApprovalWorkspace = isApprovalWorkspace || config.key === "license";
   const isPtCancellationNoticeWorkspace =
-    isApprovalWorkspace &&
+    isLicenseOrApprovalWorkspace &&
     normalizedUserDepartment === "PT(IKL)" &&
     canGenerateCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isCancellationNoticeConfirmationWorkspace =
-    isApprovalWorkspace &&
+    isLicenseOrApprovalWorkspace &&
     canConfirmCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isCancellationNoticeSupportWorkspace =
-    isApprovalWorkspace &&
+    isLicenseOrApprovalWorkspace &&
     canSupportCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isCancellationNoticeWorkflowWorkspace =
     isPtCancellationNoticeWorkspace ||
@@ -3952,7 +3953,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     detailLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loadingSelectedApplication")}</p>
                     ) : (
-                      !showRenewalReminderWorkflowPanel && !showApprovalLicenseManagementDetails && WorkspaceDetailsComponent && (
+                      !showRenewalReminderWorkflowPanel &&
+                      !isCancellationNoticeWorkflowWorkspace &&
+                      !showApprovalLicenseManagementDetails &&
+                      WorkspaceDetailsComponent && (
                         <WorkspaceDetailsComponent
                           app={selectedRecord}
                           t={t}
@@ -4432,6 +4436,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     )
                   ) : (
                     !showRenewalReminderWorkflowPanel &&
+                    !isCancellationNoticeWorkflowWorkspace &&
                     !showDetailsBeforeComment &&
                     !showApprovalLicenseManagementDetails &&
                     WorkspaceDetailsComponent && (
