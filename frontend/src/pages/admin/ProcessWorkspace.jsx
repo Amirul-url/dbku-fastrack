@@ -12924,34 +12924,19 @@ function buildCancellationNoticeDocumentHtml(app) {
     .dbku-renewal-letter .date-nowrap { white-space: nowrap; font-weight: 800; text-decoration: underline; }
     .dbku-renewal-letter table {
       width: 100%;
-      margin: 28pt 0 8pt;
+      margin: 20pt 0 16pt;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .dbku-renewal-letter th, .dbku-renewal-letter td {
-      padding: 0 4pt 2pt;
-      border: 0;
-      border-bottom: 1px solid #000;
+      padding: 3pt 6pt;
+      border: 1px solid #000;
       vertical-align: top;
     }
-    .dbku-renewal-letter th { text-align: left; font-weight: 800; }
-    .dbku-renewal-letter .no-col { width: 11mm; }
-    .dbku-renewal-letter .period-col { width: 42mm; text-align: center; }
-    .dbku-renewal-letter .amount-col { width: 44mm; text-align: right; }
-    .dbku-renewal-letter .amount-text { text-align: right; }
-    .dbku-renewal-letter .total-line {
-      display: grid;
-      grid-template-columns: 1fr 44mm;
-      align-items: start;
-      margin: 0 0 16pt;
-      font-weight: 800;
-    }
-    .dbku-renewal-letter .total-label { text-align: right; padding-right: 2mm; }
-    .dbku-renewal-letter .total-amount {
-      text-align: right;
-      border-bottom: 3px double #000;
-      padding-right: 4pt;
-    }
+    .dbku-renewal-letter th { text-align: center; font-weight: 800; }
+    .dbku-renewal-letter .center { text-align: center; }
+    .dbku-renewal-letter .right { text-align: right; font-weight: 800; }
+    .dbku-renewal-letter .amount-cell { text-align: right; }
     .dbku-renewal-letter .closing { margin: 24pt 0 10pt; }
     .dbku-renewal-letter .motto { margin: 0 0 12pt; font-weight: 800; }
     .dbku-renewal-letter .director { font-weight: 800; }
@@ -12987,26 +12972,24 @@ function buildCancellationNoticeDocumentHtml(app) {
   <table>
     <thead>
       <tr>
-        <th class="no-col" data-renewal-editable="true">NO.</th>
-        <th data-renewal-editable="true">JENIS LESEN</th>
-        <th class="period-col" data-renewal-editable="true">TEMPOH LESEN</th>
-        <th class="amount-col" data-renewal-editable="true">JUMLAH BAYARAN(RM)</th>
+        <th data-renewal-editable="true">BUTIRAN BAYARAN</th>
+        <th data-renewal-editable="true">TEMPOH LESEN BERKUATKUASA</th>
+        <th data-renewal-editable="true">JUMLAH<br>(RM)</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td class="no-col" data-renewal-editable="true">1</td>
         <td data-renewal-editable="true">${escapeHtml(context.licenseType)}</td>
-        <td class="period-col" data-renewal-editable="true">${escapeHtml(context.licensePeriod)}</td>
-        <td class="amount-col" data-renewal-editable="true">${amountCell}</td>
+        <td class="center" data-renewal-editable="true">${escapeHtml(context.licensePeriod)}</td>
+        <td class="amount-cell" data-renewal-editable="true">${amountCell}</td>
+      </tr>
+      <tr>
+        <td data-renewal-editable="true">&nbsp;</td>
+        <td class="right" data-renewal-editable="true">JUMLAH KESELURUHAN</td>
+        <td class="amount-cell" data-renewal-editable="true">${amountCell}</td>
       </tr>
     </tbody>
   </table>
-
-  <div class="total-line">
-    <span class="total-label" data-renewal-editable="true">JUMLAH BAYARAN TERTUNGGAK(RM):</span>
-    <span class="total-amount" data-renewal-editable="true">${amountCell}</span>
-  </div>
 
   <p class="body-text" data-renewal-editable="true">Sila ambil perhatian jika tuan/puan masih ingkar dan gagal mematuhi kehendak notis ini maka DBKU akan mengambil tindakan undang-undang dan nama tuan/puan akan disenaraikan hitam bagi sebarang permohonan lesen pada masa akan datang.</p>
 
@@ -13046,7 +13029,7 @@ function getCancellationNoticeContext(app) {
     subject: "NOTIS PERINGATAN - BERNIAGA TANPA LESEN YANG SAH",
     introText: getCancellationNoticeIntroText(app),
     expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
-    licenseType: "LESEN IKLAN",
+    licenseType: "Lesen Iklan",
     licensePeriod:
       renewalStart && renewalEnd
         ? `${formatDotDate(renewalStart)} hingga ${formatDotDate(renewalEnd)}`
