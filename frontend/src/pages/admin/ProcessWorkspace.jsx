@@ -12854,6 +12854,9 @@ function getLatestDocumentTimestampLabel(sources = []) {
 
 function getDocumentTimestampValue(...sources) {
   const keys = [
+    "released_at",
+    "confirmed_at",
+    "supported_at",
     "sent_at",
     "saved_at",
     "generated_at",
@@ -12882,6 +12885,24 @@ function getReleasedRenewalLetters(app) {
   return getGeneratedRenewalLetters(app).filter(
     (letter) => normalizeStatus(letter.status) === "released_to_applicant"
   );
+}
+
+function getReleasedCancellationNoticeLetter(app) {
+  const cancellation = getLicenseRenewal(app).cancellation || {};
+  const notice = cancellation.notice && typeof cancellation.notice === "object" ? cancellation.notice : {};
+  const status = normalizeStatus(cancellation.status || notice.status);
+  const html = notice.document_html || cancellation.document_html || "";
+  if (status !== "released_to_applicant" || !html) return null;
+
+  return {
+    key: "released-cancellation-notice",
+    status: cancellation.status || notice.status || "",
+    title: "License Cancellation Notice",
+    html,
+    generatedAt: notice.generated_at || cancellation.generated_at || "",
+    timestamp: getDocumentTimestampLabel(cancellation, notice),
+    reference: getApplicationReference(app),
+  };
 }
 
 function getRenewalLetterForMonth(app, months) {
@@ -20991,6 +21012,11 @@ function PaymentDetails({
 
   const revocationRequest = app.form_data?.license_revocation_request || {};
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
+  const releasedCancellationNoticeLetter = getReleasedCancellationNoticeLetter(app);
+  const releasedReminderDocuments = [
+    ...releasedRenewalLetters,
+    ...(releasedCancellationNoticeLetter ? [releasedCancellationNoticeLetter] : []),
+  ];
   const canManageLicenseRevocation = normalizeDepartmentCode(userDepartment) === "PT(IKL)";
   const showRevocationRequestNotice =
     canManageLicenseRevocation && normalizeStatus(revocationRequest.status) === "pending";
@@ -21257,14 +21283,14 @@ function PaymentDetails({
           displayName: manualLicense.name || t("workspace.license.documentTitle", "Advertisement License"),
           onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
         },
-        ...(releasedRenewalLetters.length > 0
+        ...(releasedReminderDocuments.length > 0
           ? [
               {
                 label: t("workspace.license.reminder", "Reminder"),
                 available: true,
                 isDocumentGroup: true,
-                timestamp: getLatestDocumentTimestampLabel(releasedRenewalLetters),
-                relatedDocuments: releasedRenewalLetters.map((letter) => ({
+                timestamp: getLatestDocumentTimestampLabel(releasedReminderDocuments),
+                relatedDocuments: releasedReminderDocuments.map((letter) => ({
                   label: `${letter.title} Letter`,
                   available: true,
                   timestamp: letter.timestamp,
@@ -24292,6 +24318,11 @@ function FirstReminderTaskPanel({
     ["Payment Details", payment.payment_details],
   ].filter(([, value]) => hasValue(value));
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
+  const releasedCancellationNoticeLetter = getReleasedCancellationNoticeLetter(app);
+  const releasedReminderDocuments = [
+    ...releasedRenewalLetters.filter((letter) => Number(letter.months) !== Number(months)),
+    ...(releasedCancellationNoticeLetter ? [releasedCancellationNoticeLetter] : []),
+  ];
   const documentRows = [
     {
       key: "application_form",
@@ -24362,20 +24393,17 @@ function FirstReminderTaskPanel({
       timestamp: getDocumentTimestampLabel(manualLicense, licenseFile, license),
       onDownload: () => printBlankAdvertisementLicenseDocument(app, t, applications),
     },
-    ...(releasedRenewalLetters.filter((letter) => Number(letter.months) !== Number(months)).length > 0
+    ...(releasedReminderDocuments.length > 0
       ? [
           {
             key: "released_renewal_reminders",
             label: t("workspace.license.reminder", "Reminder"),
             available: true,
             isDocumentGroup: true,
-            timestamp: getLatestDocumentTimestampLabel(
-              releasedRenewalLetters.filter((letter) => Number(letter.months) !== Number(months))
-            ),
-            relatedDocuments: releasedRenewalLetters
-              .filter((letter) => Number(letter.months) !== Number(months))
+            timestamp: getLatestDocumentTimestampLabel(releasedReminderDocuments),
+            relatedDocuments: releasedReminderDocuments
               .map((letter) => ({
-                key: `released-renewal-${letter.months}`,
+                key: letter.key || `released-renewal-${letter.months}`,
                 label: `${letter.title} Letter`,
                 available: true,
                 timestamp: letter.timestamp,
