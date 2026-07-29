@@ -239,6 +239,8 @@ export function StatusPill({ value, size = "md" }) {
   if (
     normalized.includes("reject") ||
     normalized.includes("failed") ||
+    normalized.includes("surrender") ||
+    normalized.includes("revoke") ||
     normalized.includes("revoked") ||
     normalized.includes("expired") ||
     normalized.includes("invalid") ||
