@@ -15722,7 +15722,29 @@ function getWorkspaceStatusFilterFallbackApplications(config, department) {
 }
 
 function getWorkspaceRenewalConfirmationFallbackApplications(config, department) {
-  if (config?.key !== "approval" || normalizeDepartmentCode(department) !== "KB(LES)") {
+  if (config?.key !== "approval") {
+    return [];
+  }
+
+  const normalizedDepartment = normalizeDepartmentCode(department);
+
+  if (normalizedDepartment === "PT(IKL)") {
+    return [3, 2, 1].map((months) => ({
+      status: "license_issued",
+      form_data: {
+        license_renewal: {
+          reminders: {
+            [String(months)]: {
+              months_before_expiry: months,
+              status: "pending_pt_letter",
+            },
+          },
+        },
+      },
+    }));
+  }
+
+  if (normalizedDepartment !== "KB(LES)") {
     return [];
   }
 
