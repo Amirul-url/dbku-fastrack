@@ -2214,6 +2214,7 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const license = app?.form_data?.license || {};
   const payment = app?.form_data?.payment || {};
   const renewalPayment = getLicenseRenewalPayment(app);
+  const appStatus = normalizeStatus(app?.status);
   const manualReceipt = approvalLetter.manual_receipt || {};
   const manualLicense = license.manual_license || {};
   const renewalManualReceipt =
@@ -2258,8 +2259,9 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     manualReceipt.status === "Sent to Applicant" ||
     (normalizeStatus(app?.status) === "payment_verified" && manualReceipt.saved_at)
   );
+  const canShowLicenseDocumentHistory = ["license_issued", "license_revoked"].includes(appStatus);
   const showAdvertisementLicense = Boolean(
-    canViewLicense(app) &&
+    canShowLicenseDocumentHistory &&
     (getPaymentDocumentSource(license.license_file) ||
       manualLicense.document_html ||
       manualLicense.sent_at ||
@@ -2673,6 +2675,10 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
 }
 
 function getApplicantDetailStatusLabel(app, t) {
+  if (normalizeStatus(app?.status) === "license_revoked") {
+    return translatedStatus(t, "surrender_revoke");
+  }
+
   if (isRenewalEarlyPaymentCompleted(app) && isApprovedApplication(app)) {
     return translatedStatus(t, "approved");
   }
