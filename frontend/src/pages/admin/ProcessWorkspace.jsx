@@ -12936,7 +12936,7 @@ function buildCancellationNoticeDocumentHtml(app) {
     .dbku-renewal-letter th { text-align: center; font-weight: 800; }
     .dbku-renewal-letter .no-col { width: 11mm; }
     .dbku-renewal-letter .center { text-align: center; }
-    .dbku-renewal-letter .period-col { width: 72mm; text-align: center; white-space: nowrap; }
+    .dbku-renewal-letter .period-col { width: 48mm; text-align: center; white-space: normal; }
     .dbku-renewal-letter .amount-col { width: 34mm; text-align: right; }
     .dbku-renewal-letter th.amount-col { text-align: center; white-space: normal; }
     .dbku-renewal-letter .amount-cell { text-align: right; }
