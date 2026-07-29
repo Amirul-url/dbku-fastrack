@@ -1126,6 +1126,10 @@ function getDeliveryLocalizedCopy(status, reference, remark = "") {
       titleMs: "Keputusan MPHLG diterima",
       messageMs: `Keputusan MPHLG telah direkodkan untuk permohonan ${safeReference}.`,
     },
+    license_cancellation_pending: {
+      titleMs: "Makluman pembatalan lesen perlu dijana",
+      messageMs: `Lesen ${safeReference} telah tamat tempoh tanpa bayaran pembaharuan yang disahkan. PT(IKL) perlu menjana makluman pembatalan lesen dan tindakan penguatkuasaan.`,
+    },
   };
 
   return copy[normalizeStatus(status)] || {};

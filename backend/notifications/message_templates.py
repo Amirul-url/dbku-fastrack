@@ -630,6 +630,11 @@ PT_IKL_RENEWAL_DETECTED_WHATSAPP_BODY_TEMPLATE = (
     "PT(IKL) must generate the renewal reminder letter before sending it to KB(LES) for confirmation."
 )
 PT_IKL_CANCELLATION_PENDING_TITLE = "Cancellation notice required"
+PT_IKL_CANCELLATION_PENDING_TITLE_MS = "Makluman pembatalan lesen perlu dijana"
+PT_IKL_CANCELLATION_PENDING_WEB_BODY_TEMPLATE_MS = (
+    "Lesen {license_id} telah tamat tempoh tanpa bayaran pembaharuan yang disahkan. "
+    "PT(IKL) perlu menjana makluman pembatalan lesen dan tindakan penguatkuasaan."
+)
 PT_IKL_CANCELLATION_PENDING_BODY_TEMPLATE = (
     "License {license_id} has expired without verified renewal payment. PT(IKL) "
     "must generate the cancellation and enforcement notice."

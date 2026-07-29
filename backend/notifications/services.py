@@ -1484,6 +1484,15 @@ def notify_license_cancellation_task(application, event_status):
         ),
     }
     title, body, recipients, recipient_role = copy[event_status]
+    extra_metadata = None
+    if event_status == "license_cancellation_pending":
+        license_id = get_license_id(application)
+        extra_metadata = {
+            "title_ms": notify_messages.PT_IKL_CANCELLATION_PENDING_TITLE_MS,
+            "message_ms": notify_messages.PT_IKL_CANCELLATION_PENDING_WEB_BODY_TEMPLATE_MS.format(
+                license_id=license_id
+            ),
+        }
     send_license_workflow_notification(
         application=application,
         event_status=event_status,
@@ -1492,6 +1501,7 @@ def notify_license_cancellation_task(application, event_status):
         recipients=recipients,
         recipient_role=recipient_role,
         action_url=f"/admin/e-licenses/license?id={application.id}",
+        extra_metadata=extra_metadata,
     )
 
 
