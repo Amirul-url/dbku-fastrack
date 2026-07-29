@@ -3787,6 +3787,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     if (approvalSupportSignatureError) setApprovalSupportSignatureError("");
                   }}
                   onSignatureError={setApprovalSupportSignatureError}
+                  onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                   onGenerate={(documentHtml, submitData = {}) => {
                     if (!selectedCancellationNoticeAction) return;
                     submitAction(selectedCancellationNoticeAction, {
