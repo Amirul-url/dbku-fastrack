@@ -29,6 +29,14 @@ def is_public_license_active(application, license_data):
     return license_status in {"", "active"}
 
 
+def get_public_license_unavailable_message(license_data):
+    license_status = str(license_data.get("status") or "").strip().lower()
+    if license_status == "expired":
+        return "Advertisement license has expired."
+
+    return "Advertisement license is not active."
+
+
 def get_dict(value):
     return value if isinstance(value, dict) else {}
 
@@ -105,7 +113,7 @@ def get_public_license_document(license_id):
             continue
 
         if not is_public_license_active(application, license_data):
-            raise Http404("Advertisement license is not active.")
+            raise Http404(get_public_license_unavailable_message(license_data))
 
         renewal_document = get_latest_renewal_license_document(application, form_data)
         if renewal_document:

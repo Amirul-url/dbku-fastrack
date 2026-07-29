@@ -72,14 +72,32 @@ function LicenseVerificationPage() {
           <Panel>
             <StatusNotice
               type="error"
-              title="License unavailable"
-              description={error || "The scanned license ID does not match an available license document."}
+              {...getLicenseVerificationErrorCopy(error)}
             />
           </Panel>
         ) : null}
       </div>
     </div>
   );
+}
+
+function getLicenseVerificationErrorCopy(error) {
+  const message = String(error || "").trim();
+  const lowerMessage = message.toLowerCase();
+
+  if (lowerMessage.includes("expired")) {
+    return {
+      title: "License expired",
+      description:
+        "This advertisement license has expired. The QR e-license is no longer available.",
+    };
+  }
+
+  return {
+    title: "License unavailable",
+    description:
+      message || "The scanned license ID does not match an available license document.",
+  };
 }
 
 async function getSourceLicenseBlobUrl(documentUrl, title) {
