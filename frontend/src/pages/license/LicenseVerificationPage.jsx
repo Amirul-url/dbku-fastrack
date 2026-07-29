@@ -38,8 +38,19 @@ function LicenseVerificationPage() {
       } catch (requestError) {
         if (!active || requestId !== requestRef.current) return;
         console.error("Failed to verify license:", requestError);
-        setError(requestError.message || "The scanned license could not be opened.");
-        setLoading(false);
+        const message = requestError.message || "The scanned license could not be opened.";
+        try {
+          const status = getLicenseVerificationErrorCopy(message);
+          const blobUrl = getVerificationStatusBlobUrl(
+            status,
+            `${licenseId || "ALiS"} Advertisement License Verification`
+          );
+          window.location.replace(blobUrl);
+        } catch (blobError) {
+          console.error("Failed to open verification status blob:", blobError);
+          setError(message);
+          setLoading(false);
+        }
       }
     }
 
@@ -276,6 +287,121 @@ function buildBlobVerificationPageHtml(documentHtml, title) {
       frame.contentWindow.print();
     });
   </script>
+</body>
+</html>`;
+}
+
+function getVerificationStatusBlobUrl(status, title) {
+  return URL.createObjectURL(
+    new Blob([buildBlobVerificationStatusPageHtml(status, title)], {
+      type: "text/html;charset=utf-8",
+    })
+  );
+}
+
+function buildBlobVerificationStatusPageHtml(status = {}, title) {
+  const safeTitle = escapeHtmlAttribute(title);
+  const safeStatusTitle = escapeHtmlAttribute(status.title || "License unavailable");
+  const safeDescription = escapeHtmlAttribute(
+    status.description || "The scanned license ID does not match an available license document."
+  );
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef3f7;
+      color: #1a1c1c;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .verification-shell {
+      width: min(100% - 32px, 1280px);
+      margin: 20px auto;
+    }
+    .verification-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #006d32;
+      background: #fff;
+      padding: 18px 22px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      color: #006d32;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.2;
+    }
+    button {
+      min-height: 48px;
+      border: 0;
+      border-radius: 6px;
+      background: #006d32;
+      color: #fff;
+      padding: 0 24px;
+      font: 700 14px Arial, Helvetica, sans-serif;
+      cursor: not-allowed;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, .18);
+      opacity: .5;
+    }
+    .status-panel {
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #fff;
+      padding: 22px;
+    }
+    .status-notice {
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      background: #fef2f2;
+      color: #b00000;
+      padding: 20px 22px;
+    }
+    .status-notice h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+    .status-notice p {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <main class="verification-shell">
+    <header class="verification-header">
+      <div>
+        <p class="eyebrow">ALiS</p>
+        <h1>Advertisement License Verification</h1>
+      </div>
+      <button type="button" disabled>Print Advertisement License</button>
+    </header>
+    <section class="status-panel">
+      <div class="status-notice">
+        <h2>${safeStatusTitle}</h2>
+        <p>${safeDescription}</p>
+      </div>
+    </section>
+  </main>
 </body>
 </html>`;
 }
