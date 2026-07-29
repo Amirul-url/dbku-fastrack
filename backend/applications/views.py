@@ -69,6 +69,21 @@ LICENSE_RENEWAL_ACTIVITY_ACTIONS = {
         "recommendation": "Generate Renewal Official Receipt and Advertisement License",
         "fallback": "PT(IKL) generated the renewal official receipt and advertisement license.",
     },
+    "generate_cancellation_notice": {
+        "title": "License cancellation notice generated",
+        "recommendation": "Generate License Cancellation Notice",
+        "fallback": "PT(IKL) generated the license cancellation notice.",
+    },
+    "confirm_cancellation_notice": {
+        "title": "License cancellation notice confirmed",
+        "recommendation": "Confirm License Cancellation Notice",
+        "fallback": "KB(LES) confirmed the license cancellation notice.",
+    },
+    "support_cancellation_notice": {
+        "title": "License cancellation notice supported",
+        "recommendation": "Support License Cancellation Notice",
+        "fallback": "KB(LES) supported the license cancellation notice.",
+    },
 }
 RESUBMIT_WORKFLOW_RESET_FIELDS = [
     "auto_screening",

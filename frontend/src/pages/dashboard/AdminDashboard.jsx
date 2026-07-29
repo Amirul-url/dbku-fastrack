@@ -5368,7 +5368,8 @@ function isApprovalPersonalTaskForDepartment(application, department) {
   if (department === "KB(LES)") {
     return (
       (status === "management_review" && !isKbLesVerified(application)) ||
-      Boolean(getPendingKbRenewalConfirmationMonth(application))
+      Boolean(getPendingKbRenewalConfirmationMonth(application)) ||
+      isPendingKbCancellationTask(application)
     );
   }
 
@@ -5470,6 +5471,15 @@ function getLicenseRenewalCancellationStatus(application) {
 
 function isPendingPtCancellationNotice(application) {
   return getLicenseRenewalCancellationStatus(application) === "pending_pt_notice";
+}
+
+function isPendingKbCancellationTask(application) {
+  if (normalizeStatus(application?.status) !== "license_issued") return false;
+
+  return [
+    "pending_supervisor_confirmation",
+    "pending_kb_les_support",
+  ].includes(getLicenseRenewalCancellationStatus(application));
 }
 
 function getTechnicalDepartmentReviews(app) {
@@ -5599,6 +5609,15 @@ function getDashboardTaskStatusLabel(application, unit, t) {
   }
 
   if (department === "KB(LES)") {
+    const cancellationStatus = getLicenseRenewalCancellationStatus(application);
+    if (cancellationStatus === "pending_supervisor_confirmation") {
+      return t("workspace.action.confirmCancellationNotice", "Confirm License Cancellation Notice");
+    }
+
+    if (cancellationStatus === "pending_kb_les_support") {
+      return t("workspace.action.supportCancellationNotice", "Support License Cancellation Notice");
+    }
+
     const renewalMonth = getPendingKbRenewalConfirmationMonth(application);
     if (renewalMonth) return `${getRenewalReminderTaskLabel(renewalMonth)} Confirmation`;
   }

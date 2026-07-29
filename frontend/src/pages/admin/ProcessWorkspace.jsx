@@ -710,8 +710,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           normalizedUserDepartment === "PT(IKL)" &&
           canGenerateCancellationNotice(app, normalizedUserDepartment)
         ) ||
-        canConfirmCancellationNotice(app, userDepartment) ||
-        canSupportCancellationNotice(app, userDepartment) ||
+        (
+          fromPersonalTask &&
+          (
+            canConfirmCancellationNotice(app, userDepartment) ||
+            canSupportCancellationNotice(app, userDepartment)
+          )
+        ) ||
         isApprovalTrackingRecordForDepartment(app, userDepartment);
 
       return isInStatusScope && isInDepartmentScope && isInApprovalScope;
@@ -923,9 +928,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     normalizedUserDepartment === "PT(IKL)" &&
     canGenerateCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isCancellationNoticeConfirmationWorkspace =
+    fromPersonalTask &&
     isLicenseOrApprovalWorkspace &&
     canConfirmCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isCancellationNoticeSupportWorkspace =
+    fromPersonalTask &&
     isLicenseOrApprovalWorkspace &&
     canSupportCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isCancellationNoticeWorkflowWorkspace =
@@ -12159,14 +12166,6 @@ function getWorkspaceActions(config, app, department) {
   }
 
   if (
-    canGenerateCancellationNotice(app, normalizedDepartment) ||
-    canConfirmCancellationNotice(app, normalizedDepartment) ||
-    canSupportCancellationNotice(app, normalizedDepartment)
-  ) {
-    return getWorkspaceActions(configs.license, app, normalizedDepartment);
-  }
-
-  if (
     normalizedDepartment === "PT(IKL)" &&
     (
       ["license_issued", "license_revoked"].includes(normalizeStatus(app?.status)) ||
@@ -13901,6 +13900,10 @@ function buildWorkspaceDecisionLogRows(app, t) {
     }
   });
 
+  getWorkspaceCancellationDecisionLogRows(app).forEach((row) => {
+    addWorkspaceDecisionLogRow(rows, row, t);
+  });
+
   getWorkspaceRenewalActivityDecisionLogRows(app).forEach((row) => {
     addWorkspaceDecisionLogRow(rows, row, t);
   });
@@ -13977,6 +13980,108 @@ function getWorkspaceRenewalActivityDecisionLogRows(app) {
     .filter(Boolean);
 
   return filterSupersededRenewalReceiptDecisionRows(renewalRows);
+}
+
+function getWorkspaceCancellationDecisionLogRows(app) {
+  const cancellation = getLicenseRenewal(app).cancellation || {};
+  if (!cancellation || typeof cancellation !== "object") return [];
+
+  const notice = cancellation.notice && typeof cancellation.notice === "object"
+    ? cancellation.notice
+    : {};
+  const rows = [];
+  const generatedRemarks = cleanRemark(
+    notice.remarks ||
+      notice.note ||
+      cancellation.remarks ||
+      cancellation.note
+  );
+  const generatedSignature = getWorkspaceDecisionLogSignature({
+    digital_signature: notice.digital_signature || cancellation.digital_signature,
+  });
+  const generatedDate = cleanRemark(notice.generated_at || cancellation.generated_at);
+
+  if (generatedRemarks || generatedSignature || generatedDate) {
+    rows.push({
+      id: "license-cancellation-notice-generated",
+      department: "PT(IKL)",
+      section: {
+        status: "generated",
+        remarks: generatedRemarks,
+        generated_at: generatedDate,
+        digital_signature: generatedSignature,
+      },
+      decision: "Generate License Cancellation Notice",
+      remarks: generatedRemarks,
+      date: generatedDate,
+      signature: generatedSignature,
+      useStatusFallback: false,
+    });
+  }
+
+  const confirmationRemarks = cleanRemark(
+    notice.confirmation_remarks ||
+      notice.confirmation_note ||
+      cancellation.confirmation_remarks ||
+      cancellation.confirmation_note
+  );
+  const confirmationSignature = getWorkspaceDecisionLogSignature({
+    digital_signature:
+      notice.confirmation_digital_signature ||
+      cancellation.confirmation_digital_signature,
+  });
+  const confirmationDate = cleanRemark(notice.confirmed_at || cancellation.confirmed_at);
+
+  if (confirmationRemarks || confirmationSignature || confirmationDate) {
+    rows.push({
+      id: "license-cancellation-notice-confirmed",
+      department: "KB(LES)",
+      section: {
+        status: "confirmed",
+        remarks: confirmationRemarks,
+        confirmed_at: confirmationDate,
+        digital_signature: confirmationSignature,
+      },
+      decision: "Confirm License Cancellation Notice",
+      remarks: confirmationRemarks,
+      date: confirmationDate,
+      signature: confirmationSignature,
+      useStatusFallback: false,
+    });
+  }
+
+  const supportRemarks = cleanRemark(
+    notice.support_remarks ||
+      notice.support_note ||
+      cancellation.support_remarks ||
+      cancellation.support_note
+  );
+  const supportSignature = getWorkspaceDecisionLogSignature({
+    digital_signature:
+      notice.support_digital_signature ||
+      cancellation.support_digital_signature,
+  });
+  const supportDate = cleanRemark(notice.supported_at || cancellation.supported_at);
+
+  if (supportRemarks || supportSignature || supportDate) {
+    rows.push({
+      id: "license-cancellation-notice-supported",
+      department: "KB(LES)",
+      section: {
+        status: "supported",
+        remarks: supportRemarks,
+        supported_at: supportDate,
+        digital_signature: supportSignature,
+      },
+      decision: "Support License Cancellation Notice",
+      remarks: supportRemarks,
+      date: supportDate,
+      signature: supportSignature,
+      useStatusFallback: false,
+    });
+  }
+
+  return rows;
 }
 
 function filterSupersededRenewalReceiptDecisionRows(rows = []) {
@@ -14247,6 +14352,18 @@ function formatWorkspaceDecisionLogRecommendation(value, department = "", t = (k
     "generate renewal official receipt and advertisement license": t(
       "workspace.decision.generateRenewalReceiptLicense",
       "Generate Renewal Official Receipt & Advertisement License"
+    ),
+    "generate license cancellation notice": t(
+      "workspace.decision.generateCancellationNotice",
+      "Generate License Cancellation Notice"
+    ),
+    "confirm license cancellation notice": t(
+      "workspace.decision.confirmCancellationNotice",
+      "Confirm License Cancellation Notice"
+    ),
+    "support license cancellation notice": t(
+      "workspace.decision.supportCancellationNotice",
+      "Support License Cancellation Notice"
     ),
   };
 

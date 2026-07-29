@@ -1546,7 +1546,7 @@ def notify_license_cancellation_task(application, event_status):
                     reference=application.reference_no
                 ),
             },
-            get_supervisor_recipients(),
+            get_kb_les_recipients(),
             "supervisor",
         ),
         "license_cancellation_kb_support": (
@@ -1576,6 +1576,26 @@ def notify_license_cancellation_task(application, event_status):
                 license_id=license_id
             ),
         }
+    elif event_status in {
+        "license_cancellation_supervisor_confirmation",
+        "license_cancellation_kb_support",
+    }:
+        cancellation = get_form_section(application, "license_renewal").get("cancellation") or {}
+        notice = cancellation.get("notice") if isinstance(cancellation.get("notice"), dict) else {}
+        occurrence = (
+            cancellation.get("confirmed_at")
+            or notice.get("confirmed_at")
+            or cancellation.get("generated_at")
+            or notice.get("generated_at")
+            or timezone.now().isoformat()
+        )
+        extra_metadata = {"occurrence": occurrence}
+
+    action_url = (
+        f"/admin/e-licenses/license?id={application.id}"
+        if event_status == "license_cancellation_pending"
+        else f"/admin/approval?id={application.id}&from=personal"
+    )
     send_license_workflow_notification(
         application=application,
         event_status=event_status,
@@ -1583,8 +1603,9 @@ def notify_license_cancellation_task(application, event_status):
         body=body,
         recipients=recipients,
         recipient_role=recipient_role,
-        action_url=f"/admin/e-licenses/license?id={application.id}",
+        action_url=action_url,
         extra_metadata=extra_metadata,
+        force_web=True,
     )
 
 

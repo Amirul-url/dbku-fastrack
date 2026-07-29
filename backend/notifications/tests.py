@@ -18,6 +18,7 @@ from .services import (
     notify_license_renewal_released,
     notify_license_renewal_kb_confirmation_task,
     notify_license_renewal_payment_submitted,
+    notify_license_cancellation_task,
     notify_license_revocation_request,
     build_renewal_letter_document_html,
     format_renewal_day_period,
@@ -155,6 +156,56 @@ class NotificationRoutingTests(TestCase):
         )
         self.assertEqual(email_delivery.subject, expected_subject)
         self.assertEqual(whatsapp_delivery.message, expected_message)
+
+    def test_cancellation_confirmation_routes_to_kb_les_personal_approval_task(self):
+        kb_user = User.objects.create_user(
+            username="kb-les-cancellation",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        other_supervisor = User.objects.create_user(
+            username="pgh-cancellation",
+            email="",
+            password="Password123",
+            mobile_number="",
+            role="supervisor",
+            department="PGH",
+            is_active=True,
+        )
+        self.application.status = "license_issued"
+        self.application.form_data = {
+            **self.application.form_data,
+            "license_renewal": {
+                "cancellation": {
+                    "status": "pending_supervisor_confirmation",
+                    "generated_at": "2026-07-29T05:04:00+00:00",
+                }
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        notify_license_cancellation_task(
+            self.application,
+            "license_cancellation_supervisor_confirmation",
+        )
+
+        deliveries = NotificationDelivery.objects.filter(
+            channel="web",
+            metadata__event_status="license_cancellation_supervisor_confirmation",
+        )
+        self.assertEqual(deliveries.count(), 1)
+        delivery = deliveries.get()
+        self.assertEqual(delivery.user, kb_user)
+        self.assertNotEqual(delivery.user, other_supervisor)
+        self.assertEqual(
+            delivery.metadata["action_url"],
+            f"/admin/approval?id={self.application.id}&from=personal",
+        )
+        self.assertEqual(delivery.metadata["occurrence"], "2026-07-29T05:04:00+00:00")
 
     def test_submitted_does_not_use_official_superadmin_contact_as_recipient_fallback(self):
         self.notify_status("submitted")

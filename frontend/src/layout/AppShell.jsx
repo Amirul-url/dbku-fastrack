@@ -1047,6 +1047,15 @@ function isPendingPtCancellationNotice(application) {
   return getLicenseRenewalCancellationStatus(application) === "pending_pt_notice";
 }
 
+function isPendingKbCancellationTask(application) {
+  if (normalizeWorkflowStatus(application?.status) !== "license_issued") return false;
+
+  return [
+    "pending_supervisor_confirmation",
+    "pending_kb_les_support",
+  ].includes(getLicenseRenewalCancellationStatus(application));
+}
+
 function isPersonalTaskForDepartment(application, department) {
   const status = normalizeWorkflowStatus(application?.status);
 
@@ -1078,7 +1087,8 @@ function isPersonalTaskForDepartment(application, department) {
   if (department === "KB(LES)") {
     return (
       (status === "management_review" && !isKbLesVerified(application)) ||
-      isPendingKbRenewalConfirmation(application)
+      isPendingKbRenewalConfirmation(application) ||
+      isPendingKbCancellationTask(application)
     );
   }
 
