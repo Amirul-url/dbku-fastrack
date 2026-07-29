@@ -13036,7 +13036,10 @@ function getCancellationNoticeContext(app) {
   return {
     ourRef: `DBKU/LES/IKL/${letterDate.getFullYear().toString().slice(-2)}/1(b)/ (   )`,
     letterDate: formatMalayLetterDate(letterDate),
-    recipientName: cleanFirstReminderLetterValue(getApplicantName(app)) || getFirstReminderCompanyName(app),
+    recipientName:
+      cleanFirstReminderLetterValue(getRegisteredApplicantName(app)) ||
+      cleanFirstReminderLetterValue(getApplicantName(app)) ||
+      getFirstReminderCompanyName(app),
     applicantName: getFirstReminderCompanyName(app),
     addressLines: getLetterAddressLines(app),
     subject: "NOTIS PERINGATAN - BERNIAGA TANPA LESEN YANG SAH",
