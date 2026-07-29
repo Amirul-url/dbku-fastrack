@@ -13376,13 +13376,13 @@ function cleanRenewalLetterDate(value) {
 }
 
 function extractRenewalLetterReference(documentHtml) {
-  const text = htmlToPlainText(documentHtml);
+  const text = getHtmlPlainText(documentHtml);
   const match = text.match(/Kami:\s*(DBKU\/LES\/IKL\/\d{2}\/1\(b\)\/\s*\(\s*\))/i);
   return match ? match[1] : "";
 }
 
 function extractRenewalLetterDate(documentHtml) {
-  const text = htmlToPlainText(documentHtml);
+  const text = getHtmlPlainText(documentHtml);
   const match = text.match(/Tarikh:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
   return match ? match[1] : "";
 }
