@@ -3872,7 +3872,6 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     applications={receiptApplications}
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
-                    readOnly={isReadOnlyActionPanel}
                     onEditReceipt={() => {
                       setRenewalCompletionDocumentError("");
                       setShowManualReceiptEditor(true);
@@ -3885,11 +3884,9 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     renewalCompletionDocumentError={
                       isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
                     }
-                    licenseManagementActions={
-                      isPtIssueLicenseWorkspace || fromPersonalTask ? [] : workspaceActions
-                    }
+                    licenseManagementActions={isPtIssueLicenseWorkspace ? [] : workspaceActions}
                     onLicenseManagementAction={
-                      isPtIssueLicenseWorkspace || fromPersonalTask ? null : requestLicenseManagementAction
+                      isPtIssueLicenseWorkspace ? null : requestLicenseManagementAction
                     }
                   />
                 </div>
