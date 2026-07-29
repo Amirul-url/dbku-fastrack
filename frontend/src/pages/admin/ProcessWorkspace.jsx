@@ -12887,16 +12887,16 @@ function buildCancellationNoticeDocumentHtml(app) {
       background: #fff;
       color: #000;
       font-family: "Times New Roman", Times, serif;
-      font-size: 14pt;
-      line-height: 1.18;
+      font-size: 11pt;
+      line-height: 1.25;
       overflow: hidden;
       break-after: avoid;
       page-break-after: avoid;
     }
     .dbku-renewal-letter, .dbku-renewal-letter * {
       font-family: "Times New Roman", Times, serif !important;
-      font-size: 14pt !important;
-      line-height: 1.18 !important;
+      font-size: 11pt !important;
+      line-height: 1.25 !important;
       letter-spacing: 0 !important;
     }
     .dbku-renewal-letter p { margin: 0 0 10pt; }
@@ -12954,8 +12954,8 @@ function buildCancellationNoticeDocumentHtml(app) {
     .dbku-renewal-letter .closing { margin: 24pt 0 10pt; }
     .dbku-renewal-letter .motto { margin: 0 0 12pt; font-weight: 800; }
     .dbku-renewal-letter .director { font-weight: 800; }
-    .dbku-renewal-letter .note { margin-top: 38pt; text-align: center; font-size: 9pt !important; font-style: italic; }
-    .dbku-renewal-letter .note * { font-size: 9pt !important; font-style: italic; }
+    .dbku-renewal-letter .note { margin-top: 38pt; text-align: center; font-size: 7pt !important; font-style: italic; }
+    .dbku-renewal-letter .note * { font-size: 7pt !important; font-style: italic; }
     [data-renewal-editable="true"]:focus { outline: 2px solid rgba(16, 185, 129, .35); outline-offset: 2px; }
     @media print {
       html, body { width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
