@@ -61,6 +61,7 @@ const APPLICANT_STATUS_FILTER_OPTIONS = [
   "license_renewal_1st_reminder",
   "license_renewal_2nd_reminder",
   "license_renewal_3rd_reminder",
+  "license_expired",
   "rejected",
   "surrender_revoke",
 ];
@@ -2632,6 +2633,10 @@ function getApplicantDetailStatusLabel(app, t) {
     return translatedStatus(t, "approved");
   }
 
+  if (isApplicantLicenseExpired(app)) {
+    return translatedStatus(t, "license_expired");
+  }
+
   if (hasAnyReleasedRenewalReminder(app)) {
     return getPaymentStatusText(app, t);
   }
@@ -3150,6 +3155,7 @@ function translatedStatus(t, status) {
       "applicant.statusFinalReminder",
       "3rd Reminder"
     ),
+    license_expired: t("applicant.statusLicenseExpired", "License expired"),
   };
 
   if (applicantStatusLabels[normalized]) {
@@ -3497,6 +3503,10 @@ function getApplicantFilterStatus(app) {
 
   if (isRenewalEarlyPaymentCompleted(app) && isApprovedApplication(app)) {
     return "approved";
+  }
+
+  if (isApplicantLicenseExpired(app)) {
+    return "license_expired";
   }
 
   const latestReleasedReminderMonth = getLatestReleasedRenewalReminderMonth(app);
@@ -4423,6 +4433,25 @@ function getLicenseRenewalPaymentStatus(app) {
 function getLicenseRenewalReminders(app) {
   const reminders = getLicenseRenewal(app).reminders || {};
   return reminders && typeof reminders === "object" ? reminders : {};
+}
+
+function getLicenseRenewalCancellation(app) {
+  const cancellation = getLicenseRenewal(app).cancellation || {};
+  return cancellation && typeof cancellation === "object" ? cancellation : {};
+}
+
+function isApplicantLicenseExpired(app) {
+  if (isRenewalEarlyPaymentCompleted(app)) return false;
+
+  const cancellationStatus = normalizeStatus(getLicenseRenewalCancellation(app).status || "");
+  if (cancellationStatus) return true;
+
+  const licenseStatus = normalizeStatus(
+    app?.form_data?.license?.status ||
+      app?.license?.status ||
+      ""
+  );
+  return licenseStatus === "expired";
 }
 
 function getRenewalReminderTaskLabel(months) {
