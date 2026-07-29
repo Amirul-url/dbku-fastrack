@@ -843,8 +843,8 @@ def apply_license_cancellation_action(
         return {}
 
     if action == "confirm_cancellation_notice":
-        if not is_supervisor_user(user):
-            raise PermissionError("Only a supervisor can confirm cancellation notices.")
+        if not is_kb_les_user(user):
+            raise PermissionError("Only KB(LES) can confirm cancellation notices.")
 
         if cancellation.get("status") != "pending_supervisor_confirmation":
             raise ValueError("The cancellation notice is not waiting for supervisor confirmation.")
@@ -856,18 +856,20 @@ def apply_license_cancellation_action(
         if not has_digital_signature_content(digital_signature):
             raise ValueError("Digital signature is required.")
 
+        confirmed_at = timezone.now().isoformat()
         notice = cancellation.get("notice") if isinstance(cancellation.get("notice"), dict) else {}
         notice.update({
-            "status": "pending_kb_les_support",
-            "confirmed_at": timezone.now().isoformat(),
+            "status": "released_to_applicant",
+            "confirmed_at": confirmed_at,
             "confirmed_by": get_web_recipient(user),
             "confirmation_note": clean_note,
             "confirmation_remarks": clean_note,
             "confirmation_digital_signature": digital_signature,
+            "released_at": confirmed_at,
         })
         cancellation.update({
-            "status": "pending_kb_les_support",
-            "confirmed_at": timezone.now().isoformat(),
+            "status": "released_to_applicant",
+            "confirmed_at": confirmed_at,
             "confirmed_by": get_web_recipient(user),
             "confirmation_note": clean_note,
             "confirmation_remarks": clean_note,
@@ -875,8 +877,15 @@ def apply_license_cancellation_action(
             "notice": notice,
         })
         renewal["cancellation"] = cancellation
-        notify_license_cancellation_task(application, "license_cancellation_kb_support")
-        return {}
+        license_data = get_form_data_section(form_data, "license")
+        license_data.update({
+            "status": "Revoked",
+            "revoked_at": confirmed_at,
+            "revocation_reason": "No renewal payment after expiry.",
+        })
+        form_data["license"] = license_data
+        notify_license_cancellation_released(application)
+        return {"status": "license_revoked"}
 
     if action == "support_cancellation_notice":
         if not is_kb_les_user(user):
@@ -1611,6 +1620,7 @@ def notify_license_cancellation_task(application, event_status):
 
 def notify_license_cancellation_released(application):
     title = notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_TITLE
+    occurrence = timezone.now().isoformat()
     body = {
         "web": notify_messages.APPLICANT_LICENSE_CANCELLATION_RELEASED_WEB_BODY_TEMPLATE.format(
             reference=application.reference_no
@@ -1630,7 +1640,10 @@ def notify_license_cancellation_released(application):
         recipients=[application.applicant] if getattr(application, "applicant_id", None) else [],
         recipient_role="applicant",
         action_url="/user/dashboard?tab=status",
+        extra_metadata={"occurrence": occurrence},
         include_external=True,
+        force_web=True,
+        force_external=True,
     )
 
 

@@ -11,6 +11,7 @@ from applications.models import Application
 from . import message_templates as notify_messages
 from .models import NotificationDelivery
 from .services import (
+    apply_license_renewal_action,
     notify_applicant_application_submitted,
     notify_applicant_registration_success,
     notify_account_created,
@@ -206,6 +207,59 @@ class NotificationRoutingTests(TestCase):
             f"/admin/approval?id={self.application.id}&from=personal",
         )
         self.assertEqual(delivery.metadata["occurrence"], "2026-07-29T05:04:00+00:00")
+
+    def test_confirm_cancellation_releases_to_applicant_without_kb_support_task(self):
+        kb_user = User.objects.create_user(
+            username="kb-les-confirm-release",
+            email="kb-les-confirm-release@sample.com",
+            password="Password123",
+            mobile_number="0167778888",
+            role="supervisor",
+            department="KB(LES)",
+            is_active=True,
+        )
+        self.application.status = "license_issued"
+        self.application.form_data = {
+            **self.application.form_data,
+            "license": {"status": "Active"},
+            "license_renewal": {
+                "cancellation": {
+                    "status": "pending_supervisor_confirmation",
+                    "generated_at": "2026-07-29T05:04:00+00:00",
+                    "notice": {
+                        "status": "pending_supervisor_confirmation",
+                        "generated_at": "2026-07-29T05:04:00+00:00",
+                    },
+                }
+            },
+        }
+        self.application.save(update_fields=["status", "form_data"])
+
+        updated = apply_license_renewal_action(
+            self.application,
+            action="confirm_cancellation_notice",
+            user=kb_user,
+            note="Confirmed for release",
+            digital_signature={"mode": "draw", "dataUrl": "data:image/png;base64,abc"},
+        )
+
+        cancellation = updated.form_data["license_renewal"]["cancellation"]
+        self.assertEqual(updated.status, "license_revoked")
+        self.assertEqual(updated.form_data["license"]["status"], "Revoked")
+        self.assertEqual(cancellation["status"], "released_to_applicant")
+        self.assertEqual(cancellation["notice"]["status"], "released_to_applicant")
+        self.assertFalse(
+            NotificationDelivery.objects.filter(
+                metadata__event_status="license_cancellation_kb_support",
+            ).exists()
+        )
+        applicant_channels = set(
+            NotificationDelivery.objects.filter(
+                recipient_role="applicant",
+                metadata__event_status="license_cancellation_released",
+            ).values_list("channel", flat=True)
+        )
+        self.assertEqual(applicant_channels, {"web", "email", "whatsapp"})
 
     def test_submitted_does_not_use_official_superadmin_contact_as_recipient_fallback(self):
         self.notify_status("submitted")

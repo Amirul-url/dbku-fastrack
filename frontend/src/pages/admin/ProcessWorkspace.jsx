@@ -280,6 +280,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     open: false,
     reference: "",
     redirectTo: "",
+    messageKey: "workspace.license.reminderLetterConfirmedSuccessMessage",
+    defaultMessage: "Application {reference} has been confirmed and sent to the applicant.",
   });
   const [licenseActionConfirmationModal, setLicenseActionConfirmationModal] = useState({
     open: false,
@@ -2857,6 +2859,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         Boolean(action.reminderMonths);
       const shouldShowReminderLetterConfirmedSuccess =
         action.key === "confirm_reminder_letter";
+      const shouldShowCancellationNoticeConfirmedSuccess =
+        action.key === "confirm_cancellation_notice";
       const shouldShowMphlgFinalApprovedSuccess = shouldShowMphlgFinalApprovedModal(action, body);
       const shouldShowInvoiceGeneratedSuccess = shouldShowInvoiceGeneratedModal(action, body);
       const shouldShowTechnicalSiteVisitSuccess = shouldShowTechnicalSiteVisitModal(action, body);
@@ -2875,6 +2879,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         shouldShowLicenseIssuedSuccess ||
         shouldShowFirstReminderGeneratedSuccess ||
         shouldShowReminderLetterConfirmedSuccess ||
+        shouldShowCancellationNoticeConfirmedSuccess ||
         shouldShowReceiptVerifiedSuccess ||
         shouldShowRenewalReceiptVerifiedSuccess ||
         shouldShowApplicationRejectedSuccess ||
@@ -2957,6 +2962,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
             isFocusedPersonalWorkspace || fromPersonalTask
               ? "/dashboard/admin?view=personal"
               : "",
+          messageKey: "workspace.license.reminderLetterConfirmedSuccessMessage",
+          defaultMessage: "Application {reference} has been confirmed and sent to the applicant.",
+        });
+      }
+      if (shouldShowCancellationNoticeConfirmedSuccess) {
+        setReminderLetterConfirmedModal({
+          open: true,
+          reference: getApplicationReference(selectedRecord),
+          redirectTo:
+            isFocusedPersonalWorkspace || fromPersonalTask
+              ? "/dashboard/admin?view=personal"
+              : "",
+          messageKey: "workspace.license.cancellationNoticeConfirmedSuccessMessage",
+          defaultMessage:
+            "License cancellation notice for application {reference} has been confirmed and sent to the applicant.",
         });
       }
       if (shouldShowReceiptVerifiedSuccess || shouldShowRenewalReceiptVerifiedSuccess) {
@@ -3086,6 +3106,12 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         return true;
       }
       if (
+        shouldShowCancellationNoticeConfirmedSuccess &&
+        (isFocusedPersonalWorkspace || fromPersonalTask)
+      ) {
+        return true;
+      }
+      if (
         (shouldShowReceiptVerifiedSuccess || shouldShowRenewalReceiptVerifiedSuccess) &&
         (isFocusedPersonalWorkspace || fromPersonalTask)
       ) {
@@ -3211,7 +3237,13 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
   function closeReminderLetterConfirmedModal() {
     const redirectTo = reminderLetterConfirmedModal.redirectTo;
-    setReminderLetterConfirmedModal({ open: false, reference: "", redirectTo: "" });
+    setReminderLetterConfirmedModal({
+      open: false,
+      reference: "",
+      redirectTo: "",
+      messageKey: "workspace.license.reminderLetterConfirmedSuccessMessage",
+      defaultMessage: "Application {reference} has been confirmed and sent to the applicant.",
+    });
     if (redirectTo) {
       navigate(redirectTo);
     }
@@ -4805,6 +4837,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       {reminderLetterConfirmedModal.open && (
         <ReminderLetterConfirmedSuccessModal
           reference={reminderLetterConfirmedModal.reference}
+          messageKey={reminderLetterConfirmedModal.messageKey}
+          defaultMessage={reminderLetterConfirmedModal.defaultMessage}
           t={t}
           onClose={closeReminderLetterConfirmedModal}
         />
@@ -5373,11 +5407,17 @@ function FirstReminderGeneratedSuccessModal({ reference, months = 3, t, onClose 
   );
 }
 
-function ReminderLetterConfirmedSuccessModal({ reference, t, onClose }) {
+function ReminderLetterConfirmedSuccessModal({
+  reference,
+  messageKey = "workspace.license.reminderLetterConfirmedSuccessMessage",
+  defaultMessage = "Application {reference} has been confirmed and sent to the applicant.",
+  t,
+  onClose,
+}) {
   const displayReference = reference || "Application";
   const message = t(
-    "workspace.license.reminderLetterConfirmedSuccessMessage",
-    "Application {reference} has been confirmed and sent to the applicant."
+    messageKey,
+    defaultMessage
   ).replace("{reference}", displayReference);
 
   return (
@@ -13643,7 +13683,7 @@ function canGenerateCancellationNotice(app, department) {
 
 function canConfirmCancellationNotice(app, department) {
   return (
-    isSupervisorWorkflowDepartment(department) &&
+    normalizeDepartmentCode(department) === "KB(LES)" &&
     getCancellationStatus(app) === "pending_supervisor_confirmation"
   );
 }
@@ -17268,8 +17308,8 @@ const configs = {
         icon: "fact_check",
         endpoint: "license-renewal-action",
         variant: "danger",
-        success: "Cancellation notice confirmed and sent to KB(LES) for support.",
-        successKey: "workspace.message.cancellationNoticeConfirmed",
+        success: "Cancellation notice released to the applicant and license revoked.",
+        successKey: "workspace.message.cancellationNoticeReleased",
         isAvailable: canConfirmCancellationNotice,
         buildPayload: (app, data) => ({
           action: "confirm_cancellation_notice",
