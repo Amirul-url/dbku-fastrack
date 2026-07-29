@@ -704,6 +704,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
           normalizedUserDepartment === "KB(LES)" &&
           canConfirmRenewalReminder(app, userDepartment)
         ) ||
+        (
+          fromPersonalTask &&
+          normalizedUserDepartment === "PT(IKL)" &&
+          canGenerateCancellationNotice(app, normalizedUserDepartment)
+        ) ||
         canConfirmCancellationNotice(app, userDepartment) ||
         canSupportCancellationNotice(app, userDepartment) ||
         isApprovalTrackingRecordForDepartment(app, userDepartment);
@@ -911,13 +916,18 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     isApprovalWorkspace &&
     normalizedUserDepartment === "KB(LES)" &&
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
+  const isPtCancellationNoticeWorkspace =
+    fromPersonalTask &&
+    isApprovalWorkspace &&
+    normalizedUserDepartment === "PT(IKL)" &&
+    canGenerateCancellationNotice(selectedRecord, normalizedUserDepartment);
   const isKbRenewalConfirmationOutsidePersonalTask =
     !fromPersonalTask &&
     isApprovalWorkspace &&
     normalizedUserDepartment === "KB(LES)" &&
     canConfirmRenewalReminder(selectedRecord, normalizedUserDepartment);
   const actionConfig =
-    isPtPaymentVerifiedPersonalTask || isKbRenewalConfirmationWorkspace
+    isPtPaymentVerifiedPersonalTask || isKbRenewalConfirmationWorkspace || isPtCancellationNoticeWorkspace
       ? configs.license
       : config;
   const workspaceActions =
@@ -925,7 +935,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     forceReadOnlyApprovalPanel &&
     !hasApprovalLicenseManagementRecord &&
     !isPtPaymentVerifiedPersonalTask &&
-    !isKbRenewalConfirmationWorkspace
+    !isKbRenewalConfirmationWorkspace &&
+    !isPtCancellationNoticeWorkspace
       ? []
       : getWorkspaceActions(actionConfig, selectedRecord, userDepartment);
   const canSubmitWorkspaceAction =
@@ -933,7 +944,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       !forceReadOnlyApprovalPanel ||
       hasApprovalLicenseManagementRecord ||
       isPtPaymentVerifiedPersonalTask ||
-      isKbRenewalConfirmationWorkspace
+      isKbRenewalConfirmationWorkspace ||
+      isPtCancellationNoticeWorkspace
     ) &&
     (isIklWorkspace || workspaceActions.length > 0);
   const canViewSelectedWorkspace =
