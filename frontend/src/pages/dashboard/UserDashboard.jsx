@@ -2193,6 +2193,11 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
   const renewalReceipts = getRenewalEarlyPaymentReceipts(app);
   const renewalReceiptDocument = renewalReceipts[renewalReceipts.length - 1] || null;
   const releasedRenewalLetters = getReleasedRenewalLetters(app);
+  const releasedCancellationNoticeLetter = getReleasedCancellationNoticeLetter(app);
+  const releasedReminderDocuments = [
+    ...releasedRenewalLetters,
+    ...(releasedCancellationNoticeLetter ? [releasedCancellationNoticeLetter] : []),
+  ];
   const originalPaymentReceiptDetails = [
     [t("applicant.paymentReferenceId", "Reference ID"), payment.reference_id],
     [t("applicant.paymentRecipientReference", "Recipient Reference"), payment.recipient_reference],
@@ -2420,21 +2425,21 @@ function ApplicantPaymentDocuments({ app, t, onViewApplicationSteps }) {
     ...(!showAdvertisementLicense && showRenewalAdvertisementLicense
       ? [renewalAdvertisementLicenseRow]
       : []),
-    ...(releasedRenewalLetters.length > 0
+    ...(releasedReminderDocuments.length > 0
       ? [
           {
             label: t("workspace.license.reminder", "Reminder"),
             available: true,
             type: "renewal_reminders",
             isDocumentGroup: true,
-            timestamp: getLatestDocumentTimestampLabel(releasedRenewalLetters),
-            relatedDocuments: releasedRenewalLetters.map((letter) => {
-              const letterLabel = getLocalizedRenewalReminderLetterLabel(letter.months, t);
+            timestamp: getLatestDocumentTimestampLabel(releasedReminderDocuments),
+            relatedDocuments: releasedReminderDocuments.map((letter) => {
+              const letterLabel = getReleasedReminderDocumentTitle(letter, t);
               return {
                 label: letterLabel,
                 name: letterLabel,
                 available: true,
-                type: "renewal_reminder",
+                type: letter.type || "renewal_reminder",
                 timestamp: letter.timestamp,
                 hideFileName: true,
                 onDownload: () => printHtmlDocument(letter.html, `${getApplicationReference(app)} ${letterLabel}`),
@@ -4518,6 +4523,9 @@ function getLatestDocumentTimestampLabel(sources = []) {
 
 function getDocumentTimestampValue(...sources) {
   const keys = [
+    "released_at",
+    "confirmed_at",
+    "supported_at",
     "sent_at",
     "saved_at",
     "generated_at",
@@ -4546,6 +4554,37 @@ function getReleasedRenewalLetters(app) {
   return getGeneratedRenewalLetters(app).filter(
     (letter) => normalizeStatus(letter.status) === "released_to_applicant"
   );
+}
+
+function getReleasedCancellationNoticeLetter(app) {
+  const cancellation = getLicenseRenewalCancellation(app);
+  const notice = cancellation.notice && typeof cancellation.notice === "object" ? cancellation.notice : {};
+  const status = normalizeStatus(cancellation.status || notice.status);
+  const html = notice.document_html || cancellation.document_html || "";
+  if (status !== "released_to_applicant" || !html) return null;
+
+  return {
+    key: "released-cancellation-notice",
+    type: "license_cancellation_notice",
+    status: cancellation.status || notice.status || "",
+    title: "License Cancellation Notice",
+    html,
+    generatedAt: notice.generated_at || cancellation.generated_at || "",
+    timestamp: getDocumentTimestampLabel(cancellation, notice),
+    reference: getApplicationReference(app),
+  };
+}
+
+function getReleasedReminderDocumentTitle(letter, t) {
+  if (letter?.key === "released-cancellation-notice") {
+    return t("workspace.license.cancellationNoticeLetter", "License Cancellation Notice Letter");
+  }
+
+  if (letter?.months) {
+    return getLocalizedRenewalReminderLetterLabel(letter.months, t);
+  }
+
+  return `${letter?.title || "Reminder"} Letter`;
 }
 
 function hasReleasedRenewalReminder(app, months) {
