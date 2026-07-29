@@ -3713,14 +3713,65 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
               )}
 
               {isCancellationNoticeWorkflowWorkspace && (
-                <CancellationNoticeTaskPanel
+                <FirstReminderTaskPanel
                   app={selectedRecord}
                   t={t}
+                  applications={receiptApplications}
                   saving={saving}
-                  draftHtml={isPtCancellationNoticeWorkspace ? cancellationNoticeDraftHtml : ""}
-                  generationMode={isPtCancellationNoticeWorkspace}
+                  months={0}
                   confirmationMode={isCancellationNoticeConfirmationWorkspace}
-                  supportMode={isCancellationNoticeSupportWorkspace}
+                  draftHtml={isPtCancellationNoticeWorkspace ? cancellationNoticeDraftHtml : ""}
+                  customDocumentLabel={t("workspace.license.cancellationNoticeMalayTitle", "Makluman Pembatalan Lesen")}
+                  customDocumentTitle={t("workspace.license.cancellationNoticeLetter", "Surat Makluman Pembatalan Lesen")}
+                  customDocumentDescription={
+                    isPtCancellationNoticeWorkspace
+                      ? t(
+                          "workspace.license.cancellationNoticeReviewDesc",
+                          "Please review the auto-generated cancellation notice letter before sending it for KB(LES) confirmation."
+                        )
+                      : isCancellationNoticeConfirmationWorkspace
+                        ? t(
+                            "workspace.license.cancellationNoticeConfirmDesc",
+                            "Please check the cancellation notice letter before confirming it for the next approval step."
+                          )
+                        : t(
+                            "workspace.license.cancellationNoticeSupportDesc",
+                            "Please check the cancellation notice letter before releasing it to the applicant."
+                          )
+                  }
+                  customRemarksPlaceholder={
+                    isPtCancellationNoticeWorkspace
+                      ? t(
+                          "workspace.license.cancellationNoticePtRemarksPlaceholder",
+                          "Enter PT(IKL) remarks before sending this cancellation notice letter to KB(LES)."
+                        )
+                      : isCancellationNoticeConfirmationWorkspace
+                        ? t(
+                            "workspace.license.cancellationNoticeConfirmationRemarksPlaceholder",
+                            "Enter confirmation remarks for this cancellation notice letter."
+                          )
+                        : t(
+                            "workspace.license.cancellationNoticeSupportRemarksPlaceholder",
+                            "Enter KB(LES) support remarks for this cancellation notice letter."
+                          )
+                  }
+                  customSubmitLabel={
+                    isPtCancellationNoticeWorkspace
+                      ? t("workspace.action.generateCancellationNotice", "Generate License Cancellation Notice")
+                      : isCancellationNoticeConfirmationWorkspace
+                        ? t("workspace.action.confirmCancellationNotice", "Confirm License Cancellation Notice")
+                        : t("workspace.action.supportCancellationNotice", "Support License Cancellation Notice")
+                  }
+                  customDocumentHtml={getCancellationNoticeDocumentHtml(
+                    selectedRecord,
+                    isPtCancellationNoticeWorkspace ? cancellationNoticeDraftHtml : ""
+                  )}
+                  customSavedDocumentHtml={getSavedCancellationNoticeDocumentHtml(selectedRecord)}
+                  customReviewKind="cancellation_notice"
+                  customReviewSaveRequiredMessage={t(
+                    "workspace.license.cancellationNoticeReviewSaveRequired",
+                    "Sila semak dan simpan surat makluman pembatalan lesen sebelum dihantar."
+                  )}
                   remarks={comment}
                   remarksError={commentError}
                   signature={approvalSupportSignature}
@@ -13403,19 +13454,19 @@ function getLicenseRenewalTaskStatusLabel(app, department, t = null) {
   const normalizedDepartment = normalizeDepartmentCode(department);
   const cancellationStatus = getCancellationStatus(app);
   if (normalizedDepartment === "PT(IKL)" && cancellationStatus === "pending_pt_notice") {
-    return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
+    return t ? t("workspace.action.generateCancellationNotice", "Generate License Cancellation Notice") : "License Cancellation Notice";
   }
 
   if (isSupervisorWorkflowDepartment(normalizedDepartment) && cancellationStatus === "pending_supervisor_confirmation") {
     return t
-      ? t("workspace.action.confirmCancellationNotice", "Confirm Cancellation Notice")
-      : "Cancellation Notice Confirmation";
+      ? t("workspace.action.confirmCancellationNotice", "Confirm License Cancellation Notice")
+      : "License Cancellation Notice Confirmation";
   }
 
   if (normalizedDepartment === "KB(LES)" && cancellationStatus === "pending_kb_les_support") {
     return t
-      ? t("workspace.action.supportCancellationNotice", "Support Cancellation Notice")
-      : "Cancellation Notice Support";
+      ? t("workspace.action.supportCancellationNotice", "Support License Cancellation Notice")
+      : "License Cancellation Notice Support";
   }
 
   if (normalizedDepartment === "PT(IKL)") {
@@ -13445,19 +13496,19 @@ function getLicenseRenewalCurrentStatusLabel(app, t = null) {
 
   const cancellationStatus = getCancellationStatus(app);
   if (cancellationStatus === "pending_pt_notice") {
-    return t ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice") : "Cancellation Notice";
+    return t ? t("workspace.action.generateCancellationNotice", "Generate License Cancellation Notice") : "License Cancellation Notice";
   }
 
   if (cancellationStatus === "pending_supervisor_confirmation") {
     return t
-      ? t("workspace.action.confirmCancellationNotice", "Confirm Cancellation Notice")
-      : "Cancellation Notice Confirmation";
+      ? t("workspace.action.confirmCancellationNotice", "Confirm License Cancellation Notice")
+      : "License Cancellation Notice Confirmation";
   }
 
   if (cancellationStatus === "pending_kb_les_support") {
     return t
-      ? t("workspace.action.supportCancellationNotice", "Support Cancellation Notice")
-      : "Cancellation Notice Support";
+      ? t("workspace.action.supportCancellationNotice", "Support License Cancellation Notice")
+      : "License Cancellation Notice Support";
   }
 
   const pendingPtMonth = getPendingPtRenewalReminderMonth(app);
@@ -17018,7 +17069,7 @@ const configs = {
       },
       {
         key: "generate_cancellation_notice",
-        label: "Generate Cancellation Notice",
+        label: "Generate License Cancellation Notice",
         labelKey: "workspace.action.generateCancellationNotice",
         icon: "gavel",
         endpoint: "license-renewal-action",
@@ -17035,7 +17086,7 @@ const configs = {
       },
       {
         key: "confirm_cancellation_notice",
-        label: "Confirm Cancellation Notice",
+        label: "Confirm License Cancellation Notice",
         labelKey: "workspace.action.confirmCancellationNotice",
         icon: "fact_check",
         endpoint: "license-renewal-action",
@@ -17051,7 +17102,7 @@ const configs = {
       },
       {
         key: "support_cancellation_notice",
-        label: "Support Cancellation Notice",
+        label: "Support License Cancellation Notice",
         labelKey: "workspace.action.supportCancellationNotice",
         icon: "verified_user",
         endpoint: "license-renewal-action",
@@ -23882,6 +23933,15 @@ function FirstReminderTaskPanel({
   months = 3,
   confirmationMode = false,
   draftHtml = "",
+  customDocumentLabel = "",
+  customDocumentTitle = "",
+  customDocumentDescription = "",
+  customRemarksPlaceholder = "",
+  customSubmitLabel = "",
+  customDocumentHtml = "",
+  customSavedDocumentHtml = "",
+  customReviewKind = "renewal_reminder",
+  customReviewSaveRequiredMessage = "",
   remarks = "",
   remarksError = "",
   signature = null,
@@ -23900,50 +23960,65 @@ function FirstReminderTaskPanel({
   const [reviewDocument, setReviewDocument] = useState(null);
   const [documentError, setDocumentError] = useState("");
   const signatureBoxRef = useRef(null);
-  const label = getLocalizedRenewalReminderTaskLabel(months, t) || t("workspace.license.firstReminder", "1st Reminder");
-  const documentHtml = getRenewalReminderDocumentHtml(app, months, draftHtml);
+  const label =
+    customDocumentLabel ||
+    getLocalizedRenewalReminderTaskLabel(months, t) ||
+    t("workspace.license.firstReminder", "1st Reminder");
+  const documentHtml = customDocumentHtml || getRenewalReminderDocumentHtml(app, months, draftHtml);
   const reviewedReminderLetterHtml = String(draftHtml || "").trim();
-  const savedReminderLetterHtml = getRenewalLetterForMonth(app, months).document_html || "";
+  const savedReminderLetterHtml =
+    customSavedDocumentHtml || getRenewalLetterForMonth(app, months).document_html || "";
   const hasReviewSavedReminderLetter = Boolean(
     reviewedReminderLetterHtml || String(savedReminderLetterHtml).trim()
   );
   const reminderLetterDownloadHtml = reviewedReminderLetterHtml ? draftHtml : savedReminderLetterHtml;
-  const documentTitle = t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
+  const documentTitle =
+    customDocumentTitle ||
+    t("workspace.license.reminderLetterTitle", "{label} Letter", { label });
   const letterLabel = `${label.toLowerCase()} letter`;
-  const documentDescription = confirmationMode
-    ? t(
-        "workspace.license.reminderConfirmDesc",
-        "Please check the generated {letterLabel} before confirming it for applicant release."
-      ).replace("{letterLabel}", letterLabel)
-    : t(
-        "workspace.license.reminderReviewDesc",
-        "Please review the auto-generated {letterLabel} before sending it for KB(LES) confirmation."
-      ).replace("{letterLabel}", letterLabel);
-  const remarksPlaceholder = confirmationMode
-    ? t(
-        "workspace.license.firstReminderKbRemarksPlaceholder",
-        "Enter KB(LES) remarks before confirming this reminder letter."
-      )
-    : t(
-        "workspace.license.firstReminderRemarksPlaceholder",
-        "Enter PT(IKL) remarks before sending this reminder letter to KB(LES)."
-      );
-  const submitLabel = confirmationMode
-    ? t("workspace.action.confirmReminderLetter", "Confirm Reminder Letter")
-    : months === 3
-      ? t("workspace.action.generateFirstReminderLetter", "Generate 1st Reminder Letter")
-      : months === 2
-        ? t("workspace.action.generateSecondReminderLetter", "Generate 2nd Reminder Letter")
-        : t("workspace.action.generateFinalReminderLetter", "Generate 3rd Reminder Letter");
+  const documentDescription =
+    customDocumentDescription ||
+    (confirmationMode
+      ? t(
+          "workspace.license.reminderConfirmDesc",
+          "Please check the generated {letterLabel} before confirming it for applicant release."
+        ).replace("{letterLabel}", letterLabel)
+      : t(
+          "workspace.license.reminderReviewDesc",
+          "Please review the auto-generated {letterLabel} before sending it for KB(LES) confirmation."
+        ).replace("{letterLabel}", letterLabel));
+  const remarksPlaceholder =
+    customRemarksPlaceholder ||
+    (confirmationMode
+      ? t(
+          "workspace.license.firstReminderKbRemarksPlaceholder",
+          "Enter KB(LES) remarks before confirming this reminder letter."
+        )
+      : t(
+          "workspace.license.firstReminderRemarksPlaceholder",
+          "Enter PT(IKL) remarks before sending this reminder letter to KB(LES)."
+        ));
+  const submitLabel =
+    customSubmitLabel ||
+    (confirmationMode
+      ? t("workspace.action.confirmReminderLetter", "Confirm Reminder Letter")
+      : months === 3
+        ? t("workspace.action.generateFirstReminderLetter", "Generate 1st Reminder Letter")
+        : months === 2
+          ? t("workspace.action.generateSecondReminderLetter", "Generate 2nd Reminder Letter")
+          : t("workspace.action.generateFinalReminderLetter", "Generate 3rd Reminder Letter"));
 
   async function submitReminderLetter() {
     const cleanedRemarks = cleanRemark(remarks);
 
     if (!hasReviewSavedReminderLetter) {
-      setDocumentError(t(
-        "workspace.license.reminderLetterReviewSaveRequired",
-        "Please review and save the reminder letter before submitting."
-      ));
+      setDocumentError(
+        customReviewSaveRequiredMessage ||
+          t(
+            "workspace.license.reminderLetterReviewSaveRequired",
+            "Please review and save the reminder letter before submitting."
+          )
+      );
       return;
     }
 
@@ -23974,7 +24049,7 @@ function FirstReminderTaskPanel({
       html: documentHtml,
       editable: true,
       signatureTools: false,
-      kind: "renewal_reminder",
+      kind: customReviewKind,
       scale: 1.08,
       allowHorizontalScroll: false,
     });
@@ -24334,7 +24409,7 @@ function FirstReminderTaskPanel({
               <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-[13px] font-bold leading-5 text-slate-500">
-                    {t("workspace.license.reminderLetterTitle", "{label} Letter", { label })} <span className="text-red-600">*</span>
+                    {documentTitle} <span className="text-red-600">*</span>
                   </p>
                   <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
                     {documentDescription}
@@ -24437,243 +24512,6 @@ function FirstReminderTaskPanel({
             className="min-w-56"
             disabled={saving}
             onClick={submitReminderLetter}
-          >
-            {saving ? t("workspace.saving", "Saving...") : submitLabel}
-          </Button>
-        </div>
-      </div>
-
-      {reviewDocument && (
-        <GeneratedDocumentReviewModal
-          document={reviewDocument}
-          t={t}
-          saving={saving}
-          onClose={() => setReviewDocument(null)}
-          onSave={(nextHtml) => {
-            setDocumentError("");
-            onDraftHtmlChange?.(nextHtml);
-            setReviewDocument(null);
-          }}
-        />
-      )}
-    </>
-  );
-}
-
-function CancellationNoticeTaskPanel({
-  app,
-  t,
-  saving,
-  draftHtml = "",
-  generationMode = false,
-  confirmationMode = false,
-  supportMode = false,
-  remarks = "",
-  remarksError = "",
-  signature = null,
-  signatureError = "",
-  onDraftHtmlChange,
-  onRemarksChange,
-  onRemarksError,
-  onSignatureChange,
-  onSignatureError,
-  onGenerate,
-}) {
-  const [reviewDocument, setReviewDocument] = useState(null);
-  const [documentError, setDocumentError] = useState("");
-  const signatureBoxRef = useRef(null);
-  const savedNoticeHtml = getSavedCancellationNoticeDocumentHtml(app);
-  const documentHtml = getCancellationNoticeDocumentHtml(app, draftHtml);
-  const reviewedNoticeHtml = String(draftHtml || "").trim();
-  const hasReviewSavedNotice = Boolean(reviewedNoticeHtml || String(savedNoticeHtml).trim());
-  const noticeDownloadHtml = reviewedNoticeHtml || savedNoticeHtml || documentHtml;
-  const documentTitle = t("workspace.license.cancellationNoticeLetter", "Cancellation Notice Letter");
-  const documentDescription = generationMode
-    ? t(
-        "workspace.license.cancellationNoticeReviewDesc",
-        "Please review the auto-generated cancellation notice letter before sending it for KB(LES) confirmation."
-      )
-    : confirmationMode
-      ? t(
-          "workspace.license.cancellationNoticeConfirmDesc",
-          "Please check the cancellation notice letter before confirming it for the next approval step."
-        )
-      : t(
-          "workspace.license.cancellationNoticeSupportDesc",
-          "Please check the cancellation notice letter before releasing it to the applicant."
-        );
-  const remarksPlaceholder = generationMode
-    ? t(
-        "workspace.license.cancellationNoticePtRemarksPlaceholder",
-        "Enter PT(IKL) remarks before sending this cancellation notice letter to KB(LES)."
-      )
-    : confirmationMode
-      ? t(
-          "workspace.license.cancellationNoticeConfirmationRemarksPlaceholder",
-          "Enter confirmation remarks for this cancellation notice letter."
-        )
-      : t(
-          "workspace.license.cancellationNoticeSupportRemarksPlaceholder",
-          "Enter KB(LES) support remarks for this cancellation notice letter."
-        );
-  const submitLabel = generationMode
-    ? t("workspace.action.generateCancellationNotice", "Generate Cancellation Notice")
-    : confirmationMode
-      ? t("workspace.action.confirmCancellationNotice", "Confirm Cancellation Notice")
-      : t("workspace.action.supportCancellationNotice", "Support Cancellation Notice");
-
-  async function submitCancellationNotice() {
-    const cleanedRemarks = cleanRemark(remarks);
-
-    if (generationMode && !hasReviewSavedNotice) {
-      setDocumentError(t(
-        "workspace.license.cancellationNoticeReviewSaveRequired",
-        "Please review and save the cancellation notice letter before submitting."
-      ));
-      return;
-    }
-
-    if (!cleanedRemarks) {
-      onRemarksError?.(t("workspace.validation.remarksRequired", "Remarks are required."));
-      return;
-    }
-
-    if (!hasDigitalSignatureContent(signature)) {
-      onSignatureError?.(t("workspace.signature.required", "Digital signature is required."));
-      return;
-    }
-
-    const nextSignature =
-      await signatureBoxRef.current?.captureLatestSnapshot?.(signature) || signature;
-
-    onGenerate?.(noticeDownloadHtml, {
-      comment: cleanedRemarks,
-      signature: nextSignature,
-    });
-  }
-
-  function openReview() {
-    setDocumentError("");
-    setReviewDocument({
-      title: documentTitle,
-      reference: getApplicationReference(app),
-      html: documentHtml,
-      editable: true,
-      signatureTools: false,
-      kind: "cancellation_notice",
-      scale: 1.08,
-      allowHorizontalScroll: false,
-    });
-  }
-
-  return (
-    <>
-      <div className="space-y-5 text-sm">
-        <section className="overflow-hidden rounded-md border border-slate-200 bg-white">
-          <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-[13px] font-bold uppercase leading-5 tracking-wide text-slate-500">
-                {documentTitle} <span className="text-red-600">*</span>
-              </p>
-              <p className="mt-1 text-sm font-semibold leading-5 text-slate-950">
-                {documentDescription}
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {hasReviewSavedNotice && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon="download"
-                  className="min-h-9 px-4 py-1.5"
-                  disabled={saving}
-                  onClick={() =>
-                    printRenewalReminderDocument(
-                      noticeDownloadHtml,
-                      `${getApplicationReference(app)} ${documentTitle}`,
-                      t
-                    )
-                  }
-                >
-                  {t("common.download", "Download")}
-                </Button>
-              )}
-              {generationMode && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon="edit"
-                  className="min-h-9 px-4 py-1.5"
-                  disabled={saving}
-                  onClick={openReview}
-                >
-                  {t("workspace.payment.reviewGeneratedDocument", "Review")}
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-        {documentError && (
-          <p className="text-[13px] font-medium leading-5 text-red-600">
-            {documentError}
-          </p>
-        )}
-
-        <div className="space-y-4">
-          <div className="max-w-[56rem]">
-            <label
-              htmlFor="cancellation-notice-remarks"
-              className="mb-1 block text-[13px] font-semibold leading-5 text-slate-900"
-            >
-              {t("workspace.comment.remarks", "Remarks")}
-              <span className="ml-1 text-red-600">*</span>
-            </label>
-            <div
-              className={`relative min-h-[390px] bg-white ${remarksError ? "shadow-[0_0_0_2px_rgba(220,38,38,0.18)]" : ""}`}
-              style={{
-                backgroundImage:
-                  "repeating-linear-gradient(to bottom, transparent 0, transparent 25px, #1f2937 26px, transparent 27px)",
-              }}
-            >
-              <textarea
-                id="cancellation-notice-remarks"
-                value={remarks}
-                onChange={(event) => onRemarksChange?.(event.target.value)}
-                rows="12"
-                required
-                aria-required="true"
-                aria-invalid={Boolean(remarksError)}
-                className="h-full min-h-[390px] w-full resize-y border-0 bg-white px-2 pb-0 pt-0 text-[13px] font-medium leading-[28px] text-slate-950 outline-none placeholder:text-transparent focus:border-0 focus:outline-none focus:ring-0"
-                placeholder={remarksPlaceholder}
-                style={RULED_TEXTAREA_STYLE}
-              />
-            </div>
-            {remarksError && (
-              <p className="mt-1.5 text-[13px] font-medium leading-5 text-red-600">
-                {remarksError}
-              </p>
-            )}
-          </div>
-
-          <ApprovalSupportSignatureBox
-            ref={signatureBoxRef}
-            t={t}
-            applicationId={app?.id}
-            value={signature}
-            error={signatureError}
-            onChange={onSignatureChange}
-            onError={onSignatureError}
-          />
-        </div>
-
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant={supportMode || confirmationMode ? "primary" : "danger"}
-            icon={generationMode ? "gavel" : "verified"}
-            className="min-w-56"
-            disabled={saving}
-            onClick={submitCancellationNotice}
           >
             {saving ? t("workspace.saving", "Saving...") : submitLabel}
           </Button>

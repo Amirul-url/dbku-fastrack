@@ -239,9 +239,9 @@ export function formatWorkflowStatus(status) {
     [WORKFLOW_STATUS.PAYMENT_VERIFIED]: "Payment Verified",
     [WORKFLOW_STATUS.LICENSE_ISSUED]: "E-License Generated",
     [WORKFLOW_STATUS.LICENSE_REVOKED]: "License Revoked",
-    license_cancellation_pending: "License Cancellation Pending",
-    license_cancellation_supervisor_confirmation: "Cancellation Notice Confirmation",
-    license_cancellation_kb_support: "Cancellation Notice Support",
+    license_cancellation_pending: "License Cancellation Notice Pending",
+    license_cancellation_supervisor_confirmation: "License Cancellation Notice Confirmation",
+    license_cancellation_kb_support: "License Cancellation Notice Support",
   };
 
   if (labelMap[normalized]) return labelMap[normalized];
