@@ -12871,6 +12871,7 @@ function buildCancellationNoticeDocumentHtml(app) {
   const addressLines = context.addressLines
     .map((line) => `<p data-renewal-editable="true">${escapeHtml(line)}</p>`)
     .join("");
+  const amountCell = context.amount ? escapeHtml(context.amount) : "0.00";
 
   return `
 <article class="dbku-renewal-letter">
@@ -12882,41 +12883,79 @@ function buildCancellationNoticeDocumentHtml(app) {
       height: 297mm;
       box-sizing: border-box;
       margin: 0 auto;
-      padding: 34mm 26mm 24mm;
+      padding: 42mm 14mm 18mm;
       background: #fff;
-      color: #111827;
-      font-family: Calibri, Arial, Helvetica, sans-serif;
-      font-size: 11pt;
-      line-height: 1.25;
+      color: #000;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 14pt;
+      line-height: 1.18;
       overflow: hidden;
       break-after: avoid;
       page-break-after: avoid;
     }
     .dbku-renewal-letter, .dbku-renewal-letter * {
-      font-family: Calibri, Arial, Helvetica, sans-serif !important;
-      font-size: 11pt !important;
-      line-height: 1.25 !important;
+      font-family: "Times New Roman", Times, serif !important;
+      font-size: 14pt !important;
+      line-height: 1.18 !important;
       letter-spacing: 0 !important;
     }
-    .dbku-renewal-letter p { margin: 0 0 9pt; }
-    .dbku-renewal-letter .topline { display: grid; grid-template-columns: 1fr auto; gap: 14mm; align-items: start; }
-    .dbku-renewal-letter .top-field { display: grid; grid-template-columns: 18mm minmax(42mm, 1fr); gap: 4mm; }
-    .dbku-renewal-letter .date-line { justify-self: end; min-width: 52mm; text-align: right; }
-    .dbku-renewal-letter .editable-blank { display: inline-block; min-width: 42mm; min-height: 1em; }
-    .dbku-renewal-letter .recipient { margin: 10pt 0 14pt 22mm; }
+    .dbku-renewal-letter p { margin: 0 0 10pt; }
+    .dbku-renewal-letter .topline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18mm;
+      align-items: start;
+      margin-bottom: 24pt;
+    }
+    .dbku-renewal-letter .date-line { justify-self: end; min-width: 46mm; text-align: right; }
+    .dbku-renewal-letter .reference { margin: 0 0 3pt; }
+    .dbku-renewal-letter .recipient { margin: 0; }
     .dbku-renewal-letter .recipient p { margin: 0; }
-    .dbku-renewal-letter .subject { margin: 0 0 12pt 22mm; font-weight: 800; text-align: justify; text-transform: uppercase; }
-    .dbku-renewal-letter .subject span { display: block; text-align: justify; text-align-last: left; }
-    .dbku-renewal-letter .intro { margin: 0 0 10pt 22mm; text-align: justify; }
-    .dbku-renewal-letter .para { display: block; margin: 0 0 12pt 22mm; text-align: justify; text-align-last: left; }
-    .dbku-renewal-letter .para > span:first-child { display: inline-block; width: 14mm; margin-right: 4mm; vertical-align: top; }
-    .dbku-renewal-letter .para > span:last-child { display: inline; }
-    .dbku-renewal-letter .date-nowrap { white-space: nowrap; }
-    .dbku-renewal-letter .closing { margin: 0 0 12pt 22mm; }
-    .dbku-renewal-letter .motto { margin: 0 0 12pt 22mm; font-weight: 800; font-style: italic; }
-    .dbku-renewal-letter .director { margin-left: 22mm; font-weight: 800; }
-    .dbku-renewal-letter .note { margin-top: 34pt; text-align: center; font-size: 7pt !important; font-style: italic; }
-    .dbku-renewal-letter .note * { font-size: 7pt !important; font-style: italic; }
+    .dbku-renewal-letter .salutation { margin: 20pt 0 22pt; }
+    .dbku-renewal-letter .subject {
+      margin: 0 0 2pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .dbku-renewal-letter .body-text { margin: 0 0 14pt; text-align: justify; }
+    .dbku-renewal-letter .date-nowrap { white-space: nowrap; font-weight: 800; text-decoration: underline; }
+    .dbku-renewal-letter table {
+      width: 100%;
+      margin: 28pt 0 8pt;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .dbku-renewal-letter th, .dbku-renewal-letter td {
+      padding: 0 4pt 2pt;
+      border: 0;
+      border-bottom: 1px solid #000;
+      vertical-align: top;
+    }
+    .dbku-renewal-letter th { text-align: left; font-weight: 800; }
+    .dbku-renewal-letter .no-col { width: 11mm; }
+    .dbku-renewal-letter .period-col { width: 42mm; text-align: center; }
+    .dbku-renewal-letter .amount-col { width: 44mm; text-align: right; }
+    .dbku-renewal-letter .amount-text { text-align: right; }
+    .dbku-renewal-letter .total-line {
+      display: grid;
+      grid-template-columns: 1fr 44mm;
+      align-items: start;
+      margin: 0 0 16pt;
+      font-weight: 800;
+    }
+    .dbku-renewal-letter .total-label { text-align: right; padding-right: 2mm; }
+    .dbku-renewal-letter .total-amount {
+      text-align: right;
+      border-bottom: 3px double #000;
+      padding-right: 4pt;
+    }
+    .dbku-renewal-letter .closing { margin: 24pt 0 10pt; }
+    .dbku-renewal-letter .motto { margin: 0 0 12pt; font-weight: 800; }
+    .dbku-renewal-letter .director { font-weight: 800; }
+    .dbku-renewal-letter .note { margin-top: 38pt; text-align: center; font-size: 9pt !important; font-style: italic; }
+    .dbku-renewal-letter .note * { font-size: 9pt !important; font-style: italic; }
     [data-renewal-editable="true"]:focus { outline: 2px solid rgba(16, 185, 129, .35); outline-offset: 2px; }
     @media print {
       html, body { width: 210mm; height: 297mm; background: #fff; overflow: hidden; }
@@ -12925,30 +12964,51 @@ function buildCancellationNoticeDocumentHtml(app) {
   </style>
   <div class="topline">
     <div>
-      <p class="top-field"><span>Tuan:</span><span class="editable-blank" data-renewal-editable="true">&nbsp;</span></p>
-      <div class="top-field"><strong>Kami:</strong><span data-renewal-editable="true">${escapeHtml(context.ourRef)}</span></div>
+      <p class="reference" data-renewal-editable="true">${escapeHtml(context.ourRef)}</p>
+      <div class="recipient">
+        <p data-renewal-editable="true">${escapeHtml(context.applicantName)}</p>
+        ${addressLines}
+      </div>
     </div>
-    <p class="date-line">Tarikh: <span data-renewal-editable="true">${escapeHtml(context.letterDate)}</span></p>
+    <p class="date-line" data-renewal-editable="true">${escapeHtml(context.letterDate)}</p>
   </div>
 
-  <div class="recipient">
-    <p data-renewal-editable="true">${escapeHtml(context.applicantName)}</p>
-    ${addressLines}
+  <p class="salutation" data-renewal-editable="true">Tuan/Puan,</p>
+
+  <p class="subject" data-renewal-editable="true">${escapeHtml(context.subject)}</p>
+  <p class="body-text" data-renewal-editable="true">Dengan segala hormatnya perkara di atas dirujuk.</p>
+
+  <p class="body-text" data-renewal-editable="true">Mengikut pemantauan kami, tuan/puan masih belum memperbaharui lesen iklan dan adalah menjadi satu kesalahan di bawah undang-undang untuk mempamer iklan tanpa lesen yang sah.</p>
+
+  <p class="body-text" data-renewal-editable="true">Justeru, tuan/puan diberi tempoh selama <strong>14 hari bekerja</strong> untuk memperbaharui lesen iklan berikut:-</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="no-col">NO.</th>
+        <th>JENIS LESEN</th>
+        <th class="period-col">TEMPOH LESEN</th>
+        <th class="amount-col">JUMLAH BAYARAN(RM)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="no-col">1</td>
+        <td data-renewal-editable="true">${escapeHtml(context.licenseType)}</td>
+        <td class="period-col" data-renewal-editable="true">${escapeHtml(context.licensePeriod)}</td>
+        <td class="amount-col" data-renewal-editable="true">${amountCell}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="total-line">
+    <span class="total-label">JUMLAH BAYARAN TERTUNGGAK(RM):</span>
+    <span class="total-amount" data-renewal-editable="true">${amountCell}</span>
   </div>
 
-  <p style="margin-left:22mm;">Tuan</p>
+  <p class="body-text" data-renewal-editable="true">Sila ambil perhatian jika tuan/puan masih ingkar dan gagal mematuhi kehendak notis ini maka DBKU akan mengambil tindakan undang-undang dan nama tuan/puan akan disenaraikan hitam bagi sebarang permohonan lesen pada masa akan datang.</p>
 
-  <div class="subject">
-    <span data-renewal-editable="true">${escapeHtml(context.subject)}</span>
-  </div>
-
-  <p class="intro" data-renewal-editable="true">${escapeHtml(context.introText)}</p>
-
-  <p class="para"><span>2.</span><span>Berdasarkan rekod kami, tempoh Lesen Iklan tuan telah tamat pada <strong><u class="date-nowrap" data-renewal-editable="true">${escapeHtml(context.expiryDate)}</u></strong> dan sehingga ke hari ini pihak DBKU masih belum menerima bayaran pembaharuan Lesen Iklan tersebut.</span></p>
-
-  <p class="para"><span>3.</span><span>Sehubungan itu, lesen iklan tersebut adalah tertakluk kepada pembatalan dan tindakan penguatkuasaan mengikut undang-undang kecil yang berkuat kuasa.</span></p>
-
-  <p class="para"><span>4.</span><span>Sekiranya pihak tuan memerlukan keterangan lanjut, sila hubungi Cik Dayang Amirah Farzana/Puan Phyrra Lily di talian 082-512955.</span></p>
+  <p class="body-text" data-renewal-editable="true">Sekiranya tuan/puan memerlukan keterangan lanjut, sila hubungi Unit Pengurusan Lesen di talian 082-512955.</p>
 
   <p class="closing">Sekian. Terima kasih.</p>
 
@@ -12958,7 +13018,7 @@ function buildCancellationNoticeDocumentHtml(app) {
 
   <p class="director">Pengarah DBKU</p>
 
-  <p class="note">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.</p>
+  <p class="note">Notis ini adalah cetakan komputer. Tiada tandatangan diperlukan.<br>Sila abaikan surat ini sekiranya pembaharuan telah dibuat.</p>
 </article>`.trim();
 }
 
@@ -12968,20 +13028,34 @@ function getCancellationNoticeContext(app) {
   const cancellation = getLicenseRenewal(app).cancellation || {};
   const letterDate =
     parseDateOrFallback(cancellation.detected_at || cancellation.generated_at, null) || new Date();
-  const location = getApplicationLocation(app);
-  const projectName = String(getProjectName(app) || getLicenseId(app) || "NAMA IKLAN")
-    .replace(/\s+/g, " ")
-    .trim();
+  const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
+  const renewalEnd = expiryDate ? addCalendarYears(expiryDate, 1) : null;
+  const billAmount = getBillAmount(app);
 
   return {
     ourRef: `DBKU/LES/IKL/${letterDate.getFullYear().toString().slice(-2)}/1(b)/ (   )`,
     letterDate: formatMalayLetterDate(letterDate),
     applicantName: getFirstReminderCompanyName(app),
     addressLines: getLetterAddressLines(app),
-    subject: `MAKLUMAN PEMBATALAN LESEN IKLAN DAN TINDAKAN PENGUATKUASAAN "${projectName}" DI ${location || "ALAMAT LOKASI PROJEK IKLAN"}`,
+    subject: "NOTIS PERINGATAN - MEMPAMER IKLAN TANPA LESEN YANG SAH",
     introText: getCancellationNoticeIntroText(app),
     expiryDate: expiryDate ? formatMalayLetterDate(expiryDate) : "-",
+    licenseType: "LESEN IKLAN",
+    licensePeriod:
+      renewalStart && renewalEnd
+        ? `${formatDotDate(renewalStart)} hingga ${formatDotDate(renewalEnd)}`
+        : "-",
+    amount: formatCancellationNoticeAmount(billAmount),
   };
+}
+
+function formatCancellationNoticeAmount(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return "0.00";
+  return amount.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function getCancellationNoticeIntroText(app) {
