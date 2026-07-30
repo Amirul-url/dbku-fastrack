@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from copy import deepcopy
 from hashlib import sha1
 
@@ -580,6 +580,8 @@ def apply_license_reminder_action(
             "title": get_renewal_reminder_title(months),
             "letter_date": letter_context["letter_date"],
             "our_ref": letter_context["our_ref"],
+            "expiry_date": letter_context["license_expiry_date"],
+            "license_expiry_date": letter_context["license_expiry_date"],
             "reminder_period": letter_context["reminder_period"],
             "generated_at": timezone.now().isoformat(),
             "generated_by": get_web_recipient(user),
@@ -3582,10 +3584,7 @@ def build_renewal_letter_document_html(application, months):
 
 def get_renewal_letter_context(application, months):
     form_data = getattr(application, "form_data", None) or {}
-    license_data = get_form_section(application, "license")
-    expiry = parse_license_datetime(license_data.get("expiry_date"))
-    local_expiry = timezone.localtime(expiry) if expiry else None
-    expiry_date = local_expiry.date() if local_expiry else None
+    expiry_date = get_renewal_reminder_expiry_date(application, months)
     letter_date = get_renewal_reminder_letter_date(application, months) or timezone.localdate()
     applicant_name = get_renewal_company_name(application) or "NAMA SYARIKAT"
     location = get_renewal_project_location(form_data) or str(getattr(application, "project_location", "") or "")
@@ -3608,10 +3607,113 @@ def get_renewal_letter_context(application, months):
         "subject": build_renewal_letter_subject_for_month(application, location, months),
         "intro_text": build_renewal_letter_intro_text(application, months),
         "expiry_date": format_malay_date(expiry_date) if expiry_date else "-",
+        "license_expiry_date": expiry_date.isoformat() if expiry_date else "",
         "reminder_period": format_renewal_day_period(days_between_dates(letter_date, expiry_date)),
         "renewal_period": build_renewal_period(expiry_date),
         "amount": "",
     }
+
+
+def get_renewal_reminder_expiry_date(application, months):
+    form_data = getattr(application, "form_data", None) or {}
+    renewal = form_data.get("license_renewal") if isinstance(form_data.get("license_renewal"), dict) else {}
+    reminders = renewal.get("reminders") if isinstance(renewal.get("reminders"), dict) else {}
+    current_months = int(months or 0)
+    previous_months = [3, 2] if current_months == 1 else ([3] if current_months == 2 else [])
+    ordered_months = list(dict.fromkeys([*previous_months, current_months, 3, 2, 1]))
+
+    for reminder_months in ordered_months:
+        reminder = reminders.get(str(reminder_months)) if isinstance(reminders.get(str(reminder_months)), dict) else {}
+        letter = reminder.get("letter") if isinstance(reminder.get("letter"), dict) else {}
+        prefer_letter_html = reminder_months in previous_months
+        candidates = (
+            [
+                extract_renewal_letter_expiry_date(letter.get("document_html")),
+                letter.get("expiry_date"),
+                letter.get("license_expiry_date"),
+                reminder.get("expiry_date"),
+            ]
+            if prefer_letter_html
+            else [
+                reminder.get("expiry_date"),
+                letter.get("expiry_date"),
+                letter.get("license_expiry_date"),
+                extract_renewal_letter_expiry_date(letter.get("document_html")),
+            ]
+        )
+        for candidate in candidates:
+            expiry_date = parse_renewal_expiry_date(candidate)
+            if expiry_date:
+                return expiry_date
+
+    license_data = get_form_section(application, "license")
+    return parse_renewal_expiry_date(license_data.get("expiry_date"))
+
+
+def parse_renewal_expiry_date(value):
+    if not value:
+        return None
+    if hasattr(value, "year") and hasattr(value, "month") and hasattr(value, "day"):
+        return value
+
+    expiry = parse_license_datetime(value)
+    if not expiry:
+        return None
+
+    return timezone.localtime(expiry).date()
+
+
+def extract_renewal_letter_expiry_date(document_html):
+    text = html_to_text(document_html)
+    if not text:
+        return None
+
+    expiry_match = re.search(r"tamat\s+pada\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})", text, flags=re.IGNORECASE)
+    if expiry_match:
+        expiry_date = parse_malay_letter_date(expiry_match.group(1))
+        if expiry_date:
+            return expiry_date
+
+    period_match = re.search(
+        r"(\d{1,2})[.](\d{1,2})[.](\d{4})\s+hingga\s+\d{1,2}[.]\d{1,2}[.]\d{4}",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not period_match:
+        return None
+
+    start = datetime(
+        int(period_match.group(3)),
+        int(period_match.group(2)),
+        int(period_match.group(1)),
+    ).date()
+    return start - timedelta(days=1)
+
+
+def parse_malay_letter_date(value):
+    match = re.match(r"^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$", str(value or "").strip())
+    if not match:
+        return None
+
+    month_names = {
+        "januari": 1,
+        "februari": 2,
+        "mac": 3,
+        "april": 4,
+        "mei": 5,
+        "jun": 6,
+        "julai": 7,
+        "ogos": 8,
+        "september": 9,
+        "oktober": 10,
+        "november": 11,
+        "disember": 12,
+    }
+    month = month_names.get(match.group(2).lower())
+    if not month:
+        return None
+
+    return datetime(int(match.group(3)), month, int(match.group(1))).date()
 
 
 def get_renewal_reminder_letter_date(application, months):

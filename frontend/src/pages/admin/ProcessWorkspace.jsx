@@ -13194,7 +13194,8 @@ function getRenewalSimulationExpiryDate(app, cancellation = {}) {
       const reminder = reminders[String(months)] || {};
       const letter = reminder.letter && typeof reminder.letter === "object" ? reminder.letter : {};
       return parseDateOrFallback(
-        reminder.expiry_date ||
+        extractRenewalLetterExpiryDate(letter.document_html) ||
+          reminder.expiry_date ||
           letter.expiry_date ||
           letter.license_expiry_date,
         null
@@ -13214,6 +13215,58 @@ function getRenewalSimulationExpiryDate(app, cancellation = {}) {
       cancellation.license_expiry_date ||
       notice.license_expiry_date,
     null
+  );
+}
+
+function getRenewalReminderExpiryDate(app, months) {
+  const license = app?.form_data?.license || {};
+  const reminders = getLicenseRenewalReminders(app);
+  const currentMonths = Number(months);
+  const previousMonthsList = currentMonths < 3
+    ? (currentMonths === 1 ? [3, 2] : [3])
+    : [];
+  const orderedMonths = [...new Set([...previousMonthsList, currentMonths, 3, 2, 1])];
+
+  for (const reminderMonths of orderedMonths) {
+    const reminder = reminders[String(reminderMonths)] || {};
+    const letter = reminder.letter && typeof reminder.letter === "object" ? reminder.letter : {};
+    const preferLetterHtml = previousMonthsList.includes(reminderMonths);
+    const candidates = preferLetterHtml
+      ? [
+          extractRenewalLetterExpiryDate(letter.document_html),
+          letter.expiry_date,
+          letter.license_expiry_date,
+          reminder.expiry_date,
+        ]
+      : [
+          reminder.expiry_date,
+          letter.expiry_date,
+          letter.license_expiry_date,
+          extractRenewalLetterExpiryDate(letter.document_html),
+        ];
+    const expiryDate = candidates.map((value) => parseDateOrFallback(value, null)).find(Boolean);
+    if (expiryDate) return expiryDate;
+  }
+
+  return parseDateOrFallback(license.expiry_date, null);
+}
+
+function extractRenewalLetterExpiryDate(documentHtml) {
+  const text = getHtmlPlainText(documentHtml);
+  if (!text) return null;
+
+  const expiryMatch = text.match(/tamat\s+pada\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
+  if (expiryMatch) {
+    const expiryDate = parseMalayLetterDisplayDate(expiryMatch[1]);
+    if (expiryDate) return expiryDate;
+  }
+
+  const periodMatch = text.match(/(\d{1,2})[.](\d{1,2})[.](\d{4})\s+hingga\s+\d{1,2}[.]\d{1,2}[.]\d{4}/i);
+  if (!periodMatch) return null;
+
+  return addDays(
+    new Date(Number(periodMatch[3]), Number(periodMatch[2]) - 1, Number(periodMatch[1])),
+    -1
   );
 }
 
@@ -13364,8 +13417,7 @@ function buildFirstReminderLetterDocumentHtml(app, months = 3) {
 }
 
 function getFirstReminderLetterContext(app, months = 3) {
-  const license = app?.form_data?.license || {};
-  const expiryDate = parseDateOrFallback(license.expiry_date, null);
+  const expiryDate = getRenewalReminderExpiryDate(app, months);
   const letterDate = getRenewalReminderLetterDate(app, months) || new Date();
   const daysUntilExpiry = getCalendarDayDifference(letterDate, expiryDate);
   const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
@@ -13614,6 +13666,33 @@ function formatMalayLetterDate(value) {
     "Disember",
   ];
   return `${date.getDate()} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function parseMalayLetterDisplayDate(value) {
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (!match) return null;
+
+  const monthNames = [
+    "januari",
+    "februari",
+    "mac",
+    "april",
+    "mei",
+    "jun",
+    "julai",
+    "ogos",
+    "september",
+    "oktober",
+    "november",
+    "disember",
+  ];
+  const monthIndex = monthNames.indexOf(match[2].toLowerCase());
+  if (monthIndex < 0) return null;
+
+  const date = new Date(Number(match[3]), monthIndex, Number(match[1]));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatDotDate(value) {
