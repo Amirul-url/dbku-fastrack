@@ -269,6 +269,8 @@ class NotificationRoutingTests(TestCase):
             applicant_web_delivery.metadata["title_ms"],
             "Makluman pembatalan lesen dihantar",
         )
+        self.assertIn("Reference:", applicant_web_delivery.message)
+        self.assertNotIn("License ID:", applicant_web_delivery.message)
         self.assertIn(
             "Lesen iklan anda",
             applicant_web_delivery.metadata["message_ms"],

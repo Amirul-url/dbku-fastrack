@@ -1654,6 +1654,7 @@ def notify_license_cancellation_released(application):
         include_external=True,
         force_web=True,
         force_external=True,
+        include_license_id=False,
     )
 
 
