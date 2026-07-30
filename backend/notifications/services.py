@@ -1251,6 +1251,9 @@ def notify_license_renewal_detected(application, months, expiry):
         recipients=get_pt_ikl_recipients(),
         recipient_role="admin",
         action_url=f"/admin/e-licenses/license?id={application.id}",
+        include_external=True,
+        force_web=True,
+        force_external=True,
     )
 
 
@@ -1833,6 +1836,7 @@ def send_license_workflow_notification(
                 subject=subject,
                 message=email_message,
                 metadata=metadata,
+                force=force_external,
             )
         phone = normalize_phone(getattr(user, "mobile_number", ""))
         if phone and user_allows_notification_channel(user, "whatsapp"):
@@ -1853,6 +1857,7 @@ def send_license_workflow_notification(
                 subject=subject,
                 message=whatsapp_message,
                 metadata=metadata,
+                force=force_external,
             )
 
 

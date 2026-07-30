@@ -2362,6 +2362,22 @@ class LicenseRenewalWorkflowTests(TestCase):
                 metadata__event_status="license_renewal_3m",
             ).exists()
         )
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="email",
+                user=self.pt_ikl,
+                recipient="pt@example.com",
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
+        self.assertTrue(
+            NotificationDelivery.objects.filter(
+                channel="whatsapp",
+                user=self.pt_ikl,
+                recipient="60162223333",
+                metadata__event_status="license_renewal_3m",
+            ).exists()
+        )
         pt_delivery = NotificationDelivery.objects.get(
             channel="web",
             user=self.pt_ikl,
