@@ -21,6 +21,7 @@ APPLICANT_REGISTRATION_SUCCESS_WHATSAPP_BODY = (
 )
 
 # Application submitted
+APPLICANT_APPLICATION_SUBMITTED_TITLE = "Application submitted successfully"
 APPLICANT_APPLICATION_SUBMITTED_EMAIL_SUBJECT_TEMPLATE = (
     "{brand} - Application submitted ({reference})"
 )
@@ -38,6 +39,7 @@ APPLICANT_APPLICATION_SUBMITTED_WHATSAPP_BODY_TEMPLATE = (
 )
 
 # Application resubmitted
+APPLICANT_APPLICATION_RESUBMITTED_TITLE = "Application resubmitted successfully"
 APPLICANT_APPLICATION_RESUBMITTED_EMAIL_SUBJECT_TEMPLATE = (
     "{brand} - Application resubmitted ({reference})"
 )
@@ -503,6 +505,12 @@ KB_LES_CANCELLATION_SUPPORT_EMAIL_BODY_TEMPLATE = (
 KB_LES_CANCELLATION_SUPPORT_WHATSAPP_BODY_TEMPLATE = (
     "The cancellation and enforcement notice for application {reference} has been "
     "confirmed by a supervisor. KB(LES) support is required before release."
+)
+CANCELLATION_NOTICE_LETTER_TITLE = "Cancellation Notice Letter"
+CANCELLATION_NOTICE_TEXT_TEMPLATE = (
+    "Cancellation and Enforcement Notice: Advertisement license {license_id} "
+    "for application {reference} has expired and renewal payment has not been completed. "
+    "The license will be cancelled and enforcement action may proceed."
 )
 KB_LES_SUPPORT_AFTER_SUT_TITLE_TEMPLATE = (
     "Application {reference} requires KB(LES) support"

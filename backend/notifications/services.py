@@ -828,7 +828,7 @@ def apply_license_cancellation_action(
             "notice": {
                 "type": "cancellation_notice",
                 "template": "dbku_license_cancellation_notice_v1",
-                "title": "Cancellation Notice Letter",
+                "title": notify_messages.CANCELLATION_NOTICE_LETTER_TITLE,
                 "generated_at": now,
                 "generated_by": get_web_recipient(user),
                 "note": clean_note,
@@ -1071,8 +1071,8 @@ def build_applicant_application_submitted_message(application):
     metadata = {
         "category": "submission",
         "type": "success",
-        "title": "Application submitted successfully",
-        "title_en": "Application submitted successfully",
+        "title": notify_messages.APPLICANT_APPLICATION_SUBMITTED_TITLE,
+        "title_en": notify_messages.APPLICANT_APPLICATION_SUBMITTED_TITLE,
         "message": body,
         "message_en": body,
         "recipient_role": "applicant",
@@ -1110,8 +1110,8 @@ def build_applicant_application_resubmitted_message(application):
     metadata = {
         "category": "submission",
         "type": "success",
-        "title": "Application resubmitted successfully",
-        "title_en": "Application resubmitted successfully",
+        "title": notify_messages.APPLICANT_APPLICATION_RESUBMITTED_TITLE,
+        "title_en": notify_messages.APPLICANT_APPLICATION_RESUBMITTED_TITLE,
         "message": body,
         "message_en": body,
         "recipient_role": "applicant",
@@ -3962,10 +3962,9 @@ def spell_malay_number(value):
 
 
 def build_cancellation_notice_text(application):
-    return (
-        f"Cancellation and Enforcement Notice: Advertisement license {get_license_id(application)} "
-        f"for application {application.reference_no} has expired and renewal payment has not been completed. "
-        "The license will be cancelled and enforcement action may proceed."
+    return notify_messages.CANCELLATION_NOTICE_TEXT_TEMPLATE.format(
+        license_id=get_license_id(application),
+        reference=application.reference_no,
     )
 
 
