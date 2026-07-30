@@ -6799,6 +6799,13 @@ function getManualApprovalLetterLicensePeriod(app = null) {
   return `${formatManualApprovalLetterDate(startDate)} hingga ${formatManualApprovalLetterDate(endDate)}`;
 }
 
+function getRenewalSimulationLicensePeriod(app = null) {
+  const expiryDate = getRenewalSimulationExpiryDate(app);
+  if (!expiryDate) return "";
+
+  return `${formatManualApprovalLetterDate(addDays(expiryDate, 1))} hingga ${formatManualApprovalLetterDate(addCalendarYears(expiryDate, 1))}`;
+}
+
 function formatManualApprovalLetterAmount(value) {
   return Number(value || 0).toLocaleString("en-MY", {
     minimumFractionDigits: 2,
@@ -13095,7 +13102,7 @@ function getCancellationNoticeContext(app) {
   const license = app?.form_data?.license || {};
   const cancellation = getLicenseRenewal(app).cancellation || {};
   const expiryDate =
-    getCancellationNoticeRenewalExpiryDate(app, cancellation) ||
+    getRenewalSimulationExpiryDate(app, cancellation) ||
     parseDateOrFallback(license.expiry_date, null);
   const letterDate =
     parseDateOrFallback(cancellation.detected_at || cancellation.generated_at, null) || new Date();
@@ -13123,7 +13130,7 @@ function getCancellationNoticeContext(app) {
   };
 }
 
-function getCancellationNoticeRenewalExpiryDate(app, cancellation = {}) {
+function getRenewalSimulationExpiryDate(app, cancellation = {}) {
   const reminders = getLicenseRenewalReminders(app);
   const reminderExpiryDates = [1, 2, 3]
     .map((months) => {
@@ -17148,7 +17155,9 @@ const configs = {
             payment.renewed_license ||
             payment.manual_advertisement_license ||
             {};
-          const expiryDate = parseDateOrFallback(savedLicense.expiry_date, today);
+          const expiryDate =
+            getRenewalSimulationExpiryDate(app) ||
+            parseDateOrFallback(savedLicense.expiry_date, today);
           const issueDate = addDays(expiryDate, 1);
           const expiry = addCalendarYears(expiryDate, 1);
           const licenseId = getLicenseId(app);
@@ -23330,7 +23339,7 @@ function getRenewalCompletionDocumentApp(app = null, applications = [], preferre
     payment.renewed_license ||
     payment.manual_advertisement_license ||
     {};
-  const expiryDate = parseDateOrFallback(license.expiry_date, today);
+  const expiryDate = getRenewalSimulationExpiryDate(app) || parseDateOrFallback(license.expiry_date, today);
   const issueDate = addDays(expiryDate, 1);
   const expiry = addCalendarYears(expiryDate, 1);
   const licenseId = getLicenseId(app);
@@ -23742,7 +23751,7 @@ function forceAdvertisementLicensePeriodLine(html, app = null) {
 
 function getAdvertisementLicenseAutofillDetails(app = null) {
   const advertisement = getManualApprovalLetterAdvertisementDetails(app);
-  const period = getManualApprovalLetterLicensePeriod(app);
+  const period = getRenewalSimulationLicensePeriod(app) || getManualApprovalLetterLicensePeriod(app);
   const [periodStart, periodEnd] = String(period || "").split(/\s+hingga\s+/i);
   const applicantName = titleCaseAddressLine(
     getRegisteredApplicantName(app) ||
