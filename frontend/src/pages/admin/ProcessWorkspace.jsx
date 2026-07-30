@@ -13093,8 +13093,10 @@ function buildCancellationNoticeDocumentHtml(app) {
 
 function getCancellationNoticeContext(app) {
   const license = app?.form_data?.license || {};
-  const expiryDate = parseDateOrFallback(license.expiry_date, null);
   const cancellation = getLicenseRenewal(app).cancellation || {};
+  const expiryDate =
+    getCancellationNoticeRenewalExpiryDate(app, cancellation) ||
+    parseDateOrFallback(license.expiry_date, null);
   const letterDate =
     parseDateOrFallback(cancellation.detected_at || cancellation.generated_at, null) || new Date();
   const renewalStart = expiryDate ? addDays(expiryDate, 1) : null;
@@ -13119,6 +13121,36 @@ function getCancellationNoticeContext(app) {
         : "-",
     amount: "0.00",
   };
+}
+
+function getCancellationNoticeRenewalExpiryDate(app, cancellation = {}) {
+  const reminders = getLicenseRenewalReminders(app);
+  const reminderExpiryDates = [1, 2, 3]
+    .map((months) => {
+      const reminder = reminders[String(months)] || {};
+      const letter = reminder.letter && typeof reminder.letter === "object" ? reminder.letter : {};
+      return parseDateOrFallback(
+        reminder.expiry_date ||
+          letter.expiry_date ||
+          letter.license_expiry_date,
+        null
+      );
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  if (reminderExpiryDates.length > 0) return reminderExpiryDates[0];
+
+  const notice = cancellation.notice && typeof cancellation.notice === "object"
+    ? cancellation.notice
+    : {};
+  return parseDateOrFallback(
+    cancellation.expiry_date ||
+      notice.expiry_date ||
+      cancellation.license_expiry_date ||
+      notice.license_expiry_date,
+    null
+  );
 }
 
 function getCancellationNoticeIntroText(app) {
