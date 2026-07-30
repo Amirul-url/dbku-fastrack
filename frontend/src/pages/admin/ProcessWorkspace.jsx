@@ -262,6 +262,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [approvalPaymentDocumentError, setApprovalPaymentDocumentError] = useState("");
+  const [issueLicenseDocumentError, setIssueLicenseDocumentError] = useState("");
   const [renewalCompletionDocumentError, setRenewalCompletionDocumentError] = useState("");
   const [success, setSuccess] = useState("");
   const [licenseIssuedSuccessModal, setLicenseIssuedSuccessModal] = useState({
@@ -315,6 +317,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
   });
   const [commentError, setCommentError] = useState("");
   const [technicalSizeError, setTechnicalSizeError] = useState("");
+  const [technicalSitePhotoError, setTechnicalSitePhotoError] = useState("");
   const [decision, setDecision] = useState(config.defaultDecision || "");
   const [decisionInput, setDecisionInput] = useState("");
   const [decisionError, setDecisionError] = useState("");
@@ -1481,6 +1484,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setApprovalPaymentDocumentError("");
       setSuccess("");
 
       const now = new Date().toISOString();
@@ -1529,6 +1533,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setApprovalPaymentDocumentError("");
       setSuccess("");
 
       const now = new Date().toISOString();
@@ -1638,6 +1643,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setApprovalPaymentDocumentError("");
       setSuccess("");
 
       const uploaded = await uploadApplicationDocument(
@@ -1701,6 +1707,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setApprovalPaymentDocumentError("");
       setSuccess("");
 
       if (file.document_id || file.id) {
@@ -1778,6 +1785,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setIssueLicenseDocumentError("");
       setSuccess("");
 
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -1912,9 +1920,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         saved_at: now,
       };
 
-      try {
+    try {
         setSaving(true);
         setError("");
+        setIssueLicenseDocumentError("");
         setSuccess("");
 
         const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -1981,6 +1990,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
     try {
       setSaving(true);
       setError("");
+      setIssueLicenseDocumentError("");
       setSuccess("");
 
       const response = await apiRequest(`/applications/${selectedRecord.id}/`, {
@@ -2635,6 +2645,7 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
 
     setCommentError("");
     setTechnicalSizeError("");
+    setTechnicalSitePhotoError("");
     setTechnicalSignatureError("");
     const actionDecision = overrides.decision || action.decision || decision;
     const cleanedComment = cleanRemark(overrides.comment ?? comment);
@@ -2691,7 +2702,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       !action.requiresSubmittedReceipt &&
       !hasUploadedPaymentDocuments(selectedRecord)
     ) {
-      setError(t(
+      setError("");
+      setApprovalPaymentDocumentError(t(
         "workspace.payment.documentsRequired",
         "Please save the approval letter and bill before sending to the applicant."
       ));
@@ -2705,7 +2717,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
         !hasSavedAdvertisementLicenseDocument(selectedRecord)
       )
     ) {
-      setError(t(
+      setError("");
+      setIssueLicenseDocumentError(t(
         "workspace.license.savedReceiptLicenseRequired",
         "Please review and save the official receipt and advertisement license before issuing."
       ));
@@ -2738,9 +2751,11 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
       return;
     }
 
-    try {
+      try {
       setSaving(true);
       setError("");
+      setApprovalPaymentDocumentError("");
+      setIssueLicenseDocumentError("");
       setRenewalCompletionDocumentError("");
       setSuccess("");
       setLicenseIssuedSuccessModal({
@@ -3873,14 +3888,19 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                     saving={saving}
                     onOpenForm={() => openSelectedFormView(selectedRecord.id)}
                     onEditReceipt={() => {
+                      setIssueLicenseDocumentError("");
                       setRenewalCompletionDocumentError("");
                       setShowManualReceiptEditor(true);
                     }}
                     onEditLicense={() => {
+                      setIssueLicenseDocumentError("");
                       setRenewalCompletionDocumentError("");
                       setShowManualAdvertisementLicenseEditor(true);
                     }}
                     enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
+                    issueLicenseDocumentError={
+                      isPtIssueLicenseWorkspace ? issueLicenseDocumentError : ""
+                    }
                     renewalCompletionDocumentError={
                       isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
                     }
@@ -3915,6 +3935,8 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                   setCommentError={setCommentError}
                   technicalSizeError={technicalSizeError}
                   setTechnicalSizeError={setTechnicalSizeError}
+                  technicalSitePhotoError={technicalSitePhotoError}
+                  setTechnicalSitePhotoError={setTechnicalSitePhotoError}
                   technicalSignatureError={technicalSignatureError}
                   setTechnicalSignatureError={setTechnicalSignatureError}
                   userDepartment={userDepartment}
@@ -4059,13 +4081,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           saving={saving}
                           onPaymentDocumentUpload={uploadPaymentDocument}
                           onPaymentDocumentDelete={deletePaymentDocument}
-                          onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
-                          onEditBill={() => setShowManualBillEditor(true)}
+                          onEditApprovalLetter={() => {
+                            setApprovalPaymentDocumentError("");
+                            setShowManualApprovalLetterEditor(true);
+                          }}
+                          onEditBill={() => {
+                            setApprovalPaymentDocumentError("");
+                            setShowManualBillEditor(true);
+                          }}
                           onEditReceipt={() => {
+                            setIssueLicenseDocumentError("");
                             setRenewalCompletionDocumentError("");
                             setShowManualReceiptEditor(true);
                           }}
                           onEditLicense={() => {
+                            setIssueLicenseDocumentError("");
                             setRenewalCompletionDocumentError("");
                             setShowManualAdvertisementLicenseEditor(true);
                           }}
@@ -4074,6 +4104,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                           onLicenseDocumentDelete={deleteLicenseDocument}
                           onManualLicenseDraftChange={updateManualLicenseDraft}
                           paymentReceiptDecision={decision}
+                          approvalPaymentDocumentError={approvalPaymentDocumentError}
+                          issueLicenseDocumentError={
+                            isPtIssueLicenseWorkspace ? issueLicenseDocumentError : ""
+                          }
                           enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
                           renewalCompletionDocumentError={
                             isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
@@ -4541,13 +4575,21 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         saving={saving}
                         onPaymentDocumentUpload={uploadPaymentDocument}
                         onPaymentDocumentDelete={deletePaymentDocument}
-                        onEditApprovalLetter={() => setShowManualApprovalLetterEditor(true)}
-                        onEditBill={() => setShowManualBillEditor(true)}
+                        onEditApprovalLetter={() => {
+                          setApprovalPaymentDocumentError("");
+                          setShowManualApprovalLetterEditor(true);
+                        }}
+                        onEditBill={() => {
+                          setApprovalPaymentDocumentError("");
+                          setShowManualBillEditor(true);
+                        }}
                         onEditReceipt={() => {
+                          setIssueLicenseDocumentError("");
                           setRenewalCompletionDocumentError("");
                           setShowManualReceiptEditor(true);
                         }}
                         onEditLicense={() => {
+                          setIssueLicenseDocumentError("");
                           setRenewalCompletionDocumentError("");
                           setShowManualAdvertisementLicenseEditor(true);
                         }}
@@ -4556,6 +4598,10 @@ function ProcessWorkspaceContent({ config, navigate, t, language, userDepartment
                         onLicenseDocumentDelete={deleteLicenseDocument}
                         onManualLicenseDraftChange={updateManualLicenseDraft}
                         paymentReceiptDecision={decision}
+                        approvalPaymentDocumentError={approvalPaymentDocumentError}
+                        issueLicenseDocumentError={
+                          isPtIssueLicenseWorkspace ? issueLicenseDocumentError : ""
+                        }
                         enableRenewalCompletionDocuments={isPtRenewalCompletionWorkspace}
                         renewalCompletionDocumentError={
                           isPtRenewalCompletionWorkspace ? renewalCompletionDocumentError : ""
@@ -6424,6 +6470,14 @@ function migrateManualApprovalLetterLabels(bodyHtml, app = null) {
 
   return String(bodyHtml || "")
     .replace(
+      /\.numbered\s*\{[^}]*\}/,
+      ".numbered { text-align: justify; }\n    .numbered span:first-child { display: inline-block; width: 17mm; }\n    .numbered span:last-child { display: inline; }"
+    )
+    .replace(
+      /\.letter-top p\s*\{\s*margin-bottom:\s*2px;\s*\}/,
+      ".letter-top p { margin-bottom: 2px; }\n    .letter-top > p:last-child { text-align: right; justify-self: stretch; }"
+    )
+    .replace(
       /<tr>\s*<td>\s*(?:<em>)?\s*(?:Advertisement Type|Jenis Iklan)\s*(?:<\/em>)?\s*<\/td>\s*<td class="info-colon">\s*:\s*<\/td>\s*<td>([\s\S]*?)<\/td>\s*<\/tr>/gi,
       (_match, currentValueHtml) =>
         `<tr><td>Jenis Iklan</td><td class="info-colon">:</td><td>${getValueHtml(currentValueHtml, details?.adType)}</td></tr>`
@@ -6989,9 +7043,12 @@ function getManualApprovalLetterCss({ editor = false } = {}) {
     .manual-approval-letter-page p { margin: 0 0 12px; }
     .letter-top { display: grid; grid-template-columns: 1fr 44mm; gap: 16mm; align-items: start; margin-bottom: 22px; }
     .letter-top p { margin-bottom: 2px; }
+    .letter-top > p:last-child { text-align: right; justify-self: stretch; }
     .address-block { margin: 18px 0 26px; }
     h1 { margin: 0 0 26px; font-size: 9.5pt; line-height: 1.2; font-weight: 800; }
-    .numbered { display: grid; grid-template-columns: 17mm 1fr; gap: 0; text-align: justify; }
+    .numbered { text-align: justify; }
+    .numbered span:first-child { display: inline-block; width: 17mm; }
+    .numbered span:last-child { display: inline; }
     .info-table, .payment-table { width: 100%; border-collapse: collapse; margin: 18px 0 22px; }
     .info-table th, .payment-table th { border-bottom: 1.5px solid #111; padding: 0 8px 2px 0; text-align: left; font-size: 9.5pt; }
     .info-table td, .payment-table td { padding: 1px 8px 1px 0; vertical-align: top; }
@@ -7012,7 +7069,7 @@ function getManualApprovalLetterCss({ editor = false } = {}) {
     .signature-block { margin-top: 24px; }
     .signature-block p { margin: 0 0 2px; }
     .appendix-title { margin: 0 0 42px; text-align: center; }
-    .appendix-title h2 { margin: 20px 0; font-size: 9.5pt; letter-spacing: .2px; }
+    .appendix-title h2 { margin: 20px 0; font-size: 9.5pt; font-weight: 700; letter-spacing: .2px; }
     .manual-approval-letter-page h3 { margin: 20px 0 14px; font-size: 9.5pt; font-weight: 700; }
     .manual-approval-letter-page ul { list-style: none; margin: 0 0 24px 16mm; padding: 0; }
     .manual-approval-letter-page li { position: relative; margin: 0 0 8px; text-align: justify; }
@@ -16097,6 +16154,69 @@ function cleanRemark(value) {
   return ["", "-", "[]"].includes(remark) ? "" : remark;
 }
 
+function hasTechnicalSitePhoto(site = {}) {
+  const photos = Array.isArray(site.site_photos) ? site.site_photos : [];
+  return (
+    photos.some(isTechnicalSitePhotoReference) ||
+    isTechnicalSitePhotoReference(site.site_photo)
+  );
+}
+
+function isTechnicalSitePhotoReference(photo) {
+  if (!photo || typeof photo !== "object") return false;
+
+  return Boolean(
+    photo.localFile ||
+      photo.document_id ||
+      photo.url ||
+      photo.file_url ||
+      photo.file ||
+      photo.name
+  );
+}
+
+function getTechnicalSiteVisitValidationError(
+  site = {},
+  t = (key, fallback) => fallback || key
+) {
+  if (!hasTechnicalSitePhoto(site)) {
+    return {
+      field: "site_photo",
+      message: t("workspace.technical.sitePhotoRequired", "Site photo is required."),
+    };
+  }
+
+  const preparedSite = mergeTechnicalFeeRowsCalculation(site);
+  const rows = getTechnicalFeeRowsFromSite(preparedSite);
+  const hasInvalidSize = rows.some((row) => {
+    const width = parseTechnicalNumber(getTechnicalInputValue(row.width_ft, row.widthFt));
+    const height = parseTechnicalNumber(getTechnicalInputValue(row.height_ft, row.heightFt));
+    return width <= 0 || height <= 0;
+  });
+
+  if (rows.length === 0 || hasInvalidSize) {
+    return {
+      field: "size",
+      message: t(
+        "workspace.technical.sizeRequired",
+        "Advertisement width and height are required."
+      ),
+    };
+  }
+
+  if (
+    parseTechnicalNumber(preparedSite.fee_total || preparedSite.license_fee_calculation) <= 0 ||
+    parseTechnicalNumber(preparedSite.payable_total) <= 0
+  ) {
+    return {
+      field: "size",
+      message: t("workspace.technical.feeRequired", "Fee calculation is required."),
+    };
+  }
+
+  return null;
+}
+
 function getBillAmount(app) {
   const technicalSite = app?.form_data?.technical_site_visit || {};
   const calculatedAmounts = [
@@ -17491,6 +17611,8 @@ function IklWorkspaceSections({
   setCommentError,
   technicalSizeError,
   setTechnicalSizeError,
+  technicalSitePhotoError,
+  setTechnicalSitePhotoError,
   technicalSignatureError,
   setTechnicalSignatureError,
   userDepartment,
@@ -17833,6 +17955,7 @@ function IklWorkspaceSections({
   async function handleSitePhotoUpload(files) {
     const fileList = Array.from(files || []);
     if (fileList.length === 0) return;
+    if (technicalSitePhotoError) setTechnicalSitePhotoError("");
 
     const cycleId =
       latestTechnicalSiteRef.current.cycle_id ||
@@ -17915,6 +18038,16 @@ function IklWorkspaceSections({
     }
 
     if (technicalDecisionDisabled) return;
+
+    const technicalSiteValidation = getTechnicalSiteVisitValidationError(technicalSite, t);
+    if (technicalSiteValidation?.field === "site_photo") {
+      setTechnicalSitePhotoError(technicalSiteValidation.message);
+      return;
+    }
+    if (technicalSiteValidation?.field === "size") {
+      setTechnicalSizeError(technicalSiteValidation.message);
+      return;
+    }
 
     if (!cleanedRemarks) {
       setCommentError(t("workspace.validation.remarksRequired", "Remarks are required."));
@@ -18224,6 +18357,8 @@ function IklWorkspaceSections({
             onDraftChange={scheduleTechnicalSiteVisitDraftSave}
             sizeError={technicalSizeError}
             onSizeErrorChange={setTechnicalSizeError}
+            sitePhotoError={technicalSitePhotoError}
+            onSitePhotoErrorChange={setTechnicalSitePhotoError}
           />
 
           {hasSavedDepartmentSelection && !allDepartmentReviewsComplete && (
@@ -19823,6 +19958,8 @@ function TechnicalSiteVisitFields({
   readOnly = false,
   sizeError = "",
   onSizeErrorChange,
+  sitePhotoError = "",
+  onSitePhotoErrorChange,
 }) {
   const sitePhotos = Array.isArray(value.site_photos) ? value.site_photos : [];
   const [deletingIndex, setDeletingIndex] = useState(null);
@@ -19902,6 +20039,7 @@ function TechnicalSiteVisitFields({
       <div>
         <p className="mb-1 text-sm font-semibold leading-5 text-slate-700">
           {t("workspace.technical.sitePhoto")}
+          {!readOnly && <span className="ml-1 text-red-600">*</span>}
         </p>
         <div className="space-y-3">
           {!readOnly && (
@@ -19914,6 +20052,7 @@ function TechnicalSiteVisitFields({
                 multiple
                 className="hidden"
                 onChange={(event) => {
+                  if (sitePhotoError) onSitePhotoErrorChange?.("");
                   onFileChange(event.target.files);
                   event.target.value = "";
                 }}
@@ -19931,7 +20070,11 @@ function TechnicalSiteVisitFields({
           )}
 
           {sitePhotos.length === 0 ? (
-            <div className="flex min-h-16 items-center justify-center rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center">
+            <div className={`flex min-h-16 items-center justify-center rounded-md border-2 border-dashed px-4 text-center ${
+              sitePhotoError
+                ? "border-red-300 bg-red-50"
+                : "border-slate-300 bg-slate-50"
+            }`}>
               <p className="text-xs font-semibold text-slate-500">
                 {t("workspace.technical.noSitePhoto", "No site photo uploaded.")}
               </p>
@@ -19969,6 +20112,12 @@ function TechnicalSiteVisitFields({
                 </div>
               ))}
             </div>
+          )}
+
+          {sitePhotoError && !readOnly && (
+            <p className="text-sm font-medium leading-5 text-red-600">
+              {sitePhotoError}
+            </p>
           )}
 
         </div>
@@ -20159,6 +20308,7 @@ function TechnicalFeeCalculationRow({
           <div>
             <label className="mb-1 block text-sm font-semibold leading-5 text-slate-800">
               {stepText(language, "advertisementSizeFt")}
+              {!readOnly && <span className="ml-1 text-red-600">*</span>}
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -20691,6 +20841,8 @@ function PaymentDetails({
   onLicenseDocumentDelete,
   onOpenForm,
   paymentReceiptDecision = "",
+  approvalPaymentDocumentError = "",
+  issueLicenseDocumentError = "",
   readOnly = false,
   enableRenewalCompletionDocuments = false,
   renewalCompletionDocumentError = "",
@@ -20865,29 +21017,36 @@ function PaymentDetails({
       (readOnly || ["payment_verified", "license_issued", "license_revoked"].includes(status))
   );
   const approvalBillDocumentSection = showReleasedApprovalBillInDocuments ? null : (
-    <div className="grid grid-cols-1 gap-3">
-      <ApprovalLetterDocumentSlot
-        app={app}
-        label={approvalLetterDownloadLabel}
-        file={letterFile}
-        t={t}
-        canUpload={canUploadDocuments}
-        required={canUploadDocuments}
-        saving={saving}
-        onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
-        onEditManualLetter={onEditApprovalLetter}
-      />
-      <BillDocumentSlot
-        app={app}
-        label={billDownloadLabel}
-        file={billFile}
-        t={t}
-        canEdit={canUploadDocuments}
-        required={canUploadDocuments}
-        saving={saving}
-        onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
-        onEditManualBill={onEditBill}
-      />
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-3">
+        <ApprovalLetterDocumentSlot
+          app={app}
+          label={approvalLetterDownloadLabel}
+          file={letterFile}
+          t={t}
+          canUpload={canUploadDocuments}
+          required={canUploadDocuments}
+          saving={saving}
+          onDelete={() => onPaymentDocumentDelete?.("letter", letterFile)}
+          onEditManualLetter={onEditApprovalLetter}
+        />
+        <BillDocumentSlot
+          app={app}
+          label={billDownloadLabel}
+          file={billFile}
+          t={t}
+          canEdit={canUploadDocuments}
+          required={canUploadDocuments}
+          saving={saving}
+          onDelete={() => onPaymentDocumentDelete?.("bill", billFile)}
+          onEditManualBill={onEditBill}
+        />
+      </div>
+      {approvalPaymentDocumentError && (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium leading-5 text-red-700">
+          {approvalPaymentDocumentError}
+        </p>
+      )}
     </div>
   );
 
@@ -21505,6 +21664,8 @@ function PaymentDetails({
     },
   ];
 
+  const verificationDocumentError =
+    issueLicenseDocumentError || renewalCompletionDocumentError;
   const verificationDocumentSection = showVerificationUploads || showRenewalCompletionDocuments ? (
     <div className="space-y-2">
       <PaymentVerificationDocumentList
@@ -21512,9 +21673,9 @@ function PaymentDetails({
         saving={saving}
         documents={verificationDocuments}
       />
-      {renewalCompletionDocumentError && (
+      {verificationDocumentError && (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium leading-5 text-red-700">
-          {renewalCompletionDocumentError}
+          {verificationDocumentError}
         </p>
       )}
     </div>

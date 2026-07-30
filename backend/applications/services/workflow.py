@@ -1,10 +1,17 @@
-from rest_framework.exceptions import PermissionDenied
+from copy import deepcopy
+
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from applications.services.activity import get_user_workflow_department
 
 
 STAFF_ROLES = {"admin", "supervisor", "staff"}
 APPLICANT_EDITABLE_STATUSES = {"draft", "incomplete", "technical_amendment", "rejected"}
+IKL_TECHNICAL_REVIEW_STATUSES = {
+    "technical_review",
+    "technical_site_visit",
+    "technical_amendment",
+}
 
 
 def ensure_staff_can_update_workflow(application, user, request_data):
@@ -37,6 +44,15 @@ def ensure_staff_can_update_workflow(application, user, request_data):
     if requested_status == "technical_review_completed" and current_status == "mphlg_processing":
         if department != "MPHLG":
             raise PermissionDenied("Only MPHLG can return the application to KU(IKL) at this stage.")
+        return
+
+    if (
+        requested_status == "technical_review_completed"
+        and current_status in IKL_TECHNICAL_REVIEW_STATUSES
+    ):
+        if department != "IKL (TECHNICAL)":
+            raise PermissionDenied("Only IKL(TECHNICAL) can complete the technical review.")
+        ensure_ikl_technical_review_is_complete(application, request_data)
         return
 
     if requested_status in {"incomplete", "rejected"} and current_status == "mphlg_processing":
@@ -123,6 +139,118 @@ def is_management_support_memo_save(application, department, request_data):
         support_section.get("approval_note_html")
         or support_section.get("approval_note_saved_at")
     )
+
+
+def ensure_ikl_technical_review_is_complete(application, request_data):
+    form_data = merge_form_data(
+        getattr(application, "form_data", None) or {},
+        request_data.get("form_data") or {},
+    )
+    technical_site = get_section(form_data, "technical_site_visit")
+    technical_review = get_section(form_data, "technical_review")
+
+    if not has_site_photo(technical_site):
+        raise ValidationError({"technical_site_visit": "Site photo is required."})
+
+    rows = get_technical_site_rows(technical_site)
+    if not rows:
+        raise ValidationError({"technical_site_visit": "Advertisement size details are required."})
+
+    for row in rows:
+        width = parse_number(first_present(row.get("width_ft"), row.get("widthFt"), technical_site.get("width_ft")))
+        height = parse_number(first_present(row.get("height_ft"), row.get("heightFt"), technical_site.get("height_ft")))
+        subtype = first_present(row.get("subtype"), row.get("application_subtype"), technical_site.get("application_subtype"))
+        display_type = first_present(row.get("displayType"), row.get("display_type"))
+
+        if not subtype or not display_type:
+            raise ValidationError({"technical_site_visit": "Advertisement type details are required."})
+
+        if width <= 0 or height <= 0:
+            raise ValidationError({"technical_site_visit": "Advertisement width and height are required."})
+
+    payable_total = parse_number(technical_site.get("payable_total"))
+    fee_total = parse_number(technical_site.get("fee_total") or technical_site.get("license_fee_calculation"))
+    if payable_total <= 0 or fee_total <= 0:
+        raise ValidationError({"technical_site_visit": "Fee calculation is required."})
+
+    remarks = first_present(
+        technical_site.get("site_remarks"),
+        technical_review.get("comment"),
+        technical_review.get("remarks"),
+    )
+    if not remarks:
+        raise ValidationError({"technical_site_visit": "Site findings are required."})
+
+    if not has_digital_signature(technical_review.get("digital_signature")):
+        raise ValidationError({"technical_review": "Digital signature is required."})
+
+
+def merge_form_data(current, updates):
+    merged = deepcopy(current or {})
+
+    for key, value in (updates or {}).items():
+        if isinstance(merged.get(key), dict) and isinstance(value, dict):
+            merged[key] = merge_form_data(merged[key], value)
+        else:
+            merged[key] = value
+
+    return merged
+
+
+def get_section(form_data, key):
+    section = form_data.get(key) if isinstance(form_data, dict) else {}
+    return section if isinstance(section, dict) else {}
+
+
+def has_site_photo(technical_site):
+    photos = technical_site.get("site_photos")
+    if isinstance(photos, list) and any(is_document_reference(photo) for photo in photos):
+        return True
+
+    return is_document_reference(technical_site.get("site_photo"))
+
+
+def is_document_reference(value):
+    if not isinstance(value, dict):
+        return False
+
+    return any(value.get(key) for key in ("document_id", "url", "file_url", "file", "name"))
+
+
+def get_technical_site_rows(technical_site):
+    rows = technical_site.get("advertisement_rows")
+    if isinstance(rows, list):
+        return [row for row in rows if isinstance(row, dict)]
+
+    return [technical_site] if technical_site else []
+
+
+def parse_number(value):
+    text = str(value or "").strip()
+    if not text:
+        return 0
+
+    cleaned = "".join(char for char in text if char.isdigit() or char in ".-")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0
+
+
+def first_present(*values):
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in {"-", "[]"}:
+            return text
+
+    return ""
+
+
+def has_digital_signature(signature):
+    if not isinstance(signature, dict):
+        return False
+
+    return any(signature.get(key) for key in ("document_id", "url", "file_url", "file", "dataUrl", "drawDataUrl"))
 
 
 def ensure_applicant_can_update(application, user, request_data):

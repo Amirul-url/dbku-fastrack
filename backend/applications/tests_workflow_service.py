@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from django.test import SimpleTestCase
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from applications.services.workflow import (
     ensure_applicant_can_update,
@@ -140,6 +140,74 @@ class ApplicationWorkflowServiceTests(SimpleTestCase):
                 user("applicant"),
                 {"form_data": {"license_revocation_request": {"status": "pending"}}},
             )
+
+    def test_ikl_technical_cannot_complete_review_without_site_photo(self):
+        app = application(
+            "technical_site_visit",
+            form_data={
+                "technical_site_visit": {
+                    "application_subtype": "free_standing_billboard",
+                    "fee_total": "7600",
+                    "payable_total": "12610",
+                    "site_remarks": "Supported.",
+                    "advertisement_rows": [
+                        {
+                            "display_type": "non_led",
+                            "subtype": "free_standing_billboard",
+                            "width_ft": "11.7",
+                            "height_ft": "92",
+                        }
+                    ],
+                },
+                "technical_review": {
+                    "digital_signature": {"document_id": 1},
+                },
+            },
+        )
+
+        with self.assertRaises(ValidationError):
+            ensure_staff_can_update_workflow(
+                app,
+                user("admin", "IKL (TECHNICAL)"),
+                {
+                    "status": "technical_review_completed",
+                    "form_data": app.form_data,
+                },
+            )
+
+    def test_ikl_technical_can_complete_review_when_site_visit_is_complete(self):
+        app = application(
+            "technical_site_visit",
+            form_data={
+                "technical_site_visit": {
+                    "site_photos": [{"document_id": 1, "name": "site.jpg"}],
+                    "application_subtype": "free_standing_billboard",
+                    "fee_total": "7600",
+                    "payable_total": "12610",
+                    "site_remarks": "Supported.",
+                    "advertisement_rows": [
+                        {
+                            "display_type": "non_led",
+                            "subtype": "free_standing_billboard",
+                            "width_ft": "11.7",
+                            "height_ft": "92",
+                        }
+                    ],
+                },
+                "technical_review": {
+                    "digital_signature": {"document_id": 1},
+                },
+            },
+        )
+
+        ensure_staff_can_update_workflow(
+            app,
+            user("admin", "IKL (TECHNICAL)"),
+            {
+                "status": "technical_review_completed",
+                "form_data": app.form_data,
+            },
+        )
 
     def test_applicant_cannot_update_submitted_application_form(self):
         with self.assertRaises(PermissionDenied):
